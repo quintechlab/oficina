@@ -36,8 +36,8 @@ Requisitos: `gh` instalado y autenticado (`gh auth login`) con los permisos `rep
 ## Primera vez
 
 1. Quien instala primero corre `/oficina init`: crea el repositorio privado de datos (`quintechlab/oficina-datos`) y el Issue "Presencia".
-2. Invita al otro integrante como colaborador de ese repositorio (el comando lo imprime `init`).
-3. Cada uno, en `/config`, completa la opción **Nombres visibles** con los dos usuarios: `nicoequintana=Quintana,<usuario>=Campos`.
+2. Si el otro integrante no es owner de la organización, invitarlo como colaborador de ese repositorio (el comando lo imprime `init`).
+3. Cada uno, en `/config`, completa la opción **Nombres visibles** con los dos usuarios: `nicoequintana=Quintana,NCsolucionesdigitales=Campos` (ya viene así por defecto).
 
 A partir de ahí el panel se abre solo al iniciar cada sesión.
 
@@ -59,7 +59,7 @@ A partir de ahí el panel se abre solo al iniciar cada sesión.
 | Repositorio de datos | `quintechlab/oficina-datos` | Dónde vive el Issue "Presencia" |
 | Issue de presencia | `1` | Número de ese Issue |
 | Intervalo | `60` | Segundos entre consultas a GitHub |
-| Nombres visibles | `nicoequintana=Quintana` | Usuario de GitHub → nombre que se muestra |
+| Nombres visibles | `nicoequintana=Quintana,NCsolucionesdigitales=Campos` | Usuario de GitHub → nombre que se muestra |
 
 ## Cómo detecta la tarea
 

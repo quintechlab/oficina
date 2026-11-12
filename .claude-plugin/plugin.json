@@ -29,7 +29,7 @@
       "type": "string",
       "title": "Nombres visibles",
       "description": "Nombre visible de cada usuario de GitHub, separado por comas: usuario=Nombre,otro=Nombre.",
-      "default": "nicoequintana=Quintana"
+      "default": "nicoequintana=Quintana,NCsolucionesdigitales=Campos"
     }
   }
 }
