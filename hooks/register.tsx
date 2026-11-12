@@ -336,10 +336,12 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'oficina', description: 'Oficina Quintech: quién trabaja en qué', argumentHint: '[tarea N | nota texto | fuera | volver | init]' })
     const resultado = await next(e)
-    if (e.isInteractive) {
-      void $.ui.open({ id: PANE, title: TITULO })
-      void arrancar($)
-    }
+    // Siempre, no solo si `isInteractive`: la sesión de la app de escritorio llega como SDK (false).
+    void (async () => {
+      const abierto = await $.ui.open({ id: PANE, title: TITULO }).catch(() => ({ isPlaced: false }))
+      if (!abierto.isPlaced) $.ui.toast('Oficina: escribí /oficina para abrir el panel', { timeoutMs: 8000 })
+    })()
+    void arrancar($)
     return resultado
   })
 
