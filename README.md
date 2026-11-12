@@ -24,18 +24,18 @@ Además avisa con un mensaje breve cuando el otro arranca una tarea, abre un PR,
 En una terminal con Claude Code:
 
 ```
-/plugin install oficina --marketplace QuintechLabs/oficina
+/plugin install oficina --marketplace quintechlab/oficina
 ```
 
-Responder `y` para agregar el marketplace y elegir el alcance de usuario. En la aplicación de escritorio: `+` junto al cuadro de texto → Plugins → Add marketplace con `QuintechLabs/oficina` → Add plugin.
+Responder `y` para agregar el marketplace y elegir el alcance de usuario. En la aplicación de escritorio: `+` junto al cuadro de texto → Plugins → Add marketplace con `quintechlab/oficina` → Add plugin.
 
-Desde una shell: `claude plugin install oficina --marketplace QuintechLabs/oficina`.
+Desde una shell: `claude plugin install oficina --marketplace quintechlab/oficina`.
 
 Requisitos: `gh` instalado y autenticado (`gh auth login`) con los permisos `repo` y `project` (`gh auth refresh -s project` si falta). Para los datos del tablero hace falta ser miembro de la organización.
 
 ## Primera vez
 
-1. Quien instala primero corre `/oficina init`: crea el repositorio privado de datos (`QuintechLabs/oficina-datos`) y el Issue "Presencia".
+1. Quien instala primero corre `/oficina init`: crea el repositorio privado de datos (`quintechlab/oficina-datos`) y el Issue "Presencia".
 2. Invita al otro integrante como colaborador de ese repositorio (el comando lo imprime `init`).
 3. Cada uno, en `/config`, completa la opción **Nombres visibles** con los dos usuarios: `nicoequintana=Quintana,<usuario>=Campos`.
 
@@ -56,7 +56,7 @@ A partir de ahí el panel se abre solo al iniciar cada sesión.
 
 | Opción | Por defecto | Para qué |
 |---|---|---|
-| Repositorio de datos | `QuintechLabs/oficina-datos` | Dónde vive el Issue "Presencia" |
+| Repositorio de datos | `quintechlab/oficina-datos` | Dónde vive el Issue "Presencia" |
 | Issue de presencia | `1` | Número de ese Issue |
 | Intervalo | `60` | Segundos entre consultas a GitHub |
 | Nombres visibles | `nicoequintana=Quintana` | Usuario de GitHub → nombre que se muestra |

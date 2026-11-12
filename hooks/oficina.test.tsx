@@ -40,7 +40,7 @@ function presencia(extra: Partial<Presencia>): Presencia {
     usuario: 'campos',
     nombre: 'Campos',
     estado: 'trabajando',
-    repo: 'QuintechLabs/catalogo',
+    repo: 'quintechlab/catalogo',
     rama: 'feat/51-carrito',
     tarea: 51,
     nota: null,
@@ -79,8 +79,8 @@ test('el talle se lee del cuerpo del Issue del formulario', async () => {
 })
 
 test('el repositorio se deduce del remoto ssh o https', async () => {
-  expect(repoDesdeRemoto('git@github.com:QuintechLabs/catalogo.git')).toBe('QuintechLabs/catalogo')
-  expect(repoDesdeRemoto('https://github.com/QuintechLabs/catalogo')).toBe('QuintechLabs/catalogo')
+  expect(repoDesdeRemoto('git@github.com:quintechlab/catalogo.git')).toBe('quintechlab/catalogo')
+  expect(repoDesdeRemoto('https://github.com/quintechlab/catalogo')).toBe('quintechlab/catalogo')
   expect(repoDesdeRemoto('https://gitlab.com/x/y.git')).toBe(null)
 })
 
@@ -145,7 +145,7 @@ test('choques: archivos en común en el mismo repositorio', async () => {
   const otro = miembro({})
   expect(choques([yo, otro], 'nicoequintana')).toEqual([{ con: 'Campos', archivos: ['src/carrito.ts'] }])
   expect(archivosEnComun(['a', 'b'], ['b', 'c'])).toEqual(['b'])
-  const otroRepo = miembro({ presencia: { repo: 'QuintechLabs/web' } })
+  const otroRepo = miembro({ presencia: { repo: 'quintechlab/web' } })
   expect(choques([yo, otroRepo], 'nicoequintana')).toEqual([])
 })
 
@@ -158,7 +158,7 @@ test('el panel dibuja a cada integrante con su tarea, en cada superficie', async
   on('state.get', (_, e) =>
     e.key === 'miembros'
       ? { value: { value: { shape: 'miembros-1', value: lista }, version: 1 } }
-      : { value: { value: { yo: 'nicoequintana', error: null, actualizado: AHORA, datos: 'QuintechLabs/oficina-datos' }, version: 1 } },
+      : { value: { value: { yo: 'nicoequintana', error: null, actualizado: AHORA, datos: 'quintechlab/oficina-datos' }, version: 1 } },
   )
 
   for (const surface of ['terminal', 'desktop'] as const) {

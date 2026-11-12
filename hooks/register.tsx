@@ -327,7 +327,7 @@ const AYUDA = [
 
 export const register: Register = (on, options) => {
   config = {
-    datos: String(options.datos ?? 'QuintechLabs/oficina-datos'),
+    datos: String(options.datos ?? 'quintechlab/oficina-datos'),
     issue: Number(options.issue ?? 1) || 1,
     intervalo: Number(options.intervalo ?? 60) || 60,
     nombres: mapaNombres(String(options.nombres ?? '')),

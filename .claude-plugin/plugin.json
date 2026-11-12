@@ -11,7 +11,7 @@
       "type": "string",
       "title": "Repositorio de datos",
       "description": "Repositorio privado donde se guarda la presencia (owner/repo). Se crea con /oficina init.",
-      "default": "QuintechLabs/oficina-datos"
+      "default": "quintechlab/oficina-datos"
     },
     "issue": {
       "type": "number",
