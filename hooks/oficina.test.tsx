@@ -1,17 +1,21 @@
 import { expect, test } from 'claude-code/testing'
 
-import type { Miembro, Presencia } from '../types'
+import type { ComentarioPresencia, Miembro, Presencia } from '../types'
 import {
+  archivosDesdeStatus,
   archivosEnComun,
   choques,
   ciDesdeRollup,
   diferencias,
-  envolverPresencia,
+  elegirPrincipal,
+  envolverComentario,
   estadoVisible,
-  extraerPresencia,
+  extraerComentario,
   formatoDuracion,
   iniciales,
   mapaNombres,
+  ponerSesion,
+  quitarSesion,
   repoDesdeRemoto,
   restante,
   talleDesdeCuerpo,
@@ -37,6 +41,7 @@ const AHORA = '2026-11-12T17:00:00.000Z'
 function presencia(extra: Partial<Presencia>): Presencia {
   return {
     v: 1,
+    sesion: 'sesion-1',
     usuario: 'campos',
     nombre: 'Campos',
     estado: 'trabajando',
@@ -56,6 +61,7 @@ function miembro(extra: Omit<Partial<Miembro>, 'presencia'> & { presencia?: Part
   const { presencia: parcial, ...resto } = extra
   return {
     presencia: presencia(parcial ?? {}),
+    otras: [],
     tarea: { numero: 51, titulo: 'Carrito de compras', talle: 'M', abierta: true, url: '', horasRegistradas: 3, estadoTablero: 'En progreso' },
     prs: [],
     ultimoCommit: null,
@@ -84,11 +90,88 @@ test('el repositorio se deduce del remoto ssh o https', async () => {
   expect(repoDesdeRemoto('https://gitlab.com/x/y.git')).toBe(null)
 })
 
-test('la presencia sobrevive el viaje de ida y vuelta por el comentario', async () => {
-  const p = presencia({ nota: 'viendo el bug del login' })
-  const leida = extraerPresencia(envolverPresencia(p))
-  expect(leida).toEqual(p)
-  expect(extraerPresencia('un comentario cualquiera')).toBe(null)
+test('el comentario sobrevive ida y vuelta, y el formato v1 se lee como una sola sesión', async () => {
+  const ahora = Date.parse(AHORA)
+  const c = ponerSesion(null, presencia({ nota: 'viendo el bug del login' }), ahora)
+  expect(extraerComentario(envolverComentario(c))).toEqual(c)
+  expect(extraerComentario('un comentario cualquiera')).toBe(null)
+
+  // Lo que publicaban las versiones 0.1 y 0.2: un solo estado, sin id de sesión
+  const v1: Record<string, unknown> = { ...presencia({}) }
+  delete v1.sesion
+  const cuerpo = (d: Record<string, unknown>) => `<!-- oficina:presencia -->\n\`\`\`json\n${JSON.stringify(d)}\n\`\`\``
+  const leido = extraerComentario(cuerpo(v1))
+  expect(leido?.sesiones.map(s => s.sesion)).toEqual(['v1'])
+  expect(leido?.ausente).toBe(false)
+  expect(elegirPrincipal(leido as ComentarioPresencia, ahora).presencia.tarea).toBe(51)
+  const fuera = extraerComentario(cuerpo({ ...v1, estado: 'fuera' }))
+  expect(fuera?.sesiones).toEqual([])
+  expect(fuera?.ausente).toBe(true)
+  // La primera publicación con el formato nuevo descarta la entrada heredada
+  const crm = presencia({ sesion: 'crm' })
+  expect(ponerSesion(leido, crm, ahora).sesiones.map(s => s.sesion)).toEqual(['crm'])
+})
+
+test('cada sesión escribe su entrada sin pisar las otras', async () => {
+  const ahora = Date.parse(AHORA)
+  const quintana = { usuario: 'nicoequintana', nombre: 'Quintana' }
+  const crm = presencia({ ...quintana, sesion: 'crm', repo: 'nicoequintana/quintech-crm', rama: 'feat/34-bandeja', tarea: 34 })
+  // Esta sesión publicó después, pero no está en un repositorio
+  const playbook = presencia({ ...quintana, sesion: 'playbook', repo: null, rama: null, tarea: null, archivos: [], actualizado: '2026-11-12T17:00:30.000Z' })
+  let c = ponerSesion(null, crm, ahora)
+  c = ponerSesion(c, playbook, ahora)
+  expect(c.sesiones.map(s => s.sesion)).toEqual(['crm', 'playbook'])
+  // Se muestra la sesión del CRM: está en un repo y con tarea. La del playbook no se lista aparte.
+  expect(elegirPrincipal(c, ahora).presencia.sesion).toBe('crm')
+  expect(elegirPrincipal(c, ahora).otras).toEqual([])
+  // Volver a publicar la misma sesión reemplaza su entrada, no agrega otra
+  c = ponerSesion(c, { ...crm, rama: 'feat/35-filtros', tarea: 35 }, ahora)
+  expect(c.sesiones.filter(s => s.sesion === 'crm').map(s => s.tarea)).toEqual([35])
+  // Cerrar el playbook no saca a la persona de la oficina
+  c = quitarSesion(c, 'playbook', AHORA)
+  expect(elegirPrincipal(c, ahora).presencia.estado).toBe('trabajando')
+  expect(elegirPrincipal(c, ahora).presencia.tarea).toBe(35)
+  // Cerrar la última sí
+  c = quitarSesion(c, 'crm', AHORA)
+  expect(elegirPrincipal(c, ahora).presencia.estado).toBe('fuera')
+})
+
+test('otra sesión activa en otro repositorio se lista aparte', async () => {
+  const ahora = Date.parse(AHORA)
+  const crm = presencia({ sesion: 'crm', repo: 'nicoequintana/quintech-crm', tarea: 34 })
+  const web = presencia({ sesion: 'web', repo: 'quintechlab/web', tarea: 8, actualizado: '2026-11-12T16:59:00.000Z' })
+  const elegida = elegirPrincipal(ponerSesion(ponerSesion(null, crm, ahora), web, ahora), ahora)
+  expect(elegida.presencia.sesion).toBe('crm')
+  expect(elegida.otras.map(o => o.sesion)).toEqual(['web'])
+})
+
+test('/oficina fuera vale para la persona aunque tenga sesiones abiertas', async () => {
+  const ahora = Date.parse(AHORA)
+  const crm = presencia({ sesion: 'crm' })
+  let c = ponerSesion(null, crm, ahora, { ausente: true })
+  expect(elegirPrincipal(c, ahora).presencia.estado).toBe('fuera')
+  // El latido de otra sesión no la devuelve a la oficina
+  c = ponerSesion(c, crm, ahora)
+  expect(elegirPrincipal(c, ahora).presencia.estado).toBe('fuera')
+  // /oficina volver, o abrir una sesión nueva, sí
+  c = ponerSesion(c, crm, ahora, { ausente: false })
+  expect(elegirPrincipal(c, ahora).presencia.estado).toBe('trabajando')
+})
+
+test('una sesión colgada hace más de 12 h se descarta', async () => {
+  const ahora = Date.parse(AHORA)
+  const colgada = presencia({ sesion: 'colgada', actualizado: '2026-11-12T04:00:00.000Z' })
+  const c: ComentarioPresencia = { v: 2, usuario: 'campos', nombre: 'Campos', ausente: false, actualizado: colgada.actualizado, sesiones: [colgada] }
+  expect(elegirPrincipal(c, ahora).presencia.estado).toBe('fuera')
+  expect(ponerSesion(c, presencia({ sesion: 'nueva' }), ahora).sesiones.map(s => s.sesion)).toEqual(['nueva'])
+})
+
+test('los archivos sin commitear salen de git status', async () => {
+  expect(archivosDesdeStatus(' M src/a.ts\n?? src/nuevo.ts\nR  viejo.ts -> src/renombrado.ts\r\n\n')).toEqual([
+    'src/a.ts',
+    'src/nuevo.ts',
+    'src/renombrado.ts',
+  ])
 })
 
 test('duración, iniciales, nombres y CI', async () => {
@@ -151,13 +234,13 @@ test('choques: archivos en común en el mismo repositorio', async () => {
 
 test('el panel dibuja a cada integrante con su tarea, en cada superficie', async ($, on) => {
   const lista = [
-    miembro({ esYo: true, presencia: { usuario: 'nicoequintana', nombre: 'Quintana', rama: 'feat/60-cupones', tarea: 60, archivos: ['src/carrito.ts'] }, tarea: { numero: 60, titulo: 'Cupones', talle: 'S', abierta: true, url: '', horasRegistradas: null, estadoTablero: null } }),
+    miembro({ esYo: true, otras: [presencia({ sesion: 'web', usuario: 'nicoequintana', nombre: 'Quintana', repo: 'quintechlab/web', tarea: 8 })], presencia: { usuario: 'nicoequintana', nombre: 'Quintana', rama: 'feat/60-cupones', tarea: 60, archivos: ['src/carrito.ts'] }, tarea: { numero: 60, titulo: 'Cupones', talle: 'S', abierta: true, url: '', horasRegistradas: null, estadoTablero: null } }),
     miembro({ prs: [{ numero: 10, titulo: 'Carrito', url: '', ci: 'ok', borrador: false }] }),
   ]
   on('clock.now', () => ({ value: Date.parse(AHORA) }))
   on('state.get', (_, e) =>
     e.key === 'miembros'
-      ? { value: { value: { shape: 'miembros-1', value: lista }, version: 1 } }
+      ? { value: { value: { shape: 'miembros-2', value: lista }, version: 1 } }
       : { value: { value: { yo: 'nicoequintana', error: null, actualizado: AHORA, datos: 'quintechlab/oficina-datos' }, version: 1 } },
   )
 
@@ -167,9 +250,12 @@ test('el panel dibuja a cada integrante con su tarea, en cada superficie', async
       // Sin SVG: la cabecera es texto
       expect((await ui.find({ type: 'Text', text: /Quintana/ }))?.text).toContain('Quintana')
     } else {
-      // Con SVG: nombre y estado viven en la cabecera dibujada; su `alt` los repite
-      expect(String((await ui.find({ type: 'Svg' }))?.props.alt)).toContain('Quintana (vos), trabajando')
+      // Con SVG: nombre y estado viven en la cabecera dibujada; su `alt` los repite, sin el tiempo
+      expect(String((await ui.find({ type: 'Svg' }))?.props.alt)).toBe('Quintana (vos), trabajando')
     }
+    // El tiempo va en texto, fuera del SVG, para que el dibujo no se recargue cada minuto
+    expect((await ui.find({ type: 'Text', text: /lleva/ }))?.text).toContain('lleva 1 h 20 min')
+    expect((await ui.find({ type: 'Text', text: /también en/ }))?.text).toContain('web #8')
     expect((await ui.find({ type: 'Text', text: /Carrito de compras/ }))?.text).toContain('#51')
     expect((await ui.find({ type: 'Text', text: /PR #10/ }))?.text).toContain('Carrito')
     expect((await ui.find({ type: 'Text', text: /toca lo mismo/ }))?.text).toContain('src/carrito.ts')

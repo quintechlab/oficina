@@ -7,14 +7,18 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Info, Miembro, Pr, Presencia, Tarea } from '../types'
+import type { ComentarioPresencia, Info, Miembro, Pr, Presencia, Tarea } from '../types'
 import {
   ciDesdeRollup,
   choques,
   diferencias,
   estadoVisible,
-  extraerPresencia,
-  envolverPresencia,
+  archivosDesdeStatus,
+  elegirPrincipal,
+  envolverComentario,
+  extraerComentario,
+  ponerSesion,
+  quitarSesion,
   fechaCorta,
   formatoDuracion,
   horaLocal,
@@ -38,7 +42,7 @@ const GRIS_CLARO = '#9AA0AC'
 const ACENTOS = [AMARILLO, '#7FB3FF', '#8FD694', '#E78FB3']
 
 // Cambiar el tag cuando cambie la forma de Miembro: descarta lo guardado por una versión anterior.
-const miembros = atom({ plugin: 'oficina', key: 'miembros' } as const, [] as Miembro[], { shape: 'miembros-1' })
+const miembros = atom({ plugin: 'oficina', key: 'miembros' } as const, [] as Miembro[], { shape: 'miembros-2' })
 const info = atom({ plugin: 'oficina', key: 'info' } as const, {
   yo: null,
   error: null,
@@ -48,8 +52,9 @@ const info = atom({ plugin: 'oficina', key: 'info' } as const, {
 
 type Config = { datos: string; issue: number; intervalo: number; nombres: Record<string, string> }
 type Yo = { login: string; nombre: string }
-type Ajustes = { tarea?: number; nota?: string }
-type Sesion = { clave: string; inicio: string }
+// $.store es de la máquina, compartido por todas las sesiones abiertas: lo propio de cada sesión va por su id.
+type Ajustes = { tareas?: Record<string, number>; nota?: string }
+type Inicio = { clave: string; inicio: string; en: number }
 
 // Variables del módulo: arrancan de cero en cada recarga; lo durable va a $.store.
 let config: Config
@@ -105,33 +110,53 @@ async function leerLocal($: EngineInterface): Promise<Local> {
       break
     }
   }
+  // Lo que todavía no se commiteó también cuenta para avisar un choque
+  const pendientes = archivosDesdeStatus(await git($, ['status', '--porcelain'], cwd))
+  archivos = [...new Set([...archivos, ...pendientes])].slice(0, 40)
   return { repo, rama, archivos }
 }
 
-async function miComentario($: EngineInterface, login: string): Promise<number | null> {
+type Mio = { id: number; comentario: ComentarioPresencia } | null
+
+async function miComentario($: EngineInterface, login: string): Promise<Mio> {
   const lista = await ghJson<Array<{ id: number; body: string; user: { login: string } }>>($, [
     'api',
     `repos/${config.datos}/issues/${config.issue}/comments?per_page=100`,
   ])
-  const mio = lista.find(c => c.user.login.toLowerCase() === login.toLowerCase() && extraerPresencia(c.body))
-  return mio ? mio.id : null
+  for (const c of lista) {
+    if (c.user.login.toLowerCase() !== login.toLowerCase()) continue
+    const comentario = extraerComentario(c.body)
+    if (comentario) return { id: c.id, comentario }
+  }
+  return null
 }
 
-/** Publica mi presencia en mi comentario del Issue (lo crea la primera vez). */
-async function publicar($: EngineInterface, estado: Presencia['estado'], forzar = false): Promise<void> {
+async function escribirComentario($: EngineInterface, mio: Mio, comentario: ComentarioPresencia): Promise<void> {
+  const cuerpo = envolverComentario(comentario)
+  if (mio) await gh($, ['api', '-X', 'PATCH', `repos/${config.datos}/issues/comments/${mio.id}`, '-f', `body=${cuerpo}`])
+  else await gh($, ['api', '-X', 'POST', `repos/${config.datos}/issues/${config.issue}/comments`, '-f', `body=${cuerpo}`])
+}
+
+/**
+ * Publica el estado de ESTA sesión dentro de mi comentario, sin tocar las entradas de mis otras
+ * sesiones abiertas: cada una escribe la suya. `ausente` cambia el "me fui" de la persona.
+ */
+async function publicar($: EngineInterface, forzar = false, ausente?: boolean): Promise<void> {
   const quien = await obtenerYo($)
   const local = await leerLocal($)
+  const sesion = await $.session.id()
   const ajustes = ((await $.store.get('ajustes')) as Ajustes | undefined) ?? {}
-  const tarea = ajustes.tarea ?? tareaDesdeRama(local.rama)
+  const tarea = ajustes.tareas?.[sesion] ?? tareaDesdeRama(local.rama)
   const ahoraMs = await $.clock.now()
   const ahora = new Date(ahoraMs).toISOString()
 
   const clave = `${local.repo ?? '-'}#${tarea ?? '-'}`
-  let sesion = (await $.store.get('sesion')) as Sesion | undefined
-  if (!sesion || sesion.clave !== clave) {
-    sesion = { clave, inicio: ahora }
-    await $.store.set('sesion', sesion)
-  }
+  const inicios = ((await $.store.get('inicios')) as Record<string, Inicio> | undefined) ?? {}
+  const previo = inicios[sesion]
+  const inicio = previo && previo.clave === clave ? previo.inicio : ahora
+  inicios[sesion] = { clave, inicio, en: ahoraMs }
+  for (const [id, v] of Object.entries(inicios)) if (ahoraMs - v.en > 24 * 3600000) delete inicios[id]
+  await $.store.set('inicios', inicios)
   const tareas = ((await $.store.get('tareas')) as Record<string, string> | undefined) ?? {}
   if (tarea && !tareas[clave]) {
     tareas[clave] = ahora
@@ -140,26 +165,34 @@ async function publicar($: EngineInterface, estado: Presencia['estado'], forzar 
 
   const p: Presencia = {
     v: 1,
+    sesion,
     usuario: quien.login,
     nombre: quien.nombre,
-    estado,
+    estado: 'trabajando',
     repo: local.repo,
     rama: local.rama,
     tarea,
     nota: ajustes.nota ?? null,
-    inicio: estado === 'fuera' ? null : sesion.inicio,
+    inicio,
     tareaDesde: tarea ? (tareas[clave] ?? null) : null,
     actualizado: ahora,
     archivos: local.archivos,
   }
   // Sin cambios de fondo desde la última vez: no gastar llamadas (el latido igual publica cada 5 min)
-  const huella = JSON.stringify({ ...p, actualizado: '' })
+  const huella = JSON.stringify({ ...p, actualizado: '', ausente })
   if (!forzar && huella === ultimaPublicacion) return
-  const cuerpo = envolverPresencia(p)
-  const id = await miComentario($, quien.login)
-  if (id) await gh($, ['api', '-X', 'PATCH', `repos/${config.datos}/issues/comments/${id}`, '-f', `body=${cuerpo}`])
-  else await gh($, ['api', '-X', 'POST', `repos/${config.datos}/issues/${config.issue}/comments`, '-f', `body=${cuerpo}`])
+  const mio = await miComentario($, quien.login)
+  await escribirComentario($, mio, ponerSesion(mio?.comentario ?? null, p, ahoraMs, { ausente }))
   ultimaPublicacion = huella
+}
+
+/** Saca la entrada de una sesión al cerrarla; mis otras sesiones abiertas siguen publicando la suya. */
+async function retirar($: EngineInterface, sesion: string): Promise<void> {
+  const quien = await obtenerYo($)
+  const mio = await miComentario($, quien.login)
+  if (!mio) return
+  const ahora = new Date(await $.clock.now()).toISOString()
+  await escribirComentario($, mio, quitarSesion(mio.comentario, sesion, ahora))
 }
 
 // ------------------------------------------------------------------ qué hacen los demás
@@ -240,14 +273,16 @@ async function refrescar($: EngineInterface): Promise<void> {
     ])
     const lista: Miembro[] = []
     for (const c of comentarios) {
-      const p = extraerPresencia(c.body)
-      if (!p) continue
-      const nombre = config.nombres[p.usuario.toLowerCase()] ?? p.nombre
-      const presencia: Presencia = { ...p, nombre }
+      const comentario = extraerComentario(c.body)
+      if (!comentario) continue
+      const elegida = elegirPrincipal(comentario, ahoraMs)
+      const nombre = config.nombres[comentario.usuario.toLowerCase()] ?? comentario.nombre
+      const presencia: Presencia = { ...elegida.presencia, nombre }
+      const otras = elegida.otras.map(o => ({ ...o, nombre }))
       const tarea = presencia.repo && presencia.tarea ? await leerTarea($, presencia.repo, presencia.tarea, ahoraMs) : null
       const prs = presencia.repo ? await leerPrs($, presencia.repo, presencia.usuario) : []
       const ultimoCommit = presencia.repo ? await leerUltimoCommit($, presencia.repo, presencia.usuario) : null
-      lista.push({ presencia, tarea, prs, ultimoCommit, esYo: !!quien && presencia.usuario.toLowerCase() === quien.login.toLowerCase() })
+      lista.push({ presencia, otras, tarea, prs, ultimoCommit, esYo: !!quien && presencia.usuario.toLowerCase() === quien.login.toLowerCase() })
     }
     const ordenada = ordenar(lista)
     const antes = await read($, miembros)
@@ -271,10 +306,9 @@ async function refrescar($: EngineInterface): Promise<void> {
 
 // ------------------------------------------------------------------ arranque y comandos
 async function arrancar($: EngineInterface): Promise<void> {
-  await $.store.set('sesion', undefined as unknown as Sesion).catch(() => undefined)
-  await $.store.delete('sesion').catch(() => undefined)
+  await $.store.delete('sesion').catch(() => undefined) // clave de la v0.2, compartida entre sesiones
   try {
-    await publicar($, 'trabajando', true)
+    await publicar($, true, false) // abrir una sesión es volver a la oficina
   } catch (err) {
     await update($, info, i => ({ ...i, error: err instanceof Error ? err.message : String(err), datos: config.datos }))
   }
@@ -283,7 +317,7 @@ async function arrancar($: EngineInterface): Promise<void> {
     void refrescar($)
   })
   $.clock.every(5 * 60000, () => {
-    void publicar($, 'trabajando', true).catch(() => undefined)
+    void publicar($, true).catch(() => undefined)
   })
 }
 
@@ -358,31 +392,32 @@ export const register: Register = (on, options) => {
         return { text: AYUDA }
       case 'tarea': {
         if (!argumento || argumento === 'auto') {
-          delete ajustes.tarea
+          const sesion = await $.session.id()
+          if (ajustes.tareas) delete ajustes.tareas[sesion]
           await $.store.set('ajustes', ajustes)
-          await publicar($, 'trabajando', true).catch(() => undefined)
+          await publicar($, true).catch(() => undefined)
           return { text: 'Tarea: se detecta por la rama.' }
         }
         const n = Number(argumento.replace('#', ''))
         if (!Number.isInteger(n) || n <= 0) return { text: 'Uso: /oficina tarea 42' }
-        ajustes.tarea = n
+        ajustes.tareas = { ...(ajustes.tareas ?? {}), [await $.session.id()]: n }
         await $.store.set('ajustes', ajustes)
-        await publicar($, 'trabajando', true).catch(() => undefined)
-        return { text: `Tarea fijada: #${n}.` }
+        await publicar($, true).catch(() => undefined)
+        return { text: `Tarea fijada en esta sesión: #${n}.` }
       }
       case 'nota': {
         if (!argumento || argumento === '-') delete ajustes.nota
         else ajustes.nota = argumento.slice(0, 140)
         await $.store.set('ajustes', ajustes)
-        await publicar($, 'trabajando', true).catch(() => undefined)
+        await publicar($, true).catch(() => undefined)
         return { text: ajustes.nota ? `Nota publicada: ${ajustes.nota}` : 'Nota borrada.' }
       }
       case 'fuera':
-        await publicar($, 'fuera', true).catch(() => undefined)
+        await publicar($, true, true).catch(() => undefined)
         await refrescar($)
-        return { text: 'Marcado como fuera.' }
+        return { text: 'Marcado como fuera, en todas tus sesiones, hasta /oficina volver.' }
       case 'volver':
-        await publicar($, 'trabajando', true).catch(() => undefined)
+        await publicar($, true, false).catch(() => undefined)
         await refrescar($)
         return { text: 'Marcado como trabajando.' }
       case 'init':
@@ -399,12 +434,13 @@ export const register: Register = (on, options) => {
   // Cambio de rama con git: la tarea puede haber cambiado.
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const resultado = await next(e)
-    if (e.tool === 'Bash' && /\bgit\s+(switch|checkout)\b/.test(e.command)) void publicar($, 'trabajando').catch(() => undefined)
+    if (e.tool === 'Bash' && /\bgit\s+(switch|checkout)\b/.test(e.command)) void publicar($).catch(() => undefined)
     return resultado
   }).catch((_$, e, next) => next(e)) // nunca bloquea un comando: si el mod falla, el comando sigue
 
   on('session.end', async ($, e, next) => {
-    if (e.reason !== 'clear') await publicar($, 'fuera', true).catch(() => undefined)
+    // Solo la entrada de esta sesión. Tras un /clear la sesión nueva vuelve a publicar en el próximo latido.
+    await retirar($, e.sessionId).catch(() => undefined)
     return next(e)
   })
 
@@ -430,10 +466,16 @@ export const register: Register = (on, options) => {
       const p = m.presencia
       const ev = estadoVisible(p, ahoraMs)
       const punto = ev === 'activo' ? '#3FB950' : ev === 'inactivo' ? AMARILLO : GRIS_CLARO
-      const estadoTexto = ev === 'activo' ? 'trabajando' : ev === 'inactivo' ? `sin señales hace ${formatoDuracion(ahoraMs - new Date(p.actualizado).getTime())}` : 'fuera'
-      const tiempo = ev !== 'fuera' && p.inicio ? ` · desde ${horaLocal(p.inicio)} · lleva ${formatoDuracion(ahoraMs - new Date(p.inicio).getTime())}` : ''
+      // El SVG se vuelve a cargar cada vez que cambia su texto, y mientras carga la superficie muestra
+      // el `alt`: por eso adentro va solo lo que casi no cambia, y el tiempo, que cambia cada minuto, va abajo.
+      const estadoCorto = ev === 'activo' ? 'trabajando' : ev === 'inactivo' ? 'sin señales' : 'fuera'
+      const desde = p.inicio ? `desde ${horaLocal(p.inicio)} · lleva ${formatoDuracion(ahoraMs - new Date(p.inicio).getTime())}` : ''
+      const detalle =
+        ev === 'activo' ? desde
+          : ev === 'inactivo' ? `sin señales hace ${formatoDuracion(ahoraMs - new Date(p.actualizado).getTime())}${desde ? ` · ${desde}` : ''}`
+            : `última señal ${fechaCorta(p.actualizado)} ${horaLocal(p.actualizado)}`
       const ini = iniciales(p.nombre)
-      const alt = `${p.nombre}${m.esYo ? ' (vos)' : ''}, ${estadoTexto}${tiempo}`
+      const alt = `${p.nombre}${m.esYo ? ' (vos)' : ''}, ${estadoCorto}`
       if (Svg) {
         const fuente =
           `<svg xmlns="http://www.w3.org/2000/svg" width="364" height="92" viewBox="0 0 364 92" font-family="Segoe UI, Manrope, Helvetica, Arial, sans-serif">` +
@@ -444,10 +486,15 @@ export const register: Register = (on, options) => {
           `<text x="84" y="40" font-size="17" font-weight="700" fill="#F3F4F6">${escapar(recortar(p.nombre, 18))}` +
           (m.esYo ? `<tspan fill="#8B909C" font-weight="400" font-size="13"> (vos)</tspan>` : '') +
           `</text>` +
-          `<text x="84" y="62" font-size="12.5" fill="${punto}">● ${escapar(estadoTexto)}<tspan fill="#8B909C">${escapar(tiempo)}</tspan></text>` +
+          `<text x="84" y="62" font-size="12.5" fill="${punto}">● ${escapar(estadoCorto)}</text>` +
           `<line x1="16" y1="84" x2="348" y2="84" stroke="#2A2D35" stroke-width="1"/>` +
           `</svg>`
-        return <Svg source={fuente} alt={alt} />
+        return (
+          <Box flexDirection="column">
+            <Svg source={fuente} alt={alt} width={364} height={92} />
+            {detalle ? <Text dimColor>{SANGRIA}{detalle}</Text> : null}
+          </Box>
+        )
       }
       return (
         <Box flexDirection="column">
@@ -458,7 +505,7 @@ export const register: Register = (on, options) => {
           </Text>
           <Text>
             {SANGRIA}<Text color={punto}>{ev === 'activo' ? '●' : ev === 'inactivo' ? '◐' : '○'}</Text>
-            <Text color={punto}> {estadoTexto}</Text><Text dimColor>{tiempo}</Text>
+            <Text color={punto}> {estadoCorto}</Text><Text dimColor>{detalle ? ` · ${detalle}` : ''}</Text>
           </Text>
           <Text dimColor>{SANGRIA}{'─'.repeat(34)}</Text>
         </Box>
@@ -491,6 +538,11 @@ export const register: Register = (on, options) => {
               ) : (
                 <Text dimColor>{SANGRIA}fuera de un repositorio</Text>
               )}
+              {m.otras.length > 0 ? (
+                <Text dimColor>
+                  {SANGRIA}también en: {m.otras.map(o => `${o.repo?.split('/')[1] ?? o.repo}${o.tarea ? ` #${o.tarea}` : ''}`).join(', ')}
+                </Text>
+              ) : null}
             </Box>
           ) : null}
 

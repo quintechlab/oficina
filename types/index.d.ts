@@ -3,6 +3,8 @@
 /** Lo que cada integrante publica en su comentario del Issue "Presencia". */
 export type Presencia = {
   v: 1
+  /** Id de la sesión de Claude Code que publicó esta entrada (una persona puede tener varias abiertas). */
+  sesion: string
   /** Usuario de GitHub. */
   usuario: string
   /** Nombre visible (Quintana, Campos). */
@@ -23,6 +25,21 @@ export type Presencia = {
   actualizado: string
   /** Archivos que su rama cambia respecto de main (hasta 40). */
   archivos: string[]
+}
+
+/**
+ * El comentario de una persona en el Issue "Presencia" (formato v2): una entrada por cada sesión
+ * de Claude Code abierta, para que una sesión no pise lo que publica otra.
+ */
+export type ComentarioPresencia = {
+  v: 2
+  usuario: string
+  nombre: string
+  /** Marcado con /oficina fuera: la persona se fue aunque tenga sesiones abiertas. */
+  ausente: boolean
+  /** Última escritura del comentario (ISO). */
+  actualizado: string
+  sesiones: Presencia[]
 }
 
 export type Ci = 'ok' | 'falla' | 'pendiente' | 'sin'
@@ -48,7 +65,10 @@ export type Tarea = {
 }
 
 export type Miembro = {
+  /** La sesión que se muestra: la más relevante entre las abiertas (ver elegirPrincipal). */
   presencia: Presencia
+  /** Otras sesiones activas en otros repositorios o tareas. */
+  otras: Presencia[]
   tarea: Tarea | null
   prs: Pr[]
   ultimoCommit: { fecha: string; mensaje: string } | null

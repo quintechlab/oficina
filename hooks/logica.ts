@@ -1,6 +1,6 @@
 // Funciones puras del mod "oficina": sin acceso al motor, fáciles de probar.
 
-import type { Ci, Miembro, Presencia, Tarea } from '../types'
+import type { Ci, ComentarioPresencia, Miembro, Presencia, Tarea } from '../types'
 
 /** Horas máximas por talle, según el acuerdo (S: hasta medio día; M: hasta 2 días). */
 export const HORAS_POR_TALLE: Record<'S' | 'M', number> = { S: 4, M: 16 }
@@ -31,35 +31,132 @@ export function repoDesdeRemoto(url: string | null): string | null {
   return m ? `${m[1]}/${m[2]}` : null
 }
 
-export function envolverPresencia(p: Presencia): string {
-  return `${MARCA}\n\`\`\`json\n${JSON.stringify(p, null, 2)}\n\`\`\``
+/** Pasadas estas horas sin publicar, una sesión se descarta: quedó colgada (máquina apagada, sesión cerrada a la fuerza). */
+export const HORAS_SESION_VIEJA = 12
+
+function normalizar(d: Partial<Presencia>, sesionPorDefecto: string): Presencia | null {
+  if (typeof d.usuario !== 'string' || typeof d.actualizado !== 'string') return null
+  return {
+    v: 1,
+    sesion: typeof d.sesion === 'string' && d.sesion ? d.sesion : sesionPorDefecto,
+    usuario: d.usuario,
+    nombre: typeof d.nombre === 'string' && d.nombre ? d.nombre : d.usuario,
+    estado: d.estado === 'fuera' ? 'fuera' : 'trabajando',
+    repo: typeof d.repo === 'string' ? d.repo : null,
+    rama: typeof d.rama === 'string' ? d.rama : null,
+    tarea: typeof d.tarea === 'number' ? d.tarea : null,
+    nota: typeof d.nota === 'string' && d.nota ? d.nota : null,
+    inicio: typeof d.inicio === 'string' ? d.inicio : null,
+    tareaDesde: typeof d.tareaDesde === 'string' ? d.tareaDesde : null,
+    actualizado: d.actualizado,
+    archivos: Array.isArray(d.archivos) ? d.archivos.filter(a => typeof a === 'string').slice(0, 40) : [],
+  }
 }
 
-/** Presencia contenida en el cuerpo de un comentario; null si no es un comentario del mod. */
-export function extraerPresencia(cuerpo: string | null | undefined): Presencia | null {
+export function envolverComentario(c: ComentarioPresencia): string {
+  return `${MARCA}\n\`\`\`json\n${JSON.stringify(c, null, 2)}\n\`\`\``
+}
+
+/**
+ * El comentario de una persona; null si no es un comentario del mod. Un comentario v1 (un solo
+ * estado, versiones 0.1 y 0.2) se lee como una única sesión, así nadie desaparece al actualizar.
+ */
+export function extraerComentario(cuerpo: string | null | undefined): ComentarioPresencia | null {
   if (!cuerpo || !cuerpo.includes(MARCA)) return null
-  const m = /```json\s*\r?\n([\s\S]*?)\r?\n\s*```/.exec(cuerpo)
-  if (!m?.[1]) return null
+  const json = /```json\s*\r?\n([\s\S]*?)\r?\n\s*```/.exec(cuerpo)?.[1]
+  if (!json) return null
+  let d: Record<string, unknown>
   try {
-    const d = JSON.parse(m[1]) as Partial<Presencia>
-    if (d.v !== 1 || typeof d.usuario !== 'string' || typeof d.actualizado !== 'string') return null
-    return {
-      v: 1,
-      usuario: d.usuario,
-      nombre: typeof d.nombre === 'string' && d.nombre ? d.nombre : d.usuario,
-      estado: d.estado === 'fuera' ? 'fuera' : 'trabajando',
-      repo: typeof d.repo === 'string' ? d.repo : null,
-      rama: typeof d.rama === 'string' ? d.rama : null,
-      tarea: typeof d.tarea === 'number' ? d.tarea : null,
-      nota: typeof d.nota === 'string' && d.nota ? d.nota : null,
-      inicio: typeof d.inicio === 'string' ? d.inicio : null,
-      tareaDesde: typeof d.tareaDesde === 'string' ? d.tareaDesde : null,
-      actualizado: d.actualizado,
-      archivos: Array.isArray(d.archivos) ? d.archivos.filter(a => typeof a === 'string').slice(0, 40) : [],
-    }
+    d = JSON.parse(json) as Record<string, unknown>
   } catch {
     return null
   }
+  if (d.v === 2 && typeof d.usuario === 'string' && Array.isArray(d.sesiones)) {
+    const sesiones = (d.sesiones as Array<Partial<Presencia>>)
+      .map((s, i) => normalizar(s ?? {}, `s${i}`))
+      .filter((s): s is Presencia => s !== null)
+    const masReciente = sesiones.map(s => s.actualizado).sort().at(-1)
+    return {
+      v: 2,
+      usuario: d.usuario,
+      nombre: typeof d.nombre === 'string' && d.nombre ? d.nombre : d.usuario,
+      ausente: d.ausente === true,
+      actualizado: typeof d.actualizado === 'string' ? d.actualizado : (masReciente ?? new Date(0).toISOString()),
+      sesiones,
+    }
+  }
+  if (d.v === 1) {
+    const p = normalizar(d as Partial<Presencia>, 'v1')
+    if (!p) return null
+    return { v: 2, usuario: p.usuario, nombre: p.nombre, ausente: p.estado === 'fuera', actualizado: p.actualizado, sesiones: p.estado === 'fuera' ? [] : [p] }
+  }
+  return null
+}
+
+/**
+ * Pone (o reemplaza) la entrada de una sesión sin tocar las de las otras sesiones de la persona.
+ * De paso descarta las sesiones colgadas y la entrada heredada del formato v1.
+ */
+export function ponerSesion(
+  c: ComentarioPresencia | null,
+  p: Presencia,
+  ahoraMs: number,
+  opciones: { ausente?: boolean } = {},
+): ComentarioPresencia {
+  const limite = ahoraMs - HORAS_SESION_VIEJA * 3600000
+  const otras = (c?.sesiones ?? []).filter(s => s.sesion !== p.sesion && s.sesion !== 'v1' && Date.parse(s.actualizado) >= limite)
+  return {
+    v: 2,
+    usuario: p.usuario,
+    nombre: p.nombre,
+    ausente: opciones.ausente ?? c?.ausente ?? false,
+    actualizado: p.actualizado,
+    sesiones: [...otras, p],
+  }
+}
+
+/** Saca la entrada de una sesión (al cerrarla); las demás quedan como estaban. */
+export function quitarSesion(c: ComentarioPresencia, sesion: string, ahoraIso: string): ComentarioPresencia {
+  return { ...c, actualizado: ahoraIso, sesiones: c.sesiones.filter(s => s.sesion !== sesion) }
+}
+
+/**
+ * Qué sesión representa a la persona en el panel: primero las activas, después las que están en
+ * un repositorio, después las que tienen tarea, y entre iguales la que publicó más recién.
+ * `otras` son las demás sesiones activas que están en otro repositorio o en otra tarea.
+ */
+export function elegirPrincipal(c: ComentarioPresencia, ahoraMs: number): { presencia: Presencia; otras: Presencia[] } {
+  const vivas = c.sesiones.filter(s => s.estado !== 'fuera' && ahoraMs - Date.parse(s.actualizado) <= HORAS_SESION_VIEJA * 3600000)
+  const puntaje = (s: Presencia) => (estadoVisible(s, ahoraMs) === 'activo' ? 4 : 0) + (s.repo ? 2 : 0) + (s.tarea ? 1 : 0)
+  const orden = [...vivas].sort((a, b) => puntaje(b) - puntaje(a) || Date.parse(b.actualizado) - Date.parse(a.actualizado))
+  const principal = orden[0]
+  if (c.ausente || !principal) {
+    return {
+      presencia: {
+        v: 1, sesion: '', usuario: c.usuario, nombre: c.nombre, estado: 'fuera', repo: null, rama: null, tarea: null,
+        nota: null, inicio: null, tareaDesde: null, actualizado: c.actualizado, archivos: [],
+      },
+      otras: [],
+    }
+  }
+  const otras = orden
+    .slice(1)
+    .filter(s => s.repo && estadoVisible(s, ahoraMs) === 'activo' && !(s.repo === principal.repo && s.tarea === principal.tarea))
+  return { presencia: principal, otras }
+}
+
+/** Rutas de `git status --porcelain` (cambios sin commitear y archivos nuevos). */
+export function archivosDesdeStatus(texto: string): string[] {
+  return texto
+    .split('\n')
+    .map(l => l.replace(/\r$/, ''))
+    .filter(l => l.length > 3)
+    .map(l => {
+      const ruta = l.slice(3)
+      const flecha = ruta.indexOf(' -> ')
+      return (flecha >= 0 ? ruta.slice(flecha + 4) : ruta).replace(/^"|"$/g, '')
+    })
+    .filter(Boolean)
 }
 
 /** "1 h 20 min", "35 min", "menos de 1 min". */
