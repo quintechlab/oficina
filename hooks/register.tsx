@@ -5,7 +5,7 @@
 // los comentarios de todos cada `intervalo` segundos y dibuja la oficina.
 
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { Info, Miembro, Pr, Presencia, Tarea } from '../types'
 import {
@@ -425,7 +425,7 @@ export const register: Register = (on, options) => {
       const ini = iniciales(m.presencia.nombre)
       if (Svg) {
         const fuente = `<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r="23" fill="${NEGRO}" stroke="${acento}" stroke-width="3"/><text x="26" y="32" text-anchor="middle" font-family="Segoe UI, Manrope, Helvetica, Arial, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF" letter-spacing="1">${ini}</text><circle cx="43" cy="43" r="6.5" fill="${punto}" stroke="${NEGRO}" stroke-width="2"/></svg>`
-        return <Svg source={fuente} alt={`Avatar de ${m.presencia.nombre}, ${ev}`} width={52} height={52} />
+        return <Svg source={fuente} alt={`Avatar de ${m.presencia.nombre}, ${ev}`} width={44} height={44} />
       }
       return (
         <Box flexDirection="column" alignItems="center">
@@ -435,6 +435,13 @@ export const register: Register = (on, options) => {
       )
     }
 
+    const Bloque = (props: { rotulo: string; children?: RenderChildren }) => (
+      <Box flexDirection="column" marginTop="sm">
+        <Text size="caption" color={GRIS_CLARO}>{props.rotulo.toUpperCase()}</Text>
+        {props.children}
+      </Box>
+    )
+
     const tarjeta = (m: Miembro, i: number) => {
       const p = m.presencia
       const acento = ACENTOS[i % ACENTOS.length] ?? AMARILLO
@@ -443,74 +450,97 @@ export const register: Register = (on, options) => {
       const estadoColor = ev === 'activo' ? 'success' : ev === 'inactivo' ? 'warning' : 'inactive'
       const rest = restante(m.tarea?.talle ?? null, m.tarea?.horasRegistradas ?? null, p.inicio, ahoraMs)
       const choque = misChoques.find(c => c.con === p.nombre)
+      const [duenio, nombreRepo] = p.repo ? p.repo.split('/') : [null, null]
+      const ciColor = (pr: Pr) => (pr.ci === 'ok' ? 'success' : pr.ci === 'falla' ? 'error' : pr.ci === 'pendiente' ? 'warning' : 'inactive')
+      const ciSigno = (pr: Pr) => (pr.ci === 'ok' ? '✓' : pr.ci === 'falla' ? '✗' : pr.ci === 'pendiente' ? '…' : '·')
       return (
-        <Box key={p.usuario} flexDirection="row" gap="md" padding="sm" marginBottom="sm" borderStyle="round" borderColor={ev === 'fuera' ? 'inactive' : acento}>
-          {avatar(m, acento)}
-          <Box flexDirection="column" flexGrow={1} gap={0}>
-            <Box flexDirection="row" justifyContent="space-between" gap="md">
-              <Text weight="bold" size="heading">{p.nombre}{m.esYo ? <Text dimColor> (vos)</Text> : null}</Text>
-              <Text color={estadoColor}>{estadoTexto}</Text>
+        <Box key={p.usuario} flexDirection="column" paddingX="md" paddingY="sm" marginBottom="md" borderStyle="round" borderColor={ev === 'fuera' ? 'inactive' : acento}>
+          <Box flexDirection="row" gap="md" alignItems="center">
+            {avatar(m, acento)}
+            <Box flexDirection="column" flexGrow={1}>
+              <Text weight="bold" size="heading">{p.nombre}{m.esYo ? <Text dimColor weight="regular"> (vos)</Text> : null}</Text>
+              <Text color={estadoColor}>
+                {estadoTexto}
+                {ev !== 'fuera' && p.inicio ? <Text dimColor> · desde {horaLocal(p.inicio)} · {formatoDuracion(ahoraMs - new Date(p.inicio).getTime())}</Text> : null}
+              </Text>
             </Box>
-            {p.repo ? (
-              <Text dimColor>{p.repo}{p.rama ? ` · ${p.rama}` : ''}</Text>
-            ) : (
-              <Text dimColor>{ev === 'fuera' ? '' : 'fuera de un repositorio'}</Text>
-            )}
-            {p.tarea ? (
-              <Text>
-                <Text color={acento} weight="bold">#{p.tarea}</Text>
-                {m.tarea?.titulo ? ` ${m.tarea.titulo}` : ' (sin acceso al Issue)'}
-                {m.tarea?.talle ? <Text backgroundColor={acento} color={NEGRO}>{` ${m.tarea.talle} `}</Text> : null}
-                {m.tarea && !m.tarea.abierta ? <Text color="merged"> cerrada</Text> : null}
-                {m.tarea?.estadoTablero ? <Text dimColor> · {m.tarea.estadoTablero}</Text> : null}
-              </Text>
-            ) : ev !== 'fuera' ? (
-              <Text dimColor>sin tarea asignada (rama sin número o /oficina tarea N)</Text>
-            ) : null}
-            {ev !== 'fuera' && p.inicio ? (
-              <Text>
-                <Text dimColor>desde </Text>{horaLocal(p.inicio)}
-                <Text dimColor> · lleva {formatoDuracion(ahoraMs - new Date(p.inicio).getTime())}</Text>
-                {p.tareaDesde && fechaCorta(p.tareaDesde) !== fechaCorta(p.inicio) ? <Text dimColor> · en esta tarea desde el {fechaCorta(p.tareaDesde)}</Text> : null}
-              </Text>
-            ) : null}
-            {ev !== 'fuera' && rest ? (
-              rest.excedido ? (
-                <Text color="error">talle {m.tarea?.talle}: excedido en {formatoDuracion(-rest.quedanMs)} (de {formatoDuracion(rest.totalMs)})</Text>
-              ) : (
-                <Text color={rest.quedanMs < rest.totalMs * 0.25 ? 'warning' : 'text'}>
-                  quedan ~{formatoDuracion(rest.quedanMs)} <Text dimColor>de {formatoDuracion(rest.totalMs)} (talle {m.tarea?.talle}{m.tarea?.horasRegistradas ? `, ${m.tarea.horasRegistradas} h ya cargadas` : ''})</Text>
-                </Text>
-              )
-            ) : null}
-            {ev !== 'fuera' && p.tarea && m.tarea && !rest ? <Text dimColor>sin talle en el Issue: sin estimación</Text> : null}
-            {p.nota ? <Text italic color={AMARILLO}>“{p.nota}”</Text> : null}
-            {m.prs.map(pr => (
-              <Text key={`pr-${p.usuario}-${pr.numero}`}>
-                <Text color={pr.ci === 'ok' ? 'success' : pr.ci === 'falla' ? 'error' : pr.ci === 'pendiente' ? 'warning' : 'inactive'}>
-                  {pr.ci === 'ok' ? '✓' : pr.ci === 'falla' ? '✗' : pr.ci === 'pendiente' ? '…' : '·'}
-                </Text>
-                {` PR #${pr.numero} ${pr.titulo}`}{pr.borrador ? <Text dimColor> (borrador)</Text> : null}
-              </Text>
-            ))}
-            {choque ? <Text color="warning">⚠ toca lo mismo que vos: {choque.archivos.slice(0, 4).join(', ')}{choque.archivos.length > 4 ? ` y ${choque.archivos.length - 4} más` : ''}</Text> : null}
-            {m.ultimoCommit ? <Text dimColor>último commit hace {formatoDuracion(ahoraMs - new Date(m.ultimoCommit.fecha).getTime())}: {m.ultimoCommit.mensaje}</Text> : null}
           </Box>
+
+          {ev !== 'fuera' ? (
+            <Bloque rotulo="Proyecto">
+              {p.repo ? (
+                <Text><Text dimColor>{duenio}/</Text>{nombreRepo}{p.rama ? <Text dimColor> · {p.rama}</Text> : null}</Text>
+              ) : (
+                <Text dimColor>fuera de un repositorio</Text>
+              )}
+            </Bloque>
+          ) : null}
+
+          {ev !== 'fuera' ? (
+            <Bloque rotulo="Tarea">
+              {p.tarea ? (
+                <Text>
+                  <Text color={acento} weight="bold">#{p.tarea}</Text>
+                  {m.tarea?.titulo ? ` ${m.tarea.titulo}` : ' (sin acceso al Issue)'}
+                  {m.tarea?.talle ? <Text backgroundColor={acento} color={NEGRO}>{` ${m.tarea.talle} `}</Text> : null}
+                  {m.tarea && !m.tarea.abierta ? <Text color="merged"> cerrada</Text> : null}
+                </Text>
+              ) : (
+                <Text dimColor>sin tarea · rama sin número, o /oficina tarea N</Text>
+              )}
+              {m.tarea?.estadoTablero ? <Text dimColor>tablero: {m.tarea.estadoTablero}</Text> : null}
+              {p.tareaDesde && p.inicio && fechaCorta(p.tareaDesde) !== fechaCorta(p.inicio) ? <Text dimColor>en esta tarea desde el {fechaCorta(p.tareaDesde)}</Text> : null}
+              {rest ? (
+                rest.excedido ? (
+                  <Text color="error">excedido en {formatoDuracion(-rest.quedanMs)} <Text dimColor>· talle {m.tarea?.talle} = {formatoDuracion(rest.totalMs)}</Text></Text>
+                ) : (
+                  <Text color={rest.quedanMs < rest.totalMs * 0.25 ? 'warning' : 'text'}>
+                    quedan ~{formatoDuracion(rest.quedanMs)} <Text dimColor>de {formatoDuracion(rest.totalMs)} (talle {m.tarea?.talle}{m.tarea?.horasRegistradas ? `, ${m.tarea.horasRegistradas} h ya cargadas` : ''})</Text>
+                  </Text>
+                )
+              ) : null}
+              {p.tarea && m.tarea && !rest ? <Text dimColor>sin talle en el Issue: sin estimación</Text> : null}
+              {p.nota ? <Text italic color={AMARILLO}>“{p.nota}”</Text> : null}
+            </Bloque>
+          ) : null}
+
+          {m.prs.length > 0 ? (
+            <Bloque rotulo={m.prs.length === 1 ? 'PR abierto' : 'PRs abiertos'}>
+              {m.prs.map(pr => (
+                <Text key={`pr-${p.usuario}-${pr.numero}`}>
+                  <Text color={ciColor(pr)}>{ciSigno(pr)}</Text>
+                  {` PR #${pr.numero} ${pr.titulo}`}{pr.borrador ? <Text dimColor> (borrador)</Text> : null}
+                </Text>
+              ))}
+            </Bloque>
+          ) : null}
+
+          {choque ? (
+            <Box marginTop="sm">
+              <Text color="warning">⚠ toca lo mismo que vos: {choque.archivos.slice(0, 4).join(', ')}{choque.archivos.length > 4 ? ` y ${choque.archivos.length - 4} más` : ''}</Text>
+            </Box>
+          ) : null}
+
+          {m.ultimoCommit ? (
+            <Bloque rotulo="Último commit">
+              <Text>hace {formatoDuracion(ahoraMs - new Date(m.ultimoCommit.fecha).getTime())}<Text dimColor> · {m.ultimoCommit.mensaje}</Text></Text>
+            </Bloque>
+          ) : null}
         </Box>
       )
     }
 
     return (
-      <Box flexDirection="column" padding="sm">
-        <Box flexDirection="row" justifyContent="space-between" alignItems="center" marginBottom="sm">
-          <Text color={AMARILLO} weight="semibold">OFICINA · QUINTECH STUDIO</Text>
+      <Box flexDirection="column" paddingX="sm" paddingY="sm">
+        <Box flexDirection="row" justifyContent="space-between" alignItems="center" marginBottom="md">
+          <Text color={AMARILLO} weight="semibold">OFICINA</Text>
           <Button key="actualizar" label="Actualizar" onPress={() => { void refrescar($) }} />
         </Box>
-        {datos.error ? <Text color="error">GitHub: {datos.error}</Text> : null}
+        {datos.error ? <Box marginBottom="sm"><Text color="error">GitHub: {datos.error}</Text></Box> : null}
         {lista.length === 0 && !datos.error ? <Text dimColor>Leyendo la oficina…</Text> : null}
         {lista.length === 0 && datos.error ? <Text dimColor>¿Primera vez? Corré /oficina init (necesita gh autenticado) y revisá la opción "datos" en /config.</Text> : null}
         {lista.map(tarjeta)}
-        {datos.actualizado ? <Text dimColor size="caption">actualizado {horaLocal(datos.actualizado)} · cada {config.intervalo} s · datos en {datos.datos}</Text> : null}
+        {datos.actualizado ? <Text dimColor size="caption">actualizado {horaLocal(datos.actualizado)} · cada {config.intervalo} s</Text> : null}
       </Box>
     )
   })
