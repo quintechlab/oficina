@@ -163,7 +163,13 @@ test('el panel dibuja a cada integrante con su tarea, en cada superficie', async
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
-    expect((await ui.find({ type: 'Text', text: /Quintana/ }))?.text).toContain('Quintana')
+    if (surface === 'terminal') {
+      // Sin SVG: la cabecera es texto
+      expect((await ui.find({ type: 'Text', text: /Quintana/ }))?.text).toContain('Quintana')
+    } else {
+      // Con SVG: nombre y estado viven en la cabecera dibujada; su `alt` los repite
+      expect(String((await ui.find({ type: 'Svg' }))?.props.alt)).toContain('Quintana (vos), trabajando')
+    }
     expect((await ui.find({ type: 'Text', text: /Carrito de compras/ }))?.text).toContain('#51')
     expect((await ui.find({ type: 'Text', text: /PR #10/ }))?.text).toContain('Carrito')
     expect((await ui.find({ type: 'Text', text: /toca lo mismo/ }))?.text).toContain('src/carrito.ts')

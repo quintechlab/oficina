@@ -5,7 +5,7 @@
 // los comentarios de todos cada `intervalo` segundos y dibuja la oficina.
 
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, RenderChildren } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 import type { Info, Miembro, Pr, Presencia, Tarea } from '../types'
 import {
@@ -412,120 +412,147 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const tabla = $.ui.resolve(e)
     const { Box, Text, Button } = tabla
-    const Svg = 'Svg' in tabla ? tabla.Svg : null
+    const Svg = e.surface !== 'terminal' && 'Svg' in tabla ? tabla.Svg : null // en terminal un Svg se dibuja vacío
     const lista = await read($, miembros)
     const datos = await read($, info)
     const ahoraMs = await $.clock.now()
     const yoLogin = datos.yo
     const misChoques = choques(lista, yoLogin)
 
-    const avatar = (m: Miembro, acento: string) => {
-      const ev = estadoVisible(m.presencia, ahoraMs)
+    // ---- Opción A: cabecera en SVG (avatar, nombre, estado) y secciones de texto con marcador.
+    // La superficie de VS Code ignora márgenes, paddings y tamaños de las cajas: el aire se hace
+    // con líneas en blanco y sangría, y la cabecera con un SVG que dibuja su propio fondo.
+    const SANGRIA = '   '
+    const VACIA = ' '
+    const escapar = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c)
+    const recortar = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
+
+    const cabecera = (m: Miembro, acento: string) => {
+      const p = m.presencia
+      const ev = estadoVisible(p, ahoraMs)
       const punto = ev === 'activo' ? '#3FB950' : ev === 'inactivo' ? AMARILLO : GRIS_CLARO
-      const ini = iniciales(m.presencia.nombre)
+      const estadoTexto = ev === 'activo' ? 'trabajando' : ev === 'inactivo' ? `sin señales hace ${formatoDuracion(ahoraMs - new Date(p.actualizado).getTime())}` : 'fuera'
+      const tiempo = ev !== 'fuera' && p.inicio ? ` · desde ${horaLocal(p.inicio)} · lleva ${formatoDuracion(ahoraMs - new Date(p.inicio).getTime())}` : ''
+      const ini = iniciales(p.nombre)
+      const alt = `${p.nombre}${m.esYo ? ' (vos)' : ''}, ${estadoTexto}${tiempo}`
       if (Svg) {
-        const fuente = `<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r="23" fill="${NEGRO}" stroke="${acento}" stroke-width="3"/><text x="26" y="32" text-anchor="middle" font-family="Segoe UI, Manrope, Helvetica, Arial, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF" letter-spacing="1">${ini}</text><circle cx="43" cy="43" r="6.5" fill="${punto}" stroke="${NEGRO}" stroke-width="2"/></svg>`
-        return <Svg source={fuente} alt={`Avatar de ${m.presencia.nombre}, ${ev}`} width={44} height={44} />
+        const fuente =
+          `<svg xmlns="http://www.w3.org/2000/svg" width="364" height="92" viewBox="0 0 364 92" font-family="Segoe UI, Manrope, Helvetica, Arial, sans-serif">` +
+          `<rect x="0" y="0" width="364" height="92" rx="8" fill="#10131B"/>` +
+          `<circle cx="44" cy="46" r="24" fill="${NEGRO}" stroke="${ev === 'fuera' ? GRIS_CLARO : acento}" stroke-width="3"/>` +
+          `<text x="44" y="52" text-anchor="middle" font-size="17" font-weight="700" fill="#FFFFFF" letter-spacing="1">${escapar(ini)}</text>` +
+          `<circle cx="62" cy="64" r="6.5" fill="${punto}" stroke="#10131B" stroke-width="2"/>` +
+          `<text x="84" y="40" font-size="17" font-weight="700" fill="#F3F4F6">${escapar(recortar(p.nombre, 18))}` +
+          (m.esYo ? `<tspan fill="#8B909C" font-weight="400" font-size="13"> (vos)</tspan>` : '') +
+          `</text>` +
+          `<text x="84" y="62" font-size="12.5" fill="${punto}">● ${escapar(estadoTexto)}<tspan fill="#8B909C">${escapar(tiempo)}</tspan></text>` +
+          `<line x1="16" y1="84" x2="348" y2="84" stroke="#2A2D35" stroke-width="1"/>` +
+          `</svg>`
+        return <Svg source={fuente} alt={alt} />
       }
       return (
-        <Box flexDirection="column" alignItems="center">
-          <Text backgroundColor={acento} color={NEGRO} bold>{` ${ini} `}</Text>
-          <Text color={punto}>{ev === 'activo' ? '●' : ev === 'inactivo' ? '◐' : '○'}</Text>
+        <Box flexDirection="column">
+          <Text>{VACIA}</Text>
+          <Text>
+            {SANGRIA}<Text backgroundColor={acento} color={NEGRO} bold>{` ${ini} `}</Text>{'  '}
+            <Text bold>{p.nombre}</Text>{m.esYo ? <Text dimColor> (vos)</Text> : null}
+          </Text>
+          <Text>
+            {SANGRIA}<Text color={punto}>{ev === 'activo' ? '●' : ev === 'inactivo' ? '◐' : '○'}</Text>
+            <Text color={punto}> {estadoTexto}</Text><Text dimColor>{tiempo}</Text>
+          </Text>
+          <Text dimColor>{SANGRIA}{'─'.repeat(34)}</Text>
         </Box>
       )
     }
 
-    const Bloque = (props: { rotulo: string; children?: RenderChildren }) => (
-      <Box flexDirection="column" marginTop="sm">
-        <Text size="caption" color={GRIS_CLARO}>{props.rotulo.toUpperCase()}</Text>
-        {props.children}
-      </Box>
+    const Rotulo = (props: { acento: string; texto: string }) => (
+      <Text>{SANGRIA}<Text color={props.acento}>▍</Text><Text dimColor> {props.texto.toUpperCase()}</Text></Text>
     )
 
     const tarjeta = (m: Miembro, i: number) => {
       const p = m.presencia
       const acento = ACENTOS[i % ACENTOS.length] ?? AMARILLO
       const ev = estadoVisible(p, ahoraMs)
-      const estadoTexto = ev === 'activo' ? 'trabajando' : ev === 'inactivo' ? `sin señales hace ${formatoDuracion(ahoraMs - new Date(p.actualizado).getTime())}` : 'fuera'
-      const estadoColor = ev === 'activo' ? 'success' : ev === 'inactivo' ? 'warning' : 'inactive'
       const rest = restante(m.tarea?.talle ?? null, m.tarea?.horasRegistradas ?? null, p.inicio, ahoraMs)
       const choque = misChoques.find(c => c.con === p.nombre)
       const [duenio, nombreRepo] = p.repo ? p.repo.split('/') : [null, null]
       const ciColor = (pr: Pr) => (pr.ci === 'ok' ? 'success' : pr.ci === 'falla' ? 'error' : pr.ci === 'pendiente' ? 'warning' : 'inactive')
       const ciSigno = (pr: Pr) => (pr.ci === 'ok' ? '✓' : pr.ci === 'falla' ? '✗' : pr.ci === 'pendiente' ? '…' : '·')
       return (
-        <Box key={p.usuario} flexDirection="column" paddingX="md" paddingY="sm" marginBottom="md" borderStyle="round" borderColor={ev === 'fuera' ? 'inactive' : acento}>
-          <Box flexDirection="row" gap="md" alignItems="center">
-            {avatar(m, acento)}
-            <Box flexDirection="column" flexGrow={1}>
-              <Text weight="bold" size="heading">{p.nombre}{m.esYo ? <Text dimColor weight="regular"> (vos)</Text> : null}</Text>
-              <Text color={estadoColor}>
-                {estadoTexto}
-                {ev !== 'fuera' && p.inicio ? <Text dimColor> · desde {horaLocal(p.inicio)} · {formatoDuracion(ahoraMs - new Date(p.inicio).getTime())}</Text> : null}
-              </Text>
-            </Box>
-          </Box>
+        <Box key={p.usuario} flexDirection="column" borderStyle="round" borderColor={ev === 'fuera' ? 'inactive' : acento}>
+          {cabecera(m, acento)}
 
           {ev !== 'fuera' ? (
-            <Bloque rotulo="Proyecto">
+            <Box flexDirection="column">
+              <Text>{VACIA}</Text>
+              <Rotulo acento={acento} texto="Proyecto" />
               {p.repo ? (
-                <Text><Text dimColor>{duenio}/</Text>{nombreRepo}{p.rama ? <Text dimColor> · {p.rama}</Text> : null}</Text>
+                <Text>{SANGRIA}<Text dimColor>{duenio}/</Text>{nombreRepo}{p.rama ? <Text dimColor> · {p.rama}</Text> : null}</Text>
               ) : (
-                <Text dimColor>fuera de un repositorio</Text>
+                <Text dimColor>{SANGRIA}fuera de un repositorio</Text>
               )}
-            </Bloque>
+            </Box>
           ) : null}
 
           {ev !== 'fuera' ? (
-            <Bloque rotulo="Tarea">
+            <Box flexDirection="column">
+              <Text>{VACIA}</Text>
+              <Rotulo acento={acento} texto="Tarea" />
               {p.tarea ? (
                 <Text>
-                  <Text color={acento} weight="bold">#{p.tarea}</Text>
+                  {SANGRIA}<Text color={acento} bold>#{p.tarea}</Text>
                   {m.tarea?.titulo ? ` ${m.tarea.titulo}` : ' (sin acceso al Issue)'}
                   {m.tarea?.talle ? <Text backgroundColor={acento} color={NEGRO}>{` ${m.tarea.talle} `}</Text> : null}
                   {m.tarea && !m.tarea.abierta ? <Text color="merged"> cerrada</Text> : null}
                 </Text>
               ) : (
-                <Text dimColor>sin tarea · rama sin número, o /oficina tarea N</Text>
+                <Text dimColor>{SANGRIA}sin tarea · rama sin número, o /oficina tarea N</Text>
               )}
-              {m.tarea?.estadoTablero ? <Text dimColor>tablero: {m.tarea.estadoTablero}</Text> : null}
-              {p.tareaDesde && p.inicio && fechaCorta(p.tareaDesde) !== fechaCorta(p.inicio) ? <Text dimColor>en esta tarea desde el {fechaCorta(p.tareaDesde)}</Text> : null}
+              {m.tarea?.estadoTablero ? <Text dimColor>{SANGRIA}tablero: {m.tarea.estadoTablero}</Text> : null}
+              {p.tareaDesde && p.inicio && fechaCorta(p.tareaDesde) !== fechaCorta(p.inicio) ? <Text dimColor>{SANGRIA}en esta tarea desde el {fechaCorta(p.tareaDesde)}</Text> : null}
               {rest ? (
                 rest.excedido ? (
-                  <Text color="error">excedido en {formatoDuracion(-rest.quedanMs)} <Text dimColor>· talle {m.tarea?.talle} = {formatoDuracion(rest.totalMs)}</Text></Text>
+                  <Text color="error">{SANGRIA}excedido en {formatoDuracion(-rest.quedanMs)} <Text dimColor>· talle {m.tarea?.talle} = {formatoDuracion(rest.totalMs)}</Text></Text>
                 ) : (
                   <Text color={rest.quedanMs < rest.totalMs * 0.25 ? 'warning' : 'text'}>
-                    quedan ~{formatoDuracion(rest.quedanMs)} <Text dimColor>de {formatoDuracion(rest.totalMs)} (talle {m.tarea?.talle}{m.tarea?.horasRegistradas ? `, ${m.tarea.horasRegistradas} h ya cargadas` : ''})</Text>
+                    {SANGRIA}quedan ~{formatoDuracion(rest.quedanMs)} <Text dimColor>de {formatoDuracion(rest.totalMs)} (talle {m.tarea?.talle}{m.tarea?.horasRegistradas ? `, ${m.tarea.horasRegistradas} h ya cargadas` : ''})</Text>
                   </Text>
                 )
               ) : null}
-              {p.tarea && m.tarea && !rest ? <Text dimColor>sin talle en el Issue: sin estimación</Text> : null}
-              {p.nota ? <Text italic color={AMARILLO}>“{p.nota}”</Text> : null}
-            </Bloque>
+              {p.tarea && m.tarea && !rest ? <Text dimColor>{SANGRIA}sin talle en el Issue: sin estimación</Text> : null}
+              {p.nota ? <Text italic color={AMARILLO}>{SANGRIA}“{p.nota}”</Text> : null}
+            </Box>
           ) : null}
 
           {m.prs.length > 0 ? (
-            <Bloque rotulo={m.prs.length === 1 ? 'PR abierto' : 'PRs abiertos'}>
+            <Box flexDirection="column">
+              <Text>{VACIA}</Text>
+              <Rotulo acento={acento} texto={m.prs.length === 1 ? 'PR abierto' : 'PRs abiertos'} />
               {m.prs.map(pr => (
                 <Text key={`pr-${p.usuario}-${pr.numero}`}>
-                  <Text color={ciColor(pr)}>{ciSigno(pr)}</Text>
+                  {SANGRIA}<Text color={ciColor(pr)}>{ciSigno(pr)}</Text>
                   {` PR #${pr.numero} ${pr.titulo}`}{pr.borrador ? <Text dimColor> (borrador)</Text> : null}
                 </Text>
               ))}
-            </Bloque>
+            </Box>
           ) : null}
 
           {choque ? (
-            <Box marginTop="sm">
-              <Text color="warning">⚠ toca lo mismo que vos: {choque.archivos.slice(0, 4).join(', ')}{choque.archivos.length > 4 ? ` y ${choque.archivos.length - 4} más` : ''}</Text>
+            <Box flexDirection="column">
+              <Text>{VACIA}</Text>
+              <Text color="warning">{SANGRIA}⚠ toca lo mismo que vos: {choque.archivos.slice(0, 4).join(', ')}{choque.archivos.length > 4 ? ` y ${choque.archivos.length - 4} más` : ''}</Text>
             </Box>
           ) : null}
 
           {m.ultimoCommit ? (
-            <Bloque rotulo="Último commit">
-              <Text>hace {formatoDuracion(ahoraMs - new Date(m.ultimoCommit.fecha).getTime())}<Text dimColor> · {m.ultimoCommit.mensaje}</Text></Text>
-            </Bloque>
+            <Box flexDirection="column">
+              <Text>{VACIA}</Text>
+              <Rotulo acento={acento} texto="Último commit" />
+              <Text>{SANGRIA}hace {formatoDuracion(ahoraMs - new Date(m.ultimoCommit.fecha).getTime())}<Text dimColor> · {m.ultimoCommit.mensaje}</Text></Text>
+            </Box>
           ) : null}
+          <Text>{VACIA}</Text>
         </Box>
       )
     }
@@ -539,7 +566,13 @@ export const register: Register = (on, options) => {
         {datos.error ? <Box marginBottom="sm"><Text color="error">GitHub: {datos.error}</Text></Box> : null}
         {lista.length === 0 && !datos.error ? <Text dimColor>Leyendo la oficina…</Text> : null}
         {lista.length === 0 && datos.error ? <Text dimColor>¿Primera vez? Corré /oficina init (necesita gh autenticado) y revisá la opción "datos" en /config.</Text> : null}
-        {lista.map(tarjeta)}
+        {lista.map((m, i) => (
+          <Box key={`ficha-${m.presencia.usuario}`} flexDirection="column">
+            {i > 0 ? <Text>{VACIA}</Text> : null}
+            {tarjeta(m, i)}
+          </Box>
+        ))}
+        <Text>{VACIA}</Text>
         {datos.actualizado ? <Text dimColor size="caption">actualizado {horaLocal(datos.actualizado)} · cada {config.intervalo} s</Text> : null}
       </Box>
     )
