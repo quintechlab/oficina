@@ -22,7 +22,6 @@ import {
   mapaNombres,
   ordenar,
   repoDesdeRemoto,
-  restante,
   resumen,
   talleDesdeCuerpo,
   tareaDesdeRama,
@@ -474,7 +473,7 @@ export const register: Register = (on, options) => {
       const p = m.presencia
       const acento = ACENTOS[i % ACENTOS.length] ?? AMARILLO
       const ev = estadoVisible(p, ahoraMs)
-      const rest = restante(m.tarea?.talle ?? null, m.tarea?.horasRegistradas ?? null, p.inicio, ahoraMs)
+
       const choque = misChoques.find(c => c.con === p.nombre)
       const [duenio, nombreRepo] = p.repo ? p.repo.split('/') : [null, null]
       const ciColor = (pr: Pr) => (pr.ci === 'ok' ? 'success' : pr.ci === 'falla' ? 'error' : pr.ci === 'pendiente' ? 'warning' : 'inactive')
@@ -511,16 +510,7 @@ export const register: Register = (on, options) => {
               )}
               {m.tarea?.estadoTablero ? <Text dimColor>{SANGRIA}tablero: {m.tarea.estadoTablero}</Text> : null}
               {p.tareaDesde && p.inicio && fechaCorta(p.tareaDesde) !== fechaCorta(p.inicio) ? <Text dimColor>{SANGRIA}en esta tarea desde el {fechaCorta(p.tareaDesde)}</Text> : null}
-              {rest ? (
-                rest.excedido ? (
-                  <Text color="error">{SANGRIA}excedido en {formatoDuracion(-rest.quedanMs)} <Text dimColor>· talle {m.tarea?.talle} = {formatoDuracion(rest.totalMs)}</Text></Text>
-                ) : (
-                  <Text color={rest.quedanMs < rest.totalMs * 0.25 ? 'warning' : 'text'}>
-                    {SANGRIA}quedan ~{formatoDuracion(rest.quedanMs)} <Text dimColor>de {formatoDuracion(rest.totalMs)} (talle {m.tarea?.talle}{m.tarea?.horasRegistradas ? `, ${m.tarea.horasRegistradas} h ya cargadas` : ''})</Text>
-                  </Text>
-                )
-              ) : null}
-              {p.tarea && m.tarea && !rest ? <Text dimColor>{SANGRIA}sin talle en el Issue: sin estimación</Text> : null}
+              {m.tarea?.horasRegistradas ? <Text dimColor>{SANGRIA}{m.tarea.horasRegistradas} h cargadas en el tablero</Text> : null}
               {p.nota ? <Text italic color={AMARILLO}>{SANGRIA}“{p.nota}”</Text> : null}
             </Box>
           ) : null}

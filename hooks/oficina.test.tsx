@@ -173,9 +173,9 @@ test('el panel dibuja a cada integrante con su tarea, en cada superficie', async
     expect((await ui.find({ type: 'Text', text: /Carrito de compras/ }))?.text).toContain('#51')
     expect((await ui.find({ type: 'Text', text: /PR #10/ }))?.text).toContain('Carrito')
     expect((await ui.find({ type: 'Text', text: /toca lo mismo/ }))?.text).toContain('src/carrito.ts')
-    // Quintana (vos) va primero: talle S sin horas cargadas; Campos: talle M con 3 h cargadas
-    expect((await ui.find({ type: 'Text', text: /quedan/ }))?.text).toContain('de 4 h (talle S)')
-    expect((await ui.find({ type: 'Text', text: /de 16 h/ }))?.text).toContain('3 h ya cargadas')
+    // El talle es un tope, no una estimación: no se muestra tiempo restante. Sí las horas cargadas.
+    expect(await ui.find({ type: 'Text', text: /quedan/ })).toBe(undefined)
+    expect((await ui.find({ type: 'Text', text: /cargadas/ }))?.text).toContain('3 h cargadas en el tablero')
     await ui.unmount()
   }
 })

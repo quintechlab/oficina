@@ -1,6 +1,6 @@
 # Oficina · Quintech Studio
 
-Panel para Claude Code que muestra, en vivo, en qué está cada integrante del equipo: proyecto, rama, número de tarea, desde cuándo, cuánto tiempo estimado le queda, PRs abiertos con el estado del CI y archivos que los dos tocan a la vez. Es la "oficina" de Quintana y Campos: cada uno lo instala en su máquina y entra con su propia cuenta de GitHub.
+Panel para Claude Code que muestra, en vivo, en qué está cada integrante del equipo: proyecto, rama, número de tarea, desde cuándo, horas cargadas, PRs abiertos con el estado del CI y archivos que los dos tocan a la vez. Es la "oficina" de Quintana y Campos: cada uno lo instala en su máquina y entra con su propia cuenta de GitHub.
 
 No tiene servidor propio. La fuente de verdad es GitHub: los Issues y el tablero que ya usa el equipo, más un Issue "Presencia" en un repositorio **privado** donde cada integrante actualiza un comentario propio con su estado. El mod nunca guarda contraseñas ni tokens: usa el `gh` ya autenticado de cada máquina.
 
@@ -11,7 +11,7 @@ Por integrante, con avatar y estado (● trabajando, ◐ sin señales hace más 
 - Repositorio y rama en la que está.
 - Tarea en curso (`#42 Título`), talle (S o M) y estado en el tablero.
 - Desde qué hora trabaja y cuánto lleva; si la tarea viene de otro día, desde cuándo.
-- Tiempo estimado que le queda: presupuesto del talle (S: 4 h, M: 16 h) menos las horas cargadas en el campo "Tiempo real" del tablero y la sesión actual. Si el Issue no tiene talle, no se inventa: dice "sin estimación".
+- Horas ya cargadas en el campo "Tiempo real" del tablero. No se muestra un "tiempo restante": el talle es un tope (S: medio día, M: dos días), no una estimación, y restarlo engaña.
 - PRs abiertos con el CI en verde, rojo o pendiente.
 - Nota libre ("viendo el bug del login").
 - Aviso cuando el otro toca los mismos archivos que vos en el mismo repositorio.

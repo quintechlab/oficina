@@ -1,6 +1,6 @@
 {
   "name": "oficina",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Oficina Quintech Studio: panel que muestra en qué proyecto y tarea está cada integrante, desde cuándo y cuánto le queda, leyendo GitHub.",
   "author": { "name": "Quintech Studio" },
   "license": "MIT",
