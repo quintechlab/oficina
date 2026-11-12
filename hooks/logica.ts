@@ -115,6 +115,22 @@ export function ponerSesion(
   }
 }
 
+/**
+ * Une dos comentarios de la misma persona. Pasa cuando una sesión con una versión anterior del mod
+ * no reconoce el formato nuevo y crea un comentario aparte: la persona sigue siendo una sola ficha.
+ * Si dos entradas tienen el mismo id de sesión, queda la más reciente.
+ */
+export function unirComentarios(a: ComentarioPresencia | undefined, b: ComentarioPresencia): ComentarioPresencia {
+  if (!a) return b
+  const reciente = Date.parse(b.actualizado) >= Date.parse(a.actualizado) ? b : a
+  const porSesion = new Map<string, Presencia>()
+  for (const s of [...a.sesiones, ...b.sesiones]) {
+    const previa = porSesion.get(s.sesion)
+    if (!previa || Date.parse(s.actualizado) > Date.parse(previa.actualizado)) porSesion.set(s.sesion, s)
+  }
+  return { ...reciente, sesiones: [...porSesion.values()] }
+}
+
 /** Saca la entrada de una sesión (al cerrarla); las demás quedan como estaban. */
 export function quitarSesion(c: ComentarioPresencia, sesion: string, ahoraIso: string): ComentarioPresencia {
   return { ...c, actualizado: ahoraIso, sesiones: c.sesiones.filter(s => s.sesion !== sesion) }

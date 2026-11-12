@@ -16,6 +16,7 @@ import {
   mapaNombres,
   ponerSesion,
   quitarSesion,
+  unirComentarios,
   repoDesdeRemoto,
   restante,
   talleDesdeCuerpo,
@@ -156,6 +157,21 @@ test('/oficina fuera vale para la persona aunque tenga sesiones abiertas', async
   // /oficina volver, o abrir una sesión nueva, sí
   c = ponerSesion(c, crm, ahora, { ausente: false })
   expect(elegirPrincipal(c, ahora).presencia.estado).toBe('trabajando')
+})
+
+test('dos comentarios de la misma persona se ven como una sola ficha', async () => {
+  const ahora = Date.parse(AHORA)
+  const nuevo = ponerSesion(null, presencia({ sesion: 'crm', repo: 'nicoequintana/quintech-crm', tarea: 34 }), ahora)
+  // El comentario que dejó una sesión con la versión anterior: formato v1, fuera de un repositorio
+  const v1: Record<string, unknown> = { ...presencia({ repo: null, rama: null, tarea: null, actualizado: '2026-11-12T16:59:00.000Z' }) }
+  delete v1.sesion
+  const viejo = extraerComentario(`<!-- oficina:presencia -->\n\`\`\`json\n${JSON.stringify(v1)}\n\`\`\``) as ComentarioPresencia
+  const unido = unirComentarios(unirComentarios(undefined, nuevo), viejo)
+  expect(unido.sesiones.map(s => s.sesion).sort()).toEqual(['crm', 'v1'])
+  expect(elegirPrincipal(unido, ahora).presencia.tarea).toBe(34)
+  // Misma sesión en los dos: queda la entrada más reciente
+  const otraVez = ponerSesion(null, presencia({ sesion: 'crm', tarea: 35, actualizado: '2026-11-12T17:01:00.000Z' }), ahora)
+  expect(unirComentarios(nuevo, otraVez).sesiones.map(s => s.tarea)).toEqual([35])
 })
 
 test('una sesión colgada hace más de 12 h se descarta', async () => {

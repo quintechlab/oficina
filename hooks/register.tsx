@@ -19,6 +19,7 @@ import {
   extraerComentario,
   ponerSesion,
   quitarSesion,
+  unirComentarios,
   fechaCorta,
   formatoDuracion,
   horaLocal,
@@ -123,12 +124,15 @@ async function miComentario($: EngineInterface, login: string): Promise<Mio> {
     'api',
     `repos/${config.datos}/issues/${config.issue}/comments?per_page=100`,
   ])
-  for (const c of lista) {
-    if (c.user.login.toLowerCase() !== login.toLowerCase()) continue
-    const comentario = extraerComentario(c.body)
-    if (comentario) return { id: c.id, comentario }
-  }
-  return null
+  // Si una sesión vieja dejó un segundo comentario, se escribe en el de formato nuevo y se suma lo del otro
+  const mios = lista
+    .filter(c => c.user.login.toLowerCase() === login.toLowerCase())
+    .map(c => ({ id: c.id, esV2: c.body.includes('"v": 2'), comentario: extraerComentario(c.body) }))
+    .filter((c): c is { id: number; esV2: boolean; comentario: ComentarioPresencia } => c.comentario !== null)
+    .sort((x, y) => Number(y.esV2) - Number(x.esV2) || x.id - y.id)
+  const destino = mios[0]
+  if (!destino) return null
+  return { id: destino.id, comentario: mios.slice(1).reduce((acc, c) => unirComentarios(acc, c.comentario), destino.comentario) }
 }
 
 async function escribirComentario($: EngineInterface, mio: Mio, comentario: ComentarioPresencia): Promise<void> {
@@ -271,10 +275,16 @@ async function refrescar($: EngineInterface): Promise<void> {
     const comentarios = await ghJson<Array<{ id: number; body: string }>>($, [
       'api', `repos/${config.datos}/issues/${config.issue}/comments?per_page=100`,
     ])
-    const lista: Miembro[] = []
+    // Una ficha por persona, aunque tenga más de un comentario (ver unirComentarios)
+    const porPersona = new Map<string, ComentarioPresencia>()
     for (const c of comentarios) {
       const comentario = extraerComentario(c.body)
       if (!comentario) continue
+      const clave = comentario.usuario.toLowerCase()
+      porPersona.set(clave, unirComentarios(porPersona.get(clave), comentario))
+    }
+    const lista: Miembro[] = []
+    for (const comentario of porPersona.values()) {
       const elegida = elegirPrincipal(comentario, ahoraMs)
       const nombre = config.nombres[comentario.usuario.toLowerCase()] ?? comentario.nombre
       const presencia: Presencia = { ...elegida.presencia, nombre }
