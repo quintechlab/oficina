@@ -1,0 +1,5 @@
+{
+  "name": "quintech",
+  "owner": { "name": "Quintech Studio" },
+  "plugins": [{ "name": "oficina", "source": "./", "description": "Panel de presencia del equipo Quintech Studio sobre GitHub." }]
+}

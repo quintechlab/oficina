@@ -1,0 +1,35 @@
+{
+  "name": "oficina",
+  "version": "0.1.0",
+  "description": "Oficina Quintech Studio: panel que muestra en qué proyecto y tarea está cada integrante, desde cuándo y cuánto le queda, leyendo GitHub.",
+  "author": { "name": "Quintech Studio" },
+  "license": "MIT",
+  "icon": "./.claude-plugin/icon.png",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "datos": {
+      "type": "string",
+      "title": "Repositorio de datos",
+      "description": "Repositorio privado donde se guarda la presencia (owner/repo). Se crea con /oficina init.",
+      "default": "QuintechLabs/oficina-datos"
+    },
+    "issue": {
+      "type": "number",
+      "title": "Issue de presencia",
+      "description": "Número del Issue 'Presencia' dentro de ese repositorio.",
+      "default": 1
+    },
+    "intervalo": {
+      "type": "number",
+      "title": "Intervalo (segundos)",
+      "description": "Cada cuántos segundos se consulta GitHub.",
+      "default": 60
+    },
+    "nombres": {
+      "type": "string",
+      "title": "Nombres visibles",
+      "description": "Nombre visible de cada usuario de GitHub, separado por comas: usuario=Nombre,otro=Nombre.",
+      "default": "nicoequintana=Quintana"
+    }
+  }
+}
