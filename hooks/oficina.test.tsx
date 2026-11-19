@@ -12,9 +12,14 @@ import {
   estadoVisible,
   extraerComentario,
   formatoDuracion,
+  actividadDesdeHerramienta,
   iniciales,
   mapaNombres,
+  NOMBRES_INVENTADOS,
+  nombreSubagente,
+  podarSubagentes,
   ponerSesion,
+  preguntaDesdeEntrada,
   quitarSesion,
   unirComentarios,
   repoDesdeRemoto,
@@ -63,6 +68,7 @@ function miembro(extra: Omit<Partial<Miembro>, 'presencia'> & { presencia?: Part
   return {
     presencia: presencia(parcial ?? {}),
     otras: [],
+    sesiones: [presencia(parcial ?? {})],
     tarea: { numero: 51, titulo: 'Carrito de compras', talle: 'M', abierta: true, url: '', horasRegistradas: 3, estadoTablero: 'En progreso' },
     prs: [],
     ultimoCommit: null,
@@ -144,6 +150,84 @@ test('otra sesión activa en otro repositorio se lista aparte', async () => {
   const elegida = elegirPrincipal(ponerSesion(ponerSesion(null, crm, ahora), web, ahora), ahora)
   expect(elegida.presencia.sesion).toBe('crm')
   expect(elegida.otras.map(o => o.sesion)).toEqual(['web'])
+})
+
+test('todas las sesiones vivas se listan, la principal primero, aunque compartan repositorio', async () => {
+  const ahora = Date.parse(AHORA)
+  const header = presencia({ sesion: 'header', repo: 'quintechlab/catalogo', tarea: 51 })
+  const tests = presencia({ sesion: 'tests', repo: 'quintechlab/catalogo', tarea: 51, actualizado: '2026-11-12T16:58:00.000Z' })
+  const vieja = presencia({ sesion: 'vieja', actualizado: '2026-11-11T01:00:00.000Z' })
+  const c = ponerSesion(ponerSesion(ponerSesion(null, vieja, Date.parse('2026-11-11T01:00:00.000Z')), tests, ahora), header, ahora)
+  const elegida = elegirPrincipal(c, ahora)
+  expect(elegida.todas.map(s => s.sesion)).toEqual(['header', 'tests'])
+  // "otras" sigue siendo solo lo que está en otro repositorio o tarea
+  expect(elegida.otras).toEqual([])
+  expect(elegirPrincipal(ponerSesion(c, header, ahora, { ausente: true }), ahora).todas).toEqual([])
+})
+
+test('los subagentes de una sesión viajan en su entrada, y una entrada sin subagentes se sigue leyendo', async () => {
+  const ahora = Date.parse(AHORA)
+  const agentes = [{ id: 'a1', nombre: 'Camila', inventado: false, tipo: 'general-purpose', tarea: 'rediseño del header', desde: '2026-11-12T16:57:00.000Z', estado: 'trabajando' as const, hasta: null }]
+  const c = ponerSesion(null, presencia({ agentes }), ahora)
+  expect(extraerComentario(envolverComentario(c))?.sesiones[0]?.agentes).toEqual(agentes)
+  // Lo que publica la v0.3.1 no trae el campo
+  expect(extraerComentario(envolverComentario(ponerSesion(null, presencia({}), ahora)))?.sesiones[0]?.agentes).toBe(undefined)
+})
+
+test('el nombre del subagente sale de su descripción "Nombre — tarea"', async () => {
+  expect(nombreSubagente('Camila — rediseño del header', 'a1')).toEqual({ nombre: 'Camila', tarea: 'rediseño del header', inventado: false })
+  expect(nombreSubagente('Lucas 2 - fix tests', 'a2')).toEqual({ nombre: 'Lucas 2', tarea: 'fix tests', inventado: false })
+  expect(nombreSubagente('Tomás – mapa de hooks', 'a3')).toEqual({ nombre: 'Tomás', tarea: 'mapa de hooks', inventado: false })
+})
+
+test('un subagente sin nombre recibe uno inventado, siempre el mismo para el mismo agente', async () => {
+  const sinNombre = nombreSubagente('Find dead code', 'agente-7f3a')
+  expect(sinNombre.inventado).toBe(true)
+  expect(sinNombre.tarea).toBe('Find dead code')
+  expect(NOMBRES_INVENTADOS).toContain(sinNombre.nombre)
+  expect(nombreSubagente('otra descripción', 'agente-7f3a').nombre).toBe(sinNombre.nombre)
+  // Varios agentes sin nombre no se llaman todos igual
+  const nombres = new Set(['x1', 'x2', 'x3', 'x4', 'x5', 'x6'].map(id => nombreSubagente('', id).nombre))
+  expect(nombres.size).toBeGreaterThan(1)
+})
+
+test('lo que hace la sesión ahora sale de la última herramienta', async () => {
+  expect(actividadDesdeHerramienta('Edit', { file_path: 'C:\\repo\\hooks\\register.tsx' })).toBe('editando register.tsx')
+  expect(actividadDesdeHerramienta('Write', { file_path: '/repo/docs/a.md' })).toBe('editando a.md')
+  expect(actividadDesdeHerramienta('Read', { file_path: '/repo/src/carrito.ts' })).toBe('leyendo carrito.ts')
+  expect(actividadDesdeHerramienta('Bash', { command: 'npm test -- pricing\nmás' })).toBe('corriendo npm test -- pricing')
+  expect(actividadDesdeHerramienta('Grep', { pattern: 'TODO' })).toBe('buscando TODO')
+  expect(actividadDesdeHerramienta('Agent', { description: 'Camila — header' })).toBe('lanzando a Camila')
+  expect(actividadDesdeHerramienta('AskUserQuestion', {})).toBe('esperándote')
+  expect(actividadDesdeHerramienta('TodoWrite', {})).toBe('usando TodoWrite')
+  expect(actividadDesdeHerramienta('Bash', { command: 'x'.repeat(200) }).length).toBeLessThanOrEqual(60)
+})
+
+test('una pregunta de AskUserQuestion se guarda con sus opciones', async () => {
+  const entrada = {
+    questions: [
+      { question: '¿Qué opción elegís?', header: 'Opción', multiSelect: false, options: [{ label: 'Terrario', description: 'Una escena por proyecto' }, { label: 'Vitrina' }] },
+    ],
+  }
+  expect(preguntaDesdeEntrada(entrada, 'toolu_1', null, AHORA)).toEqual({
+    id: 'toolu_1',
+    agente: null,
+    desde: AHORA,
+    items: [{ pregunta: '¿Qué opción elegís?', encabezado: 'Opción', multiple: false, opciones: [{ etiqueta: 'Terrario', descripcion: 'Una escena por proyecto' }, { etiqueta: 'Vitrina', descripcion: '' }] }],
+  })
+  // Una entrada rara no rompe nada: no hay pregunta que mostrar
+  expect(preguntaDesdeEntrada({ questions: 'x' }, 'toolu_2', null, AHORA)).toBe(null)
+})
+
+test('los subagentes terminados quedan un rato y después se van; los que corren, siempre', async () => {
+  const ahora = Date.parse(AHORA)
+  const base = { tipo: 'general-purpose', tarea: 't', inventado: false }
+  const lista = [
+    { ...base, id: 'corre', nombre: 'Camila', desde: '2026-11-12T10:00:00.000Z', estado: 'trabajando' as const, hasta: null },
+    { ...base, id: 'reciente', nombre: 'Lucas', desde: '2026-11-12T16:00:00.000Z', estado: 'listo' as const, hasta: '2026-11-12T16:50:00.000Z' },
+    { ...base, id: 'viejo', nombre: 'Inés', desde: '2026-11-12T15:00:00.000Z', estado: 'listo' as const, hasta: '2026-11-12T16:00:00.000Z' },
+  ]
+  expect(podarSubagentes(lista, ahora).map(s => s.id)).toEqual(['corre', 'reciente'])
 })
 
 test('/oficina fuera vale para la persona aunque tenga sesiones abiertas', async () => {
@@ -256,7 +340,7 @@ test('el panel dibuja a cada integrante con su tarea, en cada superficie', async
   on('clock.now', () => ({ value: Date.parse(AHORA) }))
   on('state.get', (_, e) =>
     e.key === 'miembros'
-      ? { value: { value: { shape: 'miembros-2', value: lista }, version: 1 } }
+      ? { value: { value: { shape: 'miembros-3', value: lista }, version: 1 } }
       : { value: { value: { yo: 'nicoequintana', error: null, actualizado: AHORA, datos: 'quintechlab/oficina-datos' }, version: 1 } },
   )
 

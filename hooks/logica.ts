@@ -1,6 +1,6 @@
 // Funciones puras del mod "oficina": sin acceso al motor, fáciles de probar.
 
-import type { Ci, ComentarioPresencia, Miembro, Presencia, Tarea } from '../types'
+import type { Ci, ComentarioPresencia, ItemPregunta, Miembro, Pregunta, Presencia, Subagente, Tarea } from '../types'
 
 /** Horas máximas por talle, según el acuerdo (S: hasta medio día; M: hasta 2 días). */
 export const HORAS_POR_TALLE: Record<'S' | 'M', number> = { S: 4, M: 16 }
@@ -50,7 +50,21 @@ function normalizar(d: Partial<Presencia>, sesionPorDefecto: string): Presencia 
     tareaDesde: typeof d.tareaDesde === 'string' ? d.tareaDesde : null,
     actualizado: d.actualizado,
     archivos: Array.isArray(d.archivos) ? d.archivos.filter(a => typeof a === 'string').slice(0, 40) : [],
+    // Campos de la v0.4: una entrada publicada por una versión anterior no los trae
+    ...(typeof d.actividad === 'string' ? { actividad: d.actividad } : {}),
+    ...(Array.isArray(d.agentes) ? { agentes: d.agentes.filter(esSubagente) } : {}),
+    ...(Array.isArray(d.preguntas) ? { preguntas: d.preguntas.filter(esPregunta) } : {}),
   }
+}
+
+function esSubagente(s: unknown): s is Subagente {
+  const a = s as Partial<Subagente> | null
+  return !!a && typeof a.id === 'string' && typeof a.nombre === 'string' && typeof a.tarea === 'string' && typeof a.desde === 'string'
+}
+
+function esPregunta(p: unknown): p is Pregunta {
+  const q = p as Partial<Pregunta> | null
+  return !!q && typeof q.id === 'string' && typeof q.desde === 'string' && Array.isArray(q.items)
 }
 
 export function envolverComentario(c: ComentarioPresencia): string {
@@ -141,7 +155,7 @@ export function quitarSesion(c: ComentarioPresencia, sesion: string, ahoraIso: s
  * un repositorio, después las que tienen tarea, y entre iguales la que publicó más recién.
  * `otras` son las demás sesiones activas que están en otro repositorio o en otra tarea.
  */
-export function elegirPrincipal(c: ComentarioPresencia, ahoraMs: number): { presencia: Presencia; otras: Presencia[] } {
+export function elegirPrincipal(c: ComentarioPresencia, ahoraMs: number): { presencia: Presencia; otras: Presencia[]; todas: Presencia[] } {
   const vivas = c.sesiones.filter(s => s.estado !== 'fuera' && ahoraMs - Date.parse(s.actualizado) <= HORAS_SESION_VIEJA * 3600000)
   const puntaje = (s: Presencia) => (estadoVisible(s, ahoraMs) === 'activo' ? 4 : 0) + (s.repo ? 2 : 0) + (s.tarea ? 1 : 0)
   const orden = [...vivas].sort((a, b) => puntaje(b) - puntaje(a) || Date.parse(b.actualizado) - Date.parse(a.actualizado))
@@ -153,12 +167,116 @@ export function elegirPrincipal(c: ComentarioPresencia, ahoraMs: number): { pres
         nota: null, inicio: null, tareaDesde: null, actualizado: c.actualizado, archivos: [],
       },
       otras: [],
+      todas: [],
     }
   }
   const otras = orden
     .slice(1)
     .filter(s => s.repo && estadoVisible(s, ahoraMs) === 'activo' && !(s.repo === principal.repo && s.tarea === principal.tarea))
-  return { presencia: principal, otras }
+  return { presencia: principal, otras, todas: orden }
+}
+
+// ------------------------------------------------------------------ agentes en paralelo
+
+/** Nombres para los subagentes que no traen uno en su descripción. */
+export const NOMBRES_INVENTADOS = [
+  'Bruno', 'Inés', 'Paula', 'Ramiro', 'Sofía', 'Nahuel', 'Agustín', 'Julieta',
+  'Martina', 'Joaquín', 'Lola', 'Tobías', 'Abril', 'Mateo', 'Renata', 'Felipe',
+] as const
+
+/** Un número estable a partir de un texto (FNV-1a de 32 bits). */
+function huellaTexto(texto: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < texto.length; i++) {
+    h ^= texto.charCodeAt(i)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return h
+}
+
+/**
+ * Nombre y tarea de un subagente. La convención del equipo es despacharlos como
+ * "Nombre — tarea"; si la descripción no lo sigue, el nombre se inventa a partir del id
+ * del agente, así el mismo agente se llama igual en cada publicación.
+ */
+export function nombreSubagente(descripcion: string, id: string): { nombre: string; tarea: string; inventado: boolean } {
+  const m = /^(\p{L}[\p{L}\p{N}]*(?: \d+)?)\s+[—–-]\s+(.+)$/u.exec(descripcion.trim())
+  if (m?.[1] && m[2]) return { nombre: m[1], tarea: m[2].trim(), inventado: false }
+  const nombre = NOMBRES_INVENTADOS[huellaTexto(id) % NOMBRES_INVENTADOS.length] ?? 'Bruno'
+  return { nombre, tarea: descripcion.trim(), inventado: true }
+}
+
+const LARGO_ACTIVIDAD = 60
+
+function recortarActividad(texto: string): string {
+  const limpio = texto.replace(/\s+/g, ' ').trim()
+  return limpio.length > LARGO_ACTIVIDAD ? `${limpio.slice(0, LARGO_ACTIVIDAD - 1)}…` : limpio
+}
+
+function nombreArchivo(ruta: unknown): string {
+  return typeof ruta === 'string' ? (ruta.split(/[\\/]/).pop() ?? ruta) : ''
+}
+
+/** Qué está haciendo una sesión, dicho en una frase corta, a partir de la herramienta que usa. */
+export function actividadDesdeHerramienta(herramienta: string, entrada: Readonly<Record<string, unknown>>): string {
+  switch (herramienta) {
+    case 'Edit':
+    case 'Write':
+    case 'NotebookEdit':
+      return recortarActividad(`editando ${nombreArchivo(entrada.file_path ?? entrada.notebook_path)}`)
+    case 'Read':
+      return recortarActividad(`leyendo ${nombreArchivo(entrada.file_path)}`)
+    case 'Bash':
+    case 'PowerShell':
+      return recortarActividad(`corriendo ${String(entrada.command ?? '').split('\n')[0] ?? ''}`)
+    case 'Grep':
+    case 'Glob':
+      return recortarActividad(`buscando ${String(entrada.pattern ?? '')}`)
+    case 'WebFetch':
+    case 'WebSearch':
+      return 'investigando en la web'
+    case 'Agent': {
+      // Antes de lanzarlo no hay id: un agente sin nombre todavía no tiene el suyo inventado
+      const quien = nombreSubagente(String(entrada.description ?? ''), '')
+      return quien.inventado ? 'lanzando un subagente' : recortarActividad(`lanzando a ${quien.nombre}`)
+    }
+    case 'AskUserQuestion':
+      return 'esperándote'
+    default:
+      return recortarActividad(`usando ${herramienta}`)
+  }
+}
+
+/** La pregunta de una llamada a AskUserQuestion, o null si la entrada no tiene la forma esperada. */
+export function preguntaDesdeEntrada(entrada: unknown, id: string, agente: string | null, desde: string): Pregunta | null {
+  const preguntas = (entrada as { questions?: unknown } | null)?.questions
+  if (!Array.isArray(preguntas)) return null
+  const items: ItemPregunta[] = []
+  for (const q of preguntas) {
+    if (!q || typeof q !== 'object') continue
+    const p = q as { question?: unknown; header?: unknown; multiSelect?: unknown; options?: unknown }
+    if (typeof p.question !== 'string') continue
+    const opciones = Array.isArray(p.options)
+      ? p.options
+          .filter((o): o is { label: string; description?: unknown } => !!o && typeof (o as { label?: unknown }).label === 'string')
+          .map(o => ({ etiqueta: o.label, descripcion: typeof o.description === 'string' ? o.description : '' }))
+      : []
+    items.push({ pregunta: p.question, encabezado: typeof p.header === 'string' ? p.header : '', multiple: p.multiSelect === true, opciones })
+  }
+  return items.length > 0 ? { id, agente, desde, items } : null
+}
+
+/** Cuánto sigue a la vista un subagente que terminó. */
+export const MINUTOS_SUBAGENTE_TERMINADO = 30
+const MAX_SUBAGENTES = 8
+
+/** Los que trabajan siempre quedan; los terminados, durante un rato. Como mucho 8. */
+export function podarSubagentes(lista: readonly Subagente[], ahoraMs: number): Subagente[] {
+  const limite = ahoraMs - MINUTOS_SUBAGENTE_TERMINADO * 60000
+  const vivos = lista.filter(s => s.estado === 'trabajando' || (s.hasta !== null && Date.parse(s.hasta) >= limite))
+  const trabajando = vivos.filter(s => s.estado === 'trabajando')
+  const terminados = vivos.filter(s => s.estado !== 'trabajando')
+  return [...trabajando, ...terminados].slice(0, MAX_SUBAGENTES)
 }
 
 /** Rutas de `git status --porcelain` (cambios sin commitear y archivos nuevos). */

@@ -5,10 +5,14 @@
 // los comentarios de todos cada `intervalo` segundos y dibuja la oficina.
 
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { ComentarioPresencia, Info, Miembro, Pr, Presencia, Tarea } from '../types'
+import type { ComentarioPresencia, Info, Miembro, Pr, Pregunta, Presencia, Subagente, Tarea } from '../types'
 import {
+  actividadDesdeHerramienta,
+  nombreSubagente,
+  podarSubagentes,
+  preguntaDesdeEntrada,
   ciDesdeRollup,
   choques,
   diferencias,
@@ -43,7 +47,7 @@ const GRIS_CLARO = '#9AA0AC'
 const ACENTOS = [AMARILLO, '#7FB3FF', '#8FD694', '#E78FB3']
 
 // Cambiar el tag cuando cambie la forma de Miembro: descarta lo guardado por una versión anterior.
-const miembros = atom({ plugin: 'oficina', key: 'miembros' } as const, [] as Miembro[], { shape: 'miembros-2' })
+const miembros = atom({ plugin: 'oficina', key: 'miembros' } as const, [] as Miembro[], { shape: 'miembros-3' })
 const info = atom({ plugin: 'oficina', key: 'info' } as const, {
   yo: null,
   error: null,
@@ -63,6 +67,13 @@ let yo: Yo | null = null
 let ocupado = false
 let ultimaPublicacion = ''
 const cacheTareas = new Map<string, { en: number; tarea: Tarea }>()
+// Lo que pasa adentro de esta sesión (v0.4). Se pierde al recargar el mod: se rearma con lo que sigue pasando.
+let actividad: string | null = null
+const subagentes = new Map<string, Subagente>()
+const preguntas = new Map<string, Pregunta>()
+let publicacionPendiente: Timer | null = null
+let cola: Promise<void> = Promise.resolve()
+const ESPERA_PUBLICACION_MS = 15000
 
 // ------------------------------------------------------------------ gh
 async function gh($: EngineInterface, args: readonly string[], cwd?: string): Promise<string> {
@@ -181,13 +192,52 @@ async function publicar($: EngineInterface, forzar = false, ausente?: boolean): 
     tareaDesde: tarea ? (tareas[clave] ?? null) : null,
     actualizado: ahora,
     archivos: local.archivos,
+    actividad,
+    agentes: podarSubagentes([...subagentes.values()], ahoraMs),
+    preguntas: [...preguntas.values()],
   }
+  await escribirEstadoLocal($, p)
   // Sin cambios de fondo desde la última vez: no gastar llamadas (el latido igual publica cada 5 min)
   const huella = JSON.stringify({ ...p, actualizado: '', ausente })
   if (!forzar && huella === ultimaPublicacion) return
   const mio = await miComentario($, quien.login)
   await escribirComentario($, mio, ponerSesion(mio?.comentario ?? null, p, ahoraMs, { ausente }))
   ultimaPublicacion = huella
+}
+
+// ------------------------------------------------------------------ agentes en paralelo (v0.4)
+
+/** Carpeta donde cada sesión deja su estado en vivo para el widget de escritorio. */
+async function carpetaLocal($: EngineInterface): Promise<string | null> {
+  const casa = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME'))
+  return casa ? `${casa.replace(/\\/g, '/')}/.claude/oficina/sesiones` : null
+}
+
+/** Escribe el estado de esta sesión en un archivo propio; el widget lee la carpeta entera. */
+async function escribirEstadoLocal($: EngineInterface, p: Presencia, cerrada = false): Promise<void> {
+  const carpeta = await carpetaLocal($)
+  if (!carpeta) return
+  await $.fs.write(`${carpeta}/${p.sesion}.json`, JSON.stringify({ ...p, cerrada }, null, 2)).catch(() => undefined)
+}
+
+/** Marca cerrada la sesión en su archivo local, para que el widget la saque. */
+async function cerrarEstadoLocal($: EngineInterface, sesion: string): Promise<void> {
+  const carpeta = await carpetaLocal($)
+  if (!carpeta) return
+  const ahora = new Date(await $.clock.now()).toISOString()
+  await $.fs.write(`${carpeta}/${sesion}.json`, JSON.stringify({ sesion, cerrada: true, actualizado: ahora })).catch(() => undefined)
+}
+
+/**
+ * Publica cambios de agentes sin saturar GitHub: junta los que llegan seguidos (varios
+ * subagentes lanzados a la vez) y publica una sola vez, de a una publicación por vez.
+ */
+function publicarPronto($: EngineInterface): void {
+  if (publicacionPendiente) return
+  publicacionPendiente = $.clock.after(ESPERA_PUBLICACION_MS, () => {
+    publicacionPendiente = null
+    cola = cola.then(() => publicar($)).catch(() => undefined)
+  })
 }
 
 /** Saca la entrada de una sesión al cerrarla; mis otras sesiones abiertas siguen publicando la suya. */
@@ -289,10 +339,11 @@ async function refrescar($: EngineInterface): Promise<void> {
       const nombre = config.nombres[comentario.usuario.toLowerCase()] ?? comentario.nombre
       const presencia: Presencia = { ...elegida.presencia, nombre }
       const otras = elegida.otras.map(o => ({ ...o, nombre }))
+      const sesiones = elegida.todas.map(s => ({ ...s, nombre }))
       const tarea = presencia.repo && presencia.tarea ? await leerTarea($, presencia.repo, presencia.tarea, ahoraMs) : null
       const prs = presencia.repo ? await leerPrs($, presencia.repo, presencia.usuario) : []
       const ultimoCommit = presencia.repo ? await leerUltimoCommit($, presencia.repo, presencia.usuario) : null
-      lista.push({ presencia, otras, tarea, prs, ultimoCommit, esYo: !!quien && presencia.usuario.toLowerCase() === quien.login.toLowerCase() })
+      lista.push({ presencia, otras, sesiones, tarea, prs, ultimoCommit, esYo: !!quien && presencia.usuario.toLowerCase() === quien.login.toLowerCase() })
     }
     const ordenada = ordenar(lista)
     const antes = await read($, miembros)
@@ -448,9 +499,68 @@ export const register: Register = (on, options) => {
     return resultado
   }).catch((_$, e, next) => next(e)) // nunca bloquea un comando: si el mod falla, el comando sigue
 
+  // ---- Agentes en paralelo (v0.4): qué hace la sesión, sus subagentes y sus preguntas.
+  // Todos observan y nunca bloquean: si el mod falla, lo de Claude sigue igual.
+  on('agent.spawn', async ($, e, next) => {
+    const lanzado = await next(e)
+    if (lanzado.agentId !== undefined) {
+      const { nombre, tarea, inventado } = nombreSubagente(e.description, lanzado.agentId)
+      const desde = new Date(await $.clock.now()).toISOString()
+      subagentes.set(lanzado.agentId, { id: lanzado.agentId, nombre, inventado, tipo: e.subagentType, tarea, desde, estado: 'trabajando', hasta: null })
+      publicarPronto($)
+    }
+    return lanzado
+  }).catch((_$, e, next) => next(e))
+
+  on('turn.start', async ($, e, next) => {
+    if (e.agentId === undefined) {
+      actividad = 'pensando'
+      publicarPronto($)
+    }
+    return next(e)
+  })
+
+  on('turn.complete', async ($, e, next) => {
+    const sub = e.agentId !== undefined ? subagentes.get(e.agentId) : undefined
+    if (sub) {
+      const hasta = new Date(await $.clock.now()).toISOString()
+      subagentes.set(sub.id, { ...sub, estado: e.reason === 'answer' ? 'listo' : 'fallo', hasta })
+      publicarPronto($)
+    } else if (e.agentId === undefined) {
+      actividad = 'esperándote'
+      publicarPronto($)
+    }
+    return next(e)
+  })
+
+  on('tool.call', async ($, e, next) => {
+    const entrada = e as unknown as Readonly<Record<string, unknown>>
+    if (e.agentId === undefined) actividad = actividadDesdeHerramienta(e.tool, entrada)
+    const pregunta =
+      e.tool === 'AskUserQuestion' && e.tool_use_id
+        ? preguntaDesdeEntrada(entrada, e.tool_use_id, e.agentId ?? null, new Date(await $.clock.now()).toISOString())
+        : null
+    if (pregunta) {
+      // Una pregunta no espera al debounce: es lo que más importa ver a tiempo
+      preguntas.set(pregunta.id, pregunta)
+      cola = cola.then(() => publicar($)).catch(() => undefined)
+    } else if (e.agentId === undefined) {
+      publicarPronto($)
+    }
+    try {
+      return await next(e)
+    } finally {
+      if (pregunta) {
+        preguntas.delete(pregunta.id)
+        cola = cola.then(() => publicar($)).catch(() => undefined)
+      }
+    }
+  }).catch((_$, e, next) => next(e))
+
   on('session.end', async ($, e, next) => {
     // Solo la entrada de esta sesión. Tras un /clear la sesión nueva vuelve a publicar en el próximo latido.
     await retirar($, e.sessionId).catch(() => undefined)
+    await cerrarEstadoLocal($, e.sessionId)
     return next(e)
   })
 

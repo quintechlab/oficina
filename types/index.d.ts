@@ -25,6 +25,48 @@ export type Presencia = {
   actualizado: string
   /** Archivos que su rama cambia respecto de main (hasta 40). */
   archivos: string[]
+  /** Qué hace la sesión ahora, según su última herramienta ("editando register.tsx"). Desde la v0.4. */
+  actividad?: string | null
+  /** Subagentes en curso o terminados hace poco. Desde la v0.4. */
+  agentes?: Subagente[]
+  /** Preguntas de AskUserQuestion que esperan respuesta. Desde la v0.4. */
+  preguntas?: Pregunta[]
+}
+
+/** Un subagente lanzado por una sesión. */
+export type Subagente = {
+  /** Id del agente que da el motor (`agentId`). */
+  id: string
+  /** De la descripción "Nombre — tarea", o inventado a partir del id. */
+  nombre: string
+  inventado: boolean
+  /** Tipo de agente (general-purpose, Explore, ...). */
+  tipo: string
+  tarea: string
+  /** Cuándo arrancó (ISO). */
+  desde: string
+  estado: 'trabajando' | 'listo' | 'fallo'
+  /** Cuándo terminó (ISO), o null mientras trabaja. */
+  hasta: string | null
+}
+
+export type OpcionPregunta = { etiqueta: string; descripcion: string }
+
+export type ItemPregunta = {
+  pregunta: string
+  encabezado: string
+  multiple: boolean
+  opciones: OpcionPregunta[]
+}
+
+/** Una llamada a AskUserQuestion pendiente (puede traer varias preguntas). */
+export type Pregunta = {
+  /** tool_use_id de la llamada. */
+  id: string
+  /** Id del subagente que pregunta, o null si pregunta la sesión. */
+  agente: string | null
+  desde: string
+  items: ItemPregunta[]
 }
 
 /**
@@ -69,6 +111,8 @@ export type Miembro = {
   presencia: Presencia
   /** Otras sesiones activas en otros repositorios o tareas. */
   otras: Presencia[]
+  /** Todas sus sesiones vivas, la principal primero. */
+  sesiones: Presencia[]
   tarea: Tarea | null
   prs: Pr[]
   ultimoCommit: { fecha: string; mensaje: string } | null
