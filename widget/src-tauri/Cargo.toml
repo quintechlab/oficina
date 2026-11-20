@@ -20,3 +20,11 @@ tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+
+# Desarrollo: los errores siguen diciendo archivo y línea, sin la info de depuración completa
+[profile.dev]
+debug = "line-tables-only"
+
+# Las dependencias (cientos, por Tauri) sin info de depuración: es lo que más pesa en target/debug
+[profile.dev.package."*"]
+debug = false
