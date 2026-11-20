@@ -1,0 +1,141 @@
+// Tests de la lógica pura del widget: node --test test/
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  agruparPorProyecto, nombreProyecto, animoSesion, animoSubagente, personajeDeNombre,
+  tiempoRelativo, tiempoSubagente, textoActividad, preguntasPendientes, etiquetaOpcion, escapar,
+} from '../src/logica.js'
+
+const AHORA = Date.parse('2026-11-19T23:50:00Z')
+const hace = ms => new Date(AHORA - ms).toISOString()
+const MIN = 60000
+
+const sesion = (extra = {}) => ({
+  v: 1, sesion: 's1', usuario: 'nicoequintana', nombre: 'Quintana', estado: 'trabajando',
+  repo: 'quintechlab/oficina', rama: 'feat/3-widget', tarea: 3, nota: null,
+  inicio: hace(30 * MIN), tareaDesde: hace(30 * MIN), actualizado: hace(10000), archivos: [],
+  actividad: null, agentes: [], preguntas: [], cerrada: false, ...extra,
+})
+
+test('agrupa por proyecto, en orden alfabético y con "fuera de un repositorio" al final', () => {
+  const grupos = agruparPorProyecto([
+    sesion({ sesion: 'a', repo: null, rama: null, tarea: null }),
+    sesion({ sesion: 'b', repo: 'quintechlab/oficina' }),
+    sesion({ sesion: 'c', repo: 'nicoequintana/catalogo' }),
+    sesion({ sesion: 'd', repo: 'quintechlab/oficina', inicio: hace(60 * MIN) }),
+  ])
+  assert.deepEqual(grupos.map(g => g.nombre), ['catalogo', 'oficina', 'fuera de un repositorio'])
+  assert.deepEqual(grupos.map(g => g.repo), ['nicoequintana/catalogo', 'quintechlab/oficina', null])
+  // Dentro del proyecto, las sesiones por orden de inicio: el escritorio de cada una no salta
+  assert.deepEqual(grupos[1].sesiones.map(s => s.sesion), ['d', 'b'])
+})
+
+test('sin sesiones no hay proyectos', () => {
+  assert.deepEqual(agruparPorProyecto([]), [])
+})
+
+test('nombre del proyecto: el repositorio sin el dueño', () => {
+  assert.equal(nombreProyecto('quintechlab/oficina'), 'oficina')
+  assert.equal(nombreProyecto(null), 'fuera de un repositorio')
+})
+
+test('ánimo de la sesión según su actividad', () => {
+  const a = actividad => animoSesion(sesion({ actividad }), AHORA)
+  assert.equal(a('pensando'), 'pensando')
+  assert.equal(a('leyendo register.tsx'), 'leyendo')
+  assert.equal(a('buscando NOMBRES'), 'leyendo')
+  assert.equal(a('corriendo npm test'), 'comando')
+  assert.equal(a('editando logica.ts'), 'editando')
+  assert.equal(a('esperándote'), 'teEspera')
+  assert.equal(a(null), 'esperando')
+})
+
+test('la sesión que pregunta te espera aunque su actividad diga otra cosa', () => {
+  const s = sesion({ actividad: 'pensando', preguntas: [{ id: 'q1', agente: null, desde: hace(MIN), items: [] }] })
+  assert.equal(animoSesion(s, AHORA), 'teEspera')
+})
+
+test('una sesión que no publica hace más de 20 minutos está inactiva', () => {
+  assert.equal(animoSesion(sesion({ actividad: 'pensando', actualizado: hace(21 * MIN) }), AHORA), 'inactiva')
+})
+
+test('ánimo del subagente: festeja 6 s al terminar y después descansa', () => {
+  const ag = extra => ({ id: 'a1', nombre: 'Tomás', inventado: false, tipo: 'Explore', tarea: 'mapa', desde: hace(5 * MIN), estado: 'trabajando', hasta: null, ...extra })
+  assert.equal(animoSubagente(ag({ estado: 'listo', hasta: hace(3000) }), AHORA), 'listo')
+  assert.equal(animoSubagente(ag({ estado: 'listo', hasta: hace(7000) }), AHORA), 'reposo')
+  assert.equal(animoSubagente(ag({ estado: 'fallo', hasta: hace(MIN) }), AHORA), 'fallo')
+  assert.equal(animoSubagente(ag({ tipo: 'Explore' }), AHORA), 'leyendo')
+  assert.equal(animoSubagente(ag({ tipo: 'general-purpose' }), AHORA), 'comiendo')
+  assert.equal(animoSubagente(ag({}), AHORA, true), 'teEspera')
+})
+
+test('cada nombre del elenco tiene su personaje', () => {
+  assert.deepEqual(personajeDeNombre('Claude'), { pj: 'antena', color: '#F3EBD8' })
+  assert.deepEqual(personajeDeNombre('Camila'), { pj: 'gata', color: '#E78FB3' })
+  assert.deepEqual(personajeDeNombre('Ramiro'), { pj: 'raton', color: '#7FB3FF' })
+  assert.deepEqual(personajeDeNombre('Lucas'), { pj: 'brote', color: '#8FD694' })
+  assert.deepEqual(personajeDeNombre('Delfina'), { pj: 'mono', color: '#F2B632' })
+  assert.deepEqual(personajeDeNombre('Inés'), { pj: 'cuernos', color: '#8FD694' })
+  assert.deepEqual(personajeDeNombre('ines'), personajeDeNombre('Inés'))
+})
+
+test('un nombre fuera del elenco recibe siempre el mismo personaje, nunca el de Claude', () => {
+  for (const n of ['Tomás', 'Martina', 'Bruno', 'Paula', 'Nahuel', 'Sofía', 'Agente 7']) {
+    const p = personajeDeNombre(n)
+    assert.deepEqual(personajeDeNombre(n), p)
+    assert.notEqual(p.pj, 'antena')
+    assert.ok(['gata', 'raton', 'brote', 'mono', 'cuernos'].includes(p.pj), `${n}: ${p.pj}`)
+  }
+  const distintos = new Set(['Tomás', 'Martina', 'Bruno', 'Paula', 'Nahuel', 'Sofía', 'Joaquín', 'Lola'].map(n => personajeDeNombre(n).pj))
+  assert.ok(distintos.size >= 3, 'los nombres se reparten entre varios personajes')
+})
+
+test('tiempo relativo en texto', () => {
+  assert.equal(tiempoRelativo(hace(20000), AHORA), 'menos de 1 min')
+  assert.equal(tiempoRelativo(hace(3 * MIN + 5000), AHORA), '3 min')
+  assert.equal(tiempoRelativo(hace(60 * MIN), AHORA), '1 h')
+  assert.equal(tiempoRelativo(hace(125 * MIN), AHORA), '2 h 5 min')
+  assert.equal(tiempoRelativo(new Date(AHORA + 5000).toISOString(), AHORA), 'menos de 1 min')
+})
+
+test('tiempo del subagente: cuánto lleva o hace cuánto terminó', () => {
+  const ag = { desde: hace(12 * MIN), hasta: null, estado: 'trabajando' }
+  assert.equal(tiempoSubagente(ag, AHORA), '12 min')
+  assert.equal(tiempoSubagente({ ...ag, estado: 'listo', hasta: hace(2 * MIN) }, AHORA), 'hace 2 min')
+})
+
+test('texto de actividad de la sesión para la lista', () => {
+  assert.equal(textoActividad(sesion({ actividad: 'editando logica.ts' }), AHORA), 'ahora · editando logica.ts')
+  assert.equal(textoActividad(sesion({ actividad: null }), AHORA), 'ahora · sin actividad')
+  assert.equal(textoActividad(sesion({ actividad: 'pensando', preguntas: [{ id: 'q', agente: null, desde: hace(MIN), items: [] }] }), AHORA), 'ahora · te hace una pregunta')
+  assert.equal(textoActividad(sesion({ actividad: 'pensando', actualizado: hace(25 * MIN) }), AHORA), 'sin actividad hace 25 min')
+})
+
+test('preguntas pendientes del proyecto, una por ítem, con quién pregunta', () => {
+  const item = (pregunta) => ({ pregunta, encabezado: 'Diseño', multiple: false, opciones: [{ etiqueta: 'A', descripcion: '' }] })
+  const s1 = sesion({
+    sesion: 's1',
+    agentes: [{ id: 'a1', nombre: 'Camila', inventado: false, tipo: 'general-purpose', tarea: 'cupones', desde: hace(MIN), estado: 'trabajando', hasta: null }],
+    preguntas: [{ id: 'q1', agente: 'a1', desde: hace(MIN), items: [item('¿Terrario?'), item('¿Colores?')] }],
+  })
+  const s2 = sesion({ sesion: 's2', preguntas: [{ id: 'q2', agente: null, desde: hace(2 * MIN), items: [item('¿Stock?')] }] })
+  const [g] = agruparPorProyecto([s1, s2])
+  const pend = preguntasPendientes(g)
+  assert.deepEqual(pend.map(p => [p.clave, p.quien, p.agente, p.item.pregunta]), [
+    ['q1#0', 'Camila', 'a1', '¿Terrario?'],
+    ['q1#1', 'Camila', 'a1', '¿Colores?'],
+    ['q2#0', 'Claude', null, '¿Stock?'],
+  ])
+  assert.equal(pend[2].sesion, 's2')
+})
+
+test('opción recomendada: la marca del texto se vuelve un chip', () => {
+  assert.deepEqual(etiquetaOpcion('Terrario (Recomendada)'), { texto: 'Terrario', recomendada: true })
+  assert.deepEqual(etiquetaOpcion('Terrario (Recommended)'), { texto: 'Terrario', recomendada: true })
+  assert.deepEqual(etiquetaOpcion('Vitrina'), { texto: 'Vitrina', recomendada: false })
+})
+
+test('escapa el texto antes de meterlo en HTML o SVG', () => {
+  assert.equal(escapar('corriendo a && b <x> "y" \'z\''), 'corriendo a &amp;&amp; b &lt;x&gt; &quot;y&quot; &#39;z&#39;')
+  assert.equal(escapar(null), '')
+})

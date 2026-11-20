@@ -3,3 +3,6 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+widget/node_modules/
+widget/src-tauri/target/
+widget/src-tauri/gen/

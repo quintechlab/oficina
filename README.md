@@ -75,6 +75,20 @@ Después de actualizar el mod, recargá **todas** las sesiones abiertas (`/reloa
 
 El código es público; los datos no. La presencia (nombre del repositorio, rama, número de tarea, archivos cambiados) se escribe solo en el repositorio privado de datos, que leen únicamente sus colaboradores. Cada consulta a GitHub sale con la sesión `gh` de la máquina de cada uno.
 
+## Widget de escritorio
+
+Ventana flotante para Windows (Tauri 2, en `widget/`) que muestra tus sesiones de Claude Code abiertas en esta máquina como un terrario de mascotas pixel: un proyecto por vez (◀ ▶ o las flechas del teclado), un escritorio por sesión con su Claude y sus subagentes, una lista de texto debajo y un globo con las preguntas que esperan respuesta (por ahora de solo lectura: se contestan en Claude). Lee los archivos que cada sesión escribe en `%USERPROFILE%\.claude\oficina\sesiones` cada 1,5 s; descarta las sesiones cerradas y las que no publican hace más de 12 horas.
+
+Requisitos: Node, Rust (`rustup`, con MSVC) y WebView2 (viene con Windows 11).
+
+```
+cd widget
+npm install
+npm run dev
+```
+
+La primera compilación de Rust tarda varios minutos. Tests: `npm test` (lógica de la ventana) y `cargo test` dentro de `widget/src-tauri` (lectura de sesiones). Compilar sin instalador: `npm run tauri build -- --debug --no-bundle`.
+
 ## Desarrollo
 
 ```

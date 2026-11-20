@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oficina</title>
+<link rel="stylesheet" href="estilos.css">
+<script type="module" src="main.js"></script>
+</head>
+<body>
+  <header class="titulo">
+    <div class="arrastre" data-tauri-drag-region title="Arrastrá para mover">
+      <span id="t-mascota" class="t-mascota"></span>
+      <span class="marca">Oficina<small>Quintech</small></span>
+      <span id="t-pend"></span>
+    </div>
+    <button type="button" class="tb" data-accion="pin" aria-pressed="true" aria-label="Siempre arriba" title="Siempre arriba">
+      <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M5 1h4v1h1v4h1v2H3V6h1V2h1zM6 8h2v5H6z" fill="currentColor"/></svg>
+    </button>
+    <button type="button" class="tb" data-accion="min" aria-label="Minimizar" title="Minimizar">
+      <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 7h10v1H2z" fill="currentColor"/></svg>
+    </button>
+    <!-- TODO(bandeja): cerrar a la bandeja en vez de salir, cuando exista el ícono de la bandeja. -->
+    <button type="button" class="tb cerrar" data-accion="cerrar" aria-label="Cerrar" title="Cerrar">
+      <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2h2v1h1v1h1v1h2V4h1V3h1V2h2v2h-1v1h-1v1H9v2h1v1h1v1h1v2h-2v-1H9v-1H8V9H6v1H5v1H4v1H2v-2h1V9h1V8h1V6H4V5H3V4H2z" fill="currentColor"/></svg>
+    </button>
+  </header>
+  <main class="cuerpo-w" id="cuerpo">
+    <p class="rot"><i>▍</i> Tus proyectos<span id="total"></span></p>
+    <div id="nav"></div>
+    <div id="otro"></div>
+    <div id="w-globo"></div>
+    <div class="escena" id="escena"></div>
+    <div id="lista"></div>
+    <!-- TODO(compañero): la habitación plegable de Campos, con sus datos leídos con gh. -->
+    <p class="pie-w" id="pie" role="status"></p>
+  </main>
+</body>
+</html>
