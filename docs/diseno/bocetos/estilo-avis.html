@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oficina · estilo Avis — bocetos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Martian+Mono:wdth,wght@75..112.5,400..600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --negro:#000;--s1:#0C0C0E;--s2:#141417;--s3:#1D1D21;--linea:#25252A;
+  --crema:#F3EBD8;--crema2:#BDB5A4;--tenue:#8A8478;
+  --ambar:#F2B632;--ambar-osc:#1D1707;--violeta:#A58BFF;--celeste:#7FB3FF;--verde:#8FD694;--rosa:#E78FB3;--rojo:#FF7A6B;
+  --f:"Manrope",sans-serif;--m:"Martian Mono",monospace;
+  --ease:cubic-bezier(.16,1,.3,1);--rebote:cubic-bezier(.34,1.56,.64,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#08080A;color:var(--crema);font:15px/1.5 var(--f);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+/* Martian Mono angosta (eje wdth 75); Manrope no tiene ese eje y lo ignora */
+*,*::before,*::after{font-stretch:75%!important}
+:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.saltar{position:absolute;left:-999px;top:8px;background:var(--ambar);color:#000;padding:10px 14px;font-weight:800;border-radius:10px}
+.saltar:focus{left:8px;z-index:9}
+.env{max-width:1320px;margin:0 auto;padding:56px 28px 120px}
+
+/* ---------- cabecera de la página ---------- */
+.portada{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:40px;align-items:end;padding-bottom:36px;border-bottom:1px solid var(--linea)}
+.kicker{font:500 11px/1 var(--m);letter-spacing:.14em;text-transform:uppercase;color:var(--ambar)}
+h1{font-size:clamp(44px,7vw,92px);font-weight:800;letter-spacing:-.05em;line-height:.92;margin:18px 0 18px}
+h1 em{font-style:normal;color:var(--ambar)}
+.intro{max-width:60ch;color:var(--crema2);font-size:16px}
+.intro b{color:var(--crema)}
+.desfile{display:flex;align-items:flex-end;gap:2px}
+.indice{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px}
+.indice a,.conm{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 16px;border-radius:999px;background:var(--s2);border:1px solid var(--linea);color:var(--crema);text-decoration:none;font-weight:700;font-size:13.5px;cursor:pointer;transition:background .2s,border-color .2s}
+.indice a:hover,.conm:hover{background:var(--s3);border-color:#34343a}
+.conm[aria-pressed=true]{background:var(--ambar);color:#000;border-color:var(--ambar)}
+
+/* ---------- bloques ---------- */
+.bloque{padding:72px 0 0}
+.b-cab{display:grid;grid-template-columns:auto minmax(0,1fr);gap:22px;align-items:start;margin-bottom:26px}
+.letra{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;font-size:34px;font-weight:800;letter-spacing:-.04em;background:var(--s2);border:1px solid var(--linea)}
+.letra.rec{background:var(--ambar);color:#000;border-color:var(--ambar)}
+h2{font-size:30px;font-weight:800;letter-spacing:-.035em;line-height:1.1;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.sello{font:600 10.5px/1 var(--m);letter-spacing:.08em;text-transform:uppercase;padding:7px 10px;border-radius:999px;background:var(--ambar);color:#000}
+.notas{margin-top:10px;color:var(--crema2);max-width:78ch;list-style:none}
+.notas li{padding-left:18px;position:relative;margin:3px 0}
+.notas li::before{content:"";position:absolute;left:0;top:.62em;width:8px;height:8px;border-radius:3px;background:var(--c,var(--ambar))}
+.notas b{color:var(--crema)}
+
+/* escritorio de fondo: el widget negro sobre un fondo de pantalla, como en las referencias */
+.escritorio{position:relative;border-radius:28px;padding:56px 40px 64px;overflow:hidden;display:flex;justify-content:center;align-items:flex-start;gap:40px;flex-wrap:wrap;
+  background:radial-gradient(70% 70% at 15% 0%,#3B418F 0%,transparent 60%),radial-gradient(60% 70% at 95% 100%,#6A3D8C 0%,transparent 62%),linear-gradient(165deg,#1F2350,#2A2048)}
+.escritorio::after{content:"";position:absolute;inset:auto 0 0 0;height:120px;pointer-events:none;
+  background:linear-gradient(to top,#170F2C,transparent);clip-path:polygon(0 100%,0 62%,14% 34%,26% 58%,41% 22%,56% 54%,70% 30%,84% 60%,100% 38%,100% 100%)}
+.escritorio>*{position:relative;z-index:1}
+.leyenda{font:500 11px/1.4 var(--m);color:rgba(243,235,216,.7);text-align:center;margin-top:12px}
+
+/* ---------- la ventana del widget ---------- */
+.w{background:#000;border-radius:30px;border:1px solid rgba(255,255,255,.07);box-shadow:0 50px 100px -30px rgba(0,0,0,.85),0 0 0 1px #000;padding:20px;display:flex;gap:20px;width:max-content}
+.pt{display:inline-block;width:7px;height:7px;border-radius:50%;flex:none;background:var(--c,var(--ambar));box-shadow:0 0 0 3px color-mix(in srgb,var(--c,var(--ambar)) 20%,transparent)}
+.chip{font:500 11px/1 var(--m);padding:5px 8px;border-radius:999px;background:var(--s3);color:var(--crema2);white-space:nowrap}
+.chip-preg{background:var(--ambar);color:#000;font-weight:600}
+
+/* barra lateral */
+.lado{width:206px;display:flex;flex-direction:column;gap:18px}
+.marca{display:flex;align-items:center;gap:10px;padding:2px 4px 4px}
+.marca-n{display:block;font-size:20px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
+.estado{display:flex;align-items:center;gap:7px;font:400 11px/1.5 var(--m);font-style:italic;color:var(--crema2);margin-top:2px}
+.proyectos{display:flex;flex-direction:column;gap:4px}
+.pj{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:11px;min-height:46px;padding:8px 10px;border-radius:14px;color:var(--crema2);font-weight:700;font-size:14.5px;cursor:pointer;transition:background .2s,color .2s}
+.pj:hover{background:var(--s2);color:var(--crema)}
+.pj:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.pj.activo{background:var(--ambar-osc);color:var(--ambar)}
+.pj-ic{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;flex:none;font:500 12px/1 var(--m);background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c)}
+.pj-n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj.activo .chip{background:color-mix(in srgb,var(--ambar) 22%,transparent);color:var(--ambar)}
+.rot{display:block;font:500 10px/1 var(--m);letter-spacing:.12em;text-transform:uppercase;color:var(--tenue);margin:0 0 10px 10px}
+.compa{display:flex;align-items:center;gap:10px;padding:6px 10px}
+.ini{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex:none;background:color-mix(in srgb,var(--violeta) 22%,transparent);color:var(--violeta);font:600 10.5px var(--m)}
+.compa b{display:block;font-size:13.5px}
+.compa small{display:block;font-size:11.5px;color:var(--tenue)}
+.lado-pie{margin-top:auto;border-top:1px solid var(--linea);padding-top:12px}
+
+/* principal */
+.main{display:flex;flex-direction:column;gap:12px;min-width:0}
+.cab h3{font-size:30px;font-weight:800;letter-spacing:-.04em;line-height:1.05}
+.cab p{color:var(--crema2);font-size:13.5px;margin-top:2px}
+.aviso{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;min-height:48px;padding:6px 14px 6px 8px;border-radius:999px;background:var(--s1);border:1px solid color-mix(in srgb,var(--ambar) 45%,var(--linea));cursor:pointer;font-size:13.5px;color:var(--crema2);transition:background .2s,border-color .2s}
+.aviso b{color:var(--crema)}
+.aviso:hover{background:var(--ambar-osc);border-color:var(--ambar)}
+.aviso:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.aviso .ir{margin-left:auto;color:var(--ambar);font-weight:800;white-space:nowrap}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:var(--s1);border:1px solid var(--linea);border-radius:18px;padding:14px 14px 12px}
+.stat i.ico{display:block;width:24px;height:24px;border-radius:8px;background:var(--c);margin-bottom:14px}
+.stat b{display:block;font-size:26px;font-weight:800;letter-spacing:-.04em;line-height:1}
+.stat small{font-size:12.5px;color:var(--crema2)}
+
+/* tarjeta de sesión */
+.ses{background:var(--s1);border:1px solid var(--linea);border-radius:22px;padding:14px 16px 16px;transition:border-color .25s,transform .35s var(--ease)}
+.ses:hover{border-color:#36363c;transform:translateY(-2px)}
+.ses-top{display:flex;gap:12px;align-items:center}
+.ses-tit{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ses-tit b{font-size:17px;font-weight:800;letter-spacing:-.02em}
+.tag{font:600 11px/1 var(--m);background:var(--ambar);color:#000;padding:4px 7px;border-radius:7px}
+.tag.sin{background:var(--s3);color:var(--crema2)}
+.rama{display:block;font:400 11px/1.6 var(--m);color:var(--tenue);margin-top:2px}
+.linea{display:flex;align-items:center;gap:8px;margin-top:6px;color:var(--c);font-weight:700;font-size:13.5px}
+.lleva{margin-left:auto;align-self:flex-start;font:400 11px var(--m);color:var(--tenue);white-space:nowrap}
+.subs{list-style:none;display:flex;gap:8px;margin-top:14px}
+.sub{width:104px;background:var(--s2);border:1px solid transparent;border-radius:16px;padding:8px 10px 11px;display:flex;flex-direction:column;gap:1px;transition:background .2s,border-color .2s,transform .35s var(--ease)}
+.sub:hover{background:var(--s3);border-color:var(--linea);transform:translateY(-3px)}
+.sub .avi{align-self:center;margin-bottom:2px}
+.sub b{font-size:13.5px;color:var(--c);line-height:1.2}
+.sub b span{display:block;font:400 10px var(--m);font-stretch:75%;color:var(--tenue)}
+.sub small{font-size:12px;line-height:1.3;color:var(--crema2)}
+.est{margin-top:7px;font:500 10px/1.3 var(--m);color:var(--ce,var(--ambar))}
+.sub.dorm .avi{opacity:.6} /* solo el Avi: el texto atenuado no llega a 4.5:1 */
+.mas{width:46px;border-radius:16px;background:var(--s2);display:grid;place-items:center;font:600 13px var(--m);color:var(--crema2);border:1px dashed #34343a}
+
+/* B · escenario */
+.escena{width:540px;background:var(--s1);border:1px solid var(--linea);border-radius:24px;overflow:hidden}
+.esc-cab{display:flex;align-items:center;gap:10px;padding:14px 16px 0}
+.tablado{position:relative;height:300px;overflow:hidden;
+  background:radial-gradient(58% 46% at 50% 100%,rgba(242,182,50,.17),transparent 72%),linear-gradient(#0C0C0E,#121215)}
+.tablado::before{content:"";position:absolute;left:-30%;right:-30%;bottom:0;height:52%;transform:perspective(260px) rotateX(58deg);transform-origin:50% 100%;
+  background-image:linear-gradient(90deg,rgba(243,235,216,.07) 1px,transparent 1px),linear-gradient(rgba(243,235,216,.07) 1px,transparent 1px);background-size:46px 46px;
+  -webkit-mask-image:linear-gradient(to top,#000 10%,transparent 90%);mask-image:linear-gradient(to top,#000 10%,transparent 90%)}
+.pos{position:absolute;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px}
+.placa{display:inline-flex;align-items:center;gap:6px;font:500 10px/1 var(--m);color:var(--crema);background:rgba(0,0,0,.72);border:1px solid var(--linea);padding:5px 8px;border-radius:999px;white-space:nowrap}
+.esc-mas{position:absolute;right:14px;top:12px}
+.esc-lista{list-style:none;padding:12px 18px 16px;border-top:1px solid var(--linea);display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--crema2)}
+.esc-lista li{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.esc-lista b{color:var(--c)}
+.esc-lista .t{font:400 10.5px var(--m);color:var(--tenue);margin-left:auto}
+.esc-lista .dorm{opacity:.6}
+
+/* C · riel */
+.riel{width:56px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.riel hr{width:28px;border:0;border-top:1px solid var(--linea);margin:4px 0}
+.r-pj{all:unset;position:relative;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--s2);font:500 13px var(--m);color:var(--c);cursor:pointer;transition:background .2s,box-shadow .2s}
+.r-pj:hover{background:var(--s3)}
+.r-pj:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.r-pj.activo{background:var(--ambar-osc);box-shadow:inset 0 0 0 1.5px var(--ambar)}
+.r-badge{position:absolute;top:-5px;right:-5px;min-width:19px;height:19px;padding:0 4px;border-radius:10px;background:var(--s3);color:var(--crema2);font:600 10px/19px var(--m);text-align:center;border:2px solid #000}
+.r-badge.preg{background:var(--ambar);color:#000}
+.main.c{width:392px}
+.fila{display:flex;align-items:center;gap:12px;background:var(--s1);border:1px solid var(--linea);border-radius:18px;padding:8px 14px 8px 8px;transition:border-color .25s}
+.fila:hover{border-color:#36363c}
+.fila .txt{min-width:0;flex:1}
+.fila .txt b{font-size:14.5px;font-weight:800}
+.fila .linea{margin-top:1px;font-size:12.5px}
+.cabezas{display:flex;padding-left:8px}
+.cabezas .avi{margin-left:-10px;background:var(--s2);border-radius:50%;border:2px solid var(--s1)}
+
+/* ---------- tarjeta de pregunta ---------- */
+.preg{width:392px;background:var(--s1);border:1px solid color-mix(in srgb,var(--ambar) 50%,var(--linea));border-radius:22px;padding:14px 16px 12px;
+  box-shadow:0 0 0 5px rgba(242,182,50,.05),0 24px 48px -26px rgba(242,182,50,.35)}
+.tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.tab{all:unset;display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:0 11px;border-radius:999px;background:var(--s2);font-size:12px;font-weight:700;color:var(--crema2);cursor:pointer}
+.tab[aria-selected=true]{background:var(--s3);color:var(--crema);box-shadow:inset 0 0 0 1px #3a3a40}
+.tab:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.preg-cab{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--crema2)}
+.preg-cab b{color:var(--crema)}
+.preg h4{font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.3;margin:12px 0 2px}
+.modo{font:500 10.5px/1.5 var(--m);color:var(--violeta)}
+.ops{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.op{all:unset;box-sizing:border-box;display:grid;grid-template-columns:30px 1fr;column-gap:12px;align-items:center;min-height:54px;padding:9px 12px;border-radius:14px;background:var(--s2);border:1px solid transparent;cursor:pointer;transition:border-color .18s,background .18s,transform .14s}
+.op .n{grid-row:span 2;width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--violeta) 18%,transparent);color:var(--violeta);font:600 12px var(--m);transition:background .18s,color .18s}
+.op b{font-size:14px;line-height:1.3}
+.op small{grid-column:2;font-size:12px;line-height:1.35;color:var(--crema2)}
+.op:hover{border-color:color-mix(in srgb,var(--ambar) 60%,transparent);background:var(--ambar-osc)}
+.op:active{transform:scale(.985)}
+.op:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.op[aria-pressed=true]{border-color:var(--ambar);background:var(--ambar-osc)}
+.op[aria-pressed=true] .n{background:var(--ambar);color:#000}
+.recom{font:500 10px/1 var(--m);color:var(--ambar);border:1px solid color-mix(in srgb,var(--ambar) 45%,transparent);padding:3px 6px;border-radius:999px;margin-left:8px;vertical-align:2px;white-space:nowrap}
+.preg-pie{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px}
+.link{all:unset;min-height:44px;display:inline-flex;align-items:center;padding:0 4px;color:var(--violeta);font-weight:800;font-size:13px;cursor:pointer}
+.link:hover{text-decoration:underline;text-underline-offset:3px}
+.link:focus-visible{outline:2px solid var(--ambar);outline-offset:2px;border-radius:6px}
+.btn{all:unset;min-height:44px;display:inline-flex;align-items:center;gap:6px;padding:0 18px;border-radius:999px;font-weight:800;font-size:13.5px;background:var(--ambar);color:#000;cursor:pointer;transition:transform .14s,filter .2s,opacity .2s}
+.btn:hover{filter:brightness(1.08)}
+.btn:active{transform:scale(.97)}
+.btn:focus-visible{outline:2px solid var(--crema);outline-offset:2px}
+.btn.sec{background:var(--s3);color:var(--crema)}
+.btn:disabled,.btn[aria-disabled=true]{opacity:.38;cursor:not-allowed;filter:none}
+.otra{margin-top:10px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}
+.otra label{grid-column:1/-1;font:500 10.5px var(--m);color:var(--crema2)}
+.otra input{min-height:44px;background:#000;border:1px solid var(--linea);border-radius:12px;padding:0 12px;color:var(--crema);font:600 14px var(--f);outline:none;transition:border-color .2s}
+.otra input:focus{border-color:var(--ambar)}
+.nota{font:400 10.5px/1.5 var(--m);color:var(--tenue)}
+.hecho{display:flex;align-items:center;gap:10px;font-weight:800;font-size:14px;padding:6px 16px 6px 8px;border-radius:999px;background:var(--s1);border:1px solid color-mix(in srgb,var(--verde) 50%,var(--linea));width:max-content}
+.preg.enviada .ops,.preg.enviada .preg-pie,.preg.enviada .modo{display:none}
+.preg .hecho{display:none;margin-top:12px}
+.preg.enviada .hecho{display:flex}
+
+/* ---------- piezas ---------- */
+.grilla{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:24px}
+.pieza{background:var(--s1);border:1px solid var(--linea);border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:16px}
+.pieza h3{font-size:17px;font-weight:800;letter-spacing:-.02em}
+.pieza>p{color:var(--crema2);font-size:13.5px;margin-top:-10px}
+.lienzo{border-radius:18px;background:#000;padding:22px;display:flex;flex-wrap:wrap;gap:18px;justify-content:center;align-items:flex-start}
+.proceso{display:flex;align-items:center;gap:10px;margin-top:12px;padding:8px 12px;border-radius:12px;background:var(--s2);font:400 11px var(--m);color:var(--crema2)}
+.proceso code{color:var(--crema);font:500 11px var(--m)}
+.barra{flex:1;height:4px;border-radius:2px;background:var(--s3);overflow:hidden;position:relative;min-width:60px}
+.barra::after{content:"";position:absolute;inset:0;width:38%;border-radius:2px;background:var(--celeste);transform:translateX(60%)}
+.vacio{width:330px;text-align:center;padding:30px 26px 28px;display:flex;flex-direction:column;align-items:center}
+.vacio h3{font-size:18px;font-weight:800;letter-spacing:-.02em;margin-top:6px}
+.vacio p{color:var(--crema2);font-size:13.5px;margin-top:4px}
+.vacio .nota{margin-top:14px}
+
+/* acople a un borde de pantalla */
+.acoples{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.pant{position:relative;height:200px;border-radius:18px;overflow:hidden;
+  background:radial-gradient(80% 90% at 20% 0%,#3B418F,transparent 60%),radial-gradient(60% 70% at 100% 100%,#5E3A86,transparent 65%),linear-gradient(165deg,#1F2350,#2A2048)}
+.pant.alta{height:320px}
+.pant .rotulo{position:absolute;left:14px;bottom:12px;font:500 10.5px/1.4 var(--m);color:rgba(243,235,216,.78);max-width:70%}
+/* la muesca: negra, pegada al borde, con esquinas cóncavas como un notch de celular */
+.muesca{all:unset;box-sizing:border-box;position:absolute;display:flex;align-items:center;gap:8px;background:#000;white-space:nowrap;cursor:pointer;z-index:2;
+  box-shadow:0 12px 28px -14px rgba(0,0,0,.9);transition:transform .35s var(--ease)}
+.muesca:focus-visible{outline:2px solid var(--ambar);outline-offset:3px}
+.muesca::before,.muesca::after{content:"";position:absolute;width:16px;height:16px}
+.muesca.arriba{top:0;left:50%;transform:translateX(-50%);border-radius:0 0 22px 22px;padding:0 14px 6px 12px}
+.muesca.arriba::before{left:-16px;top:0;background:radial-gradient(circle at 0 100%,transparent 15.5px,#000 16px)}
+.muesca.arriba::after{right:-16px;top:0;background:radial-gradient(circle at 100% 100%,transparent 15.5px,#000 16px)}
+.muesca.abajo{bottom:0;left:50%;transform:translateX(-50%);border-radius:22px 22px 0 0;padding:6px 14px 2px 12px}
+.muesca.abajo::before{left:-16px;bottom:0;background:radial-gradient(circle at 0 0,transparent 15.5px,#000 16px)}
+.muesca.abajo::after{right:-16px;bottom:0;background:radial-gradient(circle at 100% 0,transparent 15.5px,#000 16px)}
+.muesca.der{right:0;top:50%;transform:translateY(-50%);flex-direction:column;border-radius:22px 0 0 22px;padding:10px 6px 12px 8px}
+.muesca.der::before{right:0;top:-16px;background:radial-gradient(circle at 0 0,transparent 15.5px,#000 16px)}
+.muesca.der::after{right:0;bottom:-16px;background:radial-gradient(circle at 0 100%,transparent 15.5px,#000 16px)}
+.muesca.izq{left:0;top:50%;transform:translateY(-50%);flex-direction:column;border-radius:0 22px 22px 0;padding:10px 8px 12px 6px}
+.muesca.izq::before{left:0;top:-16px;background:radial-gradient(circle at 100% 0,transparent 15.5px,#000 16px)}
+.muesca.izq::after{left:0;bottom:-16px;background:radial-gradient(circle at 100% 100%,transparent 15.5px,#000 16px)}
+.muesca.arriba:hover{transform:translateX(-50%) translateY(2px)}
+.muesca.der:hover{transform:translateY(-50%) translateX(-2px)}
+/* el Avi asoma: se ve de la antena a los ojos, el resto queda detrás del borde de la muesca */
+.asoma{position:relative;width:40px;height:34px;overflow:hidden;flex:none}
+.asoma .avi{--t:44px;position:absolute;left:-2px;top:-1px}
+.muesca.der .chip,.muesca.izq .chip{padding:5px 6px}
+.brillo-der{position:absolute;right:0;top:50%;transform:translateY(-50%);width:5px;height:120px;border-radius:4px;background:var(--ambar);filter:blur(6px);opacity:.75}
+/* panel desplegado desde la muesca */
+.despliegue{position:absolute;z-index:3;background:#000;display:flex;flex-direction:column;gap:10px;padding:8px 14px 14px;width:340px;box-shadow:0 30px 60px -20px rgba(0,0,0,.9)}
+.despliegue.desde-arriba{top:0;left:50%;margin-left:-170px;border-radius:0 0 26px 26px}
+.despliegue.desde-der{right:0;top:50%;transform:translateY(-50%);border-radius:26px 0 0 26px;width:300px;padding:12px 14px}
+.dp-cab{display:flex;align-items:center;gap:8px;font-size:15px}
+.dp-cab b{font-weight:800;letter-spacing:-.02em}
+.dp-cerrar{all:unset;margin-left:auto;width:44px;height:36px;display:grid;place-items:center;border-radius:12px;color:var(--crema2);cursor:pointer;font-size:16px}
+.dp-cerrar:hover{background:var(--s2);color:var(--crema)}
+.dp-cerrar:focus-visible{outline:2px solid var(--ambar);outline-offset:1px}
+.dp-preg{font-weight:800;font-size:14px;line-height:1.3}
+.despliegue .ops{margin-top:0}
+.despliegue .fila{padding:6px 10px 6px 6px}
+.pant:not(.abierta) .despliegue{display:none}
+.pant.abierta>.muesca{visibility:hidden}
+
+.regla{display:flex;align-items:center;gap:8px;font:500 10.5px var(--m);color:var(--ambar);margin-bottom:10px}
+.regla::before,.regla::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--ambar),transparent)}
+.regla::after{background:linear-gradient(270deg,var(--ambar),transparent)}
+.ficha{display:inline-flex;align-items:center;gap:8px;background:#000;border:1px solid var(--linea);border-radius:16px;padding:4px 12px 4px 4px}
+.ficha b{font-size:13px;display:block;line-height:1.2}
+.ficha small{font-size:11px;color:var(--ambar);font-weight:700}
+.pasos{display:flex;gap:6px;flex-wrap:wrap}
+.pasos span{font:500 11px/1 var(--m);padding:7px 10px;border-radius:999px;background:var(--s2);color:var(--crema2)}
+.pasos span.on{background:var(--ambar);color:#000}
+
+/* ---------- hoja de Avis ---------- */
+.hoja{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:24px}
+.anat{position:relative;background:#000;border-radius:24px;border:1px solid var(--linea);min-height:400px;display:grid;place-items:center;overflow:hidden}
+.anat::before{content:"";position:absolute;inset:0;background:radial-gradient(40% 30% at 50% 78%,rgba(242,182,50,.14),transparent 70%)}
+.anat .avi{position:relative}
+.cota{position:absolute;font:500 10.5px/1.35 var(--m);color:var(--crema2);width:104px}
+.cota::before{content:"";position:absolute;top:.6em;width:26px;height:1px;background:var(--ambar)}
+.cota.izq{text-align:right}.cota.izq::before{right:-34px}
+.cota.der::before{left:-34px}
+.elenco{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.pers{background:var(--s1);border:1px solid var(--linea);border-radius:20px;padding:10px 12px 14px;display:flex;flex-direction:column;align-items:center;text-align:center;transition:border-color .2s,transform .35s var(--ease)}
+.pers:hover{border-color:#3a3a40;transform:translateY(-3px)}
+.pers b{color:var(--c);font-size:15px}
+.pers small{font:400 10.5px/1.4 var(--m);color:var(--tenue)}
+.estados{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:24px}
+.estd{background:var(--s1);border:1px solid var(--linea);border-radius:20px;padding:8px 12px 14px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.estd b{font-size:14px}
+.estd code{font:400 10px/1.4 var(--m);color:var(--tenue)}
+.estd .ord{font:600 10px/1 var(--m);color:#000;background:var(--ambar);border-radius:6px;padding:3px 5px;margin-bottom:4px}
+.prioridad{margin-top:24px;background:var(--s1);border:1px solid var(--linea);border-radius:20px;padding:18px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;counter-reset:p}
+.prioridad div{font-size:13.5px;color:var(--crema2)}
+.prioridad div b{display:block;color:var(--crema);font-size:14.5px}
+.prioridad div::before{counter-increment:p;content:counter(p);display:inline-grid;place-items:center;width:22px;height:22px;border-radius:7px;background:var(--ambar);color:#000;font:600 11px var(--m);margin-bottom:6px}
+.decis{margin-top:72px;padding:24px;border-radius:24px;border:1px dashed #3a3a40;color:var(--crema2);font-size:14px}
+.decis h2{font-size:20px;margin-bottom:10px}
+.decis li{margin:5px 0 5px 18px}
+.decis b{color:var(--crema)}
+
+/* ================= AVI ================= */
+.avi{display:inline-block;width:var(--t,64px);height:var(--t,64px);flex:none;vertical-align:middle}
+.avi svg{width:100%;height:100%;overflow:visible;display:block}
+.avi .piel{fill:url(#gPiel)}
+.avi .sombreado{fill:#B9A780;opacity:.34}
+.avi .brillo{fill:#fff;opacity:.72;filter:url(#fBlur)}
+.avi .pata{fill:#D6C8A6}
+.avi .suelo{fill:url(#gSuelo)}
+.avi .contacto{fill:#000;opacity:.55}
+.avi .ojo{fill:#1B1712}
+.avi .luz{fill:#fff}
+.avi .trazo{stroke:#1B1712;stroke-width:2.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.avi .pico{fill:#E9A13B}
+.avi .cuerpo,.avi .ojos,.avi .mirada,.avi .mano,.avi .burbuja,.avi .chispa,.avi .bulbo,.avi .halo,.avi .onda{transform-box:fill-box}
+.avi .cuerpo{transform-origin:50% 100%}
+.avi .ojos{transform-origin:50% 50%}
+.e-escribiendo .mirada{transform:translateY(2.5px)}
+.e-proceso .mirada{transform:translate(3px,-2px)}
+.e-durmiendo .cuerpo,.e-inactiva .cuerpo{opacity:.86}
+.avi .z{font:800 13px var(--f);fill:#8A8478}
+.avi .onda{fill:none;stroke-width:2;transform-origin:50% 50%;opacity:.5}
+.avi .giro{transform-box:view-box;transform-origin:103px 42px}
+
+@media (prefers-reduced-motion:no-preference){
+  .avi .cuerpo{animation:respira 3.4s ease-in-out infinite var(--d,0s)}
+  .avi .ojos{animation:parpadea 4.8s infinite var(--d,0s)}
+  .e-escribiendo .cuerpo{animation:teclea .34s ease-in-out infinite alternate}
+  .e-escribiendo .mano{animation:tecla .2s ease-in-out infinite alternate}
+  .e-escribiendo .mano.m2{animation-delay:.1s}
+  .e-escribiendo .logo{animation:titila 1.6s ease-in-out infinite}
+  .e-leyendo .mirada{animation:mira 3.2s ease-in-out infinite var(--d,0s)}
+  .e-pensando .p{animation:idea 2.4s ease-in-out infinite;opacity:0}
+  .e-pensando .p2{animation-delay:.3s}.e-pensando .p3{animation-delay:.6s}
+  .e-coordinando .onda{animation:onda 2.2s ease-out infinite}
+  .e-coordinando .onda.o2{animation-delay:1.1s}
+  .e-coordinando .bulbo,.e-coordinando .halo{animation:pulso 1.1s ease-in-out infinite alternate;transform-origin:50% 50%}
+  .e-teEspera .cuerpo{animation:salto 2s var(--ease) infinite}
+  .e-teEspera .burbuja{animation:salto 2s var(--ease) infinite .08s;transform-origin:30% 100%}
+  .e-proceso .giro{animation:gira 1.1s linear infinite}
+  .e-proceso .mirada{animation:sigue 4s ease-in-out infinite}
+  .e-durmiendo .cuerpo,.e-inactiva .cuerpo{animation:duerme 5.6s ease-in-out infinite var(--d,0s)}
+  .e-durmiendo .ojos,.e-inactiva .ojos{animation:none}
+  .avi .z{animation:zeta 3.6s ease-in-out infinite;opacity:0}
+  .avi .z2{animation-delay:1.2s}.avi .z3{animation-delay:2.4s}
+  .e-listo .cuerpo{animation:festeja 1s var(--rebote) infinite}
+  .e-listo .chispa{animation:chispa 1s ease-out infinite;transform-origin:50% 50%}
+  .e-listo .c2{animation-delay:.25s}.e-listo .c3{animation-delay:.5s}.e-listo .c4{animation-delay:.75s}
+  .e-fallo .cuerpo{animation:tambalea 3s ease-in-out infinite}
+  .barra::after{animation:indet 1.5s var(--ease) infinite}
+  /* nada titila sin parar: chip, luz y Avi de la muesca se mueven solo en el golpe (cada 90 s; en el boceto, cada 8 s) */
+  .golpe .chip-preg,.golpe .r-badge.preg{animation:latido 1.1s ease-in-out 1}
+  .golpe .brillo-der,.golpe .pt.late{animation:golpeLuz 1.1s ease-in-out 1}
+  .muesca .e-teEspera .cuerpo,.muesca .e-teEspera .burbuja{animation:none}
+  .golpe .muesca .e-teEspera .cuerpo{animation:salto 1.1s var(--ease) 1}
+  .golpe .muesca.der{animation:golpeDer .52s var(--rebote) 1}
+  .pant.abierta .desde-arriba{animation:despA .72s var(--ease) both}
+  .pant.abierta .desde-der{animation:despD .72s var(--ease) both}
+  .pant.abierta .despliegue>*{animation:sube .5s var(--ease) both .26s}
+  .mock:not(.ver) .despliegue,.mock:not(.ver) .despliegue>*{animation-play-state:paused}
+
+  /* entrada escalonada de cada maqueta, cuando entra en pantalla */
+  .rv{animation:sube .62s var(--ease) both;animation-delay:calc(var(--i,0) * 65ms + 120ms)}
+  .mock:not(.ver) .rv{animation-play-state:paused}
+  .desfile .avi{animation:asoma .9s var(--rebote) both;animation-delay:calc(var(--i,0) * 90ms + 200ms)}
+}
+.quieto .avi,.quieto .avi *,.quieto .barra::after,.quieto .chip-preg,.quieto .r-badge.preg,.quieto .brillo-der,.quieto .pt.late{animation-play-state:paused!important}
+
+@keyframes respira{0%,100%{transform:scale(1,1)}50%{transform:scale(1.03,.965)}}
+@keyframes duerme{0%,100%{transform:scale(1,1)}50%{transform:scale(1.045,.95)}}
+@keyframes parpadea{0%,91%,97%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}}
+@keyframes teclea{from{transform:translateY(0)}to{transform:translateY(1.5px) scale(1.01,.99)}}
+@keyframes tecla{from{transform:translateY(0)}to{transform:translateY(-3px)}}
+@keyframes titila{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes mira{0%,100%{transform:translateX(-3px) translateY(2px)}50%{transform:translateX(3px) translateY(2px)}}
+@keyframes idea{0%{opacity:0;transform:translateY(4px)}30%,70%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-3px)}}
+@keyframes onda{from{transform:scale(.5);opacity:.9}to{transform:scale(1.9);opacity:0}}
+@keyframes pulso{from{transform:scale(1)}to{transform:scale(1.18)}}
+@keyframes salto{0%,55%,100%{transform:translateY(0) scale(1,1)}62%{transform:translateY(0) scale(1.06,.92)}72%{transform:translateY(-9px) scale(.97,1.04)}84%{transform:translateY(0) scale(1.04,.96)}}
+@keyframes gira{to{transform:rotate(360deg)}}
+@keyframes sigue{0%,100%{transform:translate(3px,-2px)}50%{transform:translate(4px,-3px)}}
+@keyframes zeta{0%{opacity:0;transform:translate(0,4px)}25%{opacity:1}100%{opacity:0;transform:translate(9px,-16px)}}
+@keyframes festeja{0%,100%{transform:translateY(0) scale(1,1)}20%{transform:scale(1.08,.9)}50%{transform:translateY(-10px) scale(.95,1.06)}75%{transform:scale(1.04,.96)}}
+@keyframes chispa{0%{transform:scale(0);opacity:1}60%{transform:scale(1.1);opacity:1}100%{transform:scale(.6);opacity:0}}
+@keyframes tambalea{0%,100%{transform:rotate(0)}10%{transform:rotate(-5deg)}20%{transform:rotate(4deg)}30%{transform:rotate(-2deg)}40%{transform:rotate(0)}}
+@keyframes indet{0%{transform:translateX(-100%)}100%{transform:translateX(270%)}}
+@keyframes latido{0%,100%{box-shadow:0 0 0 0 rgba(242,182,50,.55)}50%{box-shadow:0 0 0 5px rgba(242,182,50,0)}}
+@keyframes despA{from{clip-path:inset(0 36% 86% 36% round 0 0 22px 22px)}to{clip-path:inset(0 0 0 0 round 0 0 26px 26px)}}
+@keyframes despD{from{clip-path:inset(40% 0 40% 82% round 22px 0 0 22px)}to{clip-path:inset(0 0 0 0 round 26px 0 0 26px)}}
+@keyframes brilla{0%,100%{opacity:.5}50%{opacity:.9}}
+@keyframes golpeLuz{0%,100%{opacity:.75}40%{opacity:1}}
+@keyframes golpeDer{0%,100%{transform:translateY(-50%)}40%{transform:translateY(-50%) translateX(-6px)}}
+@keyframes sube{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes asoma{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+
+@media (max-width:860px){
+  .portada,.hoja{grid-template-columns:1fr}
+  .escritorio{padding:36px 14px 50px;justify-content:flex-start;overflow-x:auto}
+  .elenco{grid-template-columns:repeat(2,1fr)}
+  .acoples{grid-template-columns:1fr}
+  .grilla{grid-template-columns:1fr}
+  .lienzo{overflow-x:auto;justify-content:flex-start}
+}
+</style>
+</head>
+<body>
+<a class="saltar" href="#a">Saltar a las opciones</a>
+
+<!-- definiciones compartidas por todos los Avis -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <radialGradient id="gPiel" cx="36%" cy="28%" r="78%">
+      <stop offset="0" stop-color="#FFFCF4"/><stop offset=".42" stop-color="#F5EDDC"/><stop offset=".8" stop-color="#E1D4B6"/><stop offset="1" stop-color="#CBBB97"/>
+    </radialGradient>
+    <radialGradient id="gSuelo" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#F2B632" stop-opacity=".22"/><stop offset="1" stop-color="#F2B632" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="fBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.7"/></filter>
+  </defs>
+</svg>
+
+<main class="env">
+  <header class="portada">
+    <div>
+      <p class="kicker">Oficina · bocetos · dirección alternativa · 20 nov 2026</p>
+      <h1>Toda la oficina,<br>con <em>Avis</em>.</h1>
+      <p class="intro">Nuevo estilo aprobado (A · Tablero): reemplaza al pixel art. Dirección en docs/diseno/estilo-avis-ux.md. Fondo negro puro, tarjetas redondeadas y una familia propia de personajes: <b>los Avis</b>, cuerpo crema con volumen, ojos punto, <b>pico ámbar y patitas</b> (avis = ave). Toman el lenguaje blando de las referencias, con silueta de huevo y accesorios propios: no es el trapecio de nadie. La funcionalidad no cambia.</p>
+      <nav class="indice" aria-label="Secciones">
+        <a href="#a">A · Tablero <span class="chip chip-preg">recomendada</span></a>
+        <a href="#b">B · Escenario</a>
+        <a href="#c">C · Riel</a>
+        <a href="#hoja">Hoja de Avis</a>
+        <a href="#piezas">Piezas y estados</a>
+        <button type="button" class="conm" id="quieto" aria-pressed="false">Pausar movimiento</button>
+      </nav>
+    </div>
+    <div class="desfile" aria-label="El elenco de Avis">
+      <i class="avi" data-n="lucas" data-e="esperando" style="--t:74px"></i>
+      <i class="avi" data-n="camila" data-e="pensando" style="--t:82px"></i>
+      <i class="avi" data-n="claude" data-e="coordinando" style="--t:118px"></i>
+      <i class="avi" data-n="delfina" data-e="listo" style="--t:84px"></i>
+      <i class="avi" data-n="ines" data-e="durmiendo" style="--t:72px"></i>
+    </div>
+  </header>
+
+  <!-- =================== A =================== -->
+  <section class="bloque" id="a" aria-labelledby="a-t">
+    <div class="b-cab">
+      <span class="letra rec" aria-hidden="true">A</span>
+      <div>
+        <h2 id="a-t">Tablero <span class="sello">Recomendada</span></h2>
+        <ul class="notas">
+          <li><b>Lo más fiel a las referencias:</b> barra de proyectos con chips (reemplaza ◀ ▶), cuadros de conteo y una tarjeta negra por sesión con su Avi y el equipo en fichas.</li>
+          <li><b>Funciona porque</b> se lee de un vistazo y crece de forma predecible: cada subagente suma una ficha de 104 px, hasta 4 y después “+n”.</li>
+          <li style="--c:var(--violeta)"><b>Cuesta:</b> la sala desaparece; los Avis viven cada uno en su ficha, no en un espacio compartido. La pregunta de otro proyecto llega como aviso arriba.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="escritorio">
+      <div class="mock">
+        <div class="w">
+          <aside class="lado" aria-label="Oficina">
+            <div class="marca rv"><i class="avi" data-n="claude" data-e="coordinando" style="--t:54px"></i><div><b class="marca-n">Oficina</b><span class="estado"><span class="pt"></span>4 sesiones abiertas</span></div></div>
+            <nav class="proyectos" aria-label="Proyectos">
+              <button type="button" class="pj activo rv" aria-current="true"><span class="pj-ic" style="--c:var(--ambar)">o</span><span class="pj-n">oficina</span><span class="chip" aria-label="1 sesión">1</span></button>
+              <button type="button" class="pj rv" title="central-nucleo-main"><span class="pj-ic" style="--c:var(--celeste)">cn</span><span class="pj-n">central-nucleo-main</span><span class="chip" aria-label="2 sesiones">2</span></button>
+              <button type="button" class="pj rv"><span class="pj-ic" style="--c:var(--violeta)">ca</span><span class="pj-n">catalogo</span><span class="chip chip-preg" aria-label="1 pregunta pendiente">1 ?</span></button>
+            </nav>
+            <div class="lado-pie rv">
+              <span class="rot">Equipo</span>
+              <div class="compa"><span class="ini">NC</span><div><b>Campos</b><small>en catalogo · hace 4 min</small></div></div>
+            </div>
+          </aside>
+          <section class="main" aria-label="Proyecto oficina">
+            <header class="cab rv"><h3>oficina</h3><p>1 sesión · 3 subagentes trabajando</p></header>
+            <button type="button" class="aviso rv"><i class="avi" data-n="claude" data-e="teEspera" style="--t:36px"></i><span><b>Claude</b> te pregunta algo en <b>catalogo</b></span><span class="ir">Ver →</span></button>
+            <div class="stats">
+              <div class="stat rv"><i class="ico" style="--c:var(--ambar)"></i><b>3</b><small>trabajando</small></div>
+              <div class="stat rv"><i class="ico" style="--c:var(--verde)"></i><b>2</b><small>listos</small></div>
+              <div class="stat rv"><i class="ico" style="--c:var(--violeta)"></i><b>42 min</b><small>lleva la sesión</small></div>
+            </div>
+            <article class="ses rv">
+              <div class="ses-top">
+                <i class="avi" data-n="claude" data-e="coordinando" style="--t:84px"></i>
+                <div>
+                  <div class="ses-tit"><span class="tag">#12</span><b>Estilo Avis</b></div>
+                  <code class="rama">feat/12-estilo-avis</code>
+                  <p class="linea" style="--c:var(--ambar)"><span class="pt"></span>ahora · coordinando el equipo</p>
+                </div>
+                <span class="lleva">42 min</span>
+              </div>
+              <ul class="subs">
+                <li class="sub" style="--c:var(--ambar)"><i class="avi" data-n="delfina" data-e="escribiendo" style="--t:56px"></i><b>Delfina</b><small>bocetos</small><span class="est">escribiendo · 4 min</span></li>
+                <li class="sub" style="--c:var(--celeste);--ce:var(--celeste)"><i class="avi" data-n="ramiro" data-e="leyendo" style="--t:56px"></i><b>Ramiro<span>Explore</span></b><small>mapear el widget</small><span class="est">leyendo · 2 min</span></li>
+                <li class="sub" style="--c:var(--verde)"><i class="avi" data-n="lucas" data-e="escribiendo" style="--t:56px"></i><b>Lucas</b><small>tests de la sala</small><span class="est">escribiendo · 1 min</span></li>
+                <li class="sub dorm" style="--c:var(--violeta);--ce:var(--verde)"><i class="avi" data-n="ines" data-e="durmiendo" style="--t:56px"></i><b>Inés</b><small>revisar la CSP</small><span class="est">listo · hace 3 min</span></li>
+                <li class="mas" title="1 subagente más: Camila — copy del aviso (listo)" aria-label="1 subagente más">+1</li>
+              </ul>
+            </article>
+          </section>
+        </div>
+      </div>
+    </div>
+    <p class="leyenda">Ventana a 100 %, ancho según el contenido (max-content) · barra 206 px + principal</p>
+  </section>
+
+  <!-- =================== B =================== -->
+  <section class="bloque" id="b" aria-labelledby="b-t">
+    <div class="b-cab">
+      <span class="letra" aria-hidden="true">B</span>
+      <div>
+        <h2 id="b-t">Escenario</h2>
+        <ul class="notas">
+          <li><b>La sala se vuelve una tarjeta destacada:</b> un tablado con piso de luz ámbar, Claude coordinando al centro y su equipo en arco, cada uno con su placa.</li>
+          <li><b>Funciona porque</b> conserva la idea de “oficina viva” del pixel art y da el máximo protagonismo a los Avis; debajo queda la lista de texto de hoy, tal cual.</li>
+          <li style="--c:var(--violeta)"><b>Cuesta:</b> la ventana más alta (≈ 470 px por sesión) y la que más trabajo de animación pide; con 2 sesiones el resto pasa a tarjetas chicas.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="escritorio">
+      <div class="mock">
+        <div class="w">
+          <aside class="lado" aria-label="Oficina">
+            <div class="marca rv"><i class="avi" data-n="claude" data-e="coordinando" style="--t:54px"></i><div><b class="marca-n">Oficina</b><span class="estado"><span class="pt"></span>4 sesiones abiertas</span></div></div>
+            <nav class="proyectos" aria-label="Proyectos">
+              <button type="button" class="pj activo rv" aria-current="true"><span class="pj-ic" style="--c:var(--ambar)">o</span><span class="pj-n">oficina</span><span class="chip">1</span></button>
+              <button type="button" class="pj rv" title="central-nucleo-main"><span class="pj-ic" style="--c:var(--celeste)">cn</span><span class="pj-n">central-nucleo-main</span><span class="chip">2</span></button>
+              <button type="button" class="pj rv"><span class="pj-ic" style="--c:var(--violeta)">ca</span><span class="pj-n">catalogo</span><span class="chip chip-preg" aria-label="1 pregunta pendiente">1 ?</span></button>
+            </nav>
+            <div class="lado-pie rv">
+              <span class="rot">Equipo</span>
+              <div class="compa"><span class="ini">NC</span><div><b>Campos</b><small>en catalogo · hace 4 min</small></div></div>
+            </div>
+          </aside>
+          <section class="main" aria-label="Proyecto oficina">
+            <header class="cab rv"><h3>oficina</h3><p>1 sesión · 3 subagentes trabajando</p></header>
+            <article class="escena rv">
+              <div class="esc-cab"><span class="tag">#12</span><b style="font-weight:800">Estilo Avis</b><code class="rama" style="margin:0">feat/12-estilo-avis</code><span class="lleva">42 min</span></div>
+              <div class="tablado" role="img" aria-label="Claude coordina a Delfina, Ramiro, Lucas e Inés">
+                <div class="pos" style="left:13%;bottom:100px"><i class="avi" data-n="ramiro" data-e="leyendo" style="--t:80px"></i><span class="placa"><span class="pt" style="--c:var(--celeste)"></span>Ramiro</span></div>
+                <div class="pos" style="left:30%;bottom:16px"><i class="avi" data-n="delfina" data-e="escribiendo" style="--t:88px"></i><span class="placa"><span class="pt"></span>Delfina</span></div>
+                <div class="pos" style="left:50%;bottom:52px"><i class="avi" data-n="claude" data-e="coordinando" style="--t:136px"></i><span class="placa" style="border-color:color-mix(in srgb,var(--ambar) 50%,transparent)"><span class="pt"></span>Claude</span></div>
+                <div class="pos" style="left:70%;bottom:16px"><i class="avi" data-n="lucas" data-e="escribiendo" style="--t:88px"></i><span class="placa"><span class="pt" style="--c:var(--verde)"></span>Lucas</span></div>
+                <div class="pos" style="left:87%;bottom:100px;opacity:.72"><i class="avi" data-n="ines" data-e="durmiendo" style="--t:76px"></i><span class="placa"><span class="pt" style="--c:var(--violeta)"></span>Inés</span></div>
+                <span class="chip esc-mas" title="1 subagente más: Camila">+1</span>
+              </div>
+              <ul class="esc-lista">
+                <li style="--c:var(--ambar)"><span class="pt"></span><b>Claude</b> · <span style="color:var(--ambar)">ahora · coordinando el equipo</span></li>
+                <li style="--c:var(--ambar)"><span class="pt"></span><b>Delfina</b> — bocetos · <span style="color:var(--ambar)">escribiendo</span><span class="t">4 min</span></li>
+                <li style="--c:var(--celeste)"><span class="pt"></span><b>Ramiro</b> <span class="t" style="margin:0">Explore</span> — mapear el widget · <span style="color:var(--celeste)">leyendo</span><span class="t">2 min</span></li>
+                <li style="--c:var(--verde)"><span class="pt"></span><b>Lucas</b> — tests de la sala · <span style="color:var(--ambar)">escribiendo</span><span class="t">1 min</span></li>
+                <li class="dorm" style="--c:var(--violeta)"><span class="pt"></span><b>Inés</b> — revisar la CSP · <span style="color:var(--verde)">listo</span><span class="t">hace 3 min</span></li>
+              </ul>
+            </article>
+          </section>
+        </div>
+      </div>
+    </div>
+    <p class="leyenda">El tablado reemplaza la sala con escritorios · la pregunta de catalogo se ve como chip en la barra</p>
+  </section>
+
+  <!-- =================== C =================== -->
+  <section class="bloque" id="c" aria-labelledby="c-t">
+    <div class="b-cab">
+      <span class="letra" aria-hidden="true">C</span>
+      <div>
+        <h2 id="c-t">Riel</h2>
+        <ul class="notas">
+          <li><b>Riel de íconos</b> en lugar de barra, sesiones como filas (como las fichas de hábitos de la referencia) y el equipo como cabecitas apiladas.</li>
+          <li><b>Funciona porque</b> es la más chica (≈ 490 px de ancho) para tenerla abierta todo el día; la pregunta entra como tarjeta en el flujo.</li>
+          <li style="--c:var(--violeta)"><b>Cuesta:</b> los nombres de proyecto quedan en tooltip y aria-label, los Avis se ven chicos y el estado de cada subagente pide pasar el mouse.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="escritorio">
+      <div class="mock">
+        <div class="w">
+          <nav class="riel" aria-label="Proyectos">
+            <i class="avi rv" data-n="claude" data-e="teEspera" style="--t:44px"></i>
+            <hr>
+            <button type="button" class="r-pj rv" style="--c:var(--ambar)" aria-label="oficina, 1 sesión" title="oficina">o<span class="r-badge">1</span></button>
+            <button type="button" class="r-pj rv" style="--c:var(--celeste)" aria-label="central-nucleo-main, 2 sesiones" title="central-nucleo-main">cn<span class="r-badge">2</span></button>
+            <button type="button" class="r-pj activo rv" style="--c:var(--violeta)" aria-current="true" aria-label="catalogo, 1 pregunta pendiente" title="catalogo">ca<span class="r-badge preg">?</span></button>
+            <hr>
+            <span class="ini rv" title="Campos · en catalogo" aria-label="Campos, en catalogo">NC</span>
+          </nav>
+          <section class="main c" aria-label="Proyecto catalogo">
+            <header class="cab rv"><h3>catalogo</h3><p>1 sesión · te hace una pregunta</p></header>
+            <div class="preg rv" role="dialog" aria-labelledby="c-p">
+              <div class="preg-cab"><i class="avi" data-n="claude" data-e="teEspera" style="--t:38px"></i><span><b>Claude</b> te pregunta · #48 · hace 2 min</span></div>
+              <h4 id="c-p">¿Dónde mostramos el precio mayorista en la ficha?</h4>
+              <div class="ops">
+                <button type="button" class="op"><span class="n">1</span><b>Debajo del precio de lista<span class="recom">Recomendada</span></b><small>Se ve siempre, más chico y en gris.</small></button>
+                <button type="button" class="op"><span class="n">2</span><b>Solo con sesión iniciada</b><small>El público ve únicamente el precio de lista.</small></button>
+              </div>
+              <div class="preg-pie"><button type="button" class="link">Otra respuesta</button><button type="button" class="btn sec">Más tarde</button></div>
+            </div>
+            <div class="fila rv">
+              <i class="avi" data-n="claude" data-e="teEspera" style="--t:48px"></i>
+              <div class="txt"><b>#48 Precios mayoristas</b><p class="linea" style="--c:var(--ambar)">ahora · te hace una pregunta</p></div>
+              <span class="lleva" style="align-self:center">18 min</span>
+            </div>
+            <div class="fila rv" style="opacity:.92">
+              <i class="avi" data-n="claude" data-e="coordinando" style="--t:48px"></i>
+              <div class="txt"><b style="color:var(--crema2)">oficina · #12</b><p class="linea" style="--c:var(--ambar)">coordinando el equipo</p></div>
+              <span class="cabezas" aria-label="Delfina, Ramiro, Lucas e Inés, y 1 más"><i class="avi" data-n="delfina" data-e="escribiendo" style="--t:30px"></i><i class="avi" data-n="ramiro" data-e="leyendo" style="--t:30px"></i><i class="avi" data-n="lucas" data-e="escribiendo" style="--t:30px"></i><i class="avi" data-n="ines" data-e="durmiendo" style="--t:30px"></i></span><span class="chip">+1</span>
+            </div>
+            <p class="nota rv">Fila de oficina mostrada solo para ver las cabecitas apiladas.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== HOJA =================== -->
+  <section class="bloque" id="hoja" aria-labelledby="h-t">
+    <div class="b-cab">
+      <span class="letra" aria-hidden="true">✦</span>
+      <div>
+        <h2 id="h-t">Hoja de Avis</h2>
+        <ul class="notas">
+          <li><b>Un solo cuerpo, seis personajes.</b> El cuerpo es siempre crema; el color de cada uno vive en las mejillas y el accesorio, que sale del elenco que ya existe (antena, gata, ratón, brote, mono, cuernos).</li>
+          <li><b>SVG vectorial</b> con degradé radial, brillo difuso y sombreado inferior; se anima con CSS (o anime.js v4 para las secuencias). Respira, parpadea, teclea, lee, duerme.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="hoja">
+      <div class="anat mock">
+        <i class="avi rv" data-n="base" data-e="esperando" style="--t:180px"></i>
+        <span class="cota izq" style="left:14px;top:118px">copete: el rasgo de ave</span>
+        <span class="cota der" style="right:14px;top:176px">ojos punto con brillo, parpadeo cada ~5 s</span>
+        <span class="cota izq" style="left:14px;top:222px">mejillas en el color del agente</span>
+        <span class="cota der" style="right:14px;top:226px">pico ámbar: firma de la familia</span>
+        <span class="cota izq" style="left:14px;top:284px">patitas y luz de piso ámbar</span>
+      </div>
+      <div>
+        <div class="elenco mock">
+          <div class="pers rv" style="--c:var(--ambar)"><i class="avi" data-n="claude" data-e="esperando" style="--t:92px"></i><b>Claude</b><small>antena con foco ámbar · reservada</small></div>
+          <div class="pers rv" style="--c:var(--rosa)"><i class="avi" data-n="camila" data-e="esperando" style="--t:92px"></i><b>Camila</b><small>orejas de gata · rosa</small></div>
+          <div class="pers rv" style="--c:var(--celeste)"><i class="avi" data-n="ramiro" data-e="esperando" style="--t:92px"></i><b>Ramiro</b><small>orejas de ratón · celeste</small></div>
+          <div class="pers rv" style="--c:var(--verde)"><i class="avi" data-n="lucas" data-e="esperando" style="--t:92px"></i><b>Lucas</b><small>brote · verde</small></div>
+          <div class="pers rv" style="--c:var(--ambar)"><i class="avi" data-n="delfina" data-e="esperando" style="--t:92px"></i><b>Delfina</b><small>orejas de mono y jopo · ámbar</small></div>
+          <div class="pers rv" style="--c:var(--violeta)"><i class="avi" data-n="ines" data-e="esperando" style="--t:92px"></i><b>Inés</b><small>cuernitos · violeta (hoy verde)</small></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="estados mock">
+      <div class="estd rv"><i class="avi" data-n="claude" data-e="teEspera" style="--t:96px"></i><span class="ord">1</span><b>te hace una pregunta</b><code>teEspera · salta con “!”</code></div>
+      <div class="estd rv"><i class="avi" data-n="claude" data-e="coordinando" style="--t:96px"></i><span class="ord">2</span><b>coordinando el equipo</b><code>coordinando · ondas en la antena</code></div>
+      <div class="estd rv"><i class="avi" data-n="claude" data-e="esperando" style="--t:96px"></i><span class="ord">3</span><b>esperando tu mensaje</b><code>esperando · respira, despierto</code></div>
+      <div class="estd rv"><i class="avi" data-n="claude" data-e="proceso" style="--t:96px"></i><b>esperando 1 proceso</b><code>pendiente: requiere datos nuevos del mod</code></div>
+      <div class="estd rv"><i class="avi" data-n="delfina" data-e="escribiendo" style="--t:96px"></i><b>escribiendo</b><code>escribiendo · editando · comando · tokens</code></div>
+      <div class="estd rv"><i class="avi" data-n="ramiro" data-e="leyendo" style="--t:96px"></i><b>leyendo</b><code>leyendo · Explore y Plan</code></div>
+      <div class="estd rv"><i class="avi" data-n="camila" data-e="pensando" style="--t:96px"></i><b>pensando</b><code>pensando · burbujas</code></div>
+      <div class="estd rv"><i class="avi" data-n="lucas" data-e="listo" style="--t:96px"></i><b>listo</b><code>festeja 6 s, después duerme</code></div>
+      <div class="estd rv"><i class="avi" data-n="ines" data-e="durmiendo" style="--t:96px"></i><b>durmiendo</b><code>durmiendo · inactiva (20 min)</code></div>
+      <div class="estd rv"><i class="avi" data-n="camila" data-e="fallo" style="--t:96px"></i><b>falló</b><code>fallo · ojos x, tambalea</code></div>
+    </div>
+    <div class="prioridad" aria-label="Prioridad de la línea de Claude">
+      <div><b>te hace una pregunta</b>pregunta propia pendiente</div>
+      <div><b>coordinando el equipo</b>algún subagente trabajando</div>
+      <div><b>esperando tu mensaje</b>terminó el turno, despierto</div>
+      <div><b>la actividad tal cual</b>“editando main.js”, “esperando 1 proceso”, o dormido si no publica hace 20 min</div>
+    </div>
+  </section>
+
+  <!-- =================== PIEZAS =================== -->
+  <section class="bloque" id="piezas" aria-labelledby="p-t">
+    <div class="b-cab">
+      <span class="letra" aria-hidden="true">◐</span>
+      <div>
+        <h2 id="p-t">Piezas y estados</h2>
+        <ul class="notas">
+          <li><b>Valen para A, B y C.</b> Pregunta como tarjeta, proceso en segundo plano, vacío, acople a un borde, crecimiento con el contenido y zoom escalonado.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="grilla">
+      <div class="pieza">
+        <h3>Pregunta · una opción</h3>
+        <p>Ninguna opción viene marcada y no hay tiempo que elija: solo tu clic envía. Probá hacer clic en una.</p>
+        <div class="lienzo mock">
+          <div class="preg rv" id="preg-1" role="dialog" aria-labelledby="p1">
+            <div class="tabs" role="tablist" aria-label="Preguntas pendientes">
+              <button type="button" class="tab" role="tab" aria-selected="true"><span class="pt"></span>Claude · Precios <span aria-hidden="true">!</span></button>
+              <button type="button" class="tab" role="tab" aria-selected="false"><span class="pt" style="--c:var(--rosa)"></span>Camila · Copy <span aria-hidden="true">!</span></button>
+            </div>
+            <div class="preg-cab"><i class="avi" data-n="claude" data-e="teEspera" style="--t:38px"></i><span><b>Claude</b> te pregunta · #48 · hace 2 min</span></div>
+            <h4 id="p1">¿Dónde mostramos el precio mayorista en la ficha?</h4>
+            <div class="ops">
+              <button type="button" class="op uno"><span class="n">1</span><b>Debajo del precio de lista<span class="recom">Recomendada</span></b><small>Se ve siempre, más chico y en gris.</small></button>
+              <button type="button" class="op uno"><span class="n">2</span><b>Solo con sesión iniciada</b><small>El público ve únicamente el precio de lista.</small></button>
+              <button type="button" class="op uno"><span class="n">3</span><b>En una pestaña aparte</b><small>Tabla mayorista separada de la ficha.</small></button>
+            </div>
+            <div class="preg-pie"><button type="button" class="link">Otra respuesta</button><button type="button" class="btn sec">Más tarde</button></div>
+            <div class="hecho" role="status"><i class="avi" data-n="claude" data-e="listo" style="--t:34px"></i>Listo, le respondiste a Claude.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pieza">
+        <h3>Pregunta · varias y otra respuesta</h3>
+        <p>Selección múltiple: el botón se habilita con la primera marca y cuenta. Abajo, “Otra respuesta” abierta.</p>
+        <div class="lienzo mock">
+          <div class="preg rv" role="dialog" aria-labelledby="p2">
+            <div class="preg-cab"><i class="avi" data-n="camila" data-e="teEspera" style="--t:38px"></i><span><b>Camila</b> te pregunta · #48 · hace 1 min</span></div>
+            <h4 id="p2">¿Qué tamaños de foto exportamos?</h4>
+            <p class="modo">Se pueden elegir varias · pregunta 1 de 2: se envían juntas</p>
+            <div class="ops">
+              <button type="button" class="op multi" aria-pressed="false"><span class="n">1</span><b>Miniatura 320 px</b><small>Para el listado.</small></button>
+              <button type="button" class="op multi" aria-pressed="false"><span class="n">2</span><b>Ficha 960 px</b><small>La foto principal.</small></button>
+              <button type="button" class="op multi" aria-pressed="false"><span class="n">3</span><b>Zoom 2000 px</b><small>Solo si el producto lo pide.</small></button>
+            </div>
+            <div class="preg-pie"><button type="button" class="link">Otra respuesta</button><button type="button" class="btn" id="enviar-multi" disabled>Seguir</button></div>
+          </div>
+          <div class="preg rv" role="dialog" aria-labelledby="p3" style="box-shadow:none">
+            <div class="preg-cab"><i class="avi" data-n="claude" data-e="teEspera" style="--t:38px"></i><span><b>Claude</b> te pregunta · #48</span></div>
+            <h4 id="p3">¿Cómo se llama la lista de precios?</h4>
+            <div class="otra"><label for="otra-in">Tu respuesta</label><input id="otra-in" type="text" value="Mayorista 2027" autocomplete="off"><button type="button" class="btn">Enviar</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pieza">
+        <h3>Sesión · esperando 1 proceso <span class="chip" style="vertical-align:2px">pendiente · sin aprobar</span></h3>
+        <p>Despierto, mira un anillo que gira. Sin porcentaje: el dato no existe, así que la barra es indeterminada. Al lado, la sesión tranquila.</p>
+        <div class="lienzo mock" style="flex-direction:column;align-items:stretch">
+          <article class="ses rv">
+            <div class="ses-top">
+              <i class="avi" data-n="claude" data-e="proceso" style="--t:76px"></i>
+              <div><div class="ses-tit"><span class="tag">#31</span><b>Cola de envíos</b></div><code class="rama">feat/31-cola-envios</code><p class="linea" style="--c:var(--celeste)"><span class="pt"></span>ahora · esperando 1 proceso</p></div>
+              <span class="lleva">1 h 5 min</span>
+            </div>
+            <div class="proceso"><code>npm run build</code><span class="barra"></span><span>1 min 42 s</span></div>
+          </article>
+          <article class="ses rv">
+            <div class="ses-top">
+              <i class="avi" data-n="claude" data-e="esperando" style="--t:76px"></i>
+              <div><div class="ses-tit"><span class="tag sin">sin tarea</span><b style="color:var(--crema2)">main</b></div><p class="linea" style="--c:var(--crema)"><span class="pt"></span>ahora · esperando tu mensaje</p></div>
+              <span class="lleva">12 min</span>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div class="pieza">
+        <h3>Vacío</h3>
+        <p>Sin proyectos la barra no tiene qué listar: la ventana se achica a una sola tarjeta.</p>
+        <div class="lienzo mock" style="background:transparent;padding:0">
+          <div class="w vacio rv">
+            <i class="avi" data-n="claude" data-e="durmiendo" style="--t:120px"></i>
+            <h3>No hay sesiones de Claude Code abiertas.</h3>
+            <p>Cuando abras una, aparece acá con sus subagentes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pieza" style="grid-column:1/-1">
+        <h3>Muesca · acoplada a cualquier borde</h3>
+        <p>Plegada, la oficina es una muesca negra tipo notch de celular, pegada al borde con esquinas cóncavas. Adentro asoma el Avi de Claude (se le ven antena, cabeza y ojos) con un punto de estado. Al abrirla, el panel crece desde la muesca hacia el centro de la pantalla (acá va abreviado para que entre; en el producto es el tablero completo). La pregunta golpea al llegar y cada 90 s (acá, cada 8 s): entre golpes, la luz y el chip quedan fijos. Hacé clic en las muescas de las dos de abajo. (El estudio de comportamiento sigue en acople.html.)</p>
+        <div class="acoples mock">
+          <div class="pant rv">
+            <div class="muesca arriba"><span class="asoma"><i class="avi" data-n="claude" data-e="coordinando"></i></span><span class="pt" style="--c:var(--ambar)" aria-hidden="true"></span><span class="chip">4</span></div>
+            <span class="rotulo">arriba · plegada · coordinando, 4 sesiones</span>
+          </div>
+          <div class="pant rv">
+            <div class="muesca der"><span class="asoma"><i class="avi" data-n="claude" data-e="teEspera"></i></span><span class="pt late" style="--c:var(--ambar)" aria-hidden="true"></span><span class="chip chip-preg">1 ?</span></div>
+            <span class="brillo-der" aria-hidden="true"></span>
+            <span class="rotulo">derecha · plegada · con una pregunta: luz ámbar en el borde</span>
+          </div>
+
+          <div class="pant alta abierta rv" data-desp>
+            <button type="button" class="muesca arriba" data-abrir aria-expanded="true" aria-controls="dp-1" aria-label="Abrir Oficina"><span class="asoma"><i class="avi" data-n="claude" data-e="coordinando"></i></span><span class="pt" aria-hidden="true"></span><span class="chip">4</span></button>
+            <div class="despliegue desde-arriba" id="dp-1">
+              <div class="dp-cab"><span class="asoma"><i class="avi" data-n="claude" data-e="coordinando"></i></span><b>oficina</b><span class="chip">1</span><button type="button" class="dp-cerrar" data-cerrar aria-label="Plegar a la muesca">⌃</button></div>
+              <div class="fila"><i class="avi" data-n="claude" data-e="coordinando" style="--t:44px"></i><div class="txt"><b>#12 Estilo Avis</b><p class="linea" style="--c:var(--ambar)">coordinando el equipo</p></div><span class="cabezas" aria-label="Delfina, Ramiro y Lucas"><i class="avi" data-n="delfina" data-e="escribiendo" style="--t:28px"></i><i class="avi" data-n="ramiro" data-e="leyendo" style="--t:28px"></i><i class="avi" data-n="lucas" data-e="escribiendo" style="--t:28px"></i></span></div>
+              <button type="button" class="aviso"><i class="avi" data-n="claude" data-e="teEspera" style="--t:30px"></i><span><b>Claude</b> te pregunta en <b>catalogo</b></span><span class="ir">Ver →</span></button>
+            </div>
+            <span class="rotulo">arriba · abierta: crece hacia abajo, al centro</span>
+          </div>
+          <div class="pant alta abierta rv" data-desp>
+            <button type="button" class="muesca der" data-abrir aria-expanded="true" aria-controls="dp-2" aria-label="Abrir Oficina"><span class="asoma"><i class="avi" data-n="claude" data-e="teEspera"></i></span><span class="pt late" aria-hidden="true"></span><span class="chip chip-preg">1 ?</span></button>
+            <div class="despliegue desde-der" id="dp-2">
+              <div class="dp-cab"><span class="asoma"><i class="avi" data-n="claude" data-e="teEspera"></i></span><b>catalogo</b><span class="chip chip-preg">1 ?</span><button type="button" class="dp-cerrar" data-cerrar aria-label="Plegar a la muesca">›</button></div>
+              <p class="dp-preg">¿Dónde mostramos el precio mayorista en la ficha?</p>
+              <div class="ops">
+                <button type="button" class="op"><span class="n">1</span><b>Debajo del precio de lista<span class="recom">Recomendada</span></b><small>Se ve siempre, más chico.</small></button>
+                <button type="button" class="op"><span class="n">2</span><b>Solo con sesión iniciada</b><small>El público ve el de lista.</small></button>
+              </div>
+            </div>
+            <span class="rotulo">derecha · abierta: crece hacia la izquierda, al centro</span>
+          </div>
+
+          <div class="pant rv" style="grid-column:1/-1">
+            <div class="muesca abajo"><span class="asoma"><i class="avi" data-n="claude" data-e="esperando"></i></span><span class="pt" style="--c:var(--crema)" aria-hidden="true"></span><span class="chip">2</span></div>
+            <div class="muesca izq"><span class="asoma"><i class="avi" data-n="claude" data-e="proceso"></i></span><span class="pt" style="--c:var(--celeste)" aria-hidden="true"></span><span class="chip">1</span></div>
+            <span class="rotulo" style="left:auto;right:14px;top:14px;bottom:auto;text-align:right">las otras dos posiciones (una sola muesca a la vez): abajo, esperando tu mensaje · izquierda, esperando 1 proceso</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pieza">
+        <h3>Crece y se achica con el contenido</h3>
+        <p>La ventana mide lo que muestra (max-content): cada subagente agrega una ficha, hasta 4 y “+n”.</p>
+        <div class="lienzo mock" style="flex-direction:column;align-items:flex-start">
+          <div class="rv"><div class="regla">sin subagentes · ≈ 330 px</div>
+            <article class="ses" style="width:max-content"><div class="ses-top"><i class="avi" data-n="claude" data-e="esperando" style="--t:56px"></i><div><div class="ses-tit"><span class="tag sin">sin tarea</span><b>main</b></div><p class="linea" style="--c:var(--crema)"><span class="pt"></span>esperando tu mensaje</p></div></div></article></div>
+          <div class="rv"><div class="regla">2 subagentes · ≈ 330 px → crece hacia abajo</div>
+            <article class="ses" style="width:max-content"><div class="ses-top"><i class="avi" data-n="claude" data-e="coordinando" style="--t:56px"></i><div><div class="ses-tit"><span class="tag">#31</span><b>Cola de envíos</b></div><p class="linea" style="--c:var(--ambar)"><span class="pt"></span>coordinando el equipo</p></div></div>
+              <ul class="subs"><li class="sub" style="--c:var(--rosa)"><i class="avi" data-n="camila" data-e="escribiendo" style="--t:44px"></i><b>Camila</b><small>copy</small></li><li class="sub" style="--c:var(--celeste);--ce:var(--celeste)"><i class="avi" data-n="ramiro" data-e="leyendo" style="--t:44px"></i><b>Ramiro</b><small>mapear</small></li></ul></article></div>
+        </div>
+      </div>
+
+      <div class="pieza">
+        <h3>Zoom escalonado 100–200 %</h3>
+        <p>Todo escala junto (zoom en &lt;html&gt;): los Avis son vectoriales y se ven nítidos a cualquier paso. Ctrl + / − / 0.</p>
+        <div class="lienzo mock" style="flex-direction:column;align-items:flex-start;gap:14px">
+          <div class="pasos rv" aria-label="Pasos de tamaño"><span>100</span><span>125</span><span class="on">150</span><span>175</span><span>200</span></div>
+          <div class="ficha rv"><i class="avi" data-n="claude" data-e="coordinando" style="--t:36px"></i><span><b>oficina</b><small>coordinando</small></span></div>
+          <div class="ficha rv" style="zoom:1.5"><i class="avi" data-n="claude" data-e="coordinando" style="--t:36px"></i><span><b>oficina</b><small>coordinando</small></span></div>
+          <div class="ficha rv" style="zoom:2"><i class="avi" data-n="claude" data-e="coordinando" style="--t:36px"></i><span><b>oficina</b><small>coordinando</small></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="decis">
+      <h2>Tipografía y paleta de este estilo</h2>
+      <ul>
+        <li><b>Manrope 800</b> (de marca) para títulos con tracking cerrado, Manrope 600–700 para la interfaz; <b>Martian Mono</b> (nueva) solo para micro-rótulos: estado, rama, tiempos, chips. Las dos se empaquetan dentro del widget.</li>
+        <li><b>Negro puro</b> de base, superficies #0C0C0E / #141417 / #1D1D21; texto en <b>crema #F3EBD8</b> (el mismo del cuerpo de los Avis); <b>ámbar #F2B632</b> como acento principal; violeta #A58BFF y celeste #7FB3FF de secundarios; verde y rosa quedan solo para personajes y “listo”.</li>
+        <li>Movimiento: entrada escalonada de 65 ms por elemento con curva (.16,1,.3,1); cada Avi con su ciclo desfasado; con reduce-motion los Avis quedan quietos en su pose y todo se ve igual.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<script>
+// ---------- Avis: un generador de SVG para todo el boceto ----------
+const ELENCO = {
+  claude: { pj: 'antena', c: '#F2B632', n: 'Claude' },
+  camila: { pj: 'gata', c: '#E78FB3', n: 'Camila' },
+  ramiro: { pj: 'raton', c: '#7FB3FF', n: 'Ramiro' },
+  lucas: { pj: 'brote', c: '#8FD694', n: 'Lucas' },
+  delfina: { pj: 'mono', c: '#F2B632', n: 'Delfina' },
+  ines: { pj: 'cuernos', c: '#A58BFF', n: 'Inés' },
+  base: { pj: 'copete', c: '#F2B632', n: 'Avi' }
+}
+const TXT = { esperando: 'esperando tu mensaje', escribiendo: 'escribiendo', leyendo: 'leyendo', pensando: 'pensando', coordinando: 'coordinando el equipo', teEspera: 'te hace una pregunta', proceso: 'esperando 1 proceso', durmiendo: 'durmiendo', inactiva: 'sin actividad', listo: 'listo', fallo: 'falló' }
+
+// Accesorios que van detrás del cuerpo (salen de la cabeza)
+const ATRAS = {
+  antena: c => `<path d="M60 38V19" stroke="#CDBE9C" stroke-width="3.2" stroke-linecap="round"/><circle class="halo" cx="60" cy="14" r="9.5" fill="${c}" opacity=".22"/><circle class="bulbo" cx="60" cy="14" r="5.4" fill="${c}"/><circle cx="58.2" cy="12.3" r="1.7" fill="#fff" opacity=".85"/>`,
+  gata: c => `<path d="M30 58L33 25L56 39Z" fill="url(#gPiel)"/><path d="M90 58L87 25L64 39Z" fill="url(#gPiel)"/><path d="M35.5 45L37 31.5L47.5 39Z" fill="${c}" opacity=".9"/><path d="M84.5 45L83 31.5L72.5 39Z" fill="${c}" opacity=".9"/>`,
+  raton: c => `<circle cx="32" cy="41" r="14" fill="url(#gPiel)"/><circle cx="88" cy="41" r="14" fill="url(#gPiel)"/><circle cx="30.5" cy="39.5" r="7.5" fill="${c}" opacity=".8"/><circle cx="89.5" cy="39.5" r="7.5" fill="${c}" opacity=".8"/>`,
+  brote: c => `<path d="M60 37Q57 26 61 18" stroke="#78B078" stroke-width="2.8" fill="none" stroke-linecap="round"/><path d="M61 20Q70 8 81 15Q72 25 61 20Z" fill="${c}"/><path d="M59.5 26Q50 16 41 22Q50 31 59.5 26Z" fill="${c}" opacity=".75"/>`,
+  mono: c => `<circle cx="22" cy="70" r="10.5" fill="url(#gPiel)"/><circle cx="98" cy="70" r="10.5" fill="url(#gPiel)"/><circle cx="21" cy="70" r="5.2" fill="${c}" opacity=".75"/><circle cx="99" cy="70" r="5.2" fill="${c}" opacity=".75"/>`,
+  cuernos: c => `<path d="M40 45Q31 31 39 21Q43 33 52 38Z" fill="${c}"/><path d="M80 45Q89 31 81 21Q77 33 68 38Z" fill="${c}"/>`,
+  // copete ámbar, como el pico: la firma de la familia (solo el Avi base)
+  copete: c => `<path d="M56 38Q50 24 60 18Q56 28 64 36Z" fill="${c}"/><path d="M62 37Q64 26 74 25Q67 30 67 38Z" fill="${c}" opacity=".85"/>`
+}
+// Accesorios por delante del cuerpo
+const FRENTE = {
+  mono: c => `<path d="M49 40Q57 24 71 34Q62 31 58 41Q55 36 49 40Z" fill="${c}"/>`
+}
+const OJOS = {
+  base: `<ellipse class="ojo" cx="49" cy="70" rx="4.5" ry="5.8"/><ellipse class="ojo" cx="71" cy="70" rx="4.5" ry="5.8"/><circle class="luz" cx="50.7" cy="67.6" r="1.5"/><circle class="luz" cx="72.7" cy="67.6" r="1.5"/>`,
+  cerrados: `<path class="trazo" d="M44.5 71Q49 75 53.5 71M66.5 71Q71 75 75.5 71"/>`,
+  feliz: `<path class="trazo" d="M44.5 72.5Q49 65.5 53.5 72.5M66.5 72.5Q71 65.5 75.5 72.5"/>`,
+  x: `<path class="trazo" d="M45.5 66.5l7 7m0-7l-7 7M67.5 66.5l7 7m0-7l-7 7"/>`
+}
+const ojosDe = e => (e === 'durmiendo' || e === 'inactiva') ? OJOS.cerrados : e === 'listo' ? OJOS.feliz : e === 'fallo' ? OJOS.x : OJOS.base
+
+// Efectos por estado, delante del Avi
+function efectos(e, c) {
+  switch (e) {
+    case 'escribiendo': return `<ellipse cx="60" cy="79" rx="24" ry="8" fill="${c}" opacity=".14"/>
+      <rect x="35" y="80" width="50" height="21" rx="4.5" fill="#1C1C21" stroke="#34343B" stroke-width="1.2"/>
+      <circle class="logo" cx="60" cy="90.5" r="2.8" fill="${c}"/>
+      <rect x="28" y="100" width="64" height="5" rx="2.5" fill="#2A2A31"/>
+      <ellipse class="mano" cx="43" cy="81" rx="5.5" ry="3.8" fill="#EFE6D2"/><ellipse class="mano m2" cx="77" cy="81" rx="5.5" ry="3.8" fill="#EFE6D2"/>`
+    case 'leyendo': return `<path d="M60 84Q50 79 39 83V100Q50 96 60 101Z" fill="#A58BFF"/><path d="M60 84Q70 79 81 83V100Q70 96 60 101Z" fill="#8C70F0"/>
+      <path d="M44 88Q50 86 56 88M44 92Q50 90 56 92M64 88Q70 86 76 88" stroke="#E9E2FF" stroke-width="1.3" fill="none" opacity=".7"/>
+      <ellipse cx="44" cy="84" rx="5" ry="3.6" fill="#EFE6D2"/><ellipse cx="76" cy="84" rx="5" ry="3.6" fill="#EFE6D2"/>`
+    case 'pensando': return `<circle class="p" cx="88" cy="36" r="3" fill="#F3EBD8"/><circle class="p p2" cx="96" cy="25" r="4.2" fill="#F3EBD8"/><circle class="p p3" cx="106" cy="12" r="5.6" fill="#F3EBD8"/>`
+    case 'coordinando': return `<circle class="onda" cx="60" cy="14" r="11" stroke="${c}"/><circle class="onda o2" cx="60" cy="14" r="11" stroke="${c}"/>`
+    case 'teEspera': return `<g class="burbuja"><path d="M86 6h18a9 9 0 0 1 9 9v6a9 9 0 0 1-9 9h-9l-7 7v-7a9 9 0 0 1-8-9v-6a9 9 0 0 1 9-9z" fill="#F2B632"/><text x="95" y="25.5" text-anchor="middle" font-family="Manrope,sans-serif" font-weight="800" font-size="17" fill="#000">!</text></g>`
+    case 'proceso': return `<circle cx="103" cy="42" r="10" fill="none" stroke="#24242A" stroke-width="4"/><circle class="giro" cx="103" cy="42" r="10" fill="none" stroke="#7FB3FF" stroke-width="4" stroke-linecap="round" stroke-dasharray="20 43"/>`
+    case 'durmiendo': case 'inactiva': return `<text class="z" x="86" y="44">z</text><text class="z z2" x="94" y="32" font-size="15">z</text><text class="z z3" x="103" y="18" style="font-size:18px">Z</text>`
+    case 'listo': return `<path class="chispa" d="M20 34l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#F2B632"/><path class="chispa c2" d="M100 26l1.6 4 4 1.6-4 1.6-1.6 4-1.6-4-4-1.6 4-1.6z" fill="#8FD694"/><circle class="chispa c3" cx="104" cy="62" r="2.6" fill="#A58BFF"/><circle class="chispa c4" cx="16" cy="66" r="2.2" fill="#E78FB3"/>`
+    case 'fallo': return `<path d="M84 30q3-7 10-3q6-4 9 3" stroke="#8A8478" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M89 22l3 3m0-3l-3 3" stroke="#FF7A6B" stroke-width="2" stroke-linecap="round"/>`
+    default: return ''
+  }
+}
+
+function avi(n, e) {
+  const p = ELENCO[n] ?? ELENCO.base
+  const atras = ATRAS[p.pj]?.(p.c) ?? ''
+  const frente = FRENTE[p.pj]?.(p.c) ?? ''
+  return `<svg viewBox="0 0 120 120" class="e-${e}" aria-hidden="true" focusable="false">
+    <ellipse class="suelo" cx="60" cy="104" rx="42" ry="9"/>
+    <ellipse class="contacto" cx="60" cy="104" rx="26" ry="3.6"/>
+    <g class="cuerpo">
+      ${atras}
+      <ellipse class="pata" cx="47" cy="101" rx="8.5" ry="4.4"/><ellipse class="pata" cx="73" cy="101" rx="8.5" ry="4.4"/>
+      <path class="piel" d="M60 34C84 34 97 52 97 74C97 92 81 102 60 102C39 102 23 92 23 74C23 52 36 34 60 34Z"/>
+      <path class="sombreado" d="M25 80C30 95 90 95 95 80C92 99 28 99 25 80Z"/>
+      <ellipse class="brillo" cx="43" cy="49" rx="11" ry="5.6" transform="rotate(-30 43 49)"/>
+      <ellipse cx="37" cy="81" rx="6.8" ry="3.5" fill="${p.c}" opacity=".36"/><ellipse cx="83" cy="81" rx="6.8" ry="3.5" fill="${p.c}" opacity=".36"/>
+      <g class="mirada"><g class="ojos">${ojosDe(e)}</g></g>
+      <path class="pico" d="M56 78.5Q60 85.5 64 78.5Q60 76.8 56 78.5Z"/>
+      ${frente}
+    </g>
+    ${efectos(e, p.c)}
+  </svg>`
+}
+
+document.querySelectorAll('i.avi').forEach((el, k) => {
+  const n = el.dataset.n || 'base', e = el.dataset.e || 'esperando'
+  el.innerHTML = avi(n, e)
+  if (!el.closest('[aria-label][role=img]') && !el.closest('.cabezas')) {
+    el.setAttribute('role', 'img')
+    el.setAttribute('aria-label', `${(ELENCO[n] ?? ELENCO.base).n}, ${TXT[e] ?? e}`)
+  } else el.setAttribute('aria-hidden', 'true')
+  // Cada Avi desfasado, así no respiran todos juntos
+  el.style.setProperty('--d', `-${((k * 0.83) % 3.3).toFixed(2)}s`)
+})
+document.querySelectorAll('.desfile .avi').forEach((a, i) => a.style.setProperty('--i', i))
+
+// ---------- entrada escalonada por maqueta, al entrar en pantalla ----------
+document.querySelectorAll('.mock').forEach(m => m.querySelectorAll('.rv').forEach((r, i) => r.style.setProperty('--i', i)))
+const io = new IntersectionObserver(es => es.forEach(x => { if (x.isIntersecting) { x.target.classList.add('ver'); io.unobserve(x.target) } }), { threshold: .15 })
+document.querySelectorAll('.mock').forEach(m => io.observe(m))
+
+// ---------- demostraciones de la pregunta ----------
+const p1 = document.getElementById('preg-1')
+p1.querySelectorAll('.op.uno').forEach(b => b.addEventListener('click', () => {
+  p1.classList.add('enviada')
+  setTimeout(() => p1.classList.remove('enviada'), 3200)
+}))
+const multis = [...document.querySelectorAll('.op.multi')], enviar = document.getElementById('enviar-multi')
+multis.forEach((b, k) => b.addEventListener('click', () => {
+  const on = b.getAttribute('aria-pressed') !== 'true'
+  b.setAttribute('aria-pressed', on)
+  b.querySelector('.n').textContent = on ? '✓' : k + 1
+  const n = multis.filter(x => x.getAttribute('aria-pressed') === 'true').length
+  enviar.disabled = !n
+  enviar.textContent = n ? `Seguir (${n})` : 'Seguir'
+}))
+
+// ---------- muesca: abrir hacia el centro y plegar ----------
+document.querySelectorAll('[data-desp]').forEach(p => {
+  const m = p.querySelector('[data-abrir]')
+  const poner = abierta => {
+    p.classList.remove('abierta'); void p.offsetWidth // reinicia la animación de apertura
+    p.classList.toggle('abierta', abierta)
+    m.setAttribute('aria-expanded', abierta)
+    ;(abierta ? p.querySelector('[data-cerrar]') : m).focus({ preventScroll: true })
+  }
+  m.addEventListener('click', () => poner(true))
+  p.querySelector('[data-cerrar]').addEventListener('click', () => poner(false))
+})
+
+// ---------- golpe de la pregunta: al llegar y cada 90 s en el producto; acá cada 8 s ----------
+const golpear = () => { document.body.classList.remove('golpe'); void document.body.offsetWidth; document.body.classList.add('golpe') }
+setTimeout(golpear, 900)
+setInterval(golpear, 8000)
+
+// ---------- pausar el movimiento para comparar ----------
+const q = document.getElementById('quieto')
+q.addEventListener('click', () => {
+  const on = q.getAttribute('aria-pressed') !== 'true'
+  q.setAttribute('aria-pressed', on)
+  q.textContent = on ? 'Reanudar movimiento' : 'Pausar movimiento'
+  document.body.classList.toggle('quieto', on)
+})
+</script>
+</body>
+</html>

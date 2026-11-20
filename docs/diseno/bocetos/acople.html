@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oficina · Acople al borde · bocetos</title>
+<style>
+:root{
+  --amarillo:#F2B632;--negro:#0B0D12;--azul:#7FB3FF;--verde:#8FD694;--rosa:#E78FB3;--crema:#F3EBD8;
+  --ficha:#10131B;--hueco:#0B0E15;--linea:#1E2230;--borde:#2A2F40;--texto:#E9EAEE;--tenue:#8B909C;--apagado:#5F6573;
+  --tinta:#1A1530;--papel:#FFF6E3;--papel2:#5A5470;
+  --mono:"Cascadia Mono","Cascadia Code",Consolas,monospace;
+  --display:"Bahnschrift Condensed",Bahnschrift,"DIN Condensed","Arial Narrow",sans-serif;
+  --ui:"Segoe UI",Manrope,Helvetica,Arial,sans-serif;
+  --sale:cubic-bezier(.5,0,.75,0);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--negro)}
+body{color:var(--texto);font:15px/1.55 var(--ui);background:
+  linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px) 0 0/100% 24px,
+  linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px) 0 0/24px 100%,var(--negro)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--amarillo);outline-offset:2px}
+.pad{padding-inline:clamp(16px,5vw,64px)}
+.ancho{max-width:1500px;margin-inline:auto}
+
+/* ---------- cabecera de la página ---------- */
+header{padding-top:52px;padding-bottom:30px}
+.kicker{font:700 11px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--tenue)}
+.kicker i{font-style:normal;color:var(--amarillo)}
+h1{font:700 clamp(48px,9.5vw,118px)/.84 var(--display);text-transform:uppercase;margin:14px 0 20px}
+h1 span{color:var(--amarillo)}
+.lede{max-width:64ch;color:#C9CBD2;font-size:16px}
+.lede b{color:var(--texto)}
+
+/* ---------- mando fijo ---------- */
+.mando{position:sticky;top:0;z-index:50;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding-block:10px;background:rgba(11,13,18,.88);backdrop-filter:blur(10px);border-block:1px solid var(--linea)}
+.m-rot{font:700 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--tenue)}
+.seg{display:flex;flex-wrap:wrap;border:1px solid var(--borde);border-radius:10px;overflow:hidden}
+.seg button,.rm{min-height:44px;padding:0 14px;background:transparent;border:0;cursor:pointer;font:600 13px var(--ui);transition:background .15s,color .15s}
+.seg button+button{border-left:1px solid var(--borde)}
+.seg button:hover,.rm:hover{background:#1A1E2A}
+.seg button[aria-pressed=true]{background:var(--amarillo);color:var(--negro)}
+.rm{margin-left:auto;border:1px solid var(--borde);border-radius:10px;display:inline-flex;align-items:center;gap:8px}
+.rm::before{content:"";width:28px;height:16px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--borde);transition:background .15s}
+.rm[aria-pressed=true]::before{background:var(--amarillo) radial-gradient(circle at 20px 8px,var(--negro) 5px,transparent 5.5px)}
+.rm[aria-pressed=false]::before{background:#232838 radial-gradient(circle at 8px 8px,var(--tenue) 5px,transparent 5.5px)}
+
+/* ---------- cada opción ---------- */
+.opcion{padding-block:44px;border-top:1px solid var(--linea);animation:sube .7s cubic-bezier(.2,.9,.25,1) both}
+@keyframes sube{from{opacity:0;transform:translateY(22px)}}
+.op-cab{display:flex;align-items:flex-end;gap:16px;margin-bottom:22px}
+.letra{flex:none;width:64px;height:64px;display:grid;place-items:center;background:var(--amarillo);color:var(--negro);font:700 48px/1 var(--display);border-radius:6px;box-shadow:4px 4px 0 #3A2C08}
+.descartadas .letra{background:#232838;color:var(--tenue);box-shadow:none}
+h2{font:700 clamp(34px,4.6vw,52px)/.9 var(--display);text-transform:uppercase;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.reco{font:700 11px/1 var(--mono);letter-spacing:.12em;color:var(--amarillo);border:1.5px solid var(--amarillo);border-radius:99px;padding:6px 10px;text-transform:uppercase}
+.lema{color:#C9CBD2;margin-top:6px;max-width:60ch}
+.op-grid{display:grid;gap:28px}
+@media (min-width:1100px){.op-grid{grid-template-columns:minmax(0,1fr) 380px;gap:44px}}
+.pista{font:12px/1.5 var(--mono);color:var(--tenue);margin-top:10px}
+.pista b{color:var(--amarillo);font-weight:600}
+.bordes{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-bottom:12px}
+.guardado{margin-top:8px;font:12px/1.5 var(--mono);color:var(--tenue);padding:8px 12px;border:1px dashed var(--borde);border-radius:8px;overflow-wrap:anywhere}
+.guardado code{color:var(--amarillo)}
+.sub{font:700 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--tenue);margin:24px 0 0}
+
+/* notas */
+.op-notas h3{font:700 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--tenue);margin:22px 0 8px}
+.op-notas h3:first-child{margin-top:0}
+.op-notas li{list-style:none;position:relative;padding-left:16px;margin-bottom:7px;font-size:14px;color:#D2D4DA}
+.op-notas li::before{content:"▍";position:absolute;left:0;color:var(--amarillo);font-size:12px;top:1px}
+.op-notas code{font:12.5px var(--mono);color:var(--crema)}
+.trade{display:grid;gap:6px}
+.trade p{font-size:14px;padding:10px 12px;border-radius:8px;background:#121620;border:1px solid var(--linea)}
+.trade p b{font:700 13px var(--mono);margin-right:6px}
+.trade .mas b{color:var(--verde)}.trade .menos b{color:var(--rosa)}
+
+/* ---------- escritorio falso ---------- */
+.pantalla{position:relative;height:clamp(470px,42vw,540px);border-radius:14px;overflow:hidden;border:1px solid #262B3A;box-shadow:0 30px 70px rgba(0,0,0,.5);isolation:isolate;user-select:none;touch-action:none}
+.fondo{position:absolute;inset:0;background:
+  radial-gradient(110% 70% at 85% 115%,rgba(242,182,50,.26),transparent 60%),
+  radial-gradient(70% 55% at 0% 105%,#2A3550,transparent 70%),
+  linear-gradient(180deg,#0D131F,#18213A 62%,#262C3F)}
+.fondo::after{content:"";position:absolute;inset:auto 0 32px;height:38%;background:
+  radial-gradient(60% 100% at 25% 100%,#121827 60%,transparent 61%),
+  radial-gradient(55% 90% at 80% 100%,#0F1422 60%,transparent 61%)}
+.app{position:absolute;left:12%;top:12%;width:56%;height:62%;background:#F3F3F5;border-radius:8px;box-shadow:0 18px 40px rgba(0,0,0,.45);overflow:hidden;color:#3B3F4A}
+.app-t{height:26px;display:flex;align-items:center;gap:8px;padding-left:10px;background:#E6E7EC;font:11px var(--ui)}
+.app-t i{margin-left:auto;display:flex}.app-t i b{width:30px;height:26px;display:grid;place-items:center;font:400 11px var(--ui);color:#666}
+.app-c{display:grid;grid-template-columns:26% 1fr;height:calc(100% - 26px)}
+.app-c aside,.app-c div{padding:14px 12px;display:grid;gap:9px;align-content:start}
+.app-c aside{background:#EBECF0}
+.app-c span{height:7px;border-radius:4px;background:#D9DBE2}
+.barra{position:absolute;left:0;right:0;bottom:0;height:32px;z-index:20;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(20,22,28,.94);border-top:1px solid rgba(255,255,255,.06)}
+.barra i{width:18px;height:18px;border-radius:4px;background:#3A4052}
+.barra i:nth-child(1){background:#4C8DF6}.barra i:nth-child(3){background:#2E3A55}
+.bandeja{position:absolute;right:10px;display:flex;align-items:center;gap:8px;font:11px var(--mono);color:#AEB2BC}
+.bandeja s{width:14px;height:14px;border-radius:3px;background:var(--amarillo);box-shadow:inset 0 0 0 4px var(--amarillo),inset 0 0 0 7px var(--negro)}
+.zona{position:absolute;inset:0 0 32px 0;z-index:10}
+
+/* ---------- dock genérico ---------- */
+.dock{position:absolute;width:0;height:0}
+.ficha,.panel,.flota{position:absolute}
+button.ficha{cursor:pointer}
+.ficha{display:flex;align-items:center;border:0;padding:0;background:none;color:var(--texto)}
+.dock[data-borde=""] .ficha,.dock[data-borde=""] .panel{display:none}
+.dock.quieto .panel,.dock.quieto .ficha{transition:none !important}
+.panel{width:300px;background:var(--ficha);border:1px solid var(--borde);color:var(--texto);overflow:hidden}
+.pet{display:block;flex:none}
+.ojos{transform-box:fill-box;transform-origin:50% 50%;animation:parpadeo 5.2s infinite}
+@keyframes parpadeo{0%,93%,100%{transform:none}95%{transform:scaleY(.15)}}
+.pa,.pb{animation:tecla .34s infinite steps(1)}.pb{animation-delay:.17s}
+@keyframes tecla{50%{transform:translateY(-1px)}}
+.zz{animation:zz 2.6s infinite ease-out}
+@keyframes zz{0%{transform:translate(0,2px);opacity:0}25%{opacity:1}100%{transform:translate(3px,-7px);opacity:0}}
+.burb{transform-box:fill-box;transform-origin:0 100%;animation:pop .45s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes pop{from{opacity:0;transform:scale(.4)}}
+
+/* contenido del panel (la Oficina de hoy, resumida) */
+.ent{opacity:0;translate:0 -5px;transition:opacity .1s,translate .1s}
+.dock[data-abierto=true] .ent{opacity:1;translate:0 0;transition:opacity .26s ease,translate .32s ease;transition-delay:calc(var(--d) * 60ms + 90ms)}
+.p-tit{display:flex;align-items:center;gap:8px;height:44px;padding:0 0 0 14px;background:var(--hueco);border-bottom:1px solid var(--linea);cursor:grab}
+.p-tit b{font:700 16px/1 var(--display);letter-spacing:.05em;text-transform:uppercase}
+.p-tit small{font:11px var(--mono);color:var(--apagado);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pin{margin-left:auto;flex:none;width:44px;height:44px;display:grid;place-items:center;background:none;border:0;color:#9AA0AC;cursor:pointer;transition:color .15s,background .15s}
+.pin:hover{background:#1A1E2A;color:#fff}
+.pin svg{transition:rotate .25s cubic-bezier(.3,1.5,.5,1)}
+.pin[aria-pressed=false] svg{rotate:40deg}
+.pin[aria-pressed=true]{color:var(--amarillo)}
+.p-cuerpo{padding:10px 14px 12px}
+.p-sala svg{display:block;width:100%;height:auto;border-radius:8px;border:1px solid var(--linea)}
+.p-lin{margin-top:8px}
+.t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:12.5px/1.7 var(--ui);color:#E6E7EB}
+.t .mk{color:var(--amarillo)}.t .dim{color:var(--tenue)}
+.p-globo{position:relative;margin-top:10px;background:var(--papel);color:var(--tinta);border:2px solid var(--tinta);border-radius:12px;box-shadow:4px 4px 0 rgba(0,0,0,.55);padding:8px 10px}
+.g-cab{display:flex;align-items:center;gap:6px;font:12px var(--ui);color:var(--papel2)}
+.g-cab b{color:var(--tinta)}
+.g-preg{font:700 14px/1.3 var(--ui);margin:5px 0 7px}
+.g-ops{display:grid;gap:5px}
+.g-ops span{display:flex;align-items:center;gap:8px;min-height:34px;padding:0 9px;border:1.5px solid var(--tinta);border-radius:8px;background:#fff;font:700 12.5px var(--ui)}
+.g-ops span.rec{background:#FFE6A6}
+.g-ops i{font:700 10.5px/16px var(--mono);font-style:normal;width:18px;height:18px;text-align:center;border:1.5px solid var(--tinta);border-radius:5px}
+
+/* tarjeta flotante (lejos de un borde = la ventana de hoy) */
+.flota{display:none;left:0;top:0;width:220px;height:48px;align-items:center;gap:9px;padding:0 8px 0 10px;background:var(--ficha);border:1px solid var(--borde);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.5);cursor:grab;transition:translate .14s,box-shadow .14s}
+.dock[data-borde=""] .flota{display:flex}
+.grip{width:8px;height:16px;flex:none;background:radial-gradient(circle,#5F6573 1.2px,transparent 1.6px) 0 0/4px 4px}
+.fl-t{display:grid;line-height:1.15;min-width:0}
+.fl-t b{font:700 14px var(--display);letter-spacing:.05em;text-transform:uppercase}
+.iman{font:11px var(--mono);color:var(--tenue);white-space:nowrap}
+.acoplar{margin-left:auto;min-height:32px;padding:0 9px;border:1px solid var(--amarillo);border-radius:8px;background:transparent;color:var(--amarillo);font:600 11px var(--mono);cursor:pointer}
+.dock[data-cerca=top] .flota{translate:0 -4px;box-shadow:inset 0 3px 0 var(--amarillo),0 0 0 1px rgba(242,182,50,.55),0 12px 30px rgba(0,0,0,.5)}
+.dock[data-cerca=bottom] .flota{translate:0 4px;box-shadow:inset 0 -3px 0 var(--amarillo),0 0 0 1px rgba(242,182,50,.55),0 12px 30px rgba(0,0,0,.5)}
+.dock[data-cerca=left] .flota{translate:-4px 0;box-shadow:inset 3px 0 0 var(--amarillo),0 0 0 1px rgba(242,182,50,.55),0 12px 30px rgba(0,0,0,.5)}
+.dock[data-cerca=right] .flota{translate:4px 0;box-shadow:inset -3px 0 0 var(--amarillo),0 0 0 1px rgba(242,182,50,.55),0 12px 30px rgba(0,0,0,.5)}
+.dock[data-cerca]:not([data-cerca=""]) .iman{color:var(--amarillo)}
+.dock.acopla .ficha{animation:acopla .5s cubic-bezier(.3,1.6,.5,1)}
+@keyframes acopla{from{scale:.55}}
+
+/* ---------- A · MUESCA en los cuatro bordes ---------- */
+.v-a{filter:drop-shadow(0 12px 22px rgba(0,0,0,.45))}
+.v-a .ficha{transition:opacity .16s;z-index:1} /* cerrada, el panel recortado queda debajo: si no, tapa la mascota */
+.v-a[data-borde=top] .ficha{left:-75px;top:0;width:150px;height:44px;transform-origin:50% 0;--gx:0px;--gy:7px}
+.v-a[data-borde=bottom] .ficha{left:-75px;top:-44px;width:150px;height:44px;transform-origin:50% 100%;--gx:0px;--gy:-7px}
+.v-a[data-borde=left] .ficha{left:0;top:-75px;width:44px;height:150px;transform-origin:0 50%;--gx:7px;--gy:0px}
+.v-a[data-borde=right] .ficha{left:-44px;top:-75px;width:44px;height:150px;transform-origin:100% 50%;--gx:-7px;--gy:0px}
+/* la forma oscura mide 34 de espesor; los 10 px de más son zona táctil hacia adentro */
+.forma,.fila{position:absolute}
+.v-a[data-borde=top] :is(.forma,.fila){inset:0 0 10px 0}
+.v-a[data-borde=bottom] :is(.forma,.fila){inset:10px 0 0 0}
+.v-a[data-borde=left] :is(.forma,.fila){inset:0 10px 0 0}
+.v-a[data-borde=right] :is(.forma,.fila){inset:0 0 0 10px}
+.forma{background:var(--hueco)}
+.v-a[data-borde=top] .forma{border-radius:0 0 17px 17px}
+.v-a[data-borde=bottom] .forma{border-radius:17px 17px 0 0}
+.v-a[data-borde=left] .forma{border-radius:0 17px 17px 0}
+.v-a[data-borde=right] .forma{border-radius:17px 0 0 17px}
+/* hombros: la curva cóncava que funde la muesca con el borde, como el notch de un teléfono */
+.forma::before,.forma::after{content:"";position:absolute;width:10px;height:10px}
+.v-a[data-borde=top] .forma::before{left:-10px;top:0;background:radial-gradient(circle at 0 100%,transparent 9.5px,var(--hueco) 10px)}
+.v-a[data-borde=top] .forma::after{right:-10px;top:0;background:radial-gradient(circle at 100% 100%,transparent 9.5px,var(--hueco) 10px)}
+.v-a[data-borde=bottom] .forma::before{left:-10px;bottom:0;background:radial-gradient(circle at 0 0,transparent 9.5px,var(--hueco) 10px)}
+.v-a[data-borde=bottom] .forma::after{right:-10px;bottom:0;background:radial-gradient(circle at 100% 0,transparent 9.5px,var(--hueco) 10px)}
+.v-a[data-borde=left] .forma::before{top:-10px;left:0;background:radial-gradient(circle at 100% 0,transparent 9.5px,var(--hueco) 10px)}
+.v-a[data-borde=left] .forma::after{bottom:-10px;left:0;background:radial-gradient(circle at 100% 100%,transparent 9.5px,var(--hueco) 10px)}
+.v-a[data-borde=right] .forma::before{top:-10px;right:0;background:radial-gradient(circle at 0 0,transparent 9.5px,var(--hueco) 10px)}
+.v-a[data-borde=right] .forma::after{bottom:-10px;right:0;background:radial-gradient(circle at 0 100%,transparent 9.5px,var(--hueco) 10px)}
+.fila{display:flex;align-items:center;justify-content:center;gap:8px;padding:0 12px}
+.v-a:is([data-borde=left],[data-borde=right]) .fila{flex-direction:column;gap:7px;padding:10px 0}
+.v-a:is([data-borde=left],[data-borde=right]) .f-t{writing-mode:vertical-rl}
+.v-a:is([data-borde=left],[data-borde=right]) .f-puntos{flex-direction:column}
+.f-t{font:600 11.5px var(--mono);white-space:nowrap}
+.f-t b{color:var(--amarillo)}
+.v-a[data-estado=reposo] .f-t b{color:inherit}
+.v-a[data-estado=pregunta] .f-t{color:var(--amarillo)}
+.f-dot{width:7px;height:7px;flex:none;border-radius:50%;background:var(--verde);box-shadow:0 0 0 3px rgba(143,214,148,.15)}
+.f-puntos{display:flex;gap:3px}
+.f-puntos i{width:4px;height:4px;background:var(--amarillo);animation:ola 1s infinite ease-in-out}
+.f-puntos i:nth-child(2){animation-delay:.15s}.f-puntos i:nth-child(3){animation-delay:.3s}
+@keyframes ola{0%,60%,100%{opacity:.4}30%{opacity:1}}
+/* etiqueta de pregunta: cuelga hacia el centro de la pantalla, con la cola hacia la muesca */
+.burbuja{position:absolute;width:30px;height:25px;background:var(--papel);color:var(--tinta);border:2px solid var(--tinta);border-radius:8px;box-shadow:2px 2px 0 rgba(0,0,0,.5);font:800 15px/21px var(--ui);text-align:center}
+.burbuja::before{content:"";position:absolute;background:var(--tinta)}
+.v-a[data-borde=top] .burbuja{top:40px;left:50%;margin-left:-15px}
+.v-a[data-borde=bottom] .burbuja{bottom:40px;left:50%;margin-left:-15px}
+.v-a[data-borde=left] .burbuja{left:40px;top:50%;margin-top:-12.5px}
+.v-a[data-borde=right] .burbuja{right:40px;top:50%;margin-top:-12.5px}
+.v-a[data-borde=top] .burbuja::before{top:-8px;left:8px;width:10px;height:7px;clip-path:polygon(50% 0,100% 100%,0 100%)}
+.v-a[data-borde=bottom] .burbuja::before{bottom:-8px;left:8px;width:10px;height:7px;clip-path:polygon(0 0,100% 0,50% 100%)}
+.v-a[data-borde=left] .burbuja::before{left:-8px;top:6px;width:7px;height:10px;clip-path:polygon(0 50%,100% 0,100% 100%)}
+.v-a[data-borde=right] .burbuja::before{right:-8px;top:6px;width:7px;height:10px;clip-path:polygon(0 0,100% 50%,0 100%)}
+.golpe.v-a .burbuja{animation:golpeA .9s ease-out}
+@keyframes golpeA{20%{translate:var(--gx) var(--gy)}40%{translate:0 0}60%{translate:calc(var(--gx) * .55) calc(var(--gy) * .55)}80%{translate:0 0}}
+/* el panel es la misma muesca recortada: abrir = soltar el recorte hacia el centro */
+.v-a .panel{clip-path:inset(var(--it) var(--ir) var(--ib) var(--il) round var(--rc));transition:clip-path .26s var(--sale)}
+.v-a[data-abierto=true] .panel{clip-path:inset(0 0 0 0 round var(--ro));transition:clip-path .52s cubic-bezier(.2,.9,.25,1.05)}
+.v-a[data-abierto=true] .ficha{opacity:0;pointer-events:none}
+.v-a[data-borde=top] .panel{top:0;left:var(--off);border-top:0;border-radius:0 0 20px 20px;--rc:0 0 17px 17px;--ro:0 0 20px 20px}
+.v-a[data-borde=bottom] .panel{bottom:0;left:var(--off);border-bottom:0;border-radius:20px 20px 0 0;--rc:17px 17px 0 0;--ro:20px 20px 0 0}
+.v-a[data-borde=left] .panel{left:0;top:var(--off);border-left:0;border-radius:0 20px 20px 0;--rc:0 17px 17px 0;--ro:0 20px 20px 0}
+.v-a[data-borde=right] .panel{right:0;top:var(--off);border-right:0;border-radius:20px 0 0 20px;--rc:17px 0 0 17px;--ro:20px 0 0 20px}
+
+/* ---------- B · LENGÜETA (descartada) ---------- */
+.v-b .ficha{top:-66px;width:34px;height:132px;flex-direction:column;justify-content:center;gap:7px;background:var(--hueco);border:1px solid var(--borde);transition:transform .24s var(--sale),background .2s,color .2s}
+.v-b[data-borde=right] .ficha{right:0;border-right:0;border-radius:12px 0 0 12px;--g:-9px}
+.v-b[data-borde=left] .ficha{left:0;border-left:0;border-radius:0 12px 12px 0;--g:9px}
+.f-n{font:700 22px/1 var(--display)}
+.f-v{writing-mode:vertical-rl;rotate:180deg;font:700 9px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--tenue)}
+.v-b[data-estado=trabajo] .f-n{color:var(--amarillo)}
+.v-b[data-estado=trabajo] .ficha::before{content:"";position:absolute;top:0;bottom:0;width:2px;background:linear-gradient(transparent,var(--amarillo),transparent) 0 -60px/100% 50px no-repeat;animation:barre 1.5s linear infinite}
+.v-b[data-borde=right][data-estado=trabajo] .ficha::before{left:-1px}
+.v-b[data-borde=left][data-estado=trabajo] .ficha::before{right:-1px}
+@keyframes barre{to{background-position:0 190px}}
+.v-b[data-estado=pregunta] .ficha{background:var(--papel);color:var(--tinta);border:2px solid var(--tinta);box-shadow:3px 3px 0 rgba(0,0,0,.5)}
+.v-b[data-estado=pregunta] .f-v{color:var(--papel2)}
+.golpe.v-b .ficha{animation:golpeB .9s ease-out}
+@keyframes golpeB{20%{translate:var(--g) 0}40%{translate:0 0}60%{translate:calc(var(--g) * .55) 0}80%{translate:0 0}}
+.v-b .panel{top:var(--off);transition:transform .24s var(--sale)}
+.v-b[data-borde=right] .panel{right:0;border-right:0;border-radius:14px 0 0 14px;transform:translateX(100%)}
+.v-b[data-borde=left] .panel{left:0;border-left:0;border-radius:0 14px 14px 0;transform:translateX(-100%)}
+.v-b[data-abierto=true] .panel{transform:none;box-shadow:0 20px 50px rgba(0,0,0,.5);transition:transform .46s cubic-bezier(.22,1,.36,1)}
+.v-b[data-abierto=true][data-borde=right] .ficha{transform:translateX(-300px);transition:transform .46s cubic-bezier(.22,1,.36,1)}
+.v-b[data-abierto=true][data-borde=left] .ficha{transform:translateX(300px);transition:transform .46s cubic-bezier(.22,1,.36,1)}
+
+/* ---------- C · ASOMADA (descartada) ---------- */
+.v-c{--rot:0deg}
+.v-c[data-borde=top]{--rot:180deg}.v-c[data-borde=left]{--rot:90deg}.v-c[data-borde=right]{--rot:-90deg}
+.v-c .ficha{left:-38px;top:-48px;width:76px;height:48px;transform-origin:50% 100%;transform:rotate(var(--rot));transition:opacity .2s}
+.c-fondo{position:absolute;left:6px;right:6px;bottom:0;height:22px;background:var(--hueco);border:1px solid var(--borde);border-bottom:0;border-radius:32px 32px 0 0}
+.c-pet{position:absolute;left:50%;bottom:4px;margin-left:-20px;translate:0 6px;transition:translate .4s cubic-bezier(.3,1.5,.5,1)}
+.v-c[data-estado=trabajo] .c-pet{translate:0 3px}
+.v-c[data-estado=pregunta] .c-pet{translate:0 -3px}
+.c-labio{position:absolute;left:6px;right:6px;bottom:0;height:9px;background:var(--hueco);border-top:2px solid var(--borde)}
+.v-c[data-estado=trabajo] .c-labio{border-top-color:var(--amarillo)}
+.v-c[data-estado=pregunta] .c-labio{border-top-color:var(--papel)}
+.c-badge{position:absolute;right:0;top:9px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--hueco);border:1.5px solid var(--apagado);font:700 11px/17px var(--mono);text-align:center;rotate:calc(var(--rot) * -1)}
+.v-c[data-estado=trabajo] .c-badge{border-color:var(--amarillo);color:var(--amarillo)}
+.v-c[data-estado=pregunta] .c-badge{background:var(--papel);border-color:var(--tinta);color:var(--tinta)}
+.golpe.v-c .c-pet .pet{animation:salto .8s ease-out}
+@keyframes salto{30%{transform:translateY(-8px)}55%{transform:none}75%{transform:translateY(-3px)}}
+.v-c[data-abierto=true] .ficha{opacity:0}
+.v-c .panel{opacity:0;visibility:hidden;transform:scale(.12);transition:transform .22s var(--sale),opacity .16s ease .06s,visibility 0s linear .24s}
+.v-c[data-abierto=true] .panel{opacity:1;visibility:visible;transform:none;box-shadow:0 20px 50px rgba(0,0,0,.5);transition:transform .52s cubic-bezier(.3,1.3,.5,1),opacity .14s,visibility 0s}
+.v-c[data-borde=bottom] .panel{bottom:0;left:var(--off);transform-origin:var(--o) 100%;border-bottom:0;border-radius:16px 16px 0 0}
+.v-c[data-borde=top] .panel{top:0;left:var(--off);transform-origin:var(--o) 0;border-top:0;border-radius:0 0 16px 16px}
+.v-c[data-borde=left] .panel{left:0;top:var(--off);transform-origin:0 var(--o);border-left:0;border-radius:0 16px 16px 0}
+.v-c[data-borde=right] .panel{right:0;top:var(--off);transform-origin:100% var(--o);border-right:0;border-radius:16px 0 0 16px}
+
+/* ---------- muestras quietas ---------- */
+.caras{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+.caras.cuatro{grid-template-columns:repeat(4,1fr)}
+.cara figcaption{font:11px var(--mono);color:var(--tenue);margin-top:6px;letter-spacing:.04em}
+.cara figcaption b{color:var(--texto);font-weight:600}
+.marco{position:relative;height:118px;border-radius:10px;overflow:hidden;border:1px solid var(--linea);background:radial-gradient(120% 90% at 80% 120%,rgba(242,182,50,.18),transparent 60%),linear-gradient(180deg,#0D131F,#1B2338)}
+.cuatro .marco{height:190px}
+@media (max-width:900px){.caras.cuatro{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:640px){.caras{grid-template-columns:1fr}}
+
+/* ---------- común ---------- */
+.comun{padding-block:44px;border-top:1px solid var(--linea)}
+.comun h2{margin-bottom:22px}
+.comun-g{display:grid;gap:28px}
+@media (min-width:900px){.comun-g{grid-template-columns:1fr 1fr;gap:48px}}
+
+/* ---------- descartadas ---------- */
+.descartadas{border-top:1px solid var(--linea);padding-block:28px 80px}
+.descartadas summary{display:flex;align-items:center;gap:12px;min-height:56px;cursor:pointer;list-style:none;font:700 clamp(24px,3vw,32px)/1 var(--display);text-transform:uppercase;color:var(--tenue)}
+.descartadas summary::-webkit-details-marker{display:none}
+.descartadas summary::before{content:"+";width:36px;height:36px;display:grid;place-items:center;border:1.5px solid var(--borde);border-radius:8px;font:700 20px/1 var(--mono);color:var(--amarillo);transition:rotate .25s}
+.descartadas[open] summary::before{rotate:45deg}
+.descartadas summary:hover{color:var(--texto)}
+.descartadas summary small{font:12px var(--mono);text-transform:none;letter-spacing:0;color:var(--apagado)}
+
+/* ---------- movimiento reducido ---------- */
+body.reducido .pantalla *,body.reducido .marco *,body.reducido .pantalla *::before,body.reducido .marco *::before{animation:none !important;transition-duration:.01s !important;transition-delay:0s !important}
+body.reducido .opcion,body.reducido .descartadas summary::before{animation:none;transition:none}
+</style>
+</head>
+<body>
+
+<header class="pad ancho">
+  <p class="kicker"><i>▍</i> Oficina · bocetos · acople al borde · ronda 2</p>
+  <h1>La muesca<br><span>en cualquier borde</span></h1>
+  <p class="lede">Elegiste <b>A, la muesca</b>: un notch como el del teléfono que se pega <b>arriba, abajo o a un costado</b>. Cerrada es una franja oscura con la mascota; al <b>pasar el mouse, tocarla o arrastrarla</b> el mismo recorte crece hacia el centro de la pantalla hasta ser la oficina, y se vuelve a guardar cuando te vas, salvo que la fijes. Cambiá el borde y el estado y probala.</p>
+</header>
+
+<div class="mando pad" role="toolbar" aria-label="Controles del boceto">
+  <span class="m-rot" id="m-e">Estado de la muesca</span>
+  <div class="seg" role="group" aria-labelledby="m-e">
+    <button type="button" data-e="reposo" aria-pressed="false">Reposo</button>
+    <button type="button" data-e="trabajo" aria-pressed="true">Trabajando</button>
+    <button type="button" data-e="pregunta" aria-pressed="false">Pregunta pendiente</button>
+  </div>
+  <button type="button" class="rm" aria-pressed="false">Movimiento reducido</button>
+</div>
+
+<main>
+<section class="opcion pad ancho" aria-labelledby="t-a">
+  <div class="op-cab"><span class="letra" aria-hidden="true">A</span><div><h2 id="t-a">Muesca <span class="reco">Elegida · cuatro bordes</span></h2><p class="lema">Un notch de teléfono que se pega a cualquier borde; al abrir, la misma muesca se estira hacia el centro hasta ser la oficina.</p></div></div>
+  <div class="op-grid">
+    <div>
+      <div class="bordes"><span class="m-rot" id="m-b">Borde</span>
+        <div class="seg" role="group" aria-labelledby="m-b" id="sel-borde">
+          <button type="button" data-b="top" aria-pressed="true">Arriba</button>
+          <button type="button" data-b="right" aria-pressed="false">Derecha</button>
+          <button type="button" data-b="bottom" aria-pressed="false">Abajo</button>
+          <button type="button" data-b="left" aria-pressed="false">Izquierda</button>
+        </div>
+      </div>
+      <div class="pantalla" data-v="a"><div class="zona"></div></div>
+      <p class="pista">Pasá el mouse o tocá la muesca · <b>arrastrala a cualquiera de los cuatro bordes</b> (el imán la toma a 20 px) · soltala lejos y queda flotando.</p>
+      <p class="guardado">Lo que se guarda en <b>preferencias.json</b>: <code></code></p>
+      <h3 class="sub">Los cuatro bordes · estado actual</h3>
+      <div class="caras cuatro" data-v="a" data-modo="bordes"></div>
+      <h3 class="sub">Las tres caras · arriba</h3>
+      <div class="caras" data-v="a" data-b="top"></div>
+    </div>
+    <aside class="op-notas" aria-label="Notas de la opción A">
+      <h3>Qué cambia</h3>
+      <ul>
+        <li>Una franja oscura de 150 × 34 con hombros cóncavos que la funden con el borde, como el notch de un teléfono.</li>
+        <li>En los costados se para (34 × 150): las esquinas redondas miran hacia adentro, la mascota queda derecha y el texto va vertical.</li>
+        <li>Abrir no trae otra ventana: el recorte de la muesca crece hacia el centro de la pantalla hasta ser el panel. La pregunta cuelga como etiqueta crema hacia el centro y golpea una vez.</li>
+      </ul>
+      <h3>Balance</h3>
+      <div class="trade"><p class="mas"><b>+</b>Tu referencia y tu pedido: un solo dibujo que gira esquinas, hombros y etiqueta según el borde.</p><p class="menos"><b>−</b>Cada borde pisa algo: arriba, barras de título; a la derecha, barras de desplazamiento; abajo, la barra de tareas si se oculta sola. Elegís el que menos te moleste.</p></div>
+      <h3>Tauri</h3>
+      <ul>
+        <li>Ventana transparente, sin bordes ni sombra, siempre arriba. Cerrada: 150 × 44 en los bordes de arriba y abajo, 44 × 150 en los costados (70 de profundidad cuando cuelga la etiqueta «?»).</li>
+        <li>Abrir: pausar el <code>ResizeObserver</code>, agrandar la ventana al panel pegado al borde y recién ahí animar el recorte. Cerrar: animar, achicar y reanudar el observador.</li>
+        <li>Abajo = borde inferior de <code>workArea</code> (sobre la barra de tareas). Con la barra que se oculta sola, el área de trabajo llega al borde de la pantalla y la muesca la tapa cuando aparece.</li>
+        <li>Lo guardado pasa de «posición» a <code>{ borde, lugar }</code>, con <code>lugar</code> de 0 a 1 a lo largo del borde; flotando, <code>null</code> y la posición de hoy.</li>
+      </ul>
+    </aside>
+  </div>
+</section>
+
+<section class="comun pad ancho" aria-labelledby="t-comun">
+  <h2 id="t-comun">Comportamiento y Tauri</h2>
+  <div class="comun-g op-notas">
+    <div>
+      <h3>Comportamiento</h3>
+      <ul>
+        <li>Abre con clic, Enter o Espacio sobre la muesca, o con el mouse encima 180 ms (la espera evita aperturas al tirar el mouse contra el borde).</li>
+        <li>Cierra 650 ms después de que el mouse sale, o con Esc. Fijada (chinche de la barra, en ámbar como el <code>aria-pressed</code> de hoy) no se cierra sola; Esc la cierra y la desfija.</li>
+        <li>Imán en los cuatro bordes: soltar a 20 px o menos la acopla; más lejos queda flotando como hoy. Mientras arrastrás, el lado que mira al borde se pinta de ámbar y se corre 4 px hacia él.</li>
+        <li>Pregunta: un golpe al llegar y otro cada 90 s mientras siga sin respuesta (en el boceto, cada 8 s), siempre hacia el centro de la pantalla. Nada que titile sin parar. El color nunca va solo: hay «?» y texto.</li>
+        <li>Movimiento reducido: sin golpes ni rebotes, abre y cierra al instante; el estado queda en color, «?» y texto.</li>
+        <li>Sin mouse: la muesca es un botón con nombre («Oficina: 3 sesiones abiertas. Abrir»), y la bandeja suma «Mostrar Oficina» y «Acoplar a…» con los cuatro bordes.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Tauri y el código de hoy</h3>
+      <ul>
+        <li><code>tauri.conf</code>: <code>transparent</code>, <code>decorations: false</code>, <code>shadow: false</code>, <code>alwaysOnTop</code>, <code>skipTaskbar</code>. Hoy <code>body</code> pinta fondo y borde: con ventana transparente eso pasa a un contenedor, y <code>body</code> queda transparente.</li>
+        <li>La ventana sigue al contenido (<code>ResizeObserver</code> → <code>tamano.js</code> → <code>ajustar_ventana</code>). Durante abrir y cerrar se pausa y se fija el tamaño final; si no, redimensiona en cada cuadro.</li>
+        <li>Arrastre: hoy lo mueve Windows y JS no ve el recorrido. El aviso del imán en vivo pide arrastre propio (captura del puntero + <code>setPosition</code> por cuadro); decidir el imán al soltar con <code>onMoved</code> es más barato pero sin aviso.</li>
+        <li>Área de trabajo: <code>Monitor.workArea</code> de Tauri 2 (confirmar que la versión del proyecto lo tenga; si no, <code>SPI_GETWORKAREA</code> desde Rust). Con varios monitores, solo bordes externos del monitor bajo el cursor.</li>
+        <li>No es una AppBar: no corre a las otras ventanas, flota encima.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<details class="descartadas pad ancho">
+  <summary>Descartadas <small>B Lengüeta · C Asomada (ronda 1)</small></summary>
+
+  <section class="opcion" aria-labelledby="t-b">
+    <div class="op-cab"><span class="letra" aria-hidden="true">B</span><div><h2 id="t-b">Lengüeta</h2><p class="lema">La oficina vive como un cajón en el costado: tirás de la lengüeta y sale entera.</p></div></div>
+    <div class="op-grid">
+      <div>
+        <div class="pantalla" data-v="b"><div class="zona"></div></div>
+        <p class="pista">Pasá el mouse o tocá la lengüeta · arrastrala al otro costado o a otra altura.</p>
+        <div class="caras" data-v="b" data-b="right"></div>
+      </div>
+      <aside class="op-notas" aria-label="Notas de la opción B">
+        <h3>Balance</h3>
+        <div class="trade"><p class="mas"><b>+</b>De costado la sala entra entera y no tapa barras de título.</p><p class="menos"><b>−</b>Solo costados; el estado se lee por número, no por la mascota.</p></div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="opcion" aria-labelledby="t-c">
+    <div class="op-cab"><span class="letra" aria-hidden="true">C</span><div><h2 id="t-c">Asomada</h2><p class="lema">Una mascota se asoma desde cualquier borde; al tocarla, la oficina sale desde ese punto.</p></div></div>
+    <div class="op-grid">
+      <div>
+        <div class="pantalla" data-v="c"><div class="zona"></div></div>
+        <p class="pista">Pasá el mouse o tocá la mascota · arrastrala a cualquier borde.</p>
+        <div class="caras" data-v="c" data-b="bottom"></div>
+      </div>
+      <aside class="op-notas" aria-label="Notas de la opción C">
+        <h3>Balance</h3>
+        <div class="trade"><p class="mas"><b>+</b>El estado se lee de lejos por la mascota.</p><p class="menos"><b>−</b>Cuatro orientaciones y la mascota cabeza abajo arriba.</p></div>
+      </aside>
+    </div>
+  </section>
+</details>
+</main>
+
+<script>
+const AM = '#F2B632', AZ = '#7FB3FF', VE = '#8FD694', TI = '#1A1530'
+const OPC = {
+  a: { bordes: ['top', 'right', 'bottom', 'left'], inicio: { borde: 'top', pos: .5 }, m: 85 },
+  b: { bordes: ['left', 'right'], inicio: { borde: 'right', pos: .45 }, m: 74 },
+  c: { bordes: ['top', 'right', 'bottom', 'left'], inicio: { borde: 'bottom', pos: .7 }, m: 46 },
+}
+const NOMBRE = { top: 'arriba', bottom: 'abajo', left: 'a la izquierda', right: 'a la derecha' }
+const ANCLA = { top: 'left:50%;top:0', right: 'left:100%;top:50%', bottom: 'left:50%;top:100%', left: 'left:0;top:50%' }
+const clamp = (v, a, b) => Math.max(a, Math.min(v, b))
+let ESTADO = 'trabajo'
+
+/* ---- mascota pixel (14 × 10), propia del boceto ---- */
+function mez(a, b, t) { const h = s => [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16)); const A = h(a), B = h(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join('') }
+const BASE = ['....oooooo....', '..oohhh###oo..', '.ohh#######so.', 'oh##########so', 'o###########so', 'o###########so', 'o#cc##mm##ccso', 'o###########so', '.os#######sso.', '..oooooooooo..']
+function pet(c, ojos) {
+  const k = { o: mez(c, '#0B0D12', .72), h: mez(c, '#ffffff', .5), '#': c, s: mez(c, '#000000', .25), c: '#E78FB3', m: TI }
+  let r = ''
+  BASE.forEach((f, y) => { let x = 0; while (x < 14) { const ch = f[x]; if (ch === '.') { x++; continue } let n = 1; while (f[x + n] === ch) n++; r += `<rect x="${x}" y="${y}" width="${n}" height="1" fill="${k[ch]}"/>`; x += n } })
+  if (ojos === 'cerrados') return r + `<rect x="3" y="5" width="2" height="1" fill="${TI}"/><rect x="9" y="5" width="2" height="1" fill="${TI}"/>`
+  const y = ojos === 'arriba' ? 3 : 4
+  r += `<g class="ojos">${[3, 9].map(x => `<rect x="${x}" y="${y}" width="2" height="2" fill="${TI}"/><rect x="${x}" y="${y}" width="1" height="1" fill="#fff"/>`).join('')}</g>`
+  if (ojos === 'arriba') r += `<rect x="6" y="6" width="2" height="2" fill="${TI}"/>`
+  return r
+}
+function notebook(c, ox, oy, patas) {
+  return `<rect x="${ox + 3}" y="${oy + 8}" width="8" height="4" fill="#2A2F40"/><rect x="${ox + 3}" y="${oy + 8}" width="8" height="1" fill="#3E4458"/><rect x="${ox + 6}" y="${oy + 10}" width="2" height="1" fill="${AM}"/><rect x="${ox + 1}" y="${oy + 12}" width="12" height="1" fill="#9AA0AC"/>` +
+    (patas ? `<rect class="pa" x="${ox + 1}" y="${oy + 11}" width="2" height="1" fill="${c}"/><rect class="pb" x="${ox + 11}" y="${oy + 11}" width="2" height="1" fill="${c}"/>` : '')
+}
+function petSVG(c, ojos, w, lap) { const h = lap ? 13 : 10; return `<svg class="pet" viewBox="0 0 14 ${h}" width="${w}" height="${(w * h / 14).toFixed(1)}" shape-rendering="crispEdges" aria-hidden="true">${pet(c, ojos)}${lap ? notebook(c, 0, 0, true) : ''}</svg>` }
+
+/* ---- la sala del panel ---- */
+function sala(estado) {
+  const mesas = [{ x: 12, c: AM }, { x: 59, c: AZ }, { x: 106, c: VE }]
+  const modos = { reposo: ['dormido', 'dormido', 'dormido'], trabajo: ['tecla', 'tecla', 'dormido'], pregunta: ['arriba', 'tecla', 'dormido'] }[estado]
+  let s = `<rect width="150" height="44" fill="#141824"/><rect y="43" width="150" height="1" fill="#1E2230"/><rect y="44" width="150" height="22" fill="#1A1E2A"/><rect y="52" width="150" height="1" fill="#20263A"/><rect y="60" width="150" height="1" fill="#20263A"/>
+  <rect x="17" y="6" width="18" height="12" fill="${AM}"/><rect x="20" y="9" width="2" height="6" fill="${TI}"/><rect x="24" y="10" width="8" height="1" fill="${TI}"/><rect x="24" y="13" width="6" height="1" fill="${TI}"/>
+  <rect x="75" y="0" width="1" height="6" fill="#2A2F40"/><rect x="71" y="6" width="9" height="3" fill="${AM}"/><polygon points="71,9 80,9 93,40 58,40" fill="${AM}" opacity=".06"/>
+  <rect x="112" y="4" width="28" height="19" fill="#2A2F40"/><rect x="114" y="6" width="24" height="15" fill="#172234"/><rect x="125" y="6" width="2" height="15" fill="#2A2F40"/><rect x="114" y="13" width="24" height="1" fill="#2A2F40"/><rect x="117" y="8" width="1" height="1" fill="${AM}"/><rect x="133" y="10" width="1" height="1" fill="#F3EBD8"/><rect x="120" y="17" width="1" height="1" fill="#F3EBD8"/>`
+  mesas.forEach((m, i) => {
+    const md = modos[i], ojos = md === 'tecla' ? 'abiertos' : md === 'dormido' ? 'cerrados' : 'arriba'
+    s += `<g transform="translate(${m.x + 9} 26)">${pet(m.c, ojos)}${notebook(m.c, 0, 0, md === 'tecla')}</g>`
+    s += `<rect x="${m.x}" y="39" width="32" height="3" fill="#2E3344"/><rect x="${m.x}" y="39" width="32" height="1" fill="#3E4458"/><rect x="${m.x + 2}" y="42" width="2" height="13" fill="#232838"/><rect x="${m.x + 28}" y="42" width="2" height="13" fill="#232838"/>`
+    if (md === 'tecla') s += `<rect x="${m.x + 10}" y="30" width="12" height="4" fill="${AM}" opacity=".13"/>`
+    if (md === 'dormido') s += `<g class="zz" style="animation-delay:${i * .7}s"><rect x="${m.x + 24}" y="20" width="3" height="1" fill="#C9CBD2"/><rect x="${m.x + 25}" y="21" width="1" height="1" fill="#C9CBD2"/><rect x="${m.x + 24}" y="22" width="3" height="1" fill="#C9CBD2"/></g>`
+    if (md === 'arriba') { const bx = m.x + 21, by = 12; s += `<g class="burb"><rect x="${bx}" y="${by}" width="11" height="10" fill="${TI}"/><rect x="${bx + 1}" y="${by + 1}" width="9" height="8" fill="#FFF6E3"/><rect x="${bx}" y="${by + 10}" width="3" height="2" fill="${TI}"/>` + [[1, 0], [2, 0], [3, 0], [0, 1], [4, 1], [3, 2], [2, 3], [2, 5]].map(([x, y]) => `<rect x="${bx + 3 + x}" y="${by + 2 + y}" width="1" height="1" fill="${TI}"/>`).join('') + '</g>' }
+  })
+  const etq = { reposo: 'tres mascotas durmiendo en sus escritorios', trabajo: 'dos mascotas tecleando y una durmiendo', pregunta: 'una mascota levanta un globo con una pregunta' }[estado]
+  return `<svg viewBox="0 0 150 66" shape-rendering="crispEdges" role="img" aria-label="Sala: ${etq}">${s}</svg>`
+}
+
+/* ---- textos ---- */
+const LIN = {
+  reposo: [['oficina', 'esperando tu mensaje'], ['catalogo', 'esperando tu mensaje'], ['crm', 'en reposo']],
+  trabajo: [['oficina', 'editando register.tsx'], ['catalogo', 'coordinando el equipo · 2'], ['crm', 'esperando tu mensaje']],
+  pregunta: [['oficina', 'te hace una pregunta']],
+}
+const SUB = { reposo: '3 sesiones', trabajo: '3 sesiones · 2 trabajando', pregunta: '3 sesiones · 1 pregunta' }
+const ARIA = { reposo: 'Oficina: 3 sesiones abiertas. Abrir', trabajo: 'Oficina: 2 sesiones trabajando. Abrir', pregunta: 'Oficina: una sesión te hace una pregunta. Abrir' }
+const PIN = '<svg viewBox="0 0 10 12" width="15" height="18" shape-rendering="crispEdges" aria-hidden="true"><rect x="2" width="6" height="2" fill="currentColor"/><rect x="3" y="2" width="4" height="4" fill="currentColor"/><rect x="1" y="6" width="8" height="2" fill="currentColor"/><rect x="4" y="8" width="2" height="4" fill="currentColor"/></svg>'
+
+function fichaHTML(v, e) {
+  const ojos = e === 'pregunta' ? 'arriba' : e === 'trabajo' ? 'abiertos' : 'cerrados', lap = e === 'trabajo'
+  if (v === 'a') {
+    const num = { reposo: '3', trabajo: '2', pregunta: '1' }[e], pal = { reposo: 'sesiones', trabajo: 'trabajando', pregunta: 'pregunta' }[e]
+    const ind = { reposo: '<i class="f-dot"></i>', trabajo: '<span class="f-puntos"><i></i><i></i><i></i></span>', pregunta: '' }[e]
+    return `<span class="forma"></span><span class="fila">${petSVG(AM, ojos, 22, lap)}<span class="f-t"><b>${num}</b> ${pal}</span>${ind}</span>${e === 'pregunta' ? '<span class="burbuja">?</span>' : ''}`
+  }
+  if (v === 'b') {
+    const n = { reposo: '3', trabajo: '2', pregunta: '?' }[e], t = { reposo: 'sesiones', trabajo: 'trabajando', pregunta: 'pregunta' }[e]
+    return `${petSVG(AM, ojos, 24, lap)}<b class="f-n">${n}</b><span class="f-v">${t}</span>`
+  }
+  const n = { reposo: '3', trabajo: '2', pregunta: '?' }[e]
+  return `<span class="c-fondo"></span><span class="c-pet">${petSVG(AM, ojos, 40, lap)}</span><span class="c-labio"></span><span class="c-badge">${n}</span>`
+}
+function panelHTML(d) {
+  const e = d.estado
+  const lin = LIN[e].map(([p, a]) => `<p class="t"><span class="mk">▍</span><b>${p}</b> <span class="dim">— ${a}</span></p>`).join('')
+  const globo = e === 'pregunta' ? `<div class="p-globo ent" style="--d:4"><div class="g-cab">${petSVG(AM, 'arriba', 20)}<span><b>oficina</b> · te pregunta</span></div><p class="g-preg">¿Subo la versión a 0.6.0 antes del commit?</p><div class="g-ops"><span class="rec"><i>1</i>Sí, subila</span><span><i>2</i>Todavía no</span></div></div>` : ''
+  return `<div class="p-tit ent" style="--d:0">${petSVG(AM, 'abiertos', 26)}<b>Oficina</b><small>${SUB[e]}</small><button type="button" class="pin" aria-pressed="${d.fijo}" aria-label="Fijar abierta">${PIN}</button></div>
+  <div class="p-cuerpo"><div class="p-sala ent" style="--d:1">${sala(e)}</div><div class="p-lin ent" style="--d:2">${lin}</div>${globo}</div>`
+}
+
+/* ---- escritorio falso ---- */
+const ESCRITORIO = `<div class="fondo" aria-hidden="true"></div>
+<div class="app" aria-hidden="true"><div class="app-t">notas.md — Editor<i><b>–</b><b>□</b><b>✕</b></i></div><div class="app-c"><aside><span></span><span style="width:70%"></span><span style="width:80%"></span><span style="width:60%"></span></aside><div><span style="width:40%;height:10px;background:#C7CAD3"></span><span></span><span style="width:92%"></span><span style="width:84%"></span><span style="width:70%"></span><span></span><span style="width:55%"></span></div></div></div>
+<div class="barra" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span class="bandeja"><s></s>18:42</span></div>`
+
+/* ---- docks interactivos ---- */
+const docks = []
+document.querySelectorAll('.pantalla').forEach(p => {
+  p.insertAdjacentHTML('afterbegin', ESCRITORIO)
+  const v = p.dataset.v, cfg = OPC[v], el = document.createElement('div')
+  const d = { v, el, zona: p.querySelector('.zona'), borde: cfg.inicio.borde, pos: cfg.inicio.pos, x: 0, y: 0, abierto: false, fijo: false, hover: false, estado: ESTADO }
+  el.className = 'dock v-' + v
+  el.innerHTML = `<button type="button" class="ficha" aria-expanded="false" aria-controls="panel-${v}"></button><div class="panel" id="panel-${v}" role="region" aria-label="Oficina"></div>
+  <div class="flota"><span class="grip" aria-hidden="true"></span>${petSVG(AM, 'abiertos', 26)}<span class="fl-t"><b>Oficina</b><small class="iman">flotando</small></span><button type="button" class="acoplar">Acoplar</button></div>`
+  d.zona.append(el)
+  d.ficha = el.querySelector('.ficha'); d.panel = el.querySelector('.panel')
+  render(d); eventos(d); docks.push(d)
+})
+const dA = docks.find(d => d.v === 'a')
+
+function render(d) {
+  d.el.dataset.estado = d.estado
+  d.el.dataset.borde = d.borde
+  d.ficha.innerHTML = fichaHTML(d.v, d.estado)
+  d.ficha.setAttribute('aria-label', ARIA[d.estado])
+  d.panel.innerHTML = panelHTML(d)
+  sync(d); anclar(d)
+  if (d.v === 'a') guardado(d)
+}
+function sync(d) {
+  d.el.dataset.abierto = d.abierto
+  d.ficha.setAttribute('aria-expanded', d.abierto)
+  d.panel.inert = !d.abierto
+  const pin = d.panel.querySelector('.pin')
+  if (pin) { pin.setAttribute('aria-pressed', d.fijo); pin.setAttribute('aria-label', d.fijo ? 'Soltar: se guarda sola' : 'Fijar abierta') }
+}
+function anclar(d) {
+  const W = d.zona.clientWidth, H = d.zona.clientHeight, el = d.el
+  if (!d.borde) { el.style.left = d.x + 'px'; el.style.top = d.y + 'px'; return }
+  const m = OPC[d.v].m, hor = d.borde === 'top' || d.borde === 'bottom'
+  const ax = hor ? clamp(d.pos * W, m, W - m) : d.borde === 'left' ? 0 : W
+  const ay = hor ? (d.borde === 'top' ? 0 : H) : clamp(d.pos * H, m, H - m)
+  el.style.left = ax + 'px'; el.style.top = ay + 'px'
+  const PW = d.panel.offsetWidth, PH = d.panel.offsetHeight
+  const off = hor ? Math.max(8, Math.min(ax - PW / 2, W - PW - 8)) - ax : Math.max(8, Math.min(ay - PH / 2, H - PH - 8)) - ay
+  el.style.setProperty('--off', off + 'px'); el.style.setProperty('--o', -off + 'px')
+  if (d.v === 'a') {
+    // recorte cerrado = el rectángulo de la muesca (150 × 34) dentro del panel, en coordenadas del ancla
+    const T = 34, L = 75, b = d.borde
+    const p = hor ? { x0: off, x1: off + PW, y0: b === 'top' ? 0 : -PH, y1: b === 'top' ? PH : 0 } : { y0: off, y1: off + PH, x0: b === 'left' ? 0 : -PW, x1: b === 'left' ? PW : 0 }
+    const n = hor ? { x0: -L, x1: L, y0: b === 'top' ? 0 : -T, y1: b === 'top' ? T : 0 } : { y0: -L, y1: L, x0: b === 'left' ? 0 : -T, x1: b === 'left' ? T : 0 }
+    el.style.setProperty('--it', (n.y0 - p.y0) + 'px'); el.style.setProperty('--ir', (p.x1 - n.x1) + 'px')
+    el.style.setProperty('--ib', (p.y1 - n.y1) + 'px'); el.style.setProperty('--il', (n.x0 - p.x0) + 'px')
+  }
+}
+function guardado(d) {
+  document.querySelector('.guardado code').textContent = d.borde
+    ? `"acople": { "borde": "${({ top: 'arriba', right: 'derecha', bottom: 'abajo', left: 'izquierda' })[d.borde]}", "lugar": ${clamp(d.pos, 0, 1).toFixed(2)} }`
+    : `"acople": null, "posicion": { "x": ${Math.round(d.x)}, "y": ${Math.round(d.y)} }`
+  document.querySelectorAll('#sel-borde button').forEach(b => b.setAttribute('aria-pressed', b.dataset.b === d.borde))
+}
+function quieto(d) { d.el.classList.add('quieto'); requestAnimationFrame(() => requestAnimationFrame(() => d.el.classList.remove('quieto'))) }
+function abrir(d) { if (!d.borde || d.abierto) return; d.abierto = true; sync(d) }
+function cerrar(d, forzar) { if (!d.abierto || (d.fijo && !forzar)) return; if (forzar) d.fijo = false; d.abierto = false; sync(d) }
+
+function eventos(d) {
+  const el = d.el
+  el.addEventListener('pointerenter', e => {
+    d.hover = true; clearTimeout(d.tc)
+    if (e.pointerType === 'mouse' && !d.p0 && !d.abierto && d.borde) d.ti = setTimeout(() => abrir(d), 180)
+  })
+  el.addEventListener('pointerleave', () => {
+    d.hover = false; clearTimeout(d.ti)
+    if (d.drag) return
+    if (d.abierto && !d.fijo) d.tc = setTimeout(() => cerrar(d), 650)
+  })
+  el.addEventListener('focusout', e => { if (!el.contains(e.relatedTarget) && !d.hover) cerrar(d) })
+  el.addEventListener('keydown', e => { if (e.key === 'Escape' && d.abierto) { cerrar(d, true); d.ficha.focus() } })
+  el.addEventListener('click', e => {
+    if (d.justo) return
+    if (e.target.closest('.pin')) { d.fijo = !d.fijo; if (d.fijo) d.abierto = true; else if (!d.hover) d.tc = setTimeout(() => cerrar(d), 650); sync(d); return }
+    if (e.target.closest('.acoplar')) { const i = OPC[d.v].inicio; d.borde = i.borde; d.pos = i.pos; quieto(d); acoplado(d); render(d); return }
+    if (e.target.closest('.ficha')) { clearTimeout(d.ti); d.abierto ? cerrar(d, true) : abrir(d) }
+  })
+  el.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return
+    const h = e.target.closest('.ficha, .p-tit, .flota')
+    if (!h || e.target.closest('.pin, .acoplar')) return
+    d.p0 = { x: e.clientX, y: e.clientY }
+    h.setPointerCapture(e.pointerId)
+  })
+  el.addEventListener('pointermove', e => {
+    if (!d.p0) return
+    if (!d.drag && Math.hypot(e.clientX - d.p0.x, e.clientY - d.p0.y) > 5) {
+      d.drag = true; clearTimeout(d.ti); clearTimeout(d.tc); d.abierto = false; d.fijo = false; sync(d)
+    }
+    if (d.drag) mover(d, e)
+  })
+  const fin = () => {
+    if (!d.p0) return
+    d.p0 = null
+    if (d.drag) { d.drag = false; soltar(d); d.justo = true; setTimeout(() => { d.justo = false }, 0) }
+  }
+  el.addEventListener('pointerup', fin); el.addEventListener('pointercancel', fin)
+}
+function mover(d, e) {
+  const zr = d.zona.getBoundingClientRect(), W = d.zona.clientWidth, H = d.zona.clientHeight, cw = 220, ch = 48
+  d.x = clamp(e.clientX - zr.left - cw / 2, 0, W - cw); d.y = clamp(e.clientY - zr.top - ch / 2, 0, H - ch)
+  d.borde = ''; d.el.dataset.borde = ''
+  d.el.style.left = d.x + 'px'; d.el.style.top = d.y + 'px'
+  const dist = { top: d.y, left: d.x, right: W - cw - d.x, bottom: H - ch - d.y }
+  let cerca = '', min = 20.5
+  OPC[d.v].bordes.forEach(b => { if (dist[b] < min) { min = dist[b]; cerca = b } })
+  d.el.dataset.cerca = cerca
+  d.el.querySelector('.iman').textContent = cerca ? 'soltá: se acopla ' + NOMBRE[cerca] : 'flotando'
+  if (d.v === 'a') guardado(d)
+}
+function soltar(d) {
+  const c = d.el.dataset.cerca; delete d.el.dataset.cerca
+  d.el.querySelector('.iman').textContent = 'flotando'
+  if (c) {
+    const W = d.zona.clientWidth, H = d.zona.clientHeight
+    d.borde = c; d.pos = (c === 'top' || c === 'bottom') ? (d.x + 110) / W : (d.y + 24) / H
+    quieto(d); acoplado(d)
+  }
+  render(d)
+}
+function acoplado(d) { d.el.classList.remove('acopla'); void d.el.offsetWidth; d.el.classList.add('acopla'); setTimeout(() => d.el.classList.remove('acopla'), 600) }
+
+/* ---- selector de borde de la muesca ---- */
+document.querySelectorAll('#sel-borde button').forEach(b => b.addEventListener('click', () => {
+  if (dA.borde === b.dataset.b) return
+  dA.borde = b.dataset.b; dA.pos = .5; dA.abierto = false; dA.fijo = false
+  quieto(dA); acoplado(dA); render(dA)
+}))
+
+/* ---- muestras quietas ---- */
+const TIT = { reposo: '<b>Reposo</b> · 3 sesiones', trabajo: '<b>Trabajando</b> · 2 agentes', pregunta: '<b>Pregunta</b> · golpea y espera' }
+const TIT_B = { top: '<b>Arriba</b>', right: '<b>Derecha</b>', bottom: '<b>Abajo</b> · sobre la barra', left: '<b>Izquierda</b>' }
+function muestra(v, b, e, cap) { return `<figure class="cara"><div class="marco"><div class="dock v-${v}" data-borde="${b}" data-estado="${e}" style="${ANCLA[b]}"><div class="ficha" aria-hidden="true">${fichaHTML(v, e)}</div></div></div><figcaption>${cap}</figcaption></figure>` }
+function pintarMuestras() {
+  document.querySelectorAll('.caras').forEach(c => {
+    const v = c.dataset.v
+    c.innerHTML = c.dataset.modo === 'bordes'
+      ? ['top', 'right', 'bottom', 'left'].map(b => muestra(v, b, ESTADO, TIT_B[b])).join('')
+      : ['reposo', 'trabajo', 'pregunta'].map(e => muestra(v, c.dataset.b, e, TIT[e])).join('')
+  })
+}
+pintarMuestras()
+
+/* ---- mando ---- */
+const botones = document.querySelectorAll('.mando .seg button')
+botones.forEach(b => b.addEventListener('click', () => {
+  ESTADO = b.dataset.e
+  botones.forEach(x => x.setAttribute('aria-pressed', x === b))
+  docks.forEach(d => { d.estado = ESTADO; render(d) })
+  pintarMuestras()
+  if (ESTADO === 'pregunta') golpear()
+}))
+function golpear() { document.querySelectorAll('.dock[data-estado=pregunta]').forEach(el => { el.classList.remove('golpe'); void el.offsetWidth; el.classList.add('golpe') }) }
+setInterval(golpear, 8000)
+setTimeout(golpear, 900)
+
+const rm = document.querySelector('.rm'), mq = matchMedia('(prefers-reduced-motion: reduce)')
+function reducir(on) { document.body.classList.toggle('reducido', on); rm.setAttribute('aria-pressed', on) }
+reducir(mq.matches)
+mq.addEventListener('change', e => reducir(e.matches))
+rm.addEventListener('click', () => reducir(rm.getAttribute('aria-pressed') !== 'true'))
+addEventListener('resize', () => docks.forEach(anclar))
+document.querySelector('.descartadas').addEventListener('toggle', () => docks.forEach(anclar))
+</script>
+</body>
+</html>
