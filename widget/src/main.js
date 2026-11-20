@@ -1,6 +1,7 @@
-// Ventana del widget: lee las sesiones locales cada 1,5 s y el equipo cada 60 s, y pinta terrario,
-// lista, globo, tira mini, bandeja y avisos. Cada parte se redibuja solo si cambió lo que muestra,
-// para no cortar las animaciones.
+// Ventana del widget: lee las sesiones locales cada 1,5 s y el equipo cada 60 s, y pinta el
+// tablero (barra de proyectos, encabezado, cuadros, sesiones y equipo), el globo, la tira mini,
+// la bandeja y los avisos. Cada parte se redibuja solo si cambió lo que muestra, para no cortar
+// las animaciones.
 
 import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, escapar } from './logica.js'
 import { companeros } from './equipo.js'
@@ -8,8 +9,8 @@ import { iconoBandeja, textoInsignia } from './bandeja.js'
 import { zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, posicionEnPantalla, tamanoMini, PASO_POR_DEFECTO } from './tamano.js'
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
-  prepararProyecto, firmaTerrario, terrario, lista, globo, avisoOtroProyecto, vacio, cabeza, CLAUDE,
-  carasMini, companero, firmaCompanero, quienPregunta,
+  prepararProyecto, firmaTerrario, sesiones, globo, avisoOtroProyecto, carasMini, companero, firmaCompanero,
+  quienPregunta, barraProyectos, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, cuadros, lineaEncabezado,
 } from './escena.js'
 
 const INTERVALO_MS = 1500
@@ -43,8 +44,6 @@ const st = {
   mini: false,
   /** Tamaño en porcentaje del original: 100, 125, 150, 175 o 200. */
   tamano: PASO_POR_DEFECTO,
-  /** -1 o 1 mientras se navega con ◀ ▶, para animar la entrada de la escena. */
-  direccion: 0,
   firmas: {},
   error: null,
   actualizado: null,
@@ -84,17 +83,20 @@ function poner(sel, html, firma = html) {
   return true
 }
 
-const nSes = n => `${n} ${n === 1 ? 'sesión' : 'sesiones'}`
 const insignia = n => n ? `<span class="pend" aria-label="${n} ${n === 1 ? 'pregunta pendiente' : 'preguntas pendientes'}">${n} ?</span>` : ''
 
-function navegador(i) {
-  const p = st.proyectos[i], conPreg = k => preguntasPendientes(st.proyectos[k]).length > 0
-  const uno = st.proyectos.length < 2
-  return `<div class="nav" role="group" aria-label="Tus proyectos con sesiones abiertas">
-   <button type="button" class="nav-b" data-accion="nav" data-dir="-1" aria-label="Proyecto anterior"${uno ? ' disabled' : ''}>◀</button>
-   <div class="nav-t" aria-live="polite" title="${escapar(p.repo ?? p.nombre)}"><b>${escapar(p.nombre)}</b>${conPreg(i) ? ` <b style="color:var(--amarillo)">!</b>` : ''}<span class="dim"> · ${i + 1}/${st.proyectos.length} · ${nSes(p.sesiones.length)}</span>
-     <span class="nav-p" aria-hidden="true">${st.proyectos.map((_, k) => `<i class="${k === i ? 'ya' : conPreg(k) ? 'pr' : ''}"></i>`).join('')}</span></div>
-   <button type="button" class="nav-b" data-accion="nav" data-dir="1" aria-label="Proyecto siguiente"${uno ? ' disabled' : ''}>▶</button></div>`
+/** Pone un texto solo si cambió (así no se pisa una selección ni se relee el lector de pantalla). */
+function texto(sel, valor) {
+  const el = $(sel)
+  if (el.textContent !== valor) el.textContent = valor
+}
+
+/** Vacío, cargando o tablero: el marco cambia de forma (dirección 4.6). */
+function modoMarco(modo) {
+  const marco = $('#marco')
+  marco.classList.toggle('vacio', modo === 'vacio')
+  marco.classList.toggle('cargando', modo === 'cargando')
+  $('#vacio-avi').hidden = modo === 'tablero'
 }
 
 function pintarPie() {
@@ -142,39 +144,43 @@ function pintarEquipo(ahora) {
 function pintar() {
   const ahora = Date.now()
   const totalPend = st.proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
-  poner('#t-mascota', cabeza(totalPend ? 'teEspera' : 'saluda', CLAUDE.color, CLAUDE.pj, ''), `m${totalPend > 0}`)
-  poner('#t-pend', insignia(totalPend))
+  const marca = animoMarca(st.proyectos, ahora)
+  poner('#marca-avi', figuraMarca(marca), marca)
+  texto('#marca-estado', estadoMarca(st.proyectos.reduce((n, p) => n + p.sesiones.length, 0)))
   pintarBandeja(totalPend)
   pintarTira(ahora)
   pintarPie()
   pintarEquipo(ahora)
 
   if (!st.proyectos.length) {
-    $('#total').textContent = ''
-    poner('#nav', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#lista', '')
-    poner('#escena', vacio(), 'vacio')
+    // Antes de la primera lectura: "Buscando sesiones…"; después, el vacío
+    const cargando = !st.actualizado && !st.error
+    modoMarco(cargando ? 'cargando' : 'vacio')
+    poner('#vacio-avi', figuraVacio(cargando ? 'esperando' : 'durmiendo'), cargando ? 'cargando' : 'vacio')
+    texto('#titulo', cargando ? 'Buscando sesiones…' : 'No hay sesiones de Claude Code abiertas.')
+    texto('#subtitulo', cargando ? '' : 'Cuando abras una, aparece acá con sus subagentes.')
+    poner('#proyectos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#cuadros', ''); poner('#sesiones', '')
     return
   }
+  modoMarco('tablero')
 
   let i = st.proyectos.findIndex(p => p.repo === st.repo)
   if (i < 0) { i = 0; st.repo = st.proyectos[0].repo }
   const proyecto = st.proyectos[i]
-  const total = st.proyectos.reduce((n, p) => n + p.sesiones.length, 0)
-  $('#total').textContent = ` · ${nSes(total)}`
-  poner('#nav', navegador(i))
+  const enfocado = document.activeElement?.closest?.('#proyectos [data-proy]')
+  if (poner('#proyectos', barraProyectos(st.proyectos, i)) && enfocado) {
+    // El redibujo no se lleva el foco: queda en el proyecto que lo tenía
+    $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
+  }
   poner('#otro', avisoOtroProyecto(st.proyectos, i))
 
   const preparadas = prepararProyecto(proyecto, ahora)
-  const firma = `${proyecto.repo}/${firmaTerrario(preparadas)}`
-  if (st.firmas['#escena'] !== firma) {
-    const t = terrario(proyecto, preparadas)
-    st.pos = t.pos
-    poner('#escena', t.svg, firma)
-    const escena = $('#escena')
-    escena.classList.toggle('cambia', st.direccion !== 0)
-    escena.style.setProperty('--desde', `${st.direccion * 14}px`)
-    st.direccion = 0
-  }
+  const c = conteos(preparadas, ahora)
+  texto('#titulo', proyecto.nombre)
+  $('#titulo').title = proyecto.repo ?? proyecto.nombre
+  texto('#subtitulo', lineaEncabezado(preparadas, c))
+  poner('#cuadros', cuadros(c))
+  poner('#sesiones', sesiones(preparadas, ahora), `${proyecto.repo}/${firmaTerrario(preparadas)}|${Math.floor(ahora / 60000)}`)
 
   const pend = pendientesVisibles(proyecto)
   if (st.activa >= pend.length) st.activa = 0
@@ -200,7 +206,6 @@ function pintar() {
     if (escribiendo) enfocarOtra()
   }
 
-  poner('#lista', lista(proyecto, preparadas, ahora))
 }
 
 /** ¿La ventana está escondida en la bandeja o minimizada? */
@@ -391,7 +396,6 @@ function moverProyecto(dir) {
   const i = Math.max(0, st.proyectos.findIndex(p => p.repo === st.repo))
   st.repo = st.proyectos[(i + dir + n) % n].repo
   st.activa = 0
-  st.direccion = dir
   pintar()
 }
 
@@ -430,12 +434,10 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('[data-accion]')
   if (!b) return
   const a = b.dataset.accion
-  if (a === 'nav') {
-    moverProyecto(+b.dataset.dir)
-    $(`[data-accion="nav"][data-dir="${b.dataset.dir}"]`)?.focus()
-  } else if (a === 'ir') {
+  if (a === 'ir') {
+    // Un proyecto de la barra o el aviso de una pregunta en otro proyecto
     const p = st.proyectos[+b.dataset.proy]
-    if (p) { st.repo = p.repo; st.activa = 0; st.direccion = 1; pintar() }
+    if (p) { st.repo = p.repo; st.activa = 0; pintar() }
   } else if (a === 'tab') {
     st.activa = +b.dataset.i
     reiniciarInteraccion()
@@ -519,6 +521,14 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { st.plegado = true; pintar(); $('[data-accion="ver"]')?.focus(); return }
   }
   if (st.mini || e.target.closest?.('input, textarea, summary')) return
+  // ↑ ↓ mueven el foco entre los proyectos de la barra (no cambian de proyecto)
+  const fila = e.target.closest?.('#proyectos [data-proy]')
+  if (fila && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    e.preventDefault()
+    const filas = [...document.querySelectorAll('#proyectos [data-proy]')]
+    filas[(filas.indexOf(fila) + (e.key === 'ArrowDown' ? 1 : -1) + filas.length) % filas.length].focus()
+    return
+  }
   if (e.key === 'ArrowLeft') { e.preventDefault(); moverProyecto(-1) }
   if (e.key === 'ArrowRight') { e.preventDefault(); moverProyecto(1) }
 })
@@ -544,19 +554,21 @@ document.addEventListener('keydown', e => {
   invocar('cambiar_tamano', { direccion }).catch(() => {})
 })
 
-/** Tamaño natural del contenido, en px de la ventana (ya con el zoom aplicado). */
+/**
+ * Tamaño natural del contenido, en px de la ventana (ya con el zoom aplicado): #contenido más el
+ * relleno del área que desplaza, su barra, el borde de #marco y el margen transparente del body
+ * para la sombra (dirección 9.5).
+ */
 function medirContenido() {
-  const titulo = $('#titulo'), cuerpo = $('#cuerpo'), contenido = $('#contenido')
-  const rTitulo = titulo.getBoundingClientRect(), rContenido = contenido.getBoundingClientRect()
+  const marco = $('#marco'), cuerpo = $('#cuerpo'), contenido = $('#contenido')
+  const rMarco = marco.getBoundingClientRect(), rContenido = contenido.getBoundingClientRect()
   // Relación entre px de la ventana y px del documento (el zoom), medida y no supuesta
-  const f = titulo.offsetHeight ? rTitulo.height / titulo.offsetHeight : 1
-  const cs = getComputedStyle(cuerpo)
-  const relleno = (a, b) => parseFloat(cs[a]) + parseFloat(cs[b])
+  const f = marco.offsetWidth ? rMarco.width / marco.offsetWidth : 1
+  const suma = (el, a, b) => { const cs = getComputedStyle(el); return parseFloat(cs[a]) + parseFloat(cs[b]) }
   const barra = cuerpo.offsetWidth - cuerpo.clientWidth
-  const borde = 2
   return {
-    ancho: rContenido.width + (relleno('paddingLeft', 'paddingRight') + barra + borde) * f,
-    alto: rTitulo.height + rContenido.height + (relleno('paddingTop', 'paddingBottom') + borde) * f,
+    ancho: rContenido.width + (suma(cuerpo, 'paddingLeft', 'paddingRight') + barra + suma(marco, 'borderLeftWidth', 'borderRightWidth') + suma(document.body, 'paddingLeft', 'paddingRight')) * f,
+    alto: rContenido.height + (suma(cuerpo, 'paddingTop', 'paddingBottom') + suma(marco, 'borderTopWidth', 'borderBottomWidth') + suma(document.body, 'paddingTop', 'paddingBottom')) * f,
   }
 }
 
@@ -582,7 +594,6 @@ async function ajustarVentana() {
 
 // El contenido cambia (otro proyecto, globo, compañero desplegado, tamaño elegido): la ventana lo sigue
 new ResizeObserver(() => programarAjuste()).observe($('#contenido'))
-new ResizeObserver(() => programarAjuste()).observe($('#titulo'))
 
 async function iniciar() {
   if (tauri?.core) {

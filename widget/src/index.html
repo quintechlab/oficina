@@ -4,52 +4,75 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Oficina</title>
+<link rel="preload" href="fuentes/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fuentes/martian-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="estilos.css">
 <script type="module" src="main.js"></script>
 </head>
 <body>
-  <header class="titulo" id="titulo">
-    <div class="arrastre" data-tauri-drag-region title="Arrastrá para mover">
-      <span id="t-mascota" class="t-mascota"></span>
-      <span class="marca">Oficina<small>Quintech</small></span>
-      <span id="t-pend"></span>
+  <!-- Tablero (estilo Avis, opción A): la ventana es transparente y #marco pinta el fondo -->
+  <div id="marco" class="cargando">
+    <div class="desplaza" id="cuerpo">
+      <!-- El tamaño natural de este bloque decide el de la ventana (tamano.js) -->
+      <div id="contenido">
+        <aside class="lado">
+          <div class="marca" data-tauri-drag-region title="Arrastrá para mover">
+            <span id="marca-avi"></span>
+            <span class="marca-t"><b class="marca-n">Oficina</b><span class="estado" id="marca-estado"></span></span>
+          </div>
+          <nav class="proyectos" aria-labelledby="h-proyectos">
+            <h2 class="oculto" id="h-proyectos">Proyectos</h2>
+            <div id="proyectos"></div>
+          </nav>
+          <section class="lado-pie" aria-labelledby="h-equipo">
+            <h2 class="rot" id="h-equipo">Equipo</h2>
+            <div id="equipo"></div>
+            <p class="pie-w" id="pie" role="status"></p>
+          </section>
+        </aside>
+        <main class="principal">
+          <header class="cab">
+            <div class="cab-t" data-tauri-drag-region title="Arrastrá para mover">
+              <h1 id="titulo"></h1>
+              <p id="subtitulo"></p>
+            </div>
+            <div class="controles">
+              <button type="button" class="tb" data-accion="pin" aria-pressed="true" aria-label="Siempre arriba" title="Siempre arriba">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2h5M6.5 2v4.2L4.5 8.5h7L9.5 6.2V2M8 8.5V14"/></svg>
+              </button>
+              <button type="button" class="tb" data-accion="mini" aria-label="Minimizar a la tira" title="Minimizar a la tira">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10"/></svg>
+              </button>
+              <button type="button" class="tb" data-accion="cerrar" aria-label="Cerrar a la bandeja" title="Cerrar a la bandeja">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+              </button>
+            </div>
+          </header>
+          <div id="vacio-avi" class="vacio-avi" hidden></div>
+          <div id="otro"></div>
+          <div id="w-globo"></div>
+          <div class="stats" id="cuadros"></div>
+          <section class="sesiones" aria-labelledby="h-sesiones">
+            <h2 class="oculto" id="h-sesiones">Sesiones</h2>
+            <div id="sesiones"></div>
+          </section>
+        </main>
+      </div>
     </div>
-    <button type="button" class="tb" data-accion="pin" aria-pressed="true" aria-label="Siempre arriba" title="Siempre arriba">
-      <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M5 1h4v1h1v4h1v2H3V6h1V2h1zM6 8h2v5H6z" fill="currentColor"/></svg>
-    </button>
-    <button type="button" class="tb" data-accion="mini" aria-label="Minimizar a la tira" title="Minimizar">
-      <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 7h10v1H2z" fill="currentColor"/></svg>
-    </button>
-    <button type="button" class="tb cerrar" data-accion="cerrar" aria-label="Cerrar a la bandeja" title="Cerrar a la bandeja">
-      <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2h2v1h1v1h1v1h2V4h1V3h1V2h2v2h-1v1h-1v1H9v2h1v1h1v1h1v2h-2v-1H9v-1H8V9H6v1H5v1H4v1H2v-2h1V9h1V8h1V6H4V5H3V4H2z" fill="currentColor"/></svg>
-    </button>
-  </header>
+  </div>
   <!-- Tira mini (400 × 56): caras, resumen, expandir y cerrar -->
-  <header class="titulo tira" id="tira" hidden>
+  <div class="tira" id="tira" hidden>
     <div class="arrastre" data-tauri-drag-region title="Arrastrá para mover">
       <span class="caras" id="tira-caras"></span>
       <span class="resumen" id="tira-resumen"></span>
     </div>
     <span id="tira-pend"></span>
     <button type="button" class="tb" data-accion="expandir" aria-label="Expandir" title="Expandir">
-      <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2h10v10H2zM3 4v7h8V4z" fill="currentColor" fill-rule="evenodd"/></svg>
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5h9v9h-9z"/></svg>
     </button>
-    <button type="button" class="tb cerrar" data-accion="cerrar" aria-label="Cerrar a la bandeja" title="Cerrar a la bandeja">
-      <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2h2v1h1v1h1v1h2V4h1V3h1V2h2v2h-1v1h-1v1H9v2h1v1h1v1h1v2h-2v-1H9v-1H8V9H6v1H5v1H4v1H2v-2h1V9h1V8h1V6H4V5H3V4H2z" fill="currentColor"/></svg>
+    <button type="button" class="tb" data-accion="cerrar" aria-label="Cerrar a la bandeja" title="Cerrar a la bandeja">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
     </button>
-  </header>
-  <main class="cuerpo-w" id="cuerpo">
-    <!-- El tamaño natural de este bloque decide el de la ventana (tamano.js) -->
-    <div id="contenido">
-      <p class="rot"><i>▍</i> Tus proyectos<span id="total"></span></p>
-      <div id="nav"></div>
-      <div id="otro"></div>
-      <div id="w-globo"></div>
-      <div class="escena" id="escena"></div>
-      <div id="lista"></div>
-      <div id="equipo"></div>
-      <p class="pie-w" id="pie" role="status"></p>
-    </div>
-  </main>
+  </div>
 </body>
 </html>
