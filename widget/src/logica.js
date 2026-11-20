@@ -8,16 +8,16 @@ export const MINUTOS_INACTIVO = 20
 export const MS_FESTEJO = 6000
 export const FUERA_DE_REPO = 'fuera de un repositorio'
 
-const COLOR = { amarillo: '#F2B632', azul: '#7FB3FF', verde: '#8FD694', rosa: '#E78FB3', crema: '#F3EBD8' }
+const COLOR = { ambar: '#F2B632', azul: '#7FB3FF', verde: '#8FD694', rosa: '#E78FB3', violeta: '#A58BFF' }
 
-/** El elenco del boceto aprobado: cada nombre con su personaje. */
+/** El elenco de los Avis (dirección 5.2): cada nombre con su accesorio y su color (mejillas y accesorio). */
 const ELENCO = {
-  claude: { pj: 'antena', color: COLOR.crema },
+  claude: { pj: 'antena', color: COLOR.ambar },
   camila: { pj: 'gata', color: COLOR.rosa },
   ramiro: { pj: 'raton', color: COLOR.azul },
   lucas: { pj: 'brote', color: COLOR.verde },
-  delfina: { pj: 'mono', color: COLOR.amarillo },
-  ines: { pj: 'cuernos', color: COLOR.verde },
+  delfina: { pj: 'mono', color: COLOR.ambar },
+  ines: { pj: 'cuernos', color: COLOR.violeta },
 }
 /** Personajes para nombres fuera del elenco (la antena queda reservada para Claude). */
 const SUBAGENTES = ['camila', 'ramiro', 'lucas', 'delfina', 'ines'].map(n => ELENCO[n])
@@ -62,7 +62,7 @@ const coordinando = s => (s.agentes ?? []).some(a => a.estado === 'trabajando')
 const esperaMensaje = s => s.actividad === 'esperándote'
 
 /**
- * Ánimo de la mascota de Claude de una sesión, por orden de prioridad:
+ * Ánimo del Avi de Claude de una sesión, por orden de prioridad:
  * 1. una pregunta suya pendiente → te espera ("!");
  * 2. subagentes trabajando → coordina el equipo (aunque el turno haya terminado);
  * 3. "esperándote" → espera tu mensaje, tranquilo y despierto;

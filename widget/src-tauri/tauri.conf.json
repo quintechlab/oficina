@@ -57,7 +57,7 @@
     "publisher": "Quintech Studio",
     "copyright": "© 2026 Quintech Studio",
     "category": "Productivity",
-    "shortDescription": "La oficina de Quintech: tus sesiones de Claude Code como mascotas pixel",
+    "shortDescription": "La oficina de Quintech: tus sesiones de Claude Code como Avis en un tablero",
     "longDescription": "Widget de escritorio que muestra las sesiones de Claude Code abiertas en la máquina y sus subagentes, con las preguntas que esperan respuesta.",
     "windows": {
       "wix": {

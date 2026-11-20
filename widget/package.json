@@ -2,7 +2,7 @@
   "name": "oficina-widget",
   "private": true,
   "version": "0.3.1",
-  "description": "Widget de escritorio de la oficina: las sesiones de Claude Code y sus subagentes como mascotas pixel.",
+  "description": "Widget de escritorio de la oficina: las sesiones de Claude Code y sus subagentes como Avis en un tablero.",
   "type": "module",
   "scripts": {
     "tauri": "tauri",

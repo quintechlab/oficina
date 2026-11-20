@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Hoja de los Avis (solo desarrollo): el elenco en todas las poses, con el generador real de
+     src/avis.js y los bucles de src/avis.css. Servir widget/ con un servidor http y abrir
+     dev/avis.html. ?pausa muestra el estado de "Pausar animaciones". -->
+<title>Oficina · hoja de los Avis</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../src/estilos.css">
+<link rel="stylesheet" href="../src/avis.css">
+<style>
+  html, body { height: auto; background: var(--negro) }
+  body { display: block; overflow: auto; padding: 24px }
+  h1 { font: var(--t-titulo); margin-bottom: 4px }
+  p { color: var(--crema2); margin-bottom: 18px }
+  table { border-collapse: collapse }
+  th { font: var(--t-mono-s); color: var(--tenue); padding: 6px 10px; text-align: center; font-weight: 500 }
+  th[scope="row"] { text-align: right; color: var(--crema2) }
+  td { padding: 6px 10px; text-align: center; border-top: 1px solid var(--linea) }
+</style>
+</head>
+<body>
+<h1>Los Avis</h1>
+<p>El elenco en cada pose (dirección 5.2 y 5.3). La pose "proceso" está reservada y no se dibuja.</p>
+<table id="hoja"></table>
+<script type="module">
+  import { svgAvi, defsAvis, POSES, PERSONAJE_BASE, desfase } from '../src/avis.js'
+  import { personajeDeNombre } from '../src/logica.js'
+  if (new URLSearchParams(location.search).has('pausa')) document.body.classList.add('pausa')
+  document.body.insertAdjacentHTML('afterbegin', defsAvis())
+  const elenco = [['Avi base', PERSONAJE_BASE], ...['Claude', 'Camila', 'Ramiro', 'Lucas', 'Delfina', 'Inés'].map(n => [n, personajeDeNombre(n)])]
+  const columnas = [...POSES.map(p => [p, p, false]), ['escribiendo + comando', 'escribiendo', true]]
+  let k = 0
+  const filas = elenco.map(([nombre, pj]) => `<tr><th scope="row">${nombre}</th>${columnas.map(([, pose, comando]) => `<td><span class="avi" style="--t:72px;--d:${desfase(k++)}" role="img" aria-label="${nombre}, ${pose}">${svgAvi(pj, pose, comando)}</span></td>`).join('')}</tr>`)
+  document.getElementById('hoja').innerHTML = `<tr><td></td>${columnas.map(([t]) => `<th scope="col">${t}</th>`).join('')}</tr>${filas.join('')}`
+</script>
+</body>
+</html>

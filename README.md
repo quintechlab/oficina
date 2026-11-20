@@ -77,7 +77,7 @@ El código es público; los datos no. La presencia (nombre del repositorio, rama
 
 ## Widget de escritorio
 
-Ventana flotante para Windows (Tauri 2, en `widget/`) que muestra tus sesiones de Claude Code abiertas en esta máquina como un terrario de mascotas pixel: un proyecto por vez (◀ ▶ o las flechas del teclado), un escritorio por sesión con su Claude y sus subagentes, una lista de texto debajo y un globo con las preguntas que esperan respuesta (por ahora de solo lectura: se contestan en Claude). Lee los archivos que cada sesión escribe en `%USERPROFILE%\.claude\oficina\sesiones` cada 1,5 s; descarta las sesiones cerradas y las que no publican hace más de 2 minutos (cada sesión renueva su archivo cada 30 s, así que una cortada sin cerrarse se va sola).
+Ventana flotante para Windows (Tauri 2, en `widget/`) que muestra tus sesiones de Claude Code abiertas en esta máquina como un tablero de Avis: tus proyectos en la barra lateral (o las flechas del teclado), una tarjeta por sesión con su Claude y sus subagentes, y una tarjeta con las preguntas que esperan respuesta, que podés contestar con un clic. Lee los archivos que cada sesión escribe en `%USERPROFILE%\.claude\oficina\sesiones` cada 1,5 s; descarta las sesiones cerradas y las que no publican hace más de 2 minutos (cada sesión renueva su archivo cada 30 s, así que una cortada sin cerrarse se va sola).
 
 Vive en la bandeja de Windows: la × esconde la ventana y el ícono (la cabeza de Claude, con la cuenta de preguntas en ámbar) la muestra o la esconde con un clic. Su menú tiene «Mostrar oficina», «Siempre arriba», «Avisarme con cada pregunta» (una notificación de Windows por cada pregunta nueva mientras la ventana está escondida o minimizada), «Pausar animaciones» y «Salir». El botón de minimizar pliega la ventana a una tira de 400 × 56 con las caras y el resumen. Recuerda posición y tamaño entre usos.
 
@@ -97,9 +97,9 @@ El widget lee lo que escribe cada sesión en `%USERPROFILE%\.claude\oficina\sesi
 
 ### Tamaño y una sola ventana
 
-La ventana toma el ancho y el alto de lo que muestra (terrario, globo, habitación del compañero) y no se estira a mano; si no entra, queda en el 90 % de la pantalla y el contenido se desplaza. El tamaño va de 100 % (el original, el más chico) a 200 %, en pasos de 25 %: **Ctrl +** agranda, **Ctrl −** achica y **Ctrl 0** vuelve a 100 % con la ventana enfocada, o desde **Tamaño** en la bandeja (Agrandar, Achicar y el porcentaje actual). Todo crece junto, dibujo y texto; 100, 150 y 200 % quedan nítidos y 125 y 175 % pueden verse un poco suaves. El tamaño se recuerda, y la ventana vuelve a abrir donde estaba.
+La ventana toma el ancho y el alto de lo que muestra (tablero, tarjeta de pregunta, equipo) y no se estira a mano; si no entra, queda en el 90 % de la pantalla y el contenido se desplaza. El tamaño va de 100 % (el original, el más chico) a 200 %, en pasos de 25 %: **Ctrl +** agranda, **Ctrl −** achica y **Ctrl 0** vuelve a 100 % con la ventana enfocada, o desde **Tamaño** en la bandeja (Agrandar, Achicar y el porcentaje actual). Todo crece junto, dibujo y texto; 100, 150 y 200 % quedan nítidos y 125 y 175 % pueden verse un poco suaves. El tamaño se recuerda, y la ventana vuelve a abrir donde estaba.
 
-En la sala, la línea de Claude dice "te hace una pregunta" solo si tiene una pregunta pendiente; si sus subagentes siguen trabajando, "coordinando el equipo"; si terminó su turno, "esperando tu mensaje". Los subagentes que terminaron (o fallaron) se duermen en su escritorio, con la notebook apagada.
+En cada tarjeta, la línea de Claude dice "te hace una pregunta" solo si tiene una pregunta pendiente; si sus subagentes siguen trabajando, "coordinando el equipo"; si terminó su turno, "esperando tu mensaje". Los subagentes que terminaron (o fallaron) se duermen.
 
 Solo puede haber una Oficina abierta por máquina: abrirla otra vez muestra la que ya está (aunque esté en la bandeja o en la tira mini).
 

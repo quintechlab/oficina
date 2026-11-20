@@ -9,9 +9,12 @@ import { iconoBandeja, textoInsignia } from './bandeja.js'
 import { zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, posicionEnPantalla, tamanoMini, PASO_POR_DEFECTO } from './tamano.js'
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
-  prepararProyecto, firmaTerrario, sesiones, globo, avisoOtroProyecto, carasMini, companero, firmaCompanero,
-  quienPregunta, anuncioPregunta, barraProyectos, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, cuadros, lineaEncabezado,
-} from './escena.js'
+  prepararProyecto, firmaTablero, sesiones, carasMini, companero, firmaCompanero,
+  barraProyectos, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, cuadros, lineaEncabezado,
+} from './tablero.js'
+import { globo, avisoOtroProyecto, quienPregunta, anuncioPregunta } from './pregunta.js'
+import { defsAvis } from './avis.js'
+import { entrada, cambioProyecto } from './tableroMotion.js'
 
 const INTERVALO_MS = 1500
 const INTERVALO_EQUIPO_MS = 60000
@@ -41,6 +44,10 @@ const st = {
   avisar: true,
   pausa: false,
   mini: false,
+  /** La ventana está escondida en la bandeja o minimizada: los Avis se pausan (6.5). */
+  fuera: false,
+  /** Ya entró escalonado el tablero desde que se mostró la ventana (6.1). */
+  revelado: false,
   /** Tamaño en porcentaje del original: 100, 125, 150, 175 o 200. */
   tamano: PASO_POR_DEFECTO,
   firmas: {},
@@ -179,7 +186,7 @@ function pintar() {
   $('#titulo').title = proyecto.repo ?? proyecto.nombre
   texto('#subtitulo', lineaEncabezado(preparadas, c))
   poner('#cuadros', cuadros(c))
-  poner('#sesiones', sesiones(preparadas, ahora), `${proyecto.repo}/${firmaTerrario(preparadas)}|${Math.floor(ahora / 60000)}`)
+  poner('#sesiones', sesiones(preparadas, ahora), `${proyecto.repo}/${firmaTablero(preparadas)}|${Math.floor(ahora / 60000)}`)
 
   const pend = pendientesVisibles(proyecto)
   if (st.activa >= pend.length) st.activa = 0
@@ -205,12 +212,39 @@ function pintar() {
     if (escribiendo) enfocarOtra()
   }
 
+  // La primera vez que se ve el tablero desde que se mostró la ventana, entra escalonado (6.1)
+  if (!st.revelado && !st.fuera && !st.mini) {
+    st.revelado = true
+    entrada()
+  }
+}
+
+/** Va a otro proyecto: solo la columna principal entra desde el lado de `direccion` (6.2). */
+function irAProyecto(repo, direccion) {
+  if (repo === st.repo) return
+  st.repo = repo
+  st.activa = 0
+  pintar()
+  cambioProyecto(direccion)
+}
+
+/**
+ * Escondida en la bandeja o minimizada, los bucles de los Avis se pausan (6.5). Al volver a
+ * verse, el tablero entra escalonado otra vez.
+ */
+function ponerFuera(fuera) {
+  if (st.fuera === fuera) return
+  st.fuera = fuera
+  document.body.classList.toggle('fuera', fuera)
+  if (fuera) st.revelado = false
+  else pintar()
 }
 
 /** ¿La ventana está escondida en la bandeja o minimizada? */
 async function fueraDeVista() {
-  const v = tauri.window.getCurrentWindow()
+  if (document.hidden) return true
   try {
+    const v = tauri.window.getCurrentWindow()
     return !(await v.isVisible()) || (await v.isMinimized())
   } catch {
     return false
@@ -317,7 +351,7 @@ async function elegir(q, eleccion) {
   const quien = quienPregunta(q)
   st.envios[id] = {
     estado: 'enviando', desde: Date.now(), texto: textoRespondido(q.pregunta, borrador),
-    quien: quien.nombre, pj: quien.pj, color: quien.color, mascota: q.agente ?? 'c-' + q.sesion,
+    quien: quien.nombre, pj: quien.pj, color: quien.color,
   }
   pintar()
   try {
@@ -383,6 +417,7 @@ async function leerEquipo() {
 
 async function ciclo() {
   await leer()
+  ponerFuera(await fueraDeVista())
   setTimeout(ciclo, INTERVALO_MS)
 }
 
@@ -395,9 +430,7 @@ function moverProyecto(dir) {
   const n = st.proyectos.length
   if (n < 2) return
   const i = Math.max(0, st.proyectos.findIndex(p => p.repo === st.repo))
-  st.repo = st.proyectos[(i + dir + n) % n].repo
-  st.activa = 0
-  pintar()
+  irAProyecto(st.proyectos[(i + dir + n) % n].repo, dir)
 }
 
 function ponerArriba(valor) {
@@ -424,6 +457,9 @@ async function ponerMini(mini) {
       document.body.classList.remove('mini')
       $('#tira').hidden = true
       programarAjuste()
+      // Al expandir desde la tira, el tablero entra escalonado (6.1)
+      st.revelado = false
+      pintar()
     }
   } catch (e) {
     st.error = `No se pudo cambiar el tamaño: ${e}`
@@ -438,7 +474,7 @@ document.addEventListener('click', async e => {
   if (a === 'ir') {
     // Un proyecto de la barra o el aviso de una pregunta en otro proyecto
     const p = st.proyectos[+b.dataset.proy]
-    if (p) { st.repo = p.repo; st.activa = 0; pintar() }
+    if (p) irAProyecto(p.repo, 1)
   } else if (a === 'tab') {
     st.activa = +b.dataset.i
     reiniciarInteraccion()
@@ -593,10 +629,15 @@ async function ajustarVentana() {
   }
 }
 
+// Escondida o minimizada (si el WebView lo informa): pausa al instante, sin esperar la lectura
+document.addEventListener('visibilitychange', () => ponerFuera(document.hidden))
+
 // El contenido cambia (otro proyecto, globo, compañero desplegado, tamaño elegido): la ventana lo sigue
 new ResizeObserver(() => programarAjuste()).observe($('#contenido'))
 
 async function iniciar() {
+  // Las definiciones de los Avis (piel, luz de piso y desenfoque), una vez por documento (5.1)
+  document.body.insertAdjacentHTML('afterbegin', defsAvis())
   if (tauri?.core) {
     try {
       const m = await invocar('estado_menu')

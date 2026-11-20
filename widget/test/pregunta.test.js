@@ -2,7 +2,7 @@
 // que el globo (data-accion, data-pregunta, data-item, data-globo), sin opción por defecto.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { globo, avisoOtroProyecto, anuncioPregunta, carasMini } from '../src/escena.js'
+import { globo, avisoOtroProyecto, anuncioPregunta } from '../src/pregunta.js'
 import { agruparPorProyecto, preguntasPendientes } from '../src/logica.js'
 
 const AHORA = Date.parse('2026-11-20T12:00:00Z')
@@ -34,6 +34,8 @@ test('una opción: tarjeta con el contrato del globo, cabecera, texto y pie con 
   const h = globo(pend(proyecto()), { ahoraMs: AHORA })
   assert.match(h, /^<div class="preg[^"]*" role="dialog" aria-labelledby="g-p" data-globo data-pregunta="toolu_1" data-item="0">/)
   assert.match(h, /<b>Claude<\/b> te pregunta · #48 · hace 2 min/)
+  // Cabecera: el Avi de 38 de quien pregunta, en teEspera y decorativo (5.6)
+  assert.match(h, /<div class="preg-cab"><span class="avi" style="--t:38px;[^"]*" aria-hidden="true"><svg[^>]*class="e-teEspera"/)
   assert.match(h, /<p class="preg-txt" id="g-p">¿Cómo mostramos los precios\?<\/p>/)
   assert.equal(opciones(h).length, 2)
   for (const b of opciones(h)) assert.match(b, /data-accion="op" data-i="\d" data-pregunta="toolu_1" data-item="0"/)
@@ -137,8 +139,14 @@ test('anuncio en vivo: una vez por pregunta nueva, con quién y en qué proyecto
   assert.equal(anuncioPregunta([], sesiones), '')
 })
 
-test('tira mini: cabecitas de 32 con el nombre de cada uno', () => {
-  const h = carasMini([{ nombre: 'Claude', animo: 'teEspera', color: '#F2B632', pj: 'claude' }, { nombre: 'Lucas', animo: 'escribiendo', color: '#8FD694', pj: 'raton' }])
-  assert.equal((h.match(/<span class="avi" style="--t:32px">/g) ?? []).length, 2)
-  assert.match(h, /aria-label="Claude"|<title>Claude<\/title>/)
+test('los Avis de la pregunta: Camila de 38 en teEspera en la cabecera; el hecho festeja con el de 34', () => {
+  const agentes = [{ id: 'c9', nombre: 'Camila', estado: 'trabajando', desde: hace(3) }]
+  const h = globo(pend(proyecto({ agentes, agente: 'c9' })), { ahoraMs: AHORA })
+  assert.match(h, /<div class="preg-cab"><span class="avi" style="--t:38px;[^"]*" aria-hidden="true"><svg[^>]*class="e-teEspera"[\s\S]*?M30 58L33 25L56 39Z[\s\S]*?<\/svg><\/span><span><b>Camila<\/b> te pregunta/)
+  const hecho = globo([], { ahoraMs: AHORA, ui: { hecho: { mensaje: 'Listo.', listo: true, color: '#F2B632', pj: 'antena' } } })
+  assert.match(hecho, /<span class="avi" style="--t:34px;[^"]*" aria-hidden="true"><svg[^>]*class="e-listo"/)
+  const ya = globo([], { ahoraMs: AHORA, ui: { hecho: { mensaje: 'Ya se respondió en Claude.', listo: false, color: '#F2B632', pj: 'antena' } } })
+  assert.match(ya, /class="e-esperando"/)
+  // Aviso de otra pregunta: Avi de 36 en teEspera
+  assert.match(globo(pend(proyecto()), { ahoraMs: AHORA, ui: { plegado: true } }), /<span class="avi" style="--t:36px;[^"]*" aria-hidden="true"><svg[^>]*class="e-teEspera"/)
 })

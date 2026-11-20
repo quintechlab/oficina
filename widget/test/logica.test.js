@@ -73,12 +73,12 @@ test('ánimo del subagente: festeja 6 s al terminar y después descansa', () => 
 })
 
 test('cada nombre del elenco tiene su personaje', () => {
-  assert.deepEqual(personajeDeNombre('Claude'), { pj: 'antena', color: '#F3EBD8' })
+  assert.deepEqual(personajeDeNombre('Claude'), { pj: 'antena', color: '#F2B632' })
   assert.deepEqual(personajeDeNombre('Camila'), { pj: 'gata', color: '#E78FB3' })
   assert.deepEqual(personajeDeNombre('Ramiro'), { pj: 'raton', color: '#7FB3FF' })
   assert.deepEqual(personajeDeNombre('Lucas'), { pj: 'brote', color: '#8FD694' })
   assert.deepEqual(personajeDeNombre('Delfina'), { pj: 'mono', color: '#F2B632' })
-  assert.deepEqual(personajeDeNombre('Inés'), { pj: 'cuernos', color: '#8FD694' })
+  assert.deepEqual(personajeDeNombre('Inés'), { pj: 'cuernos', color: '#A58BFF' })
   assert.deepEqual(personajeDeNombre('ines'), personajeDeNombre('Inés'))
 })
 

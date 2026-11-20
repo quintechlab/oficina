@@ -14,7 +14,12 @@
 //   ?envio=ya     la pregunta desaparece sin tomar el archivo: "Ya se respondió en Claude."
 //   ?envio=error  el comando responder falla: "Respondé en Claude…" al instante
 //   (sin ?envio, el archivo queda pendiente y a los 5 s pide responder en Claude)
+//   ?poses        recorre los Avis: "poses" tiene una sesión por estado de Claude (editando,
+//                 comando, leyendo, pensando, esperándote, inactiva); "elenco" coordina a los cinco
+//                 subagentes (escribiendo, leyendo, listo y falló recién, dormido; 4 fichas y "+1")
+//   ?pausa        arranca con "Pausar animaciones" marcado, como desde la bandeja
 // La ventana pedida por ajustar_ventana queda en window.__ventana y en la consola (info).
+// Hay una hoja con todos los Avis en todas las poses en dev/avis.html.
 ;(() => {
   const url = new URLSearchParams(location.search)
   const ahora = Date.now()
@@ -90,6 +95,43 @@
   const tomadas = new Set()
   const sinTomadas = () => SESIONES.map(s => ({ ...s, preguntas: (s.preguntas ?? []).filter(p => !tomadas.has(p.id)) }))
 
+  /**
+   * ?poses: una sesión por estado de Claude y un equipo con todo el elenco. "Listo" y "falló"
+   * terminan siempre hace 1 s, así siguen festejando o tambaleándose (duran 6 s).
+   */
+  const sesionesPoses = () => {
+    const recien = new Date(Date.now() - 1000).toISOString()
+    const ses = (sesion, repo, actividad, extra = {}) => ({
+      v: 1, sesion, usuario: 'nicoequintana', nombre: 'Quintana', estado: 'trabajando', repo, rama: 'main', tarea: null,
+      inicio: hace(30), actualizado: hace(0), archivos: [], actividad, puedeResponder: true, agentes: [], ...extra,
+    })
+    return [
+      ses('p-editando', 'quintechlab/poses', 'editando avis.js', { rama: 'feat/8-estilo-avis-avis', tarea: 8 }),
+      ses('p-comando', 'quintechlab/poses', 'corriendo npm test'),
+      ses('p-leyendo', 'quintechlab/poses', 'leyendo logica.js'),
+      ses('p-pensando', 'quintechlab/poses', 'pensando'),
+      ses('p-esperando', 'quintechlab/poses', 'esperándote'),
+      ses('p-inactiva', 'quintechlab/poses', 'editando main.js', { actualizado: hace(25) }),
+      ses('e-equipo', 'quintechlab/elenco', 'lanzando Camila', {
+        rama: 'feat/12-estilo-avis', tarea: 12,
+        agentes: [
+          sub('e1', 'Delfina', 'bocetos de los Avis', 'trabajando', { desde: hace(4) }),
+          sub('e2', 'Ramiro', 'mapear el widget', 'trabajando', { tipo: 'Explore', desde: hace(2) }),
+          sub('e3', 'Lucas', 'tests de poseAvi', 'listo', { hasta: recien }),
+          sub('e4', 'Inés', 'revisar la CSP', 'fallo', { hasta: recien }),
+          sub('e5', 'Camila', 'copy del aviso', 'listo', { hasta: hace(3) }),
+        ],
+      }),
+      ses('e-dormidos', 'quintechlab/elenco', 'esperándote', {
+        inicio: hace(50),
+        agentes: [sub('e6', 'Camila', 'copy del vacío', 'listo', { hasta: hace(3) }), sub('e7', 'Pixel', 'revisar tamaños', 'fallo', { inventado: true, hasta: hace(8) })],
+      }),
+      ses('q-pregunta', 'quintechlab/pregunta', 'pensando', {
+        preguntas: [{ id: 'toolu_poses', agente: null, desde: hace(1), items: [{ pregunta: '¿Probamos los Avis a 200 %?', encabezado: 'Zoom', multiple: false, opciones: [{ etiqueta: 'Sí (Recomendada)', descripcion: 'Se ven nítidos.' }, { etiqueta: 'No', descripcion: 'Alcanza con 100 %.' }] }] }],
+      }),
+    ]
+  }
+
   const comentario = d => `<!-- oficina:presencia -->\n\`\`\`json\n${JSON.stringify(d)}\n\`\`\``
   const EQUIPO = {
     yo: 'nicoequintana',
@@ -116,11 +158,12 @@
   const comandos = {
     registrar: ({ linea }) => console.debug('[widget.log]', linea),
     poner_bandeja: ({ texto }) => { document.title = texto },
-    estado_menu: () => ({ arriba: true, avisar: true, pausa: false, tamano: paso }),
+    estado_menu: () => ({ arriba: true, avisar: true, pausa: url.has('pausa'), tamano: paso }),
     leer_sesiones: () => {
       lecturas++
       if (url.has('cargando')) return new Promise(() => {})
       if (url.has('error') && lecturas > 1) throw new Error('acceso denegado a sesiones (falso)')
+      if (url.has('poses')) return sesionesPoses()
       return url.has('vacio') ? [] : sinTomadas()
     },
     leer_equipo: () => url.has('sinequipo') ? { comentarios: [], yo: 'nicoequintana', error: 'gh: no autenticado (falso)' } : EQUIPO,
