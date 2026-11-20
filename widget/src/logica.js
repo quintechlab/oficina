@@ -57,9 +57,21 @@ export function agruparPorProyecto(sesiones) {
 const preguntaDeLaSesion = s => (s.preguntas ?? []).some(p => p.agente == null)
 const inactiva = (s, ahoraMs) => ahoraMs - ms(s.actualizado) > MINUTOS_INACTIVO * MIN
 
-/** Ánimo de la mascota de Claude de una sesión. */
+const coordinando = s => (s.agentes ?? []).some(a => a.estado === 'trabajando')
+/** El mod pone "esperándote" cuando termina el turno y Claude espera tu próximo mensaje. */
+const esperaMensaje = s => s.actividad === 'esperándote'
+
+/**
+ * Ánimo de la mascota de Claude de una sesión, por orden de prioridad:
+ * 1. una pregunta suya pendiente → te espera ("!");
+ * 2. subagentes trabajando → coordina el equipo (aunque el turno haya terminado);
+ * 3. "esperándote" → espera tu mensaje, tranquilo y despierto;
+ * 4. si no, lo que diga su actividad (dormida si no publica hace rato).
+ */
 export function animoSesion(s, ahoraMs) {
-  if (preguntaDeLaSesion(s) || s.actividad === 'esperándote') return 'teEspera'
+  if (preguntaDeLaSesion(s)) return 'teEspera'
+  if (coordinando(s)) return 'coordinando'
+  if (esperaMensaje(s)) return 'esperando'
   if (inactiva(s, ahoraMs)) return 'inactiva'
   const a = s.actividad
   if (!a) return 'esperando'
@@ -71,12 +83,17 @@ export function animoSesion(s, ahoraMs) {
   return 'pensando'
 }
 
-/** Ánimo de un subagente. `conPregunta`: tiene una pregunta pendiente para vos. */
+/**
+ * Ánimo de un subagente. `conPregunta`: tiene una pregunta pendiente para vos. Al terminar festeja
+ * (o pone cara de x_x si falló) unos segundos y después se duerme en su escritorio.
+ */
 export function animoSubagente(a, ahoraMs, conPregunta = false) {
   if (conPregunta) return 'teEspera'
-  if (a.estado === 'fallo') return 'fallo'
-  if (a.estado === 'listo') return ahoraMs - ms(a.hasta) <= MS_FESTEJO ? 'listo' : 'reposo'
-  return /^(explore|plan)$/i.test(a.tipo ?? '') ? 'leyendo' : 'comiendo'
+  if (a.estado === 'listo' || a.estado === 'fallo') {
+    if (ahoraMs - ms(a.hasta) > MS_FESTEJO) return 'durmiendo'
+    return a.estado
+  }
+  return /^(explore|plan)$/i.test(a.tipo ?? '') ? 'leyendo' : 'escribiendo'
 }
 
 const normalizar = n => String(n ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase()
@@ -116,7 +133,10 @@ export function tiempoSubagente(a, ahoraMs) {
 
 /** La línea "ahora · …" de una sesión en la lista. */
 export function textoActividad(s, ahoraMs) {
-  if (animoSesion(s, ahoraMs) === 'teEspera') return 'ahora · te hace una pregunta'
+  const animo = animoSesion(s, ahoraMs)
+  if (animo === 'teEspera') return 'ahora · te hace una pregunta'
+  if (animo === 'coordinando') return 'ahora · coordinando el equipo'
+  if (esperaMensaje(s)) return 'ahora · esperando tu mensaje'
   if (inactiva(s, ahoraMs)) return `sin actividad hace ${tiempoRelativo(s.actualizado, ahoraMs)}`
   return `ahora · ${s.actividad || 'sin actividad'}`
 }

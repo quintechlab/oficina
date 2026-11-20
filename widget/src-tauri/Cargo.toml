@@ -1,6 +1,6 @@
 [package]
 name = "oficina-widget"
-version = "0.1.0"
+version = "0.3.0"
 description = "Widget de escritorio de la oficina"
 edition = "2021"
 license = "MIT"
@@ -17,5 +17,6 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-notification = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }

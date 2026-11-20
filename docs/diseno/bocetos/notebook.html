@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oficina · escribiendo en la notebook, cada uno en su escritorio — boceto</title>
+<style>
+:root{--amarillo:#F2B632;--negro:#0B0D12;--gris:#9AA0AC;--crema:#F3EBD8;--rosa:#E78FB3;--azul:#7FB3FF;--verde:#8FD694;--linea:#1E2230;--texto:#E9EAEE;
+  --mono:"Cascadia Mono","Cascadia Code",Consolas,monospace;--display:"Bahnschrift Condensed",Bahnschrift,"Segoe UI",sans-serif;--ui:"Segoe UI",Manrope,Helvetica,Arial,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#07080B;color:var(--texto);font:15px/1.5 var(--ui);background-image:radial-gradient(800px 380px at 80% -8%,rgba(242,182,50,.13),transparent 65%)}
+:focus-visible{outline:2px solid var(--amarillo);outline-offset:2px}
+.envoltura{max-width:1320px;margin:0 auto;padding:40px 28px 90px}
+.kicker{font:600 12px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--amarillo)}
+h1{font:700 clamp(50px,7vw,100px)/.86 var(--display);font-stretch:75%;text-transform:uppercase;margin:14px 0}
+h1 em{font-style:normal;color:var(--amarillo)}
+.bajada{max-width:70ch;color:#C9CCD3}
+.controles{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:20px}
+.controles>span{font:700 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--gris)}
+.seg{display:inline-flex;border:2px solid var(--amarillo)}
+.seg button,.boton{min-height:44px;padding:0 14px;background:transparent;border:0;color:var(--amarillo);font:700 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.seg button+button{border-left:2px solid var(--amarillo)}
+.seg button[aria-pressed="true"],.boton[aria-pressed="true"]{background:var(--amarillo);color:var(--negro)}
+.boton{border:2px solid var(--amarillo)}
+h2{font:700 36px/1 var(--display);font-stretch:85%;margin-top:64px}
+.sub{font:13px var(--mono);color:var(--gris);margin-top:6px}
+svg{display:block;max-width:100%;height:auto}
+.tabla{margin-top:20px;display:grid;grid-template-columns:120px repeat(3,minmax(0,1fr));gap:12px;align-items:center}
+.tabla .col{font:700 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--gris)}
+.tabla .col.hoy{color:#6B7180}
+.tabla .fila{font:700 14px var(--ui)}
+.tabla .fila small{display:block;font:11px var(--mono);color:#6B7180;font-weight:400}
+.celda{background:#0E1016;border:1px solid var(--linea);border-radius:10px;padding:10px;display:grid;justify-items:center}
+.celda.hoy{opacity:.8}
+.notas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:20px 0 0;list-style:none}
+.notas li{border-top:2px solid var(--linea);padding-top:10px;font-size:14px;color:#C9CCD3}
+.notas b{display:block;font:700 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--amarillo);margin-bottom:4px}
+.sala{margin-top:20px;overflow-x:auto;border-radius:12px;border:1px solid var(--linea);background:#0E1016;padding:12px;width:max-content;max-width:100%}
+.meta{font:12px var(--mono);color:#6B7180;margin-top:10px}
+body.pausa svg *{animation-play-state:paused!important}
+@media (max-width:1000px){.tabla{grid-template-columns:repeat(3,minmax(0,1fr))}.tabla .fila{grid-column:1/-1}.tabla .esq{display:none}.notas{grid-template-columns:1fr}}
+@media (max-width:480px){.envoltura{padding:26px 12px 64px}}
+</style>
+</head>
+<body>
+<div class="envoltura">
+  <header>
+    <p class="kicker">Oficina · ánimo «escribiendo» · escritorios propios · tamaño Grande</p>
+    <h1>Escriben en <em>su notebook</em></h1>
+    <p class="bajada">El ánimo «comiendo tokens» pasa a ser «escribiendo»: cada agente, sentado en su silla y en su propio escritorio, teclea en una notebook. Todo a tamaño Grande: el mismo arte al doble, con escalado entero (4 px por celda). Los demás ánimos no cambian; solo pasan a hacerse sentados.</p>
+    <div class="controles">
+      <span>Variante</span>
+      <div class="seg" role="group" aria-label="Variante de notebook">
+        <button type="button" data-v="A" aria-pressed="true">A · pantalla a la vista</button>
+        <button type="button" data-v="B" aria-pressed="false">B · detrás de la tapa</button>
+      </div>
+      <button type="button" class="boton" id="pausa" aria-pressed="false">Pausar animación</button>
+    </div>
+    <ul class="notas">
+      <li><b>A · pantalla a la vista</b>La notebook va al costado, abierta en tres cuartos: se ve la pantalla con código que corre en el color del agente, y una pata teclea. Mira la pantalla y cada tanto te mira a vos.</li>
+      <li><b>B · detrás de la tapa</b>La notebook va de frente: se ve la tapa con un calco y la mascota espía por arriba. Las dos patas teclean a los costados, la pantalla le ilumina la cara y suben signos de código.</li>
+      <li><b>Escritorios</b>Una fila de escritorios por sesión: el de Claude más ancho (lámpara y taza), al lado los de sus subagentes. Entran Claude y 4 subagentes en A, 5 en B; más, con «+n». Cada sesión es un piso.</li>
+    </ul>
+  </header>
+
+  <main>
+    <h2>Hoy contra la notebook</h2>
+    <p class="sub">Claude, Camila y Ramiro (nombre inventado, tipo explore) · tamaño Grande</p>
+    <div class="tabla" id="tabla"></div>
+
+    <h2>La habitación: cada uno en su escritorio</h2>
+    <p class="sub">catalogo con 3 sesiones · una fila de escritorios por sesión, un piso por sesión · Grande, 728 px de ancho</p>
+    <div class="sala" id="sala"></div>
+    <p class="meta" id="meta"></p>
+  </main>
+</div>
+
+<script>
+const P={amarillo:'#F2B632',negro:'#0B0D12',gris:'#9AA0AC',azul:'#7FB3FF',verde:'#8FD694',rosa:'#E78FB3',crema:'#F3EBD8',rojo:'#FF6B6B'};
+const ANIMO={escribiendo:'escribiendo',comiendo:'comiendo tokens',pensando:'pensando',leyendo:'leyendo',comando:'ejecutando un comando',listo:'listo',esperando:'esperando',teEspera:'esperándote',inactiva:'sin actividad'};
+function mezcla(a,b,t){const h=x=>{x=x.replace('#','');return [0,2,4].map(i=>parseInt(x.slice(i,i+2),16));};const A=h(a),B=h(b);return '#'+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0')).join('');}
+const $=s=>document.querySelector(s);
+
+/* ===================== motor de mascotas (el de index.html, más brazos para teclear) ===================== */
+const POSES={S:{l:0,bw:8,bh:4,s:12},Q:{l:0,bw:10,bh:3,s:14},T:{l:1,bw:6,bh:5,s:10},H:{l:3,bw:8,bh:4,s:8},X:{l:5,bw:8,bh:4,s:6}};
+const INS=[4,2,1,0,0,0,0,0,0,1,2];
+const OJO=[[1,0],[2,0],[3,0],[0,1],[1,1],[2,1],[3,1],[4,1],[0,2],[1,2],[2,2],[3,2],[4,2],[0,3],[1,3],[2,3],[3,3],[4,3],[1,4],[2,4],[3,4]];
+const BRILLO={o:[[2,1],[1,2],[2,2],[3,2],[2,3]],s:[[1,1],[2,2],[3,3]]};
+const OJOS={'-':[[0,2],[1,2],[2,2],[3,2],[4,2]],'^':[[0,3],[1,2],[2,1],[3,2],[4,3],[1,3],[3,3]],u:[[0,2],[1,3],[2,3],[3,3],[4,2]],'>':[[1,0],[2,1],[3,2],[2,3],[1,4]],'<':[[3,0],[2,1],[1,2],[2,3],[3,4]]};
+const MIRA={o:[0,0],s:[0,0],R:[1,0],U:[0,-1],D:[0,1],l:[-1,1],r:[1,1]};
+const BOCA={'.':[[-2,0],[1,0],[-1,1],[0,1]],'_':[[-1,0],[0,0]],'O':[[-1,0],[0,0],[-1,1],[0,1]],'D':[[-2,0],[-1,0],[0,0],[1,0]]};
+function pixeles(f,color,pj,animo){
+  const m=new Map(),fig=new Set(),ok=(x,y)=>x>=0&&x<24&&y>=0&&y<28;
+  const S=(x,y,c)=>{if(ok(x,y))m.set(x+','+y,c);},F=(x,y,c)=>{if(ok(x,y)){m.set(x+','+y,c);fig.add(x+','+y);}};
+  const po=POSES[f.p],dx=f.dx||0,cx=12+dx,mir=x=>2*cx-1-x;
+  const sh=mezcla(color,'#000000',.3),hl=mezcla(color,'#ffffff',.55),lin=mezcla(color,'#0B0D12',.78),E='#1A1530';
+  const bb=24-po.l,bt=bb-po.bh+1,hb=bt-1,ht=hb-10;
+  if(pj==='antena'){F(cx-1,ht-1,sh);F(cx-1,ht-2,sh);F(cx,ht-3,sh);[[cx,ht-5],[cx+1,ht-5],[cx,ht-4],[cx+1,ht-4]].forEach(([x,y])=>F(x,y,P.amarillo));F(cx,ht-5,'#FFF1C2');}
+  if(pj==='gata'){[[cx-7,ht-2,0],[cx-7,ht-1,0],[cx-6,ht-1,0],[cx-7,ht,0],[cx-6,ht,1],[cx-5,ht,0]].forEach(([x,y,i])=>{F(x,y,i?hl:color);F(mir(x),y,i?hl:sh);});}
+  if(pj==='raton'){const E4=[[1,0],[2,0],[0,1],[1,1],[2,1],[3,1],[0,2],[1,2],[2,2],[3,2],[1,3],[2,3]],ci=mezcla(color,'#ffffff',.5);
+    E4.forEach(([a,b])=>{F(cx-10+a,ht-2+b,color);F(mir(cx-10+a),ht-2+b,sh);});[[1,1],[2,1],[1,2],[2,2]].forEach(([a,b])=>{F(cx-10+a,ht-2+b,ci);F(mir(cx-10+a),ht-2+b,ci);});}
+  if(pj==='mono'){[[cx+1,ht-3],[cx+2,ht-3],[cx+1,ht-2],[cx+2,ht-2],[cx+3,ht-2],[cx+1,ht-1],[cx+2,ht-1],[cx+7,ht-3],[cx+6,ht-3],[cx+7,ht-2],[cx+6,ht-2],[cx+5,ht-2],[cx+7,ht-1],[cx+6,ht-1]].forEach(([x,y])=>F(x,y,P.rosa));F(cx+4,ht-2,mezcla(P.rosa,'#000000',.3));F(cx+4,ht-1,mezcla(P.rosa,'#000000',.3));}
+  if(pj==='cuernos'){const cu='#F3EBD8',cs='#C9BFA8';[[cx-6,ht+1,cu],[cx-6,ht,cu],[cx-7,ht-1,cu],[cx-7,ht-2,cs],[cx-5,ht,cs]].forEach(([x,y,c])=>{F(x,y,c);F(mir(x),y,c===cu?cs:cu);});}
+  for(let r=0;r<11;r++){const i=INS[r];for(let x=cx-8+i;x<=cx+7-i;x++)F(x,ht+r,(r===10||x===cx+7-i)?sh:color);}
+  F(cx-5,ht+1,hl);F(cx-4,ht+1,hl);F(cx-6,ht+2,hl);
+  const bl=cx-po.bw/2,br=cx+po.bw/2-1;
+  for(let y=bt;y<=bb;y++)for(let x=bl;x<=br;x++)F(x,y,(x===br||y===bb)?sh:color);
+  if(po.bh>=4){F(cx-1,bt+1,hl);F(cx,bt+1,hl);}
+  [bl,bl+1,br-1,br].forEach(x=>F(x,bb+1,sh));
+  const a=f.a||0,nub=[[br+1,bt+1]];
+  const up1=[[cx+4,bt],[cx+5,bt],[cx+6,hb],[cx+7,hb-1],[cx+8,hb-2],[cx+8,hb-3],[cx+9,hb-3],[cx+8,hb-4],[cx+9,hb-4]];
+  const up2=[[cx+4,bt],[cx+5,bt],[cx+6,hb],[cx+7,hb],[cx+8,hb-1],[cx+9,hb-1],[cx+9,hb-2],[cx+10,hb-2],[cx+10,hb-1]];
+  // 4/5: brazo derecho estirado al teclado, pata abajo o arriba (variante A)
+  const tecla=[[cx+4,bt],[cx+5,bt],[cx+6,bt],[cx+7,bt]];
+  const pata4=[[cx+8,bt],[cx+9,bt]],pata5=[[cx+8,bt-1],[cx+9,bt-1],[cx+7,bt-1]];
+  // 6/7: dos patas a los costados de la tapa, alternadas (variante B)
+  const izq=y=>[[cx-8,y],[cx-7,y]],der=y=>[[cx+6,y],[cx+7,y]];
+  let derecha=a===1||a===3?up1:a===2?up2:nub,izquierda=(a===3?up1:nub).map(([x,y])=>[mir(x),y]);
+  if(a===4)derecha=[...tecla,...pata4];
+  if(a===5)derecha=[...tecla,...pata5];
+  if(a===6){derecha=der(hb-1);izquierda=izq(hb);}
+  if(a===7){derecha=der(hb);izquierda=izq(hb-1);}
+  derecha.forEach(([x,y])=>F(x,y,color));izquierda.forEach(([x,y])=>F(x,y,color));
+  if(f.k){for(let x=cx-4;x<=cx+3;x++){F(x,hb,(x===cx-1||x===cx)?'#8A90A0':'#F3EBD8');F(x,bt,P.amarillo);F(x,bt+1,P.amarillo);F(x,bt+2,'#B98418');}
+    if(f.k===2)for(let x=cx;x<=cx+3;x++)F(x,hb-1,'#FFFFFF');}
+  for(const k of fig){const [x,y]=k.split(',').map(Number);[[1,0],[-1,0],[0,1],[0,-1]].forEach(([u,v])=>{if(ok(x+u,y+v)&&!fig.has((x+u)+','+(y+v)))m.set((x+u)+','+(y+v),lin);});}
+  const ey=ht+3,o=f.o||'o';
+  [[cx-7,'L'],[cx+2,'R']].forEach(([ex,lado])=>{
+    if(MIRA[o]){const [ox,oy]=MIRA[o];OJO.forEach(([u,v])=>S(ex+u+ox,ey+v+oy,E));(BRILLO[o]||BRILLO.o).forEach(([u,v])=>S(ex+u+ox,ey+v+oy,'#FFFFFF'));}
+    else{const pts=o==='>'?(lado==='L'?OJOS['>']:OJOS['<']):OJOS[o];(pts||[]).forEach(([u,v])=>S(ex+u,ey+v,E));}
+  });
+  const my=ht+8,bo=f.m||'.';
+  if(!(f.k===2&&bo==='.'))(BOCA[bo]||[]).forEach(([u,v])=>S(cx+u,my+v,E));
+  if(bo==='D'){S(cx-1,my+1,'#FF6F91');S(cx,my+1,'#FF6F91');}
+  const bc=color===P.rosa?'#D94A7B':'#FF8FB1';[cx-7,cx-6,cx+5,cx+6].forEach(x=>S(x,my,bc));
+  return m;
+}
+function aPath(m){const por=new Map();for(const [k,c] of m){const [x,y]=k.split(',').map(Number);if(!por.has(c))por.set(c,[]);por.get(c).push([x,y]);}
+  let s='';for(const [c,pts] of por){pts.sort((a,b)=>a[1]-b[1]||a[0]-b[0]);let d='',i=0;while(i<pts.length){const [x,y]=pts[i];let n=1;while(i+n<pts.length&&pts[i+n][1]===y&&pts[i+n][0]===x+n)n++;d+=`M${x} ${y}h${n}v1h-${n}z`;i+=n;}s+=`<path d="${d}" fill="${c}"/>`;}return s;}
+const GL={nota:['..XX','..X.','..X.','XXX.','XX..'],z:['XXX','..X','.X.','X..','XXX'],tok:['XX','XX'],gota:['.X.','XXX','XXX','.X.'],chispa:['.X.','XXX','.X.'],
+  menor:['..X','.X.','X..','.X.','..X'],barra:['..X','..X','.X.','X..','X..'],mayor:['X..','.X.','..X','.X.','X..']};
+function gl(n,x,y,c,st){let d='';GL[n].forEach((row,j)=>[...row].forEach((ch,i)=>{if(ch==='X')d+=`M${x+i} ${y+j}h1v1h-1z`;}));return `<path class="fx" d="${d}" fill="${c}" style="${st}"/>`;}
+function efectos(a,col,T){
+  const it=d=>T?Math.max(1,Math.round(T/d)):'infinite';
+  switch(a){
+    case 'escribiendoA':return `<rect class="fx" x="22" y="18" width="1" height="1" fill="#FFFFFF" style="opacity:0;animation:tap .48s step-end infinite"/><rect class="fx" x="20" y="17" width="1" height="1" fill="${col}" style="opacity:0;animation:tap .48s step-end -.24s infinite"/>`;
+    case 'escribiendoB':return `<rect x="5" y="13" width="14" height="5" fill="${col}" style="opacity:.08;animation:luzcara 1.6s ease-in-out infinite"/>`+
+      ['menor','barra','mayor'].map((g,i)=>gl(g,6+i*5,12,col,`opacity:0;animation:codigo 1.8s ease-out ${(-i*.6).toFixed(1)}s infinite`)).join('');
+    case 'comiendo':return [0,1,2].map(i=>gl('tok',21,18,P.amarillo,`opacity:0;animation:token 1.2s linear ${-i*.4}s infinite`)).join('');
+    case 'comando':return gl('gota',1,10,P.azul,'opacity:0;animation:gota 1.1s ease-out infinite');
+    case 'listo':{const n=it(1600),k=it(1400),cols=[P.amarillo,P.rosa,P.azul,P.verde];
+      let s=gl('nota',19,4,P.amarillo,`opacity:0;animation:nota 1.6s ease-out ${n}`)+gl('nota',0,6,P.verde,`opacity:0;animation:nota 1.6s ease-out .8s ${n}`);
+      for(let i=0;i<9;i++)s+=`<rect class="fx" x="${1+((i*2.6)|0)}" y="0" width="1" height="1" fill="${cols[i%4]}" style="opacity:0;--dx:${(i%2?1:-1)*(1+i%3)}px;animation:confeti 1.4s ease-in ${(i*.16).toFixed(2)}s ${k}"/>`;return s;}
+    case 'inactiva':return gl('z',18,9,P.gris,'opacity:0;animation:zeta 2.4s ease-out infinite');
+    case 'esperando':return [0,1,2].map(i=>`<rect class="fx" x="${16+i*2}" y="6" width="1" height="1" fill="${P.crema}" style="animation:puntos 1.5s step-end ${i*.25}s infinite"/>`).join('');
+    case 'teEspera':return `<rect x="19" y="1" width="5" height="9" fill="#FFFFFF"/><rect x="18" y="2" width="7" height="7" fill="#FFFFFF"/><rect x="18" y="9" width="2" height="2" fill="#FFFFFF"/><path class="fx" d="M21 3h1v3h-1zM21 7h1v1h-1z" fill="${P.amarillo}" style="animation:flota 1.1s ease-in-out infinite"/>`;
+    default:return '';
+  }
+}
+const TEC=n=>({p:'S',o:'r',m:'.',a:n%2?5:4,ms:120});
+const SEC={
+  escribiendoA:[TEC(0),TEC(1),TEC(2),TEC(3),{p:'S',o:'-',a:4,ms:100},TEC(5),TEC(6),TEC(7),TEC(8),TEC(9),{p:'S',o:'o',m:'D',a:4,ms:520},{p:'S',o:'s',m:'D',a:4,ms:200},TEC(1),TEC(2)],
+  escribiendoB:[{p:'S',o:'D',a:6,ms:120},{p:'S',o:'D',a:7,ms:120},{p:'S',o:'D',a:6,ms:120},{p:'S',o:'D',a:7,ms:120},{p:'S',o:'-',a:6,ms:100},{p:'S',o:'D',a:7,ms:120},{p:'S',o:'D',a:6,ms:120},{p:'S',o:'D',a:7,ms:120},{p:'S',o:'o',a:6,ms:520},{p:'S',o:'s',a:7,ms:200}],
+  comiendo:[{p:'S',o:'o',m:'D',ms:220},{p:'Q',o:'^',m:'O',ms:90},{p:'S',o:'^',m:'.',ms:90}],
+  leyendo:[{p:'S',o:'l',k:1,ms:700},{p:'S',o:'l',k:2,ms:160},{p:'S',o:'r',k:1,ms:700},{p:'S',o:'-',k:1,ms:110},{p:'S',o:'r',k:1,ms:500}],
+  comando:[{p:'S',o:'>',m:'O',ms:160},{p:'Q',o:'>',m:'_',ms:110},{p:'T',o:'>',m:'D',ms:80},{p:'H',o:'>',m:'D',ms:140},{p:'T',o:'>',m:'D',ms:80},{p:'Q',o:'>',m:'_',ms:110},{p:'S',o:'>',m:'O',ms:180}],
+  listo:[{p:'Q',o:'^',m:'D',a:3,ms:120},{p:'T',o:'o',m:'D',a:3,ms:90},{p:'X',o:'s',m:'D',a:3,ms:220},{p:'H',o:'o',m:'D',a:3,ms:120},{p:'Q',o:'^',m:'D',a:3,ms:120},{p:'S',o:'o',m:'D',a:1,ms:200},{p:'S',o:'s',m:'D',a:2,ms:200}],
+  inactiva:[{p:'S',o:'-',m:'_',ms:900},{p:'Q',o:'-',m:'_',ms:1100},{p:'S',o:'-',m:'_',ms:700}],
+  esperando:[{p:'S',o:'u',ms:1200},{p:'Q',o:'u',ms:700},{p:'S',o:'u',ms:900},{p:'S',o:'R',m:'D',a:1,ms:350},{p:'S',o:'R',m:'D',a:2,ms:350},{p:'S',o:'u',ms:500}],
+  teEspera:[{p:'S',o:'o',m:'D',a:1,ms:260},{p:'S',o:'s',m:'D',a:2,ms:260},{p:'S',o:'o',m:'D',a:1,ms:260},{p:'S',o:'s',m:'D',a:2,ms:260},{p:'S',o:'o',m:'.',ms:900}]
+};
+const KF=`.fx{transform-box:fill-box;transform-origin:center}
+@keyframes tap{0%{opacity:1;transform:scale(1)}50%{opacity:0;transform:scale(.4)}}
+@keyframes luzcara{0%,100%{opacity:.06}50%{opacity:.16}}
+@keyframes codigo{0%{transform:translateY(0);opacity:0}15%{opacity:1}100%{transform:translateY(-9px);opacity:0}}
+@keyframes flota{0%,100%{transform:translateY(0);opacity:.6}50%{transform:translateY(-1.5px);opacity:1}}
+@keyframes gota{0%{transform:translate(0,0);opacity:0}20%{opacity:1}100%{transform:translate(-2px,-4px);opacity:0}}
+@keyframes token{0%{transform:translateX(0);opacity:0}15%,75%{opacity:1}100%{transform:translateX(-9px);opacity:0}}
+@keyframes nota{0%{transform:translate(0,0) rotate(0deg);opacity:0}15%{opacity:1}100%{transform:translate(2px,-8px) rotate(14deg);opacity:0}}
+@keyframes confeti{0%{transform:translate(0,0) rotate(0deg);opacity:0}10%{opacity:1}100%{transform:translate(var(--dx),20px) rotate(200deg);opacity:0}}
+@keyframes zeta{0%{transform:translate(0,0);opacity:0}20%{opacity:1}100%{transform:translate(3px,-6px);opacity:0}}
+@keyframes puntos{0%,15%{opacity:.15}20%,80%{opacity:1}85%,100%{opacity:.15}}
+@keyframes atenua{to{opacity:.45}}
+@keyframes sube{to{transform:translateY(-12px)}}
+@keyframes subeR{to{transform:translateY(-12px)}}
+@keyframes parpadeo{0%{opacity:1}50%{opacity:0}}
+@keyframes luz{0%,100%{opacity:.05}50%{opacity:.1}}
+@keyframes titila{0%,100%{opacity:.2}50%{opacity:1}}
+@keyframes gira{to{transform:rotate(360deg)}}`;
+let UID=0;
+function sprite(animo,color,pj,{x=0,y=0,s=2}={}){
+  const u='s'+(UID++),seq=SEC[animo],D=seq.reduce((a,f)=>a+f.ms,0);
+  const col=animo==='inactiva'?mezcla(color,'#6B7180',.35):color,una=animo==='listo',N=4,T=D*N;
+  let css='',g='',t=0;
+  seq.forEach((f,i)=>{const a=+(t/D*100).toFixed(2),b=+((t+f.ms)/D*100).toFixed(2);t+=f.ms;
+    css+=`@keyframes ${u}f${i}{${a>0?'0%{opacity:0}':''}${a}%{opacity:1}${b<100?b+'%{opacity:0}':''}100%{opacity:0}}`;
+    g+=`<g style="opacity:0;animation:${u}f${i} ${D}ms step-end ${una?N+' both':'infinite'}">${aPath(pixeles(f,col,pj,animo))}</g>`;});
+  if(una){css+=`@keyframes ${u}z{from{opacity:0}to{opacity:1}}`;g+=`<g style="opacity:0;animation:${u}z 1ms linear ${T}ms forwards">${aPath(pixeles({p:'S',o:'^',m:'.'},col,pj,animo))}</g>`;}
+  g+=efectos(animo,color,una?T:0);
+  return {g:`<g transform="translate(${x} ${y}) scale(${s})"><g style="${una?`animation:atenua .8s ease ${T}ms forwards`:''}">${g}</g></g>`,css};
+}
+function svgDoc(w,h,body,css,alt,esc=2){return `<svg xmlns="http://www.w3.org/2000/svg" width="${w*esc}" height="${h*esc}" viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges" role="img" aria-label="${alt}" font-family="Segoe UI, Manrope, Helvetica, Arial, sans-serif"><style>${KF}${css}</style>${body}</svg>`;}
+
+/* ===================== escritorio propio: silla, mesa, notebook ===================== */
+/* px,py: origen del sprite (escala 2). La mesa tapa el cuerpo desde la fila 22: queda sentado. */
+const ANCHO={A:{orq:90,sub:68},B:{orq:70,sub:52}};
+function puesto(ag,px,py,v,{orq=false,u}){
+  const mood=ag.animo,esc=mood==='escribiendo'?'escribiendo'+v:mood,col=ag.color;
+  const izq=orq?px-10:px+6,der=v==='A'?px+62:px+42;
+  let b='',css='',defs='';
+  // silla: respaldo detrás del cuerpo, asiento y patas
+  b+=`<rect x="${px+12}" y="${py+34}" width="2" height="20" fill="#3A3047"/><rect x="${px+34}" y="${py+34}" width="2" height="20" fill="#3A3047"/><rect x="${px+10}" y="${py+48}" width="28" height="4" fill="#4A3D5C"/><rect x="${px+10}" y="${py+48}" width="28" height="1" fill="#5C4D70"/><rect x="${px+12}" y="${py+52}" width="2" height="6" fill="#2A2235"/><rect x="${px+34}" y="${py+52}" width="2" height="6" fill="#2A2235"/>`;
+  // la mascota (dormida: se hunde en la silla)
+  const sp=sprite(esc,col,ag.pj,{x:px,y:py+(mood==='inactiva'?4:0),s:2});css+=sp.css;b+=sp.g;
+  // mesa
+  b+=`<rect x="${izq}" y="${py+44}" width="${der-izq}" height="3" fill="#4A5068"/><rect x="${izq}" y="${py+44}" width="${der-izq}" height="1" fill="#5C6380"/><rect x="${izq}" y="${py+47}" width="${der-izq}" height="2" fill="#2A2F40"/><rect x="${izq+2}" y="${py+49}" width="2" height="9" fill="#2A2F40"/><rect x="${der-4}" y="${py+49}" width="2" height="9" fill="#2A2F40"/>`;
+  if(orq)b+=`<rect x="${izq+3}" y="${py+38}" width="5" height="6" fill="#E9EAEE"/><rect x="${izq+8}" y="${py+40}" width="1" height="3" fill="#E9EAEE"/><rect class="fx" x="${izq+5}" y="${py+34}" width="1" height="2" fill="#9AA0AC" style="opacity:0;animation:codigo 2s ease-out infinite"/>`;
+  // notebook
+  const pant=mood==='inactiva'?'#06080C':'#0B1712';
+  if(v==='A'){
+    b+=`<rect x="${px+40}" y="${py+43}" width="20" height="2" fill="#2A2F40"/>`;
+    for(let x=px+42;x<px+58;x+=3)b+=`<rect x="${x}" y="${py+43}" width="2" height="1" fill="#4A5068"/>`;
+    let marco='';for(let r=13;r<=21;r++){const s=Math.floor((21-r)/3)*2;marco+=`<rect x="${px+50+s}" y="${py+r*2}" width="${12}" height="2" fill="#2A2F40"/>`;}
+    b+=marco;
+    const pts=`${px+52},${py+42} ${px+60},${py+42} ${px+64},${py+28} ${px+56},${py+28}`;
+    b+=`<polygon points="${pts}" fill="${pant}"/>`;
+    defs+=`<clipPath id="${u}"><polygon points="${pts}"/></clipPath>`;
+    if(mood==='escribiendo'||mood==='comando'){
+      let l='';[5,3,6,2,4,6,3,5,2,6,4,3].forEach((w,q)=>l+=`<rect x="${px+53+(q%3)+Math.floor((12-q%12)/6)*2}" y="${py+29+q*2}" width="${w}" height="1" fill="${mood==='comando'?P.verde:col}" opacity=".9"/>`);
+      b+=`<g clip-path="url(#${u})"><g style="animation:sube ${mood==='comando'?'.9s':'1.8s'} linear infinite">${l}</g></g>`;
+      b+=`<polygon points="${px+52},${py+28} ${px+52},${py+42} ${px+30},${py+40} ${px+30},${py+26}" fill="${col}" style="opacity:.06;animation:luz 1.6s ease-in-out infinite"/>`;
+    }else if(mood==='teEspera')b+=`<rect class="fx" x="${px+58}" y="${py+31}" width="2" height="6" fill="${P.amarillo}" style="animation:parpadeo 1s step-end infinite"/><rect class="fx" x="${px+57}" y="${py+38}" width="2" height="2" fill="${P.amarillo}" style="animation:parpadeo 1s step-end infinite"/>`;
+    else if(mood==='listo')b+=`<path d="M55 36h2v2h-2zM57 38h2v2h-2zM59 34h2v2h-2zM61 32h2v2h-2z" transform="translate(${px} ${py})" fill="${P.verde}"/>`;
+    else if(mood!=='inactiva')b+=`<rect class="fx" x="${px+55}" y="${py+38}" width="3" height="1" fill="${col}" style="animation:parpadeo 1s step-end infinite"/>`;
+  }else{
+    b+=`<rect x="${px+12}" y="${py+36}" width="24" height="8" fill="#3A3F52"/><rect x="${px+12}" y="${py+36}" width="24" height="1" fill="#5C6380"/><rect x="${px+35}" y="${py+36}" width="1" height="8" fill="#2A2F40"/>`;
+    b+=`<path d="M23 38h2v1h1v2h-1v1h-2v-1h-1v-2h1z" transform="translate(${px} ${py})" fill="${col}"/>`;
+    if(mood==='teEspera')b+=`<rect class="fx" x="${px+30}" y="${py+38}" width="2" height="2" fill="${P.amarillo}" style="animation:parpadeo 1s step-end infinite"/>`;
+  }
+  return {b,css,defs,der};
+}
+/* un piso por sesión: el escritorio de Claude y al lado los de sus subagentes */
+function piso(s,v,{arriba,u}){
+  const W=364,FH=128,py=50,an=ANCHO[v];let b='',css='',defs='';
+  b+=`<rect width="${W}" height="88" fill="url(#${u}l)"/><rect y="88" width="${W}" height="${FH-88}" fill="#0A0C12"/><rect y="88" width="${W}" height="1" fill="#2A2F40"/><rect y="106" width="${W}" height="1" fill="#0E111A"/>`;
+  b+=`<rect x="8" y="8" width="${Math.min(200,60+s.rama.length*5)}" height="16" rx="2" fill="#0B0E15"/><text x="14" y="20" font-size="10" font-weight="700" fill="#E6E7EB">${s.repo}<tspan fill="${P.amarillo}"> · #${s.tarea}</tspan><tspan fill="#8B909C" font-weight="400"> · ${s.rama}</tspan></text>`;
+  if(arriba){b+=`<rect x="262" y="8" width="56" height="34" fill="#262B3A"/><rect x="265" y="11" width="50" height="28" fill="#0A1226"/><rect x="304" y="14" width="5" height="5" fill="#F2D58A"/><rect x="289" y="11" width="2" height="28" fill="#262B3A"/>`;
+    [[270,16],[280,30],[298,33],[310,28]].forEach(([x,y],i)=>b+=`<rect x="${x}" y="${y}" width="1" height="1" fill="#fff" style="animation:titila 2.4s ease-in-out ${-i*.5}s infinite"/>`);
+    b+=`<rect x="330" y="10" width="16" height="16" fill="#262B3A"/><rect x="332" y="12" width="12" height="12" fill="#E9EAEE"/><rect x="337.5" y="13" width="1" height="5" fill="#0B0D12" style="transform-origin:338px 18px;animation:gira 12s steps(12) infinite"/>`;}
+  else b+=`<rect x="276" y="12" width="30" height="22" fill="#262B3A"/><rect x="279" y="15" width="24" height="16" fill="#16213A"/><rect x="282" y="24" width="8" height="7" fill="${P.verde}" opacity=".5"/><rect x="289" y="20" width="11" height="11" fill="${P.azul}" opacity=".45"/>`;
+  b+=`<rect x="38" y="0" width="2" height="26" fill="#2A2F40"/><rect x="32" y="26" width="14" height="4" fill="#2A2F40"/><rect x="36" y="30" width="6" height="2" fill="${P.amarillo}"/><polygon points="33,32 45,32 92,112 -14,112" fill="${P.amarillo}" style="opacity:.05;animation:luz 5s ease-in-out infinite"/>`;
+  const capo=Math.floor((W-an.orq)/an.sub),subs=s.sub.slice(0,capo);
+  const o=puesto({animo:s.animo,color:P.crema,pj:'antena'},14,py,v,{orq:true,u:u+'o'});b+=o.b;css+=o.css;defs+=o.defs;
+  b+=`<text x="38" y="122" text-anchor="middle" font-size="10" font-weight="700" fill="${P.crema}">Claude</text>`;
+  subs.forEach((a,i)=>{const x=an.orq+i*an.sub-4,r=puesto(a,x,py,v,{u:u+'a'+i});b+=r.b;css+=r.css;defs+=r.defs;
+    b+=`<text x="${x+24}" y="122" text-anchor="middle" font-size="10" font-weight="700" fill="${a.color}">${a.nombre}${a.tipo?`<tspan fill="#5F6573" font-weight="400"> ${a.tipo}</tspan>`:''}</text>`;});
+  if(s.sub.length>capo)b+=`<text x="356" y="80" text-anchor="end" font-size="11" fill="#8B909C">+${s.sub.length-capo}</text>`;
+  return {b,css,defs};
+}
+function sala(p,v){
+  const u='t'+(UID++),W=364,FH=128;let b='',css='',defs='';
+  p.sesiones.forEach((s,f)=>{const r=piso({...s,repo:p.repo},v,{arriba:f===0,u:u+'f'+f});css+=r.css;defs+=r.defs;
+    b+=`<g transform="translate(0 ${f*FH})">${r.b}</g>`;if(f>0)b+=`<rect y="${f*FH-3}" width="${W}" height="5" fill="#1C2130"/><rect y="${f*FH+2}" width="${W}" height="1" fill="#2A2F40"/>`;});
+  const H=p.sesiones.length*FH;
+  const body=`<defs><clipPath id="${u}c"><rect width="${W}" height="${H}" rx="6"/></clipPath>${p.sesiones.map((_,f)=>`<pattern id="${u}f${f}l" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#111522"/><rect y="7" width="16" height="1" fill="#151A2A"/><rect x="7" width="1" height="3" fill="#151A2A"/><rect x="15" y="3" width="1" height="4" fill="#151A2A"/></pattern>`).join('')}${defs}</defs><g clip-path="url(#${u}c)">${b}</g>`;
+  return svgDoc(W,H,body,css,`${p.repo}: `+p.sesiones.map(s=>`#${s.tarea}, Claude ${ANIMO[s.animo]}${s.sub.map(a=>`, ${a.nombre} ${ANIMO[a.animo]}`).join('')}`).join('; '));
+}
+/* viñeta suelta para la comparación */
+function vineta(ag,v){
+  const u='v'+(UID++),W=80,H=72;let body=`<rect width="${W}" height="56" fill="#111522"/><rect y="56" width="${W}" height="16" fill="#0A0C12"/><rect y="56" width="${W}" height="1" fill="#2A2F40"/>`,css='',defs='';
+  if(v==='hoy'){const sp=sprite('comiendo',ag.color,ag.pj,{x:16,y:6,s:2});body+=sp.g;css=sp.css;}
+  else{const px=v==='A'?8:16,r=puesto({...ag,animo:'escribiendo'},px,6,v,{u});body+=r.b;css=r.css;defs=r.defs;}
+  return svgDoc(W,H,`<defs>${defs}</defs>${body}`,css,`${ag.nombre}, ${v==='hoy'?'comiendo tokens (hoy)':'escribiendo en la notebook, variante '+v}`);
+}
+
+/* ===================== datos y página ===================== */
+const ELENCO=[{nombre:'Claude',pj:'antena',color:P.crema,nota:'orquestador'},{nombre:'Camila',pj:'gata',color:P.rosa,nota:'general-purpose'},{nombre:'Ramiro',pj:'raton',color:P.azul,nota:'nombre inventado · explore'}];
+const CATALOGO={repo:'catalogo',sesiones:[
+  {tarea:60,rama:'feat/60-cupones',animo:'escribiendo',sub:[
+    {nombre:'Camila',pj:'gata',color:P.rosa,animo:'escribiendo'},
+    {nombre:'Ramiro',tipo:'explore',pj:'raton',color:P.azul,animo:'escribiendo'},
+    {nombre:'Inés',tipo:'explore',pj:'cuernos',color:P.verde,animo:'leyendo'}]},
+  {tarea:58,rama:'fix/58-stock',animo:'teEspera',sub:[]},
+  {tarea:61,rama:'feat/61-envios',animo:'inactiva',sub:[
+    {nombre:'Delfina',pj:'mono',color:P.amarillo,animo:'listo'}]}
+]};
+let VAR='A';
+function render(){
+  UID=0;
+  $('#tabla').innerHTML=`<span class="esq"></span><span class="col hoy">Hoy · comiendo tokens</span><span class="col">A · pantalla a la vista</span><span class="col">B · detrás de la tapa</span>`+
+    ELENCO.map(a=>`<span class="fila">${a.nombre}<small>${a.nota}</small></span><div class="celda hoy">${vineta(a,'hoy')}</div><div class="celda">${vineta(a,'A')}</div><div class="celda">${vineta(a,'B')}</div>`).join('');
+  const s=sala(CATALOGO,VAR);
+  $('#sala').innerHTML=s;
+  $('#meta').textContent=`Variante ${VAR} · source de la sala: ${(s.length/1024).toFixed(0)} KB · piso 1: Claude escribe, Camila y Ramiro escriben, Inés lee · piso 2: Claude te espera · piso 3: Claude sin actividad, hundido en la silla; Delfina terminó y festeja parada.`;
+}
+document.querySelectorAll('[data-v]').forEach(b=>b.addEventListener('click',()=>{VAR=b.dataset.v;document.querySelectorAll('[data-v]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));render();}));
+function setPausa(v){document.body.classList.toggle('pausa',v);const bt=$('#pausa');bt.setAttribute('aria-pressed',String(v));bt.textContent=v?'Reanudar animación':'Pausar animación';}
+$('#pausa').addEventListener('click',()=>setPausa(!document.body.classList.contains('pausa')));
+render();
+if(matchMedia('(prefers-reduced-motion: reduce)').matches)setPausa(true);
+</script>
+</body>
+</html>

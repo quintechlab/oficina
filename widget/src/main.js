@@ -5,6 +5,7 @@
 import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, escapar } from './logica.js'
 import { companeros } from './equipo.js'
 import { iconoBandeja, textoInsignia } from './bandeja.js'
+import { zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, posicionEnPantalla, tamanoMini, PASO_POR_DEFECTO } from './tamano.js'
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
   prepararProyecto, firmaTerrario, terrario, lista, globo, avisoOtroProyecto, vacio, cabeza, CLAUDE,
@@ -40,6 +41,8 @@ const st = {
   avisar: true,
   pausa: false,
   mini: false,
+  /** Tamaño en porcentaje del original: 100, 125, 150, 175 o 200. */
+  tamano: PASO_POR_DEFECTO,
   /** -1 o 1 mientras se navega con ◀ ▶, para animar la entrada de la escena. */
   direccion: 0,
   firmas: {},
@@ -409,12 +412,13 @@ async function ponerMini(mini) {
       st.mini = true
       document.body.classList.add('mini')
       $('#tira').hidden = false
-      await invocar('modo_mini', { mini: true })
+      await invocar('modo_mini', { mini: true, ...tamanoMini(zoomDe(st.tamano)) })
     } else {
       await invocar('modo_mini', { mini: false })
       st.mini = false
       document.body.classList.remove('mini')
       $('#tira').hidden = true
+      programarAjuste()
     }
   } catch (e) {
     st.error = `No se pudo cambiar el tamaño: ${e}`
@@ -519,6 +523,67 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') { e.preventDefault(); moverProyecto(1) }
 })
 
+// ------------------------------------------------------------------ tamaño de la ventana
+
+/**
+ * Tamaño elegido (Ctrl + / Ctrl − o el submenú "Tamaño"): todo, dibujo y texto, crece con el
+ * mismo zoom. Después la ventana se ajusta al contenido.
+ */
+async function aplicarTamano(porcentaje) {
+  st.tamano = porcentaje
+  document.documentElement.style.zoom = String(zoomDe(porcentaje))
+  if (st.mini) await invocar('modo_mini', { mini: true, ...tamanoMini(zoomDe(porcentaje)) }).catch(() => {})
+  programarAjuste()
+}
+
+// Ctrl + / Ctrl − / Ctrl 0 con la ventana enfocada: el paso lo decide y lo guarda la app
+document.addEventListener('keydown', e => {
+  const direccion = direccionDeTecla(e)
+  if (direccion === null || !tauri?.core) return
+  e.preventDefault()
+  invocar('cambiar_tamano', { direccion }).catch(() => {})
+})
+
+/** Tamaño natural del contenido, en px de la ventana (ya con el zoom aplicado). */
+function medirContenido() {
+  const titulo = $('#titulo'), cuerpo = $('#cuerpo'), contenido = $('#contenido')
+  const rTitulo = titulo.getBoundingClientRect(), rContenido = contenido.getBoundingClientRect()
+  // Relación entre px de la ventana y px del documento (el zoom), medida y no supuesta
+  const f = titulo.offsetHeight ? rTitulo.height / titulo.offsetHeight : 1
+  const cs = getComputedStyle(cuerpo)
+  const relleno = (a, b) => parseFloat(cs[a]) + parseFloat(cs[b])
+  const barra = cuerpo.offsetWidth - cuerpo.clientWidth
+  const borde = 2
+  return {
+    ancho: rContenido.width + (relleno('paddingLeft', 'paddingRight') + barra + borde) * f,
+    alto: rTitulo.height + rContenido.height + (relleno('paddingTop', 'paddingBottom') + borde) * f,
+  }
+}
+
+let esperaAjuste = null
+/** Junta los cambios seguidos (100 ms) y ajusta una sola vez. */
+function programarAjuste() {
+  clearTimeout(esperaAjuste)
+  esperaAjuste = setTimeout(ajustarVentana, 100)
+}
+
+async function ajustarVentana() {
+  if (st.mini || !tauri?.core) return
+  try {
+    const g = await invocar('geometria')
+    const deseado = tamanoDeseado(medirContenido(), g.area)
+    if (!debeAjustar({ ancho: g.ancho, alto: g.alto }, deseado)) return
+    const pos = posicionEnPantalla({ x: g.x, y: g.y }, deseado, g.area)
+    await invocar('ajustar_ventana', { ...deseado, ...pos })
+  } catch (e) {
+    registrar(`tamaño: ${e}`)
+  }
+}
+
+// El contenido cambia (otro proyecto, globo, compañero desplegado, tamaño elegido): la ventana lo sigue
+new ResizeObserver(() => programarAjuste()).observe($('#contenido'))
+new ResizeObserver(() => programarAjuste()).observe($('#titulo'))
+
 async function iniciar() {
   if (tauri?.core) {
     try {
@@ -526,11 +591,17 @@ async function iniciar() {
       if (typeof m.arriba === 'boolean') ponerArriba(m.arriba)
       if (typeof m.avisar === 'boolean') st.avisar = m.avisar
       if (typeof m.pausa === 'boolean') ponerPausa(m.pausa)
-    } catch { /* el menú todavía no existe: quedan los valores por defecto */ }
+      await aplicarTamano(typeof m.tamano === 'number' ? m.tamano : PASO_POR_DEFECTO)
+    } catch { await aplicarTamano(PASO_POR_DEFECTO) }
     const escuchar = tauri.event.listen
     escuchar('oficina://arriba', ev => ponerArriba(!!ev.payload))
     escuchar('oficina://avisar', ev => { st.avisar = !!ev.payload })
     escuchar('oficina://pausa', ev => ponerPausa(!!ev.payload))
+    escuchar('oficina://tamano', ev => aplicarTamano(Number(ev.payload)))
+    // Se abrió Oficina otra vez estando en la tira mini: volver a la ventana completa
+    escuchar('oficina://expandir', () => ponerMini(false))
+  } else {
+    await aplicarTamano(PASO_POR_DEFECTO)
   }
   ciclo()
   cicloEquipo()

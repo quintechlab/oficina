@@ -47,7 +47,8 @@ test('ánimo de la sesión según su actividad', () => {
   assert.equal(a('buscando NOMBRES'), 'leyendo')
   assert.equal(a('corriendo npm test'), 'comando')
   assert.equal(a('editando logica.ts'), 'editando')
-  assert.equal(a('esperándote'), 'teEspera')
+  // "esperándote" sin preguntas es esperar tu mensaje, no una pregunta
+  assert.equal(a('esperándote'), 'esperando')
   assert.equal(a(null), 'esperando')
 })
 
@@ -63,10 +64,11 @@ test('una sesión que no publica hace más de 20 minutos está inactiva', () => 
 test('ánimo del subagente: festeja 6 s al terminar y después descansa', () => {
   const ag = extra => ({ id: 'a1', nombre: 'Tomás', inventado: false, tipo: 'Explore', tarea: 'mapa', desde: hace(5 * MIN), estado: 'trabajando', hasta: null, ...extra })
   assert.equal(animoSubagente(ag({ estado: 'listo', hasta: hace(3000) }), AHORA), 'listo')
-  assert.equal(animoSubagente(ag({ estado: 'listo', hasta: hace(7000) }), AHORA), 'reposo')
-  assert.equal(animoSubagente(ag({ estado: 'fallo', hasta: hace(MIN) }), AHORA), 'fallo')
+  assert.equal(animoSubagente(ag({ estado: 'listo', hasta: hace(7000) }), AHORA), 'durmiendo')
+  assert.equal(animoSubagente(ag({ estado: 'fallo', hasta: hace(3000) }), AHORA), 'fallo')
+  assert.equal(animoSubagente(ag({ estado: 'fallo', hasta: hace(MIN) }), AHORA), 'durmiendo')
   assert.equal(animoSubagente(ag({ tipo: 'Explore' }), AHORA), 'leyendo')
-  assert.equal(animoSubagente(ag({ tipo: 'general-purpose' }), AHORA), 'comiendo')
+  assert.equal(animoSubagente(ag({ tipo: 'general-purpose' }), AHORA), 'escribiendo')
   assert.equal(animoSubagente(ag({}), AHORA, true), 'teEspera')
 })
 
@@ -183,4 +185,35 @@ test('resumen de la tira mini sin preguntas', () => {
   // Sin subagentes, la tira muestra a Claude con el ánimo de la sesión
   assert.deepEqual(r.caras.map(c => [c.nombre, c.animo]), [['Claude', 'editando']])
   assert.equal(resumenMini([], AHORA).titulo, 'Sin sesiones abiertas')
+})
+
+// ---- línea de Claude de cada sesión, por orden de prioridad
+const trabajando = { id: 'a1', nombre: 'Camila', inventado: false, tipo: 'general-purpose', tarea: 't', desde: hace(MIN), estado: 'trabajando', hasta: null }
+const terminado = { ...trabajando, id: 'a2', estado: 'listo', hasta: hace(5 * MIN) }
+const propia = { id: 'q1', agente: null, desde: hace(MIN), items: [] }
+
+test('regla 1: con una pregunta pendiente, te hace una pregunta (aunque haya subagentes trabajando)', () => {
+  const s = sesion({ actividad: 'esperándote', preguntas: [propia], agentes: [trabajando] })
+  assert.equal(animoSesion(s, AHORA), 'teEspera')
+  assert.equal(textoActividad(s, AHORA), 'ahora · te hace una pregunta')
+})
+
+test('regla 2: sin preguntas y con subagentes trabajando, coordina el equipo (aunque diga "esperándote")', () => {
+  const s = sesion({ actividad: 'esperándote', preguntas: [], agentes: [trabajando, terminado] })
+  assert.equal(animoSesion(s, AHORA), 'coordinando')
+  assert.equal(textoActividad(s, AHORA), 'ahora · coordinando el equipo')
+})
+
+test('regla 3: "esperándote" sin preguntas ni subagentes trabajando es esperar tu mensaje, tranquilo', () => {
+  const s = sesion({ actividad: 'esperándote', preguntas: [], agentes: [terminado] })
+  assert.equal(animoSesion(s, AHORA), 'esperando')
+  assert.equal(textoActividad(s, AHORA), 'ahora · esperando tu mensaje')
+  // Aunque haga rato que no publica: Claude queda despierto, no se duerme
+  assert.equal(animoSesion({ ...s, actualizado: hace(40 * MIN) }, AHORA), 'esperando')
+})
+
+test('regla 4: si no, la actividad tal cual', () => {
+  const s = sesion({ actividad: 'corriendo npm test', preguntas: [], agentes: [terminado] })
+  assert.equal(animoSesion(s, AHORA), 'comando')
+  assert.equal(textoActividad(s, AHORA), 'ahora · corriendo npm test')
 })

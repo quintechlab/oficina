@@ -95,6 +95,14 @@ El widget lee lo que escribe cada sesión en `%USERPROFILE%\.claude\oficina\sesi
 
 "Arrancar con Windows", en el menú de la bandeja, viene apagado: solo se prende si lo marcás (agrega el widget al inicio de tu usuario en Windows) y la marca siempre muestra si de verdad está prendido.
 
+### Tamaño y una sola ventana
+
+La ventana toma el ancho y el alto de lo que muestra (terrario, globo, habitación del compañero) y no se estira a mano; si no entra, queda en el 90 % de la pantalla y el contenido se desplaza. El tamaño va de 100 % (el original, el más chico) a 200 %, en pasos de 25 %: **Ctrl +** agranda, **Ctrl −** achica y **Ctrl 0** vuelve a 100 % con la ventana enfocada, o desde **Tamaño** en la bandeja (Agrandar, Achicar y el porcentaje actual). Todo crece junto, dibujo y texto; 100, 150 y 200 % quedan nítidos y 125 y 175 % pueden verse un poco suaves. El tamaño se recuerda, y la ventana vuelve a abrir donde estaba.
+
+En la sala, la línea de Claude dice "te hace una pregunta" solo si tiene una pregunta pendiente; si sus subagentes siguen trabajando, "coordinando el equipo"; si terminó su turno, "esperando tu mensaje". Los subagentes que terminaron (o fallaron) se duermen en su escritorio, con la notebook apagada.
+
+Solo puede haber una Oficina abierta por máquina: abrirla otra vez muestra la que ya está (aunque esté en la bandeja o en la tira mini).
+
 ### Desinstalar
 
 Configuración de Windows → Aplicaciones → **Aplicaciones instaladas** → Oficina → Desinstalar. Si estaba prendido "Arrancar con Windows", apagalo antes desde el menú de la bandeja. Las carpetas de `%USERPROFILE%\.claude\oficina` son del mod y quedan.

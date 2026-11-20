@@ -26,7 +26,7 @@ const OJOS = {
   '-': [[0, 2], [1, 2], [2, 2], [3, 2], [4, 2]], '^': [[0, 3], [1, 2], [2, 1], [3, 2], [4, 3], [1, 3], [3, 3]], u: [[0, 2], [1, 3], [2, 3], [3, 3], [4, 2]],
   x: [[0, 0], [4, 0], [1, 1], [3, 1], [2, 2], [1, 3], [3, 3], [0, 4], [4, 4]], '>': [[1, 0], [2, 1], [3, 2], [2, 3], [1, 4]], '<': [[3, 0], [2, 1], [1, 2], [2, 3], [3, 4]],
 }
-const MIRA = { o: [0, 0], s: [0, 0], L: [-1, 0], R: [1, 0], U: [0, -1], l: [-1, 1], r: [1, 1] }
+const MIRA = { o: [0, 0], s: [0, 0], L: [-1, 0], R: [1, 0], U: [0, -1], D: [0, 1], l: [-1, 1], r: [1, 1] }
 const BOCA = { '.': [[-2, 0], [1, 0], [-1, 1], [0, 1]], _: [[-1, 0], [0, 0]], O: [[-1, 0], [0, 0], [-1, 1], [0, 1]], D: [[-2, 0], [-1, 0], [0, 0], [1, 0]], '~': [[-2, 1], [-1, 0], [0, 1], [1, 0]] }
 
 /** Las celdas de un cuadro: mapa "x,y" → color. */
@@ -75,7 +75,11 @@ export function pixeles(f, color, pj, animo) {
   const up1 = [[cx + 4, bt], [cx + 5, bt], [cx + 6, hb], [cx + 7, hb - 1], [cx + 8, hb - 2], [cx + 8, hb - 3], [cx + 9, hb - 3], [cx + 8, hb - 4], [cx + 9, hb - 4]]
   const up2 = [[cx + 4, bt], [cx + 5, bt], [cx + 6, hb], [cx + 7, hb], [cx + 8, hb - 1], [cx + 9, hb - 1], [cx + 9, hb - 2], [cx + 10, hb - 2], [cx + 10, hb - 1]]
   const nub = [[br + 1, bt + 1]]
-  ;(a === 1 || a === 3 ? up1 : a === 2 ? up2 : nub).forEach(([x, y]) => F(x, y, color))
+  // 4/5: brazo derecho estirado al teclado de la notebook, la pata abajo o arriba (tecleando)
+  const tecla = [[cx + 4, bt], [cx + 5, bt], [cx + 6, bt], [cx + 7, bt]]
+  const pata4 = [[cx + 8, bt], [cx + 9, bt]], pata5 = [[cx + 8, bt - 1], [cx + 9, bt - 1], [cx + 7, bt - 1]]
+  const derecha = a === 4 ? [...tecla, ...pata4] : a === 5 ? [...tecla, ...pata5] : a === 1 || a === 3 ? up1 : a === 2 ? up2 : nub
+  derecha.forEach(([x, y]) => F(x, y, color))
   ;(a === 3 ? up1 : nub).forEach(([x, y]) => F(mir(x), y, color))
   if (f.k) {
     for (let x = cx - 4; x <= cx + 3; x++) { F(x, hb, (x === cx - 1 || x === cx) ? '#8A90A0' : '#F3EBD8'); F(x, bt, P.amarillo); F(x, bt + 1, P.amarillo); F(x, bt + 2, '#B98418') }
@@ -133,8 +137,10 @@ function gl(n, x, y, c, st) {
 }
 
 /** Efectos alrededor de la mascota según el ánimo (signos, chispas, notas, confeti). */
-function efectos(a) {
+function efectos(a, color) {
   switch (a) {
+    // Chispas de las teclas: blanca y del color del agente, alternadas
+    case 'escribiendo': return `<rect class="fx" x="22" y="18" width="1" height="1" fill="#FFFFFF" style="opacity:0;animation:tap .48s step-end infinite"/><rect class="fx" x="20" y="17" width="1" height="1" fill="${color}" style="opacity:0;animation:tap .48s step-end -.24s infinite"/>`
     case 'pensando': return gl('q', 20, 4, P.amarillo, 'animation:flota 2s ease-in-out infinite')
     case 'comando': return gl('gota', 1, 10, P.azul, 'opacity:0;animation:gota 1.1s ease-out infinite') + `<rect x="20" y="19" width="4" height="4" fill="#1B2030"/><rect x="20" y="19" width="4" height="1" fill="#2E3548"/><rect class="fx" x="21" y="21" width="2" height="1" fill="${P.verde}" style="animation:parpadeo .5s step-end infinite"/>`
     case 'editando': return gl('chispa', 20, 4, P.amarillo, 'animation:brilla 1.2s ease-in-out infinite') + gl('chispa', 0, 9, P.rosa, 'animation:brilla 1.2s ease-in-out -.6s infinite')
@@ -155,7 +161,14 @@ function efectos(a) {
 }
 
 /** Secuencias de cuadros por ánimo (p: pose, o: ojos, m: boca, a: brazo, k: libro, lap: lápiz). */
+/** Un golpe de tecla: mira la pantalla y alterna la pata arriba y abajo. */
+const TEC = n => ({ p: 'S', o: 'r', m: '.', a: n % 2 ? 5 : 4, ms: 120 })
+
 const SEC = {
+  // Coordina el equipo: mira hacia sus subagentes, les hace una seña y vuelve a teclear un poco
+  coordinando: [{ p: 'S', o: 'R', ms: 700 }, { p: 'S', o: 'R', m: 'D', a: 1, ms: 260 }, { p: 'S', o: 'R', m: 'D', a: 2, ms: 260 }, { p: 'S', o: 'R', ms: 500 }, TEC(0), TEC(1), TEC(2), TEC(3), { p: 'S', o: '-', a: 4, ms: 100 }, TEC(5), { p: 'S', o: 'R', ms: 600 }],
+  // Teclea mirando la pantalla, parpadea, y de vez en cuando levanta la vista hacia vos
+  escribiendo: [TEC(0), TEC(1), TEC(2), TEC(3), { p: 'S', o: '-', a: 4, ms: 100 }, TEC(5), TEC(6), TEC(7), TEC(8), TEC(9), { p: 'S', o: 'o', m: 'D', a: 4, ms: 520 }, { p: 'S', o: 's', m: 'D', a: 4, ms: 200 }, TEC(1), TEC(2)],
   pensando: [{ p: 'S', o: 'o', ms: 700 }, { p: 'S', o: 's', ms: 300 }, { p: 'S', o: '-', ms: 110 }, { p: 'S', o: 'U', m: '_', dx: 1, ms: 600 }, { p: 'S', o: 'U', m: '_', dx: 1, ms: 500 }, { p: 'S', o: 'o', ms: 400 }, { p: 'T', o: 'o', ms: 140 }, { p: 'S', o: 's', ms: 400 }],
   leyendo: [{ p: 'S', o: 'l', k: 1, ms: 700 }, { p: 'S', o: 'l', k: 2, ms: 160 }, { p: 'S', o: 'r', k: 1, ms: 700 }, { p: 'S', o: '-', k: 1, ms: 110 }, { p: 'S', o: 'r', k: 1, ms: 500 }, { p: 'S', o: 'l', k: 1, ms: 600 }],
   comando: [{ p: 'S', o: '>', m: 'O', ms: 160 }, { p: 'Q', o: '>', m: '_', ms: 110 }, { p: 'T', o: '>', m: 'D', ms: 80 }, { p: 'H', o: '>', m: 'D', ms: 140 }, { p: 'T', o: '>', m: 'D', ms: 80 }, { p: 'Q', o: '>', m: '_', ms: 110 }, { p: 'S', o: '>', m: 'O', ms: 180 }],
@@ -187,7 +200,11 @@ export const KF = `.fx{transform-box:fill-box;transform-origin:center}
 @keyframes sube{to{transform:translateY(-18px)}}
 @keyframes gira{to{transform:rotate(360deg)}}
 @keyframes luz{0%,100%{opacity:.05}50%{opacity:.09}}
-@keyframes mota{0%,100%{transform:translate(0,0);opacity:.15}50%{transform:translate(4px,-6px);opacity:.8}}`
+@keyframes mota{0%,100%{transform:translate(0,0);opacity:.15}50%{transform:translate(4px,-6px);opacity:.8}}
+@keyframes tap{0%{opacity:1;transform:scale(1)}50%{opacity:0;transform:scale(.4)}}
+@keyframes codigo{0%{transform:translateY(0);opacity:0}15%{opacity:1}100%{transform:translateY(-9px);opacity:0}}
+@keyframes subeCodigo{to{transform:translateY(-12px)}}
+@keyframes luzPantalla{0%,100%{opacity:.05}50%{opacity:.1}}`
 
 let UID = 0
 /** Prefijo único para ids y keyframes de cada dibujo. */
@@ -207,7 +224,7 @@ export function sprite(animo, color, pj, { x = 0, y = 0, s = 2 } = {}) {
       g += `<g style="opacity:0;animation:${u}f${i} ${D}ms step-end infinite">${aPath(pixeles(f, col, pj, animo))}</g>`
     })
   }
-  g += efectos(animo)
+  g += efectos(animo, color)
   const dim = animo === 'reposo' ? 'opacity:.45' : ''
   return { g: `<g transform="translate(${x} ${y}) scale(${s})"><g style="${dim}">${g}</g></g>`, css }
 }

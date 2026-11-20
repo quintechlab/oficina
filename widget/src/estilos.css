@@ -36,7 +36,7 @@ button { font: inherit; color: inherit }
 .tb svg { width: 14px; height: 14px; shape-rendering: crispEdges }
 
 /* cuerpo con desplazamiento propio */
-.cuerpo-w { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 18px 12px; scrollbar-width: thin; scrollbar-color: #2A2F40 transparent }
+.cuerpo-w { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; padding: 12px 18px 12px; scrollbar-width: thin; scrollbar-color: #2A2F40 transparent }
 .rot { font: 700 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--tenue) }
 .rot i { font-style: normal; color: var(--amarillo) }
 .nav { display: flex; align-items: center; gap: 2px; margin: 2px 0 4px }
@@ -50,7 +50,7 @@ button { font: inherit; color: inherit }
 .nav-p i { width: 6px; height: 6px; border-radius: 50%; border: 1px solid #5F6573; transition: background .2s, border-color .2s }
 .nav-p i.ya { background: var(--crema); border-color: var(--crema) }
 .nav-p i.pr { background: var(--amarillo); border-color: var(--amarillo) }
-.escena svg { display: block; max-width: 100%; height: auto }
+.escena svg { display: block; max-width: none }
 .escena.cambia svg { animation: entra-escena .35s cubic-bezier(.2, .9, .25, 1.1) both }
 @keyframes entra-escena { from { opacity: 0; transform: translateX(var(--desde, 0)) } }
 .lista { margin-top: 10px; display: grid; gap: 1px }
@@ -150,3 +150,8 @@ button.op:active { transform: translate(1px, 1px); box-shadow: none }
 .globo.sale { animation: sale .35s ease-in both }
 @keyframes sale { to { opacity: 0; transform: scale(.4) translateY(30px) } }
 @media (prefers-reduced-motion: reduce) { .globo.sale { animation: none } button.op { transition: none } }
+
+/* Ventana al tamaño del contenido: el ancho lo da el terrario (o el mínimo) y el texto no lo estira.
+   Todo crece con el tamaño elegido en la bandeja (zoom entero, ver tamano.js). */
+#contenido { width: max-content; min-width: 284px }
+#contenido > :not(.escena):not(#equipo), #equipo > :not(.compa), .compa > :not(.escena) { contain: inline-size }

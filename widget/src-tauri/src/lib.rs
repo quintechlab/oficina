@@ -1,31 +1,32 @@
 mod arranque;
 mod diagnostico;
 mod equipo;
+mod preferencias;
 mod respuestas;
 mod sesiones;
 
 use std::sync::Mutex;
 
 use tauri::image::Image;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, State, WebviewWindow, Wry};
+use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewWindow, Wry};
 use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 const VENTANA: &str = "principal";
 const BANDEJA: &str = "bandeja";
-/// Tamaño de la ventana expandida por defecto y de la tira mini (boceto: 400 × 56).
+/// Tamaño por defecto de la ventana expandida. Después manda el contenido (`ajustar_ventana`).
 const ANCHO: f64 = 400.0;
 const ALTO: f64 = 620.0;
-const ALTO_MINI: f64 = 56.0;
-const MINIMO: (f64, f64) = (360.0, 320.0);
+/// Mínimo de la ventana expandida (el mismo que `MINIMO` de `tamano.js`).
+const MINIMO: (f64, f64) = (320.0, 120.0);
 
-/// Qué guarda la ventana con posición y tamaño: todo menos la visibilidad (si se sale con la
-/// ventana en la bandeja, al volver a abrir igual se muestra).
+/// Qué se recuerda de la ventana entre usos.
 fn banderas_estado() -> StateFlags {
-    StateFlags::all() & !StateFlags::VISIBLE
+    // Solo la posición: el tamaño lo decide el contenido y el estado guardado no tiene que pelearle
+    StateFlags::POSITION
 }
 
 struct Estado {
@@ -41,6 +42,9 @@ struct MenuBandeja {
     avisar: CheckMenuItem<Wry>,
     pausa: CheckMenuItem<Wry>,
     arranque: CheckMenuItem<Wry>,
+    agrandar: MenuItem<Wry>,
+    achicar: MenuItem<Wry>,
+    tamano_actual: MenuItem<Wry>,
 }
 
 fn ventana(app: &AppHandle) -> Option<WebviewWindow> {
@@ -66,21 +70,20 @@ fn alternar(app: &AppHandle) {
     }
 }
 
-/// Pasa la ventana a la tira mini o la devuelve a su tamaño anterior.
-fn aplicar_mini(v: &WebviewWindow, estado: &Estado, mini: bool) -> tauri::Result<()> {
+/// Pasa la ventana a la tira mini (del tamaño que pide el frontend según la escala elegida) o la
+/// devuelve a su tamaño anterior; después el contenido vuelve a mandar.
+fn aplicar_mini(v: &WebviewWindow, estado: &Estado, mini: bool, tira: Option<LogicalSize<f64>>) -> tauri::Result<()> {
     let mut actual = estado.mini.lock().unwrap();
-    if *actual == mini {
-        return Ok(());
-    }
     if mini {
-        let escala = v.scale_factor()?;
-        *estado.tamano_previo.lock().unwrap() = Some(v.inner_size()?.to_logical(escala));
-        v.set_min_size(Some(LogicalSize::new(ANCHO, ALTO_MINI)))?;
-        v.set_size(LogicalSize::new(ANCHO, ALTO_MINI))?;
-        v.set_resizable(false)?;
-    } else {
+        let tira = tira.unwrap_or(LogicalSize::new(ANCHO, 56.0));
+        if !*actual {
+            let escala = v.scale_factor()?;
+            *estado.tamano_previo.lock().unwrap() = Some(v.inner_size()?.to_logical(escala));
+        }
+        v.set_min_size(Some(tira))?;
+        v.set_size(tira)?;
+    } else if *actual {
         let previo = estado.tamano_previo.lock().unwrap().take().unwrap_or(LogicalSize::new(ANCHO, ALTO));
-        v.set_resizable(true)?;
         v.set_min_size(Some(LogicalSize::new(MINIMO.0, MINIMO.1)))?;
         v.set_size(previo)?;
     }
@@ -88,10 +91,61 @@ fn aplicar_mini(v: &WebviewWindow, estado: &Estado, mini: bool) -> tauri::Result
     Ok(())
 }
 
+fn ruta_preferencias(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_config_dir().ok().map(|c| c.join("preferencias.json"))
+}
+
+fn tamano_guardado(app: &AppHandle) -> u32 {
+    ruta_preferencias(app).map(|r| preferencias::leer_tamano(&r)).unwrap_or(preferencias::PASO_POR_DEFECTO)
+}
+
+/// Agranda (1), achica (-1) o vuelve a 100 % (0): guarda, actualiza el submenú y avisa a la ventana.
+fn cambiar_tamano_app(app: &AppHandle, direccion: i32) -> u32 {
+    let nuevo = preferencias::paso(tamano_guardado(app), direccion);
+    if let Some(r) = ruta_preferencias(app) {
+        let _ = preferencias::guardar_tamano(&r, nuevo);
+    }
+    let (puede_agrandar, puede_achicar, texto) = preferencias::menu_tamano(nuevo);
+    if let Some(m) = app.state::<Estado>().menu.lock().unwrap().as_ref() {
+        let _ = m.agrandar.set_enabled(puede_agrandar);
+        let _ = m.achicar.set_enabled(puede_achicar);
+        let _ = m.tamano_actual.set_text(texto);
+    }
+    let _ = app.emit("oficina://tamano", nuevo);
+    nuevo
+}
+
+/// Segunda vez que se abre Oficina: no hay otra ventana, se muestra la que ya está.
+fn al_segundo_arranque(app: &AppHandle) {
+    let Some(v) = ventana(app) else { return };
+    let mini = *app.state::<Estado>().mini.lock().unwrap();
+    let acciones = preferencias::al_segundo_arranque(
+        v.is_visible().unwrap_or(false),
+        v.is_minimized().unwrap_or(false),
+        mini,
+    );
+    for accion in acciones {
+        match accion {
+            preferencias::Accion::SalirDeMini => {
+                let _ = app.emit("oficina://expandir", ());
+            }
+            preferencias::Accion::Restaurar => {
+                let _ = v.unminimize();
+            }
+            preferencias::Accion::Mostrar => {
+                let _ = v.show();
+            }
+            preferencias::Accion::Enfocar => {
+                let _ = v.set_focus();
+            }
+        }
+    }
+}
+
 fn salir(app: &AppHandle) {
     // Guardar el tamaño expandido, no el de la tira mini
     if let Some(v) = ventana(app) {
-        let _ = aplicar_mini(&v, &app.state::<Estado>(), false);
+        let _ = aplicar_mini(&v, &app.state::<Estado>(), false, None);
     }
     let _ = app.save_window_state(banderas_estado());
     app.exit(0);
@@ -146,20 +200,66 @@ fn fijar_arriba(app: AppHandle, estado: State<'_, Estado>, valor: bool) -> Resul
 
 /// Marcas del menú de la bandeja, para que la ventana arranque sincronizada.
 #[tauri::command]
-fn estado_menu(estado: State<'_, Estado>) -> serde_json::Value {
+fn estado_menu(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
     let menu = estado.menu.lock().unwrap();
     let marca = |item: Option<&CheckMenuItem<Wry>>| item.and_then(|i| i.is_checked().ok());
     serde_json::json!({
         "arriba": marca(menu.as_ref().map(|m| &m.arriba)),
         "avisar": marca(menu.as_ref().map(|m| &m.avisar)),
         "pausa": marca(menu.as_ref().map(|m| &m.pausa)),
+        "tamano": tamano_guardado(&app),
     })
 }
 
+/// Ctrl + / Ctrl − / Ctrl 0 desde la ventana: el mismo cambio que el submenú "Tamaño".
 #[tauri::command]
-fn modo_mini(app: AppHandle, estado: State<'_, Estado>, mini: bool) -> Result<(), String> {
+fn cambiar_tamano(app: AppHandle, direccion: i32) -> u32 {
+    cambiar_tamano_app(&app, direccion.signum())
+}
+
+/// Posición y tamaño de la ventana y área de trabajo de su monitor, en píxeles lógicos.
+#[tauri::command]
+fn geometria(app: AppHandle) -> Result<serde_json::Value, String> {
     let v = ventana(&app).ok_or("sin ventana")?;
-    aplicar_mini(&v, &estado, mini).map_err(|e| e.to_string())
+    let escala = v.scale_factor().map_err(|e| e.to_string())?;
+    let pos = v.outer_position().map_err(|e| e.to_string())?.to_logical::<f64>(escala);
+    let tam = v.inner_size().map_err(|e| e.to_string())?.to_logical::<f64>(escala);
+    let monitor = v.current_monitor().map_err(|e| e.to_string())?.ok_or("sin monitor")?;
+    let area = monitor.work_area();
+    let esc_m = monitor.scale_factor();
+    Ok(serde_json::json!({
+        "x": pos.x, "y": pos.y, "ancho": tam.width, "alto": tam.height,
+        "area": {
+            "x": area.position.x as f64 / esc_m, "y": area.position.y as f64 / esc_m,
+            "ancho": area.size.width as f64 / esc_m, "alto": area.size.height as f64 / esc_m,
+        },
+    }))
+}
+
+/// Ajusta la ventana al contenido: tamaño y posición ya calculados por `tamano.js`.
+/// En la tira mini no hace nada (la tira tiene su propio tamaño).
+#[tauri::command]
+fn ajustar_ventana(app: AppHandle, estado: State<'_, Estado>, ancho: f64, alto: f64, x: f64, y: f64) -> Result<(), String> {
+    if *estado.mini.lock().unwrap() {
+        return Ok(());
+    }
+    let valido = |n: f64| n.is_finite() && n.abs() < 100_000.0;
+    if !(valido(ancho) && valido(alto) && valido(x) && valido(y)) || ancho < 1.0 || alto < 1.0 {
+        return Err(String::from("tamaño inválido"));
+    }
+    let v = ventana(&app).ok_or("sin ventana")?;
+    v.set_size(LogicalSize::new(ancho, alto)).map_err(|e| e.to_string())?;
+    v.set_position(LogicalPosition::new(x, y)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn modo_mini(app: AppHandle, estado: State<'_, Estado>, mini: bool, ancho: Option<f64>, alto: Option<f64>) -> Result<(), String> {
+    let v = ventana(&app).ok_or("sin ventana")?;
+    let tira = match (ancho, alto) {
+        (Some(a), Some(h)) if a.is_finite() && h.is_finite() && a >= 1.0 && h >= 1.0 => Some(LogicalSize::new(a, h)),
+        _ => None,
+    };
+    aplicar_mini(&v, &estado, mini, tira).map_err(|e| e.to_string())
 }
 
 /// Esconde la ventana en la bandeja (la × de la barra de título).
@@ -225,9 +325,15 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
     // Apagado salvo que el usuario lo haya prendido: la marca sale del estado real de Windows
     let arranca = arranque::marca_real(app.autolaunch().is_enabled());
     let arranque_item = CheckMenuItem::with_id(app, "arranque", "Arrancar con Windows", true, arranca, None::<&str>)?;
+    // Submenú "Tamaño": agrandar y achicar de a un paso (100 % a 200 %) y el porcentaje actual
+    let (puede_agrandar, puede_achicar, texto) = preferencias::menu_tamano(tamano_guardado(app));
+    let agrandar = MenuItem::with_id(app, "tamano:agrandar", "Agrandar", puede_agrandar, Some("Ctrl+Plus"))?;
+    let achicar = MenuItem::with_id(app, "tamano:achicar", "Achicar", puede_achicar, Some("Ctrl+Minus"))?;
+    let tamano_actual = MenuItem::with_id(app, "tamano:actual", texto, false, None::<&str>)?;
+    let submenu = Submenu::with_items(app, "Tamaño", true, &[&agrandar, &achicar, &PredefinedMenuItem::separator(app)?, &tamano_actual])?;
     let salir_item = MenuItem::with_id(app, "salir", "Salir", true, None::<&str>)?;
     let separador = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&mostrar_item, &arriba, &avisar_item, &pausa, &arranque_item, &separador, &salir_item])?;
+    let menu = Menu::with_items(app, &[&mostrar_item, &arriba, &avisar_item, &pausa, &submenu, &arranque_item, &separador, &salir_item])?;
 
     let mut bandeja = TrayIconBuilder::with_id(BANDEJA)
         .menu(&menu)
@@ -262,6 +368,12 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
                         let _ = m.arranque.set_checked(real);
                     }
                 }
+                "tamano:agrandar" => {
+                    cambiar_tamano_app(app, 1);
+                }
+                "tamano:achicar" => {
+                    cambiar_tamano_app(app, -1);
+                }
                 "salir" => salir(app),
                 _ => {}
             }
@@ -275,13 +387,15 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
         bandeja = bandeja.icon(icono.clone());
     }
     bandeja.build(app)?;
-    *app.state::<Estado>().menu.lock().unwrap() = Some(MenuBandeja { arriba, avisar: avisar_item, pausa, arranque: arranque_item });
+    *app.state::<Estado>().menu.lock().unwrap() = Some(MenuBandeja { arriba, avisar: avisar_item, pausa, arranque: arranque_item, agrandar, achicar, tamano_actual });
     Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Primero, como pide el plugin: una sola Oficina por máquina; abrir otra muestra la que hay
+        .plugin(tauri_plugin_single_instance::init(|app, _argumentos, _carpeta| al_segundo_arranque(app)))
         .plugin(tauri_plugin_notification::init())
         // Registrar el plugin no prende nada: el arranque con Windows solo cambia desde el menú
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
@@ -298,14 +412,6 @@ pub fn run() {
             // Clic en la notificación: mostrar la ventana
             let al_clic = handle.clone();
             let _ = handle.notification().on_action(move |_| mostrar(&al_clic));
-            if let Some(v) = ventana(&handle) {
-                // Si se guardó un tamaño de tira mini (cierre forzado), volver al tamaño normal
-                let escala = v.scale_factor()?;
-                let tamano = v.inner_size()?.to_logical::<f64>(escala);
-                if tamano.height < MINIMO.1 {
-                    v.set_size(LogicalSize::new(ANCHO.max(tamano.width), ALTO))?;
-                }
-            }
             Ok(())
         })
         .on_window_event(|v, evento| {
@@ -320,6 +426,9 @@ pub fn run() {
             leer_equipo,
             fijar_arriba,
             estado_menu,
+            geometria,
+            ajustar_ventana,
+            cambiar_tamano,
             modo_mini,
             esconder,
             poner_bandeja,

@@ -1,0 +1,75 @@
+// Tests del tamaño de la ventana: escala del dibujo, ajuste al contenido, límites y posición.
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, posicionEnPantalla, colaGlobo, tamanoMini, MINIMO, FRACCION_MAXIMA,
+} from '../src/tamano.js'
+
+const AREA = { x: 0, y: 0, ancho: 1920, alto: 1040 }
+
+test('el zoom sale del porcentaje elegido: 100 % es el tamaño original, 200 % el doble', () => {
+  assert.equal(zoomDe(100), 1)
+  assert.equal(zoomDe(125), 1.25)
+  assert.equal(zoomDe(150), 1.5)
+  assert.equal(zoomDe(175), 1.75)
+  assert.equal(zoomDe(200), 2)
+  // Un valor raro o fuera de los pasos vuelve al tamaño original
+  assert.equal(zoomDe(undefined), 1)
+  assert.equal(zoomDe(300), 1)
+  assert.equal(zoomDe('grande'), 1)
+})
+
+test('teclas: Ctrl + agranda, Ctrl − achica, Ctrl 0 vuelve a 100 %; sin Ctrl no hace nada', () => {
+  const t = (key, ctrlKey = true, code = '') => direccionDeTecla({ key, ctrlKey, code })
+  assert.equal(t('+'), 1)
+  assert.equal(t('='), 1)
+  assert.equal(t('', true, 'NumpadAdd'), 1)
+  assert.equal(t('-'), -1)
+  assert.equal(t('', true, 'NumpadSubtract'), -1)
+  assert.equal(t('0'), 0)
+  assert.equal(t('', true, 'Numpad0'), 0)
+  assert.equal(t('+', false), null)
+  assert.equal(t('a'), null)
+})
+
+test('la ventana toma el tamaño del contenido, redondeado hacia arriba', () => {
+  assert.deepEqual(tamanoDeseado({ ancho: 763.4, alto: 640.2 }, AREA), { ancho: 764, alto: 641 })
+})
+
+test('nunca más chica que el mínimo ni más grande que el 90 % del área de trabajo', () => {
+  assert.deepEqual(tamanoDeseado({ ancho: 100, alto: 40 }, AREA), { ancho: MINIMO.ancho, alto: MINIMO.alto })
+  assert.equal(FRACCION_MAXIMA, 0.9)
+  assert.deepEqual(tamanoDeseado({ ancho: 5000, alto: 5000 }, AREA), { ancho: 1728, alto: 936 })
+  // Un área más chica que el mínimo: gana el área (que la ventana entre en pantalla)
+  assert.deepEqual(tamanoDeseado({ ancho: 500, alto: 500 }, { x: 0, y: 0, ancho: 300, alto: 100 }), { ancho: 270, alto: 90 })
+})
+
+test('solo se ajusta si cambió más de 2 px (sin bucles de redimensión)', () => {
+  assert.equal(debeAjustar({ ancho: 400, alto: 600 }, { ancho: 402, alto: 598 }), false)
+  assert.equal(debeAjustar({ ancho: 400, alto: 600 }, { ancho: 403, alto: 600 }), true)
+  assert.equal(debeAjustar({ ancho: 400, alto: 600 }, { ancho: 400, alto: 560 }), true)
+})
+
+test('al crecer la esquina de arriba a la izquierda no se mueve, salvo que se salga de la pantalla', () => {
+  assert.deepEqual(posicionEnPantalla({ x: 100, y: 80 }, { ancho: 764, alto: 641 }, AREA), { x: 100, y: 80 })
+  assert.deepEqual(posicionEnPantalla({ x: 1500, y: 700 }, { ancho: 764, alto: 641 }, AREA), { x: 1156, y: 399 })
+  assert.deepEqual(posicionEnPantalla({ x: -50, y: -10 }, { ancho: 400, alto: 300 }, AREA), { x: 0, y: 0 })
+  // Monitor secundario a la izquierda (coordenadas negativas)
+  const izq = { x: -1280, y: 0, ancho: 1280, alto: 984 }
+  assert.deepEqual(posicionEnPantalla({ x: -300, y: 50 }, { ancho: 764, alto: 641 }, izq), { x: -764, y: 50 })
+})
+
+test('la cola del globo apunta a la mascota sin salirse del globo', () => {
+  assert.equal(colaGlobo(28, 364), 22)
+  // Sin mascota conocida: a la altura de la primera
+  assert.equal(colaGlobo(undefined, 364), 34)
+  assert.equal(colaGlobo(360, 364), 330)
+  assert.equal(colaGlobo(2, 364), 14)
+})
+
+test('la tira mini crece con el zoom', () => {
+  assert.deepEqual(tamanoMini(zoomDe(100)), { ancho: 400, alto: 56 })
+  assert.deepEqual(tamanoMini(zoomDe(125)), { ancho: 500, alto: 70 })
+  assert.deepEqual(tamanoMini(zoomDe(175)), { ancho: 700, alto: 98 })
+  assert.deepEqual(tamanoMini(zoomDe(200)), { ancho: 800, alto: 112 })
+})
