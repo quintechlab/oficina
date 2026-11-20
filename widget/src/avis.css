@@ -18,7 +18,7 @@
 .avi .luz { fill: #fff }
 .avi .trazo { stroke: #1B1712; stroke-width: 2.8; fill: none; stroke-linecap: round; stroke-linejoin: round }
 .avi .pico { fill: var(--pico) }
-.avi .cuerpo, .avi .ojos, .avi .mirada, .avi .mano, .avi .burbuja, .avi .chispa, .avi .bulbo, .avi .halo, .avi .onda { transform-box: fill-box }
+.avi .cuerpo, .avi .ojos, .avi .mirada, .avi .mano, .avi .burbuja, .avi .chispa, .avi .bulbo, .avi .halo, .avi .onda, .avi .saludo { transform-box: fill-box }
 .avi .cuerpo { transform-origin: 50% 100% }
 .avi .ojos { transform-origin: 50% 50% }
 .avi .e-escribiendo .mirada { transform: translateY(2.5px) }
@@ -28,6 +28,10 @@
 /* "proceso" (5.5): mira arriba a la derecha, al anillo; quieto, el arco queda donde está */
 .avi .e-proceso .mirada { transform: translate(3px, -2px) }
 .avi .giro { transform-box: view-box; transform-origin: 103px 42px }
+/* "saluda" (bienvenida-ux.md 6.3 y 6.4): la mano queda en alto a -8°; los trazos de vaivén solo se
+   ven mientras saluda (o quietos, sin movimiento) */
+.avi .saludo { transform-origin: 30% 100%; transform: rotate(-8deg) }
+.avi .e-saluda .vaiven { opacity: 0 }
 
 @media (prefers-reduced-motion: no-preference) {
   /* Por defecto respiran y parpadean, cada uno con su desfase (--d) */
@@ -59,7 +63,15 @@
   body:not(.pausa) .avi .e-fallo .cuerpo { animation: tambalea 3s ease-in-out infinite }
   body:not(.pausa) .avi .e-proceso .giro { animation: gira 1.1s linear infinite }
   body:not(.pausa) .avi .e-proceso .mirada { animation: sigue 4s ease-in-out infinite }
+  /* Saluda solo al aparecer (.entra la pone primerosPasosMotion.js): 6 medios ciclos = 3 vaivenes, termina en -8° */
+  body:not(.pausa) .avi .e-saluda.entra .saludo { animation: saluda .5s ease-in-out .5s 6 alternate both }
+  body:not(.pausa) .avi .e-saluda.entra .vaiven { animation: vaiven 3s ease-out .5s both }
+  /* En el asistente, el festejo es de 3 vueltas y queda quieto con ojos felices */
+  body:not(.pausa) .pp .avi .e-listo .cuerpo, body:not(.pausa) .pp .avi .e-listo .chispa { animation-iteration-count: 3 }
 }
+/* Movimiento reducido o pausa: la mano en alto y los trazos de vaivén dibujados, quietos (como las "z") */
+@media (prefers-reduced-motion: reduce) { .avi .e-saluda .vaiven { opacity: 1 } }
+body.pausa .avi .e-saluda .vaiven { opacity: 1 }
 
 @keyframes respira { 0%, 100% { transform: scale(1, 1) } 50% { transform: scale(1.03, .965) } }
 @keyframes duerme { 0%, 100% { transform: scale(1, 1) } 50% { transform: scale(1.045, .95) } }
@@ -77,4 +89,6 @@
 @keyframes chispa { 0% { transform: scale(0); opacity: 1 } 60% { transform: scale(1.1); opacity: 1 } 100% { transform: scale(.6); opacity: 0 } }
 @keyframes gira { to { transform: rotate(360deg) } }
 @keyframes sigue { 0%, 100% { transform: translate(3px, -2px) } 50% { transform: translate(4px, -3px) } }
+@keyframes saluda { from { transform: rotate(-8deg) } to { transform: rotate(20deg) } }
+@keyframes vaiven { 0% { opacity: 0 } 15%, 80% { opacity: 1 } 100% { opacity: 0 } }
 @keyframes tambalea { 0%, 100% { transform: rotate(0) } 10% { transform: rotate(-5deg) } 20% { transform: rotate(4deg) } 30% { transform: rotate(-2deg) } 40% { transform: rotate(0) } }

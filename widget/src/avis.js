@@ -6,8 +6,11 @@
 
 import { escapar, personajeDeNombre } from './logica.js'
 
-/** Poses que se dibujan. "proceso" (5.5): espera procesos en segundo plano. */
-export const POSES = ['esperando', 'escribiendo', 'leyendo', 'pensando', 'coordinando', 'teEspera', 'durmiendo', 'inactiva', 'listo', 'fallo', 'proceso']
+/**
+ * Poses que se dibujan. "proceso" (5.5): espera procesos en segundo plano. "saluda": el Avi base de
+ * primeros pasos levanta la mano (docs/diseno/bienvenida-ux.md 6.3).
+ */
+export const POSES = ['esperando', 'escribiendo', 'leyendo', 'pensando', 'coordinando', 'teEspera', 'durmiendo', 'inactiva', 'listo', 'fallo', 'proceso', 'saluda']
 
 /** El personaje de Claude: antena con foco, en ámbar. */
 export const CLAUDE = personajeDeNombre('Claude')
@@ -19,7 +22,9 @@ const POSE_DE_ANIMO = {
   comando: 'escribiendo', leyendo: 'leyendo', pensando: 'pensando', inactiva: 'inactiva',
   escribiendo: 'escribiendo', listo: 'listo', fallo: 'fallo', durmiendo: 'durmiendo', proceso: 'proceso',
   // heredados de escena.js
-  comiendo: 'escribiendo', reposo: 'listo', saluda: 'esperando',
+  comiendo: 'escribiendo', reposo: 'listo',
+  // Primeros pasos (bienvenida-ux.md 6.3); antes, heredado de escena.js, era "esperando"
+  saluda: 'saluda',
 }
 
 /**
@@ -68,6 +73,9 @@ const OJOS = {
 }
 const ojosDe = pose => (pose === 'durmiendo' || pose === 'inactiva') ? OJOS.cerrados : pose === 'listo' ? OJOS.feliz : pose === 'fallo' ? OJOS.x : OJOS.base
 
+/** Crema de las manos (las de "escribiendo", "leyendo" y "saluda"). */
+const CREMA_MANO = '#EFE6D2'
+
 /** Verde del logo de la notebook cuando corre un comando (la pantalla de comando de hoy). */
 const VERDE_COMANDO = '#8FD694'
 
@@ -90,6 +98,12 @@ function efectos(pose, c, comando) {
     // Despierto, mira un anillo celeste que gira: indeterminado, sin porcentaje (5.5)
     case 'proceso': return `<circle cx="103" cy="42" r="10" fill="none" stroke="#24242A" stroke-width="4"/><circle class="giro" cx="103" cy="42" r="10" fill="none" stroke="#7FB3FF" stroke-width="4" stroke-linecap="round" stroke-dasharray="20 43"/>`
     case 'fallo': return `<path d="M84 30q3-7 10-3q6-4 9 3" stroke="#8A8478" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M89 22l3 3m0-3l-3 3" stroke="#FF7A6B" stroke-width="2" stroke-linecap="round"/>`
+    // La mano crema en alto a la derecha (palma, pulgar que la une al cuerpo y pliegue) y dos trazos
+    // de vaivén. Va fuera de g.cuerpo: no respira con el cuerpo, se lee como gesto (bienvenida-ux.md 6.3)
+    case 'saluda': return `<g class="saludo"><ellipse cx="103" cy="61" rx="6.6" ry="8" fill="${CREMA_MANO}"/>`
+      + `<ellipse cx="97.6" cy="65.5" rx="2.6" ry="3.6" fill="${CREMA_MANO}" transform="rotate(-35 97.6 65.5)"/>`
+      + `<path d="M100 55.5q3-1.6 6 0" stroke="#D9CCAD" stroke-width="1.4" fill="none" stroke-linecap="round"/></g>`
+      + `<path class="vaiven" d="M112 50q4 5 2.5 11M116.5 45.5q6.5 7 3.5 17" stroke="#8A8478" stroke-width="2" fill="none" stroke-linecap="round"/>`
     default: return ''
   }
 }

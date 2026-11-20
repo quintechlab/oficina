@@ -219,7 +219,7 @@ Contrastes (medidos en `estilo-avis-ux.md` 3.1): título y texto `--crema`/`--cr
 - **Acciones en fila** (separación 6, alto 38, ancho según el texto); el motivo debajo.
 - **El encabezado de la hoja** es un `h2` («Primeros pasos», con el aspecto del rótulo); el título del paso es `h3`. El `h1` sigue siendo el proyecto.
 - La × de la hoja dice «Volver al tablero» en su `title` y `aria-label` («Cerrar primeros pasos y volver al tablero»).
-- **Acoplada y con el código en pantalla:** el panel **no se pliega solo** al salir el mouse mientras el paso 3 está en Pidiendo el código, Código o Verificando, porque el usuario tiene que leer el código mientras va al navegador. Se ve como «Mantener abierta» marcado, con `title` «Queda abierta hasta que GitHub confirme». Al terminar ese tramo vuelve a la marca que tenía. Esc lo cierra igual (7.2 del estilo); el paso sigue corriendo y su estado se ve al reabrir.
+- **Acoplada y con el código en pantalla:** el panel **no se pliega solo** al salir el mouse mientras el paso 3 está en Pidiendo el código, Código o Verificando, porque el usuario tiene que leer el código mientras va al navegador. Se ve como «Mantener abierta» marcado, con `title` «Queda abierta hasta que GitHub confirme». Al terminar ese tramo vuelve a la marca que tenía, salvo que el usuario la haya cambiado mientras tanto: entonces queda su elección. Esc lo cierra igual (7.2 del estilo); el paso sigue corriendo y su estado se ve al reabrir.
 
 ### 5.3 Piezas
 
@@ -413,13 +413,26 @@ Todos con argumentos fijos: nunca se interpola texto del usuario. «Verificado»
 ### 9.5 Correr los pasos y mostrar el código
 
 - `correr_paso { paso }` lanza el proceso hijo en un hilo (`spawn_blocking`), lee `stdout` y `stderr` **línea por línea** (no `output()`, que espera al final) y emite `oficina://primeros-pasos { paso, estado, linea?, codigo?, error? }`. Un paso por vez: si ya corre otro, el comando lo rechaza (la interfaz ya lo deshabilitó).
-- `cancelar_paso` mata el proceso hijo (solo se ofrece en Pidiendo el código y Código).
+- `cancelar_paso` mata el proceso hijo (solo se ofrece en Pidiendo el código y Código). Decide lo que pasó (`desenlace`): si `gh` ya había salido bien cuando llegó Cancelar, es un éxito (se verifica y se olvida el login); «cancelado» solo si la orden de matarlo lo terminó.
+- Cada proceso de un paso va en un trabajo de Windows con `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (si no se puede, se mata solo el proceso): al salir de la Oficina, al cerrarse el trabajo o si la aplicación se cae, Windows lo mata con sus hijos (un instalador ya elevado puede quedar: se anota en el log). El turno se suelta siempre: el paso termina cuando su proceso terminó, sin esperar más de 2 s la salida de un hijo que haya quedado.
 - **El código:** `gh auth login --web` imprime en `stderr` una línea como `! First copy your one-time code: 4F2A-91C7`. Tomar el primer `\b[A-Z0-9]{4}-[A-Z0-9]{4}\b` de `stderr`. **Supuesto a verificar:** el texto exacto, y si sin terminal `gh` abre el navegador solo o imprime «Open this URL to continue in your web browser». Si no lo abre, el widget abre `https://github.com/login/device` con el abridor del sistema **en el mismo clic** (no es una acción nueva).
 - **Sin terminal:** lanzar con `stdin` nulo y `GH_PROMPT_DISABLED=1`, y pasar siempre `--git-protocol https` y `--skip-ssh-key` para que no pregunte. **Supuesto a verificar:** que no quede esperando la pregunta «Authenticate Git with your GitHub credentials?» y qué responde por defecto. Si `gh` configura el ayudante de credenciales de git, eso cambia la configuración de git del usuario: el texto de «Sin conectar» tiene que decirlo o hay que evitarlo (punto abierto).
 - **Vencimiento:** el código de GitHub vence a los 15 minutos (supuesto: `expires_in` del flujo de dispositivo); `gh` sale con error. Ese error → Código vencido.
 - **Errores:** la línea que se muestra es la primera no vacía de `stderr`, recortada a 140 caracteres (como `correr_gh`). «Copiar detalle» copia el comando y la salida de error completa. Nunca se muestra ni se copia un token (no usar `--show-token`; `--json hosts` no lo trae).
 - **Permiso negado de Windows (UAC):** supuesto que winget sale con un código propio; si el código no se puede distinguir, el texto es el genérico «winget devolvió un error.» y la verdad la dice `gh --version` después.
 - **Reglas que no se negocian:** ninguna acción corre sin su clic; no hay reintento automático, ni temporizador que avance, ni paso siguiente encadenado; revisar es solo lectura; nada se escribe en `preferencias.json` por el asistente (el «cerrado» es solo de esta ejecución).
+
+### 9.5.1 P0: lo que se probó (2026-11-20, solo lectura)
+
+Corrido en la máquina del usuario, sin instalar ni conectar nada:
+
+- `claude plugin list --json` también lista entradas `scope: "project"` de otros proyectos, con `projectPath` y `enabled: false`: el mod cuenta como activo si **alguna** entrada de `oficina@quintech` tiene `enabled: true`.
+- `gh auth status --hostname github.com --active --json hosts` **sin sesión** (con un `GH_CONFIG_DIR` vacío) sale con código 0 y `{"hosts":{}}`; el aviso «You are not logged into any GitHub hosts» va a `stderr`.
+- **Sin red**, el mismo comando sale con código 0 y la cuenta en `state: "error"` con `error: "Get \"https://api.github.com/\": … dial tcp …"`: se muestra como Sin conexión, no como Sin conectar.
+- `gh api user/memberships/orgs/<org>` de una organización ajena: código 1, `stdout` `{"message":"Not Found",…,"status":"404"}` y `stderr` `gh: Not Found (HTTP 404)`: No es miembro.
+- `gh auth login --help`: el flujo web guarda el token en el almacén de credenciales; `--git-protocol` se guarda en la configuración de `gh` («take effect for all users on the host»). Configurar git como ayudante de credenciales es un comando aparte (`gh auth setup-git`) o la pregunta interactiva «Authenticate Git with your GitHub credentials?», que sin terminal (stdin nulo y `GH_PROMPT_DISABLED=1`) no se hace. Por eso el texto de «Sin conectar» no avisa un cambio en git. **Sin verificar con una cuenta real** (necesita el clic del usuario): que no quede esperando esa pregunta, el texto exacto del código y que sin terminal imprima «Open this URL…» en vez de abrir el navegador (el widget abre github.com/login/device igual al ver el código).
+- Sumar el permiso corre `gh auth refresh --hostname github.com --scopes repo,read:org,project` (los tres, no solo `project`): refresh suma los que falten y deja los que hay, y así cubre una cuenta sin `repo` o `read:org`.
+- Sin verificar (necesitan instalar o conectar): `claude plugin install … --json` en una máquina sin el mod, `winget` con el permiso de Windows cancelado (se reconoce `0x800704c7`, «canceled by the user» o «Access is denied»), el texto de `gh` al vencer el código («timed out» o «expired») y el código de salida al cancelar.
 
 ### 9.6 Plan por fases
 

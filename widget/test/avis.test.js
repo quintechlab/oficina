@@ -15,11 +15,30 @@ test('poseAvi sigue la tabla 5.4: cada ánimo de sesión y de subagente tiene su
     leyendo: 'leyendo', pensando: 'pensando', inactiva: 'inactiva', escribiendo: 'escribiendo',
     listo: 'listo', fallo: 'fallo', durmiendo: 'durmiendo',
     // heredados de escena.js
-    comiendo: 'escribiendo', reposo: 'listo', saluda: 'esperando',
+    comiendo: 'escribiendo', reposo: 'listo',
+    // El Avi base de primeros pasos saluda (bienvenida-ux.md 6.3)
+    saluda: 'saluda',
   }
   for (const [animo, pose] of Object.entries(tabla)) assert.deepEqual(poseAvi(animo), { pose, comando: false }, animo)
   // Corriendo un comando: escribe igual, pero el logo de la notebook es verde
   assert.deepEqual(poseAvi('comando'), { pose: 'escribiendo', comando: true })
+})
+
+test('"saluda" (bienvenida-ux.md 6.3): la mano crema en alto, fuera del cuerpo, con dos trazos de vaivén', () => {
+  assert.ok(POSES.includes('saluda'))
+  const svg = svgAvi(PERSONAJE_BASE, 'saluda')
+  assert.match(svg, /class="e-saluda"/)
+  // La mano: palma, pulgar y pliegue del boceto, en el crema de las manos de "escribiendo"
+  assert.ok(svg.includes('<g class="saludo"><ellipse cx="103" cy="61" rx="6.6" ry="8" fill="#EFE6D2"/>'))
+  assert.ok(svg.includes('<ellipse cx="97.6" cy="65.5" rx="2.6" ry="3.6" fill="#EFE6D2" transform="rotate(-35 97.6 65.5)"/>'))
+  assert.ok(svg.includes('<path d="M100 55.5q3-1.6 6 0" stroke="#D9CCAD" stroke-width="1.4" fill="none" stroke-linecap="round"/></g>'))
+  assert.ok(svg.includes('<path class="vaiven" d="M112 50q4 5 2.5 11M116.5 45.5q6.5 7 3.5 17" stroke="#8A8478" stroke-width="2" fill="none" stroke-linecap="round"/>'))
+  // Fuera de g.cuerpo (después de cerrarlo): no respira con el cuerpo, se lee como gesto
+  const finCuerpo = svg.indexOf('</g>', svg.lastIndexOf('class="pico"'))
+  assert.ok(svg.indexOf('class="saludo"') > finCuerpo)
+  // Ojos base y el copete del Avi base
+  assert.match(svg, /class="ojo"/)
+  assert.match(svg, /class="copete"/)
 })
 
 test('un ánimo desconocido o vacío queda esperando', () => {

@@ -42,6 +42,10 @@
   --t-mono: 400 10.5px/1.5 var(--m);
   --t-mono-s: 500 10px/1.3 var(--m);
   --t-rotulo: 500 10px/1 var(--m);
+  /* Primeros pasos (bienvenida-ux.md 5): el título de cada paso y el código de GitHub (la única mono
+     por encima de 10.5: se copia y se compara letra por letra) */
+  --t-paso: 800 19px/1.15 var(--f);
+  --t-codigo: 600 22px/1 var(--m);
 
   /* 3.3 espaciado */
   --e-1: 2px; --e-2: 4px; --e-3: 6px; --e-4: 8px; --e-5: 10px; --e-6: 12px; --e-7: 14px;
@@ -49,6 +53,8 @@
   /* Tamaño del tablero (9.2): ancho y alto fijos, iguales en todos los proyectos; lo que no entra se
      ve con scroll adentro de cada columna. Crece con el zoom y se topa al 90 % del área */
   --ancho-lado: 188px; --ancho-principal: 460px; --alto-tablero: 640px;
+  /* Primeros pasos (bienvenida-ux.md 5): el escenario tiene alto fijo, como el tablero */
+  --alto-escenario: 600px;
 
   /* 3.4 radios */
   --r-ventana: 26px; --r-panel: 26px; --r-muesca: 22px; --r-hombro: 16px; --r-tarjeta: 18px;
@@ -560,6 +566,194 @@ body.pausa #muesca, body.pausa #marco, body.pausa.acoplada:not(.pildora) #muesca
 body.pausa #marco, body.pausa .preg.entra, body.pausa .hecho, body.pausa .hecho.sale { animation: none }
 /* Escondida en la bandeja o minimizada: todo queda en pausa hasta volver a verse */
 body.fuera *, body.fuera *::before, body.fuera *::after { animation-play-state: paused !important }
+
+/* ------------------------------------------------------------------ primeros pasos (docs/diseno/bienvenida-ux.md)
+   El escenario (sin tablero: en lugar del vacío, flotando o en el panel compacto) mide 340 × 600 fijos:
+   cambiar de estado o de paso no redimensiona la ventana (acoplada, eso vela el panel). La hoja (con
+   tablero) vive en la columna principal y desplaza adentro. Las mono llevan su font-stretch después
+   del atajo `font`, que lo devuelve a normal. */
+#pp:empty { display: none }
+#marco.escenario { --alto-tablero: var(--alto-escenario) }
+#marco.escenario .desplaza { padding: 0; overflow: hidden }
+/* 340 de marco: 338 de contenido más el borde */
+#marco.escenario #contenido { width: 338px; flex: 1 }
+#marco.escenario .lado, #marco.escenario .cab, #marco.escenario #vacio-avi, #marco.escenario #otro,
+#marco.escenario #w-globo, #marco.escenario .stats, #marco.escenario .sesiones { display: none }
+#marco.escenario .principal { width: 100%; height: 100%; padding: 0; margin: 0; overflow: hidden; scrollbar-gutter: auto }
+#marco.escenario #pp { flex: 1 1 auto; min-height: 0 }
+/* Con la hoja abierta, la hoja reemplaza a la pregunta (queda su aviso), los cuadros y las sesiones */
+#marco.con-hoja .stats, #marco.con-hoja .sesiones { display: none }
+#marco.con-hoja #pp { flex: 1 0 auto; display: flex; flex-direction: column }
+#marco.con-hoja .pp.hoja { flex: 1 0 auto }
+.pp.hoja .pp-escena { flex: 1 0 auto }
+
+.pp { display: flex; flex-direction: column; gap: var(--e-6); min-height: 0 }
+.pp.escenario { height: 100%; padding: var(--e-7) var(--e-8) var(--e-5) }
+.pp.hoja { padding: var(--e-6) var(--e-7) var(--e-7); background: var(--s1); border: 1px solid var(--linea); border-radius: var(--r-tarjeta) }
+
+/* Encabezado: el rótulo es el título del asistente (h1 en el escenario, h2 en la hoja) */
+.pp-cab { display: flex; align-items: center; justify-content: space-between; gap: var(--e-4); padding-left: var(--e-2) }
+.pp-rot { flex: 1; min-width: 0; font: var(--t-rotulo); font-stretch: 75%; letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+.pp-rot[data-arrastre] { cursor: grab; user-select: none; align-self: stretch; display: flex; align-items: center }
+.pp-rot:focus-visible { outline-offset: 4px; border-radius: 4px }
+.pp-cab .tb { margin: -4px -6px -4px 0 }
+
+/* Pestañas: pista --s1 con un solo indicador --s3 que se desliza (--pp-i, 320 ms) */
+.pp-tabs { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; background: var(--s1); border-radius: var(--r-pildora) }
+.pp.hoja .pp-tabs { background: var(--s2) }
+.pp-tabs::before {
+  content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 12px) / 3);
+  border-radius: var(--r-pildora); background: var(--s3); box-shadow: inset 0 0 0 1px #3A3A40;
+  transform: translateX(calc(var(--pp-i, 0) * (100% + 3px))); transition: transform 320ms var(--ease), opacity var(--d-color) ease;
+}
+.pp-tabs.sin-elegida::before { opacity: 0 }
+.pp-tab {
+  position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: var(--e-3); min-height: 32px;
+  border: 0; border-radius: var(--r-pildora); background: transparent; color: var(--crema2); font: 700 11.5px/1 var(--f); cursor: pointer;
+  transition: color var(--d-color) ease;
+}
+/* Zona de toque de 36 */
+.pp-tab::before { content: ""; position: absolute; inset: -2px 0 }
+.pp-tab:hover, .pp-tab[aria-selected="true"] { color: var(--crema) }
+.pp-g { display: inline-grid; place-items: center; min-width: 12px; height: 12px; font: 600 10px/1 var(--m); font-stretch: 75%; color: var(--tenue) }
+.pp-g.ok { color: var(--verde) }
+.pp-g.ok svg { width: 12px; height: 12px }
+.pp-g .visto { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 20; stroke-dashoffset: 0 }
+.pp-g.error { font: 800 12px/1 var(--f); color: var(--rojo) }
+.pp-g.punto { min-width: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--ambar) }
+
+/* Escena: desplaza adentro si no entra; el pie queda fijo y el borde se funde 8 px */
+.pp-escena { display: flex; flex-direction: column; align-items: center; text-align: center; padding: var(--e-1) var(--e-2) var(--e-4) }
+.pp.escenario .pp-escena {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: transparent transparent;
+  -webkit-mask: linear-gradient(transparent, #000 8px, #000 calc(100% - 8px), transparent);
+  mask: linear-gradient(transparent, #000 8px, #000 calc(100% - 8px), transparent);
+}
+.pp.escenario .pp-escena:hover { scrollbar-color: var(--linea-hover) transparent }
+.pp-escena[aria-busy="true"] { cursor: progress }
+.pp-escena > * { flex: none }
+.pp-n { margin-top: var(--e-1); font: var(--t-rotulo); font-stretch: 75%; letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+.pp-h { max-width: 22ch; margin-top: var(--e-4); font: var(--t-paso); letter-spacing: -.035em; overflow-wrap: anywhere }
+.pp-h:focus-visible { outline-offset: 3px; border-radius: 4px }
+.pp-txt { max-width: 32ch; margin-top: var(--e-3); font: var(--t-cuerpo); color: var(--crema2) }
+.pp-code { font: var(--t-mono); font-stretch: 75%; color: var(--crema) }
+.pp-extra, .pp-escena > .pp-pieza:last-child { width: 100%; text-align: left }
+.pp-extra:empty { display: none }
+
+/* Hoja: Avi de 88 a la izquierda (columna de 96) y los textos a la derecha */
+.pp.hoja .pp-escena { align-items: stretch; text-align: left; padding: 0 }
+.pp-fila { display: grid; grid-template-columns: 96px 1fr; gap: var(--e-5); align-items: start }
+.pp-fila .pp-avi { justify-self: center }
+.pp-textos { min-width: 0 }
+.pp.hoja .pp-h, .pp.hoja .pp-txt { max-width: none }
+
+/* Acciones: columna de botones a ancho completo (escenario) o fila (hoja); el motivo debajo */
+.pp-acc { display: flex; flex-direction: column; gap: var(--e-3); width: 100%; margin-top: var(--e-7) }
+.pp.hoja .pp-acc { flex-direction: row; flex-wrap: wrap; align-items: center; margin-top: var(--e-5) }
+.pp.hoja .pp-acc .pp-motivo { flex-basis: 100% }
+.pp-btn {
+  min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: var(--e-3); padding: 0 var(--e-7);
+  border: 0; border-radius: var(--r-pildora); font: 800 12px/1 var(--f); cursor: pointer;
+  transition: background var(--d-color) ease, transform var(--d-presion) ease;
+}
+.pp.escenario .pp-acc .pp-btn { width: 100% }
+.pp-btn.pri { background: var(--ambar); color: var(--negro) }
+.pp-btn.pri:hover { background: #FFC64A }
+.pp-btn.sec { background: var(--s3); color: var(--crema) }
+.pp-btn.sec:hover { background: #27272C }
+.pp-btn:active { transform: scale(.97) }
+.pp-btn.pri:focus-visible { outline-color: var(--crema) }
+.pp-btn[aria-disabled="true"] { opacity: .38; cursor: not-allowed; transform: none }
+.pp-btn[aria-disabled="true"]:hover { background: var(--s3) }
+.pp-ext { font-weight: 600; opacity: .8 }
+.pp-motivo { margin-top: var(--e-1); font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+.pp-enlaces { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 var(--e-5); margin-top: var(--e-2) }
+.pp.hoja .pp-enlaces { justify-content: flex-start }
+.pp-enlace { min-height: 32px; display: inline-flex; align-items: center; padding: 0 var(--e-1); border: 0; border-radius: 6px; background: none; color: var(--violeta); font: 800 12px/1 var(--f); cursor: pointer }
+.pp-enlace:hover { text-decoration: underline; text-underline-offset: 3px }
+.pp-enlace[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none }
+.pp-nota { margin-top: var(--e-4); font: var(--t-mono-s); font-stretch: 75%; line-height: 1.5; color: var(--tenue); text-align: center }
+.pp.hoja .pp-nota { text-align: left }
+
+/* Registro, barra indeterminada, error, código, cuenta, "Cómo se arregla" y "Ver los comandos" (5.3) */
+.pp-registro {
+  display: grid; gap: var(--e-2); margin-top: var(--e-4); padding: var(--e-4) var(--e-5);
+  background: var(--negro); border: 1px solid var(--linea); border-radius: var(--r-campo);
+  font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2); overflow-wrap: anywhere;
+}
+.pp-registro .ok::before { content: "✓ "; color: var(--verde) }
+.pp-registro .va { color: var(--crema) }
+.pp-registro .va::before { content: "› "; color: var(--ambar) }
+.pp-barra { position: relative; height: 3px; margin-top: 3px; overflow: hidden; border-radius: var(--r-pildora); background: var(--s3) }
+.pp-barra.sola { margin-top: var(--e-6) }
+.pp-barra::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 38%; border-radius: inherit; background: var(--ambar) }
+.pp-err {
+  display: grid; gap: 3px; margin-top: var(--e-4); padding: var(--e-4) var(--e-5);
+  border: 1px solid color-mix(in srgb, var(--rojo) 40%, transparent); border-radius: var(--r-campo); background: color-mix(in srgb, var(--rojo) 6%, transparent);
+}
+.pp-err .m { font: var(--t-mono-s); font-stretch: 75%; color: var(--rojo); overflow-wrap: anywhere }
+.pp-err p:not(.m) { font: var(--t-chico); color: var(--crema); overflow-wrap: anywhere }
+.pp-arreglo-t { font: var(--t-chico); font-weight: 700; color: var(--crema) }
+.pp-arreglo ol { display: grid; gap: var(--e-2); margin-top: var(--e-1); padding-left: 0; list-style: none; counter-reset: arreglo }
+.pp-arreglo li { counter-increment: arreglo; display: grid; grid-template-columns: 14px 1fr; gap: var(--e-2); font: var(--t-chico); color: var(--crema) }
+.pp-arreglo li::before { content: counter(arreglo) "."; font: var(--t-mono-s); font-stretch: 75%; line-height: 1.6; color: var(--rojo) }
+.pp-dom { font: var(--t-mono-s); font-stretch: 75% }
+.pp-caja-cod {
+  display: flex; align-items: center; gap: var(--e-5); margin-top: var(--e-5); padding: var(--e-3) var(--e-3) var(--e-3) var(--e-7);
+  background: var(--negro); border: 1px solid color-mix(in srgb, var(--ambar) 45%, transparent); border-radius: 12px;
+}
+.pp-cod { flex: 1; min-width: 0; font: var(--t-codigo); font-stretch: 75%; letter-spacing: .1em; color: var(--crema); user-select: all; white-space: nowrap }
+.pp-cod i { display: inline-block; font-style: normal }
+.pp-cod .g { color: var(--tenue) }
+.pp-caja-cod .pp-btn { min-height: 32px; flex: none }
+.pp-espera { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: var(--e-4); font: var(--t-mono-s); font-stretch: 75%; color: var(--ambar) }
+.pp.hoja .pp-espera { justify-content: flex-start }
+.pp-pt { display: inline-block; width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--ambar) }
+.pp-vence { margin-top: var(--e-1); font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue); text-align: center }
+.pp.hoja .pp-vence { text-align: left }
+.pp-cuenta { display: flex; align-items: center; gap: 7px; margin-top: var(--e-5); font: var(--t-chico); color: var(--crema2) }
+.pp-cuenta.centrada { justify-content: center }
+.pp-cuenta b { color: var(--crema); font-weight: 700 }
+.pp-ini { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--violeta) 18%, transparent); color: var(--violeta); font: 600 10px/1 var(--m); font-stretch: 75% }
+.pp-cmds { margin-top: var(--e-5) }
+.pp-cmds summary { display: inline-flex; align-items: center; gap: var(--e-2); min-height: 32px; list-style: none; cursor: pointer; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+.pp-cmds summary::-webkit-details-marker { display: none }
+.pp-cmds summary::before { content: "▸"; display: inline-block; transition: transform var(--d-color) ease }
+.pp-cmds[open] summary::before { transform: rotate(90deg) }
+.pp-cmds .pp-registro { margin-top: var(--e-1) }
+
+/* Pie: filete arriba; «← Anterior» crema2 y «Siguiente →» ámbar; deshabilitados al .38 */
+.pp-pie { display: flex; justify-content: space-between; margin-top: var(--e-1); padding-top: var(--e-2); border-top: 1px solid var(--linea) }
+.pp-nav { min-height: 32px; padding: 0 var(--e-2); border: 0; border-radius: 6px; background: none; color: var(--crema2); font: 800 12px/1 var(--f); cursor: pointer }
+.pp-nav.sig { color: var(--ambar) }
+.pp-nav:hover { text-decoration: underline; text-underline-offset: 3px }
+.pp-nav[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none }
+
+/* Aviso del tablero (3.5): la píldora del aviso, con borde neutro (no ámbar) */
+.aviso.pp-aviso { border-color: var(--linea-hover) }
+.aviso.pp-aviso:hover { background: var(--s1); border-color: #4A4A52 }
+
+/* Movimiento (7.1): barra, punto de la pestaña, ✓ que se traza, letras del código */
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .pp-barra::after { animation: indet 1.5s var(--ease) infinite }
+  body:not(.pausa) .pp-g.punto, body:not(.pausa) .pp-pt { animation: pulsoPt 1.8s ease-in-out infinite }
+  body:not(.pausa) .pp-g.ok.nuevo { animation: pop .36s var(--rebote) both }
+  body:not(.pausa) .pp-g.ok.nuevo .visto { animation: traza .5s var(--ease) both }
+  body:not(.pausa) .pp-cod i { animation: letra .42s var(--ease) both; animation-delay: calc(var(--k) * 45ms + 420ms) }
+  .pp-btn, .pp-tab { transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease }
+}
+@keyframes indet { 0% { transform: translateX(-100%) } 100% { transform: translateX(270%) } }
+@keyframes pulsoPt { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .45; transform: scale(.8) } }
+@keyframes traza { from { stroke-dashoffset: 20 } to { stroke-dashoffset: 0 } }
+@keyframes pop { from { transform: scale(.6) } to { transform: scale(1) } }
+@keyframes letra { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+/* Sin movimiento: el indicador salta, sin presión ni transiciones */
+@media (prefers-reduced-motion: reduce) {
+  .pp-tabs::before, .pp-btn, .pp-tab, .pp-cmds summary::before { transition: none }
+  .pp-btn:active { transform: none }
+}
+body.pausa .pp-tabs::before, body.pausa .pp-btn, body.pausa .pp-tab, body.pausa .pp-cmds summary::before { transition: none }
+body.pausa .pp-btn:active { transform: none }
 
 /* Las piezas mono son Martian Mono angosta. Va al final: el atajo `font` de cada pieza
    devuelve font-stretch a normal, así que esta regla tiene que ganar por orden. */

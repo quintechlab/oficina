@@ -2,6 +2,7 @@
 //! de la máquina. Nunca se guarda un token: cada consulta sale con la sesión de `gh`.
 //! El contenido de cada comentario lo interpreta el frontend (`equipo.js`, igual que el mod).
 
+use crate::primeros_pasos::{self, Programa};
 use serde_json::{json, Value};
 
 /// Repositorio privado de datos y número del Issue "Presencia" (los valores por defecto del mod).
@@ -28,29 +29,22 @@ pub fn login_desde_json(texto: &str) -> Option<String> {
     datos["login"].as_str().map(String::from)
 }
 
-/// Corre `gh` sin abrir una consola y devuelve su salida, o un error de una línea.
+/// Corre `gh` sin abrir una consola y devuelve su salida, o un error de una línea. `gh` se busca
+/// como lo hace el asistente de primeros pasos (bienvenida-ux.md 9.4): con el PATH releído del
+/// registro y en su carpeta de instalación, así se encuentra aunque se haya instalado después de
+/// abrir el widget.
 pub fn correr_gh(args: &[&str]) -> Result<String, String> {
-    let mut comando = std::process::Command::new("gh");
-    comando.args(args);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        // CREATE_NO_WINDOW: sin esto, cada consulta abre y cierra una consola
-        comando.creation_flags(0x0800_0000);
-    }
-    let salida = comando.output().map_err(|e| {
-        if e.kind() == std::io::ErrorKind::NotFound {
-            String::from("gh no está instalado")
-        } else {
-            format!("no se pudo correr gh: {e}")
-        }
-    })?;
-    if !salida.status.success() {
-        let error = String::from_utf8_lossy(&salida.stderr);
-        let linea = error.lines().find(|l| !l.trim().is_empty()).unwrap_or("gh falló");
+    let salida = primeros_pasos::correr(Programa::Gh, args, &primeros_pasos::lugares())?;
+    salida_de_gh(salida.ok, &salida.stdout, &salida.stderr)
+}
+
+/// La salida de `gh` si terminó bien; si no, la primera línea de su error (140 caracteres).
+pub fn salida_de_gh(ok: bool, stdout: &str, stderr: &str) -> Result<String, String> {
+    if !ok {
+        let linea = stderr.lines().find(|l| !l.trim().is_empty()).unwrap_or("gh falló");
         return Err(linea.trim().chars().take(140).collect());
     }
-    Ok(String::from_utf8_lossy(&salida.stdout).into_owned())
+    Ok(stdout.to_string())
 }
 
 /// Resultado para el frontend: quién sos, los comentarios y el error si lo hubo.
@@ -93,6 +87,14 @@ mod tests {
         assert_eq!(login_desde_json(r#"{"login": "nicoequintana", "name": "Nico"}"#).as_deref(), Some("nicoequintana"));
         assert_eq!(login_desde_json(r#"{"name": "sin login"}"#), None);
         assert_eq!(login_desde_json("roto"), None);
+    }
+
+    #[test]
+    fn la_salida_de_gh_o_la_primera_linea_de_su_error() {
+        assert_eq!(salida_de_gh(true, "[]", "").as_deref(), Ok("[]"));
+        assert_eq!(salida_de_gh(false, "", "\n  gh: Not Found (HTTP 404)\nmás").unwrap_err(), "gh: Not Found (HTTP 404)");
+        assert_eq!(salida_de_gh(false, "", "").unwrap_err(), "gh falló");
+        assert_eq!(salida_de_gh(false, "", &"x".repeat(200)).unwrap_err().chars().count(), 140);
     }
 
     #[test]

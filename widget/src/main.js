@@ -21,6 +21,12 @@ import {
   eventoZona, planVentana,
 } from './muesca.js'
 import * as movimientoMuesca from './muescaMotion.js'
+import {
+  PASOS as PASOS_PP, modeloAsistente, formaAsistente, nombreMuesca, alEmpezar, alEvento, trasRevision, anuncioCambio,
+  retieneAbierta, fijaAlSoltar, navegar, visibleInicial,
+} from './primerosPasos.js'
+import { esqueleto, rotulo, pestanas, indicePestana, escena as escenaPasos, pie as piePasos, avisoAsistente } from './primerosPasosVista.js'
+import * as movimientoPasos from './primerosPasosMotion.js'
 
 const INTERVALO_MS = 1500
 const INTERVALO_EQUIPO_MS = 60000
@@ -111,8 +117,39 @@ const st = {
   zonaN: -1,
   /** Última zona mandada a Rust, para no repetirla. */
   zonaEnviada: null,
-  /** Foco que hay que dar cuando termine la animación: 'proyecto' o 'muesca'. */
+  /** Foco que hay que dar cuando termine la animación: 'proyecto', 'muesca' o 'pp' (primeros pasos). */
   focoPendiente: null,
+  // ---- primeros pasos (docs/diseno/bienvenida-ux.md): cada paso corre solo con un clic
+  pp: {
+    /** Última revisión de la máquina (solo lectura, 3.3); null antes de la primera. */
+    revision: null,
+    /** Revisión a la vista ("Revisando este equipo…"): al arrancar, al abrir o con "Volver a buscar". */
+    revisando: false,
+    /** Hay una revisión en curso (a la vista o la verificación callada después de un paso). */
+    leyendo: false,
+    /** Se pidió otra revisión mientras corría una: se hace al terminar. */
+    otraRevision: false,
+    promesa: null,
+    /** Lo que corre o corrió en cada paso (`alEmpezar` y `alEvento`, primerosPasos.js). */
+    ejec: { claude: null, mod: null, gh: null },
+    /** Abierto a pedido (bandeja, "Ver →" o porque el usuario ya tocó una acción). */
+    abierto: false,
+    /** Cerrado con la × en esta ejecución: solo en memoria (3.2). */
+    cerrado: false,
+    /** Lo que se ve: 'claude', 'mod', 'gh' o 'listo' (la escena final). Solo lo cambia un clic. */
+    visible: null,
+    /** 'escenario', 'hoja' o null: la forma montada en #pp. */
+    forma: null,
+    /** Partes ya dibujadas, para no redibujar lo que no cambió. */
+    firmas: {},
+    /** Último modelo: los anuncios comparan contra él (un mensaje por cambio de estado, 7.2). */
+    modelo: null,
+    /** Acoplada, el panel quedó fijado por el código de GitHub y vuelve a su marca al terminar (5.2). */
+    retuvo: false,
+    /** La marca "Mantener abierta" de antes de retener, y si el usuario la cambió mientras tanto. */
+    fijaAntes: false,
+    fijaTocada: false,
+  },
 }
 
 /** Pone el HTML solo si cambió su firma (por defecto, el propio HTML). */
@@ -131,12 +168,12 @@ function texto(sel, valor) {
   if (el.textContent !== valor) el.textContent = valor
 }
 
-/** Vacío, cargando o tablero: el marco cambia de forma (dirección 4.6). */
+/** Vacío, cargando, escenario de primeros pasos o tablero: el marco cambia de forma (4.6 y bienvenida-ux.md 3.2). */
 function modoMarco(modo) {
   const marco = $('#marco')
-  marco.classList.toggle('vacio', modo === 'vacio')
-  marco.classList.toggle('cargando', modo === 'cargando')
-  $('#vacio-avi').hidden = modo === 'tablero'
+  for (const m of ['vacio', 'cargando', 'escenario']) marco.classList.toggle(m, modo === m)
+  if (modo !== 'tablero') marco.classList.remove('con-hoja')
+  $('#vacio-avi').hidden = modo === 'tablero' || modo === 'escenario'
 }
 
 function pintarPie() {
@@ -185,13 +222,15 @@ function pintarEquipo(ahora) {
  * La muesca (7.1): el Avi que asoma, el punto y el chip, su nombre accesible y la luz de
  * pregunta. Acoplada, revisa si toca el golpe (6.4).
  */
-function pintarMuesca(ahora) {
+function pintarMuesca(ahora, faltan) {
   const e = estadoMuesca(st.proyectos, ahora)
   const firma = `${e.animo}|${e.punto}|${e.chip}`
   poner('#muesca', contenidoMuesca(e), firma)
   poner('#pildora', contenidoPildora(e), firma)
   const boton = $('#muesca')
-  if (boton.getAttribute('aria-label') !== e.nombre) boton.setAttribute('aria-label', e.nombre)
+  // Primeros pasos: sin golpe ni luz; solo el nombre suma lo que falta (bienvenida-ux.md 3.5)
+  const nombre = nombreMuesca(e.nombre, faltan)
+  if (boton.getAttribute('aria-label') !== nombre) boton.setAttribute('aria-label', nombre)
   document.body.classList.toggle('pregunta', e.pregunta)
   if (st.acople) revisarGolpe(ahora)
 }
@@ -214,6 +253,12 @@ function revisarGolpe(ahora) {
 
 function pintar() {
   const ahora = Date.now()
+  const pp = modeloPasos()
+  const forma = formaAsistente({
+    hayTablero: st.proyectos.length > 0, cargando: !st.actualizado && !st.error,
+    abierto: st.pp.abierto, cerrado: st.pp.cerrado, faltan: pp.faltan,
+  })
+  retenerPanel(pp, forma)
   const totalPend = st.proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
   const marca = animoMarca(st.proyectos, ahora)
   poner('#marca-avi', figuraMarca(marca), marca)
@@ -222,9 +267,19 @@ function pintar() {
   pintarTira(ahora)
   pintarPie()
   pintarEquipo(ahora)
-  pintarMuesca(ahora)
+  pintarMuesca(ahora, pp.faltan)
 
+  if (!st.proyectos.length && forma === 'escenario') {
+    // Sin tablero y con algo pendiente: el escenario de primeros pasos en lugar del vacío (3.2)
+    modoMarco('escenario')
+    texto('#titulo', 'Primeros pasos')
+    texto('#subtitulo', '')
+    poner('#proyectos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#cuadros', ''); poner('#sesiones', '')
+    pintarAsistente(pp, forma)
+    return
+  }
   if (!st.proyectos.length) {
+    pintarAsistente(pp, null)
     // Antes de la primera lectura: "Buscando sesiones…"; después, el vacío
     const cargando = !st.actualizado && !st.error
     modoMarco(cargando ? 'cargando' : 'vacio')
@@ -235,6 +290,8 @@ function pintar() {
     return
   }
   modoMarco('tablero')
+  const hoja = forma === 'hoja'
+  $('#marco').classList.toggle('con-hoja', hoja)
 
   let i = st.proyectos.findIndex(p => p.repo === st.repo)
   if (i < 0) { i = 0; st.repo = st.proyectos[0].repo }
@@ -244,7 +301,8 @@ function pintar() {
     // El redibujo no se lleva el foco: queda en el proyecto que lo tenía
     $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
   }
-  poner('#otro', avisoOtroProyecto(st.proyectos, i))
+  // El aviso de primeros pasos va debajo del de pregunta; con la hoja abierta no hace falta (3.5)
+  poner('#otro', avisoOtroProyecto(st.proyectos, i) + (hoja ? '' : avisoAsistente(pp)))
 
   const preparadas = prepararProyecto(proyecto, ahora)
   const c = conteos(preparadas, ahora)
@@ -256,13 +314,15 @@ function pintar() {
 
   const pend = pendientesVisibles(proyecto)
   if (st.activa >= pend.length) st.activa = 0
+  // Con la hoja abierta, la pregunta tiene prioridad: su aviso queda arriba de la hoja (3.2)
+  const plegado = st.plegado || hoja
   const ui = {
     borradores: st.borradores, seleccion: st.seleccion, seleccionDe: st.seleccionDe, otra: st.otra, textoOtra: st.textoOtra,
-    envios: st.envios, plegado: st.plegado, hecho: st.hecho, saliendo: st.saliendo,
+    envios: st.envios, plegado, hecho: st.hecho, saliendo: st.saliendo,
   }
   const firmaGlobo = JSON.stringify([
     proyecto.repo, st.activa, pend.map(q => [q.clave, q.quien, q.item, q.responde]), Math.floor(ahora / 60000),
-    st.borradores, [...st.seleccion], st.otra, st.envios, st.plegado, st.hecho?.mensaje, st.saliendo,
+    st.borradores, [...st.seleccion], st.otra, st.envios, plegado, st.hecho?.mensaje, st.saliendo,
   ])
   const claves = pend.map(q => q.clave).join(',')
   const nuevo = st.firmas.clavesGlobo !== claves
@@ -277,6 +337,7 @@ function pintar() {
     st.firmas.clavesGlobo = claves
     if (escribiendo) enfocarOtra()
   }
+  pintarAsistente(pp, forma)
 
   // La primera vez que se ve el tablero desde que se mostró la ventana, entra escalonado (6.1).
   // Acoplada y cerrada no se ve: entra al abrir la muesca
@@ -521,7 +582,8 @@ function pintarControles() {
   const textoPin = st.acople ? (st.muesca.fija ? 'Soltar: se pliega sola' : 'Mantener abierta') : 'Siempre arriba'
   pin.setAttribute('aria-pressed', String(st.acople ? st.muesca.fija : st.arriba))
   pin.setAttribute('aria-label', textoPin)
-  pin.title = textoPin
+  // Fijada por el código de GitHub (bienvenida-ux.md 5.2): se ve como "Mantener abierta" marcado
+  pin.title = st.acople && st.pp.retuvo && st.muesca.fija ? 'Queda abierta hasta que GitHub confirme' : textoPin
   const textoCerrar = st.acople ? 'Plegar a la muesca' : 'Cerrar a la bandeja'
   cerrar.setAttribute('aria-label', textoCerrar)
   cerrar.title = textoCerrar
@@ -562,7 +624,14 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('[data-accion]')
   if (!b) return
   const a = b.dataset.accion
+  if (a.startsWith('pp-')) {
+    // Primeros pasos: un botón deshabilitado (aria-disabled, 5.3) ignora el clic
+    if (b.getAttribute('aria-disabled') !== 'true') await accionPasos(a, b)
+    return
+  }
   if (a === 'ir') {
+    // El aviso de una pregunta en otro proyecto cierra la hoja de primeros pasos (3.2)
+    if (b.closest('#otro')) st.pp.abierto = false
     // Un proyecto de la barra o el aviso de una pregunta en otro proyecto
     const p = st.proyectos[+b.dataset.proy]
     if (p) irAProyecto(p.repo, 1)
@@ -605,6 +674,8 @@ document.addEventListener('click', async e => {
     pintar()
     $('[data-accion="ver"]')?.focus()
   } else if (a === 'ver') {
+    // "Ver →" de la pregunta cierra la hoja de primeros pasos y muestra la pregunta (3.2)
+    st.pp.abierto = false
     st.plegado = false
     st.firmas.clavesGlobo = null
     pintar()
@@ -653,9 +724,10 @@ document.addEventListener('keydown', e => {
     }
     if (e.key === 'Escape') { st.plegado = true; pintar(); $('[data-accion="ver"]')?.focus(); return }
   }
+  if (teclaPasos(e)) return
   // Fuera de la pregunta, Esc cierra la muesca aunque esté fijada y devuelve el foco a la muesca (7.2)
   if (e.key === 'Escape' && st.acople && st.muesca.abierta) { e.preventDefault(); evento({ tipo: 'esc' }); return }
-  if (st.mini || e.target.closest?.('input, textarea, summary')) return
+  if (st.mini || e.target.closest?.('input, textarea, summary, #pp')) return
   // ↑ ↓ mueven el foco entre los proyectos de la barra (no cambian de proyecto)
   const fila = e.target.closest?.('#proyectos [data-proy]')
   if (fila && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
@@ -869,6 +941,8 @@ function evento(ev) {
   const antes = st.muesca
   const e = siguiente(antes, ev)
   st.muesca = e
+  // Mientras el código de GitHub retiene el panel, un cambio de la marca es del usuario (alfiler o Esc)
+  if (st.pp.retuvo && e.fija !== antes.fija) st.pp.fijaTocada = true
   if (e.espera !== antes.espera) {
     clearTimeout(relojMuesca)
     if (e.espera) {
@@ -887,6 +961,7 @@ function aplicarFoco() {
   const foco = st.focoPendiente
   st.focoPendiente = null
   if (foco === 'muesca') $('#muesca').focus()
+  else if (foco === 'pp' && $('#pp-h')) $('#pp-h').focus()
   else ($('#proyectos .pj.activo') ?? $('#proyectos [data-proy]') ?? $('#marco [data-accion="pin"]'))?.focus()
 }
 
@@ -1210,6 +1285,280 @@ async function soltarArrastre(e) {
 document.addEventListener('pointerup', soltarArrastre)
 document.addEventListener('pointercancel', soltarArrastre)
 
+// ------------------------------------------------------------------ primeros pasos (docs/diseno/bienvenida-ux.md)
+// Regla firme (10): cada paso corre solo con el clic del usuario. Abrir el asistente o tocar
+// "Volver a buscar" solo revisa (lectura); no hay temporizador, ni foco puesto en una acción, ni un
+// paso que encadene al siguiente.
+
+function modeloPasos() {
+  return modeloAsistente({ revision: st.pp.revision, revisando: st.pp.revisando, ejec: st.pp.ejec })
+}
+
+/** Una línea en la región viva (`#anuncio`, 7.2): nunca mueve el foco. */
+function anunciar(mensaje) {
+  if (mensaje) $('#anuncio').textContent = mensaje
+}
+
+const horaLocal = ms => new Date(ms).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
+/** Posición de lo visible para la dirección del cambio de paso: la escena final va después del paso 3. */
+const indiceVisible = v => (v === 'listo' ? PASOS_PP.length : indicePestana(v))
+
+/**
+ * Dibuja el escenario o la hoja (`forma`) en #pp, por partes: el marco una vez por forma y después
+ * el rótulo, las pestañas, la escena y el pie solo si cambiaron. Conserva el foco del elemento que lo
+ * tenía (`data-foco`); si desapareció, va al título del paso, solo si el foco estaba adentro (7.2).
+ */
+function pintarAsistente(modelo, forma) {
+  const pp = st.pp
+  const raiz = $('#pp')
+  if (forma) {
+    const anuncio = anuncioCambio(pp.modelo, modelo)
+    if (pp.forma) anunciar(anuncio)
+  }
+  if (!forma) {
+    if (pp.forma) { raiz.innerHTML = ''; pp.forma = null; pp.firmas = {} }
+    pp.modelo = modelo
+    return
+  }
+  const activo = document.activeElement
+  const clave = raiz.contains(activo) ? (activo.dataset?.foco ?? (activo.id === 'pp-h' ? 'encabezado' : 'titulo')) : null
+  const nuevo = pp.forma !== forma
+  if (nuevo) {
+    raiz.innerHTML = esqueleto(forma)
+    pp.forma = forma
+    pp.firmas = {}
+    pp.visible = null
+  }
+  // Lo que se ve: el paso que toca al abrir; la escena final solo existe con todo listo
+  // Antes de la primera revisión se ve el paso 1 de forma provisoria: llegada la revisión, el que toca
+  const provisorio = pp.provisorio && modelo.faltan !== null && !modelo.orden.some(id => modelo.pasos[id].estado === 'revisando')
+  if (!pp.visible || provisorio || (pp.visible === 'listo' && !modelo.todoListo && !st.pp.revisando)) {
+    pp.visible = visibleInicial(modelo)
+    pp.provisorio = modelo.faltan === null
+  }
+  const r = rotulo(modelo)
+  if (pp.firmas.rotulo !== r) { $('#pp-h').textContent = r; pp.firmas.rotulo = r }
+
+  const tabs = pestanas(modelo, pp.visible)
+  const pista = $('#pp-tabs')
+  if (pp.firmas.tabs !== tabs) {
+    pista.innerHTML = tabs
+    // Un paso que acaba de quedar hecho: su glifo hace pop y el ✓ se traza (7.1)
+    if (!nuevo && pp.modelo) {
+      for (const id of modelo.orden) {
+        if (modelo.pasos[id].estado === 'hecho' && pp.modelo.pasos[id].estado !== 'hecho') movimientoPasos.marcarHecha($(`#pp-tab-${id}`))
+      }
+    }
+    pp.firmas.tabs = tabs
+  }
+  const k = indicePestana(pp.visible)
+  pista.style.setProperty('--pp-i', String(Math.max(0, k)))
+  pista.classList.toggle('sin-elegida', k < 0)
+
+  const escenaEl = $('#pp-escena')
+  const html = escenaPasos(modelo, pp.visible, forma, horaLocal)
+  if (pp.firmas.escena !== html) {
+    const mismoPaso = !nuevo && pp.firmas.visible === pp.visible
+    escenaEl.innerHTML = html
+    escenaEl.setAttribute('aria-labelledby', k < 0 ? 'pp-titulo' : `pp-tab-${pp.visible}`)
+    const p = modelo.pasos[pp.visible]
+    escenaEl.setAttribute('aria-busy', String(!!p && (p.categoria === 'corre' || p.estado === 'revisando')))
+    if (mismoPaso) movimientoPasos.cambioEstado(escenaEl, { error: p?.categoria === 'falla' })
+    pp.firmas.escena = html
+    pp.firmas.visible = pp.visible
+  }
+  const piePp = piePasos(!!navegar(modelo, pp.visible, -1), !!navegar(modelo, pp.visible, 1))
+  if (pp.firmas.pie !== piePp) { $('#pp-pie').innerHTML = piePp; pp.firmas.pie = piePp }
+
+  if (clave && !raiz.contains(document.activeElement)) {
+    const el = clave === 'encabezado' ? $('#pp-h') : clave === 'titulo' ? $('#pp-titulo') : raiz.querySelector(`[data-foco="${CSS.escape(clave)}"]`)
+    ;(el ?? $('#pp-titulo'))?.focus()
+  }
+  // Aparece (escalonado y con el saludo) solo si se ve: acoplada y cerrada, o escondida, no
+  if (nuevo && !st.fuera && !(st.acople && !st.vista)) movimientoPasos.aparecer(raiz.firstElementChild)
+  pp.modelo = modelo
+}
+
+/** Cambia de paso con un clic (pestaña, Anterior o Siguiente): solo la vista, nunca corre nada. */
+async function irAPaso(destino, { foco = 'titulo' } = {}) {
+  const pp = st.pp
+  if (!destino || destino === pp.visible) return
+  pp.provisorio = false
+  const direccion = Math.sign(indiceVisible(destino) - indiceVisible(pp.visible)) || 1
+  pp.visible = destino
+  await movimientoPasos.cambioPaso($('#pp-escena'), direccion, () => pintar())
+  if (destino === 'listo') anunciar('Todo listo. Tu Oficina está conectada')
+  // Anterior y Siguiente llevan el foco al título del paso nuevo (el botón tocado puede quedar deshabilitado)
+  if (foco === 'titulo') $('#pp-titulo')?.focus()
+  else if (foco === 'tab') $(`#pp-tab-${destino}`)?.focus()
+}
+
+/**
+ * Abre el asistente a pedido (bandeja o "Ver →"): solo revisa, nunca corre un paso. Con `foco`, el
+ * foco va al encabezado del asistente, no a una acción (7.2). Acoplada, abre también el panel.
+ */
+async function abrirAsistente({ foco = false } = {}) {
+  st.pp.abierto = true
+  st.pp.cerrado = false
+  if (st.mini) await ponerMini(false)
+  revisarPasos()
+  pintar()
+  if (st.acople) {
+    evento({ tipo: 'clic' })
+    if (foco) { st.focoPendiente = 'pp'; aplicarFoco() }
+  } else if (foco) {
+    $('#pp-h')?.focus()
+  }
+}
+
+/** La × y "Ir a la Oficina": cierran sin hacer nada más; un paso que corre sigue corriendo (3.2). */
+function cerrarAsistente() {
+  const eraHoja = st.pp.forma === 'hoja'
+  st.pp.abierto = false
+  st.pp.cerrado = true
+  pintar()
+  if (eraHoja) $('#otro [data-accion="pp-ver"]')?.focus()
+}
+
+/**
+ * Revisa la máquina con comandos de solo lectura (3.3): al arrancar, al abrir el asistente, con
+ * "Volver a buscar" o "Reintentar" y después de cada paso. La de después de un paso es la
+ * verificación (`aLaVista: false`): no pasa los otros pasos a "Revisando". Una revisión pedida
+ * mientras corre otra se hace al terminar. Después, el texto del ítem de la bandeja.
+ */
+function revisarPasos({ aLaVista = true } = {}) {
+  if (!tauri?.core) return Promise.resolve()
+  if (aLaVista) st.pp.revisando = true
+  if (st.pp.leyendo) { st.pp.otraRevision = true; pintar(); return st.pp.promesa }
+  st.pp.leyendo = true
+  pintar()
+  st.pp.promesa = (async () => {
+    try {
+      do {
+        st.pp.otraRevision = false
+        const r = await invocar('revisar_primeros_pasos')
+        st.pp.revision = r && typeof r === 'object' ? r : {}
+        st.pp.ejec = trasRevision(st.pp.ejec, st.pp.revision)
+      } while (st.pp.otraRevision)
+    } catch (e) {
+      registrar(`primeros pasos: ${e}`)
+      st.pp.revision ??= {}
+    }
+    st.pp.revisando = false
+    st.pp.leyendo = false
+    invocar('menu_primeros_pasos', { faltan: modeloPasos().faltan }).catch(() => {})
+    pintar()
+  })()
+  return st.pp.promesa
+}
+
+/** Corre un paso porque el usuario tocó su botón (9.5). Nunca se llama de otra forma. */
+async function correrPaso(accion) {
+  if (!tauri?.core || !accion) return
+  // El usuario ya está adentro: el asistente queda abierto aunque aparezca una sesión
+  st.pp.abierto = true
+  st.pp.ejec = alEmpezar(st.pp.ejec, accion)
+  pintar()
+  try {
+    await invocar('correr_paso', { paso: accion })
+  } catch (e) {
+    st.pp.ejec = alEvento(st.pp.ejec, { accion, estado: 'error', comando: accion, linea: String(e), detalle: String(e) }, Date.now())
+    pintar()
+  }
+}
+
+/**
+ * Un aviso del paso que corre (`oficina://primeros-pasos`). Al terminar, la verificación de solo
+ * lectura (3.3); después de conectar GitHub, el equipo se vuelve a leer con la cuenta nueva.
+ */
+function alEventoPaso(payload) {
+  st.pp.ejec = alEvento(st.pp.ejec, payload, Date.now())
+  if (payload?.estado === 'listo' || payload?.estado === 'error') {
+    revisarPasos({ aLaVista: false }).then(() => {
+      if (payload.estado === 'listo' && (payload.accion === 'conectar' || payload.accion === 'permiso')) leerEquipo()
+    })
+  }
+  pintar()
+}
+
+/** "Copiar …": un clic copia; el botón dice "Copiado ✓" 1,6 s sin redibujar la escena (5.3). */
+async function copiar(b) {
+  try {
+    await navigator.clipboard.writeText(b.dataset.valor ?? '')
+  } catch (e) {
+    registrar(`copiar: ${e}`)
+    return
+  }
+  anunciar(b.dataset.copiado)
+  const antes = b.innerHTML
+  b.textContent = 'Copiado ✓'
+  setTimeout(() => { if (b.isConnected) b.innerHTML = antes }, 1600)
+}
+
+/** Los botones del asistente (`data-accion="pp-…"`). Cada uno hace solo lo suyo. */
+async function accionPasos(a, b) {
+  switch (a) {
+    case 'pp-tab': await irAPaso(b.dataset.paso, { foco: 'tab' }); break
+    case 'pp-anterior': await irAPaso(navegar(modeloPasos(), st.pp.visible, -1)); break
+    case 'pp-siguiente': await irAPaso(navegar(modeloPasos(), st.pp.visible, 1)); break
+    case 'pp-cerrar': case 'pp-ir': cerrarAsistente(); break
+    case 'pp-ver': await abrirAsistente({ foco: true }); break
+    case 'pp-revisar': revisarPasos(); break
+    case 'pp-correr': await correrPaso(b.dataset.valor); break
+    case 'pp-cancelar': await invocar('cancelar_paso').catch(e => registrar(`cancelar: ${e}`)); break
+    case 'pp-abrir': await invocar('abrir_enlace', { cual: b.dataset.valor }).catch(e => registrar(`enlace: ${e}`)); break
+    case 'pp-copiar': await copiar(b); break
+  }
+}
+
+/**
+ * Teclado del asistente (7.2): ← → Inicio y Fin mueven el foco entre las pestañas (Enter o Espacio
+ * muestran el paso: es el clic del botón); Esc cierra la hoja flotante. Devuelve si la usó.
+ */
+function teclaPasos(e) {
+  const tab = e.target.closest?.('#pp-tabs .pp-tab')
+  if (tab && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+    e.preventDefault()
+    const tabs = [...document.querySelectorAll('#pp-tabs .pp-tab')]
+    const k = tabs.indexOf(tab)
+    const j = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (k + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+    tabs.forEach((t, i) => { t.tabIndex = i === j ? 0 : -1 })
+    tabs[j].focus()
+    return true
+  }
+  // En el escenario flotante Esc no hace nada (cerrar es la ×); acoplada, cierra el panel (7.2 del estilo)
+  if (e.key === 'Escape' && st.pp.forma === 'hoja' && !st.acople) {
+    e.preventDefault()
+    cerrarAsistente()
+    return true
+  }
+  return false
+}
+
+/**
+ * Acoplada, el panel no se pliega solo mientras se pide el código de GitHub, se muestra o se
+ * verifica (5.2): queda fijado y al terminar vuelve a la marca que tenía, salvo que el usuario la
+ * haya cambiado mientras tanto (`fijaAlSoltar`). Esc lo cierra igual.
+ */
+function retenerPanel(modelo, forma) {
+  const pp = st.pp
+  if (!st.acople) { pp.retuvo = false; return }
+  const retener = !!forma && retieneAbierta(modelo)
+  if (retener && !pp.retuvo && !st.muesca.fija) {
+    pp.retuvo = true
+    pp.fijaAntes = st.muesca.fija
+    pp.fijaTocada = false
+    if (st.muesca.espera?.que === 'cerrar') clearTimeout(relojMuesca)
+    st.muesca = { ...st.muesca, fija: true, espera: st.muesca.espera?.que === 'cerrar' ? null : st.muesca.espera }
+    pintarControles()
+  } else if (!retener && pp.retuvo) {
+    pp.retuvo = false
+    const fija = fijaAlSoltar({ antes: pp.fijaAntes, actual: st.muesca.fija, tocada: pp.fijaTocada })
+    if (st.muesca.fija !== fija) st.muesca = { ...st.muesca, fija }
+    pintarControles()
+  }
+}
+
 async function iniciar() {
   // Las definiciones de los Avis (piel, luz de piso y desenfoque), una vez por documento (5.1)
   document.body.insertAdjacentHTML('afterbegin', defsAvis())
@@ -1246,11 +1595,16 @@ async function iniciar() {
       st.zonaN = n
       ponerDentro(!!ev.payload.dentro)
     })
+    // Primeros pasos: el ítem de la bandeja abre el asistente (3.5) y cada paso que corre avisa (9.5)
+    escuchar('oficina://primeros-pasos-abrir', () => abrirAsistente({ foco: true }))
+    escuchar('oficina://primeros-pasos', ev => alEventoPaso(ev.payload))
   } else {
     await aplicarTamano(PASO_POR_DEFECTO)
   }
   ciclo()
   cicloEquipo()
+  // Al arrancar se revisa qué falta (solo lectura, 3.3); nunca en el ciclo de 1,5 s
+  revisarPasos()
 }
 
 iniciar()

@@ -34,6 +34,21 @@
 // pointer-events: none en el iframe (el escritorio de vista.html recibe el clic). window.__puntero
 // dice el último punto visto y si estaba adentro.
 // Hay una hoja con todos los Avis en todas las poses en dev/avis.html.
+// Primeros pasos (#10, docs/diseno/bienvenida-ux.md): sin ?pp la máquina está lista (el widget de
+// siempre). Con ?pp, lo que falta:
+//   ?pp=nada       sin Claude Code ni GitHub CLI (winget sí)
+//   ?pp=sinclaude  sin Claude Code (GitHub conectado)
+//   ?pp=sinmod     sin el mod ni el catálogo        ?pp=apagado     el mod instalado pero apagado
+//   ?pp=singh      sin GitHub CLI (winget sí)        ?pp=sinwinget   sin GitHub CLI ni winget
+//   ?pp=sinsesion  gh sin sesión                     ?pp=sinpermiso  la cuenta sin el permiso project
+//   ?pp=nomiembro  la cuenta no es de quintechlab    ?pp=invitacion  invitación sin aceptar
+//   ?pp=sinred     GitHub no responde (sin conexión) ?pp=listo       todo hecho
+//   &ppfalla=mod|gh|conectar  la primera vez ese paso falla (sin red, permiso de Windows o error de gh)
+//   &ppvence       el código de GitHub vence a los 5 s; sin esto, "autorizás" en el navegador a los 6 s
+//   &pplento       la revisión tarda 2 s (para ver "Revisando…")
+// Cada paso que corre avisa como Rust (oficina://primeros-pasos) y, si termina bien, cambia la
+// máquina falsa. El ítem de la bandeja se imita con window.__bandeja('oficina://primeros-pasos-abrir');
+// su texto queda en window.__menuPasos.
 ;(() => {
   const url = new URLSearchParams(location.search)
   const ahora = Date.now()
@@ -250,8 +265,105 @@
     })
   }
 
+  // ---- primeros pasos: la máquina falsa y los pasos que corren
+  const pp = url.get('pp')
+  const maquina = {
+    claude: !['nada', 'sinclaude'].includes(pp),
+    catalogo: !['sinmod'].includes(pp),
+    mod: pp === 'sinmod' || pp === 'nada' || pp === 'sinclaude' ? 'ausente' : pp === 'apagado' ? 'apagado' : 'activo',
+    gh: !['nada', 'singh', 'sinwinget'].includes(pp),
+    winget: pp !== 'sinwinget',
+    cuenta: ['nada', 'singh', 'sinwinget', 'sinsesion'].includes(pp) ? 'sin-sesion' : pp === 'sinred' ? 'sin-conexion' : 'conectada',
+    faltan: pp === 'sinpermiso' ? ['project'] : [],
+    membresia: pp === 'nomiembro' ? 'no-miembro' : pp === 'invitacion' ? 'pendiente' : 'activa',
+  }
+  let fallaPendiente = url.get('ppfalla')
+  const revisionFalsa = () => ({
+    claude: { encontrado: maquina.claude, version: maquina.claude ? '2.1.329' : null },
+    mod: maquina.claude
+      ? { instalado: maquina.mod !== 'ausente', activo: maquina.mod === 'activo', version: maquina.mod === 'ausente' ? null : '0.6.0', catalogo: maquina.catalogo, error: null }
+      : { instalado: false, activo: false, version: null, catalogo: false, error: null },
+    gh: { instalado: maquina.gh, version: maquina.gh ? '2.103.3' : null, winget: !maquina.gh && maquina.winget },
+    cuenta: maquina.gh
+      ? { estado: maquina.cuenta, login: maquina.cuenta === 'sin-sesion' ? null : 'nicoequintana', faltan: maquina.faltan, error: maquina.cuenta === 'sin-conexion' ? 'error connecting to api.github.com (falso)' : null, comando: 'gh auth status --hostname github.com --active --json hosts' }
+      : { estado: 'sin-gh', login: null, faltan: [], error: null, comando: 'gh auth status --hostname github.com --active --json hosts' },
+    membresia: maquina.gh && maquina.cuenta === 'conectada' && !maquina.faltan.length
+      ? { estado: maquina.membresia, error: null, comando: 'gh api user/memberships/orgs/quintechlab' }
+      : null,
+  })
+  let relojesPaso = []
+  let corriendo = null
+  const despues = (ms, f) => relojesPaso.push(setTimeout(f, ms))
+  const avisarPaso = (accion, cuerpo) => emitir('oficina://primeros-pasos', { accion, paso: ['mod', 'activar'].includes(accion) ? 'mod' : 'gh', ...cuerpo })
+  const terminar = (accion, cuerpo) => { corriendo = null; relojesPaso = []; avisarPaso(accion, cuerpo) }
+  /** Corre un paso falso: los comandos de 9.2, uno por vez, con sus avisos y su final. */
+  const correrFalso = accion => {
+    const falla = fallaPendiente === accion || (fallaPendiente === 'conectar' && accion === 'permiso')
+    if (falla) fallaPendiente = null
+    if (accion === 'mod' || accion === 'activar') {
+      const lista = accion === 'activar' ? ['claude plugin enable oficina@quintech']
+        : [...(maquina.catalogo ? [] : ['claude plugin marketplace add quintechlab/oficina']), 'claude plugin install oficina@quintech']
+      lista.forEach((c, k) => {
+        despues(k * 1100 + 100, () => avisarPaso(accion, { estado: 'comando', comando: c }))
+        if (falla && k === lista.length - 1) {
+          despues(k * 1100 + 1000, () => terminar(accion, { estado: 'error', comando: c, linea: 'Error: getaddrinfo ENOTFOUND github.com', detalle: 'Error: getaddrinfo ENOTFOUND github.com\n    at GetAddrInfoReqWrap.onlookup (falso)', red: true, permiso: false }))
+        } else {
+          despues(k * 1100 + 1000, () => avisarPaso(accion, { estado: 'comando-hecho', comando: c }))
+        }
+      })
+      if (!falla) {
+        despues(lista.length * 1100 + 100, () => {
+          maquina.catalogo = true
+          maquina.mod = 'activo'
+          terminar(accion, { estado: 'listo' })
+        })
+      }
+    } else if (accion === 'gh') {
+      const c = 'winget install --id GitHub.cli -e'
+      despues(100, () => avisarPaso(accion, { estado: 'comando', comando: c }))
+      despues(2400, () => {
+        if (falla) return terminar(accion, { estado: 'error', comando: c, linea: 'Installer failed with exit code: 0x800704c7 : The operation was canceled by the user.', detalle: 'Installer failed with exit code: 0x800704c7 : The operation was canceled by the user.', red: false, permiso: true })
+        maquina.gh = true
+        terminar(accion, { estado: 'listo' })
+      })
+    } else {
+      const c = accion === 'permiso' ? 'gh auth refresh --hostname github.com --scopes repo,read:org,project' : 'gh auth login --hostname github.com --web --git-protocol https --skip-ssh-key --scopes repo,read:org,project'
+      despues(100, () => avisarPaso(accion, { estado: 'comando', comando: c }))
+      if (falla) return despues(900, () => terminar(accion, { estado: 'error', comando: c, linea: 'HTTP 502: Bad Gateway (https://github.com/login/device/code)', detalle: 'HTTP 502: Bad Gateway (falso)', red: false, permiso: false }))
+      despues(900, () => {
+        avisarPaso(accion, { estado: 'codigo', codigo: '4F2A-91C7' })
+        console.info('[navegador] https://github.com/login/device (falso)')
+      })
+      if (url.has('ppvence')) despues(5000, () => terminar(accion, { estado: 'vencido' }))
+      else {
+        despues(6000, () => {
+          maquina.cuenta = 'conectada'
+          maquina.faltan = []
+          terminar(accion, { estado: 'listo' })
+        })
+      }
+    }
+  }
+
   const comandos = {
     registrar: ({ linea }) => console.debug('[widget.log]', linea),
+    revisar_primeros_pasos: () => new Promise(r => setTimeout(() => r(revisionFalsa()), url.has('pplento') ? 2000 : 600)),
+    menu_primeros_pasos: ({ faltan }) => { window.__menuPasos = faltan == null || faltan === 0 ? 'Primeros pasos…' : faltan === 1 ? 'Primeros pasos (falta 1)…' : `Primeros pasos (faltan ${faltan})…`; console.info('[bandeja]', window.__menuPasos) },
+    correr_paso: ({ paso }) => {
+      if (corriendo) throw new Error('ya corre otro paso (falso)')
+      if (!['mod', 'activar', 'gh', 'conectar', 'permiso'].includes(paso)) throw new Error('paso desconocido')
+      corriendo = paso
+      console.info('[paso]', paso)
+      correrFalso(paso)
+    },
+    cancelar_paso: () => {
+      if (corriendo !== 'conectar' && corriendo !== 'permiso') return false
+      const accion = corriendo
+      relojesPaso.forEach(clearTimeout)
+      terminar(accion, { estado: 'cancelado' })
+      return true
+    },
+    abrir_enlace: ({ cual }) => console.info('[navegador]', cual),
     poner_bandeja: ({ texto }) => { document.title = texto },
     estado_menu: () => ({ arriba: true, avisar: true, pausa: url.has('pausa'), tamano: paso, acople }),
     leer_sesiones: () => {

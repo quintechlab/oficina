@@ -2,6 +2,7 @@ mod arranque;
 mod diagnostico;
 mod equipo;
 mod preferencias;
+mod primeros_pasos;
 mod respuestas;
 mod sesiones;
 
@@ -10,7 +11,7 @@ use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
 use tauri::image::Image;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewWindow, Wry};
 use tauri_plugin_autostart::ManagerExt as _;
@@ -278,7 +279,12 @@ struct MenuBandeja {
     tamano_actual: MenuItem<Wry>,
     /// "Acoplar a": Arriba, Derecha, Abajo, Izquierda y Flotante (`preferencias::IDS_ACOPLE`).
     acople: Vec<CheckMenuItem<Wry>>,
+    /// "Primeros pasos (falta n)…" (bienvenida-ux.md 3.5): el texto sigue a la última revisión.
+    primeros_pasos: MenuItem<Wry>,
 }
+
+/// Orden del menú de la bandeja: "Primeros pasos" va justo debajo de "Mostrar oficina" (3.5).
+const ORDEN_BANDEJA: [&str; 10] = ["mostrar", "primeros-pasos", "arriba", "avisar", "pausa", "acoplar", "tamano", "arranque", "separador", "salir"];
 
 fn ventana(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(VENTANA)
@@ -293,6 +299,19 @@ fn mostrar(app: &AppHandle) {
     despertar(&app.state::<Estado>());
     // Acoplada, "Mostrar oficina" abre el panel (7.3); flotando, la ventana lo ignora
     let _ = app.emit("oficina://abrir", ());
+}
+
+/// "Primeros pasos…" de la bandeja (bienvenida-ux.md 3.5): muestra la ventana como "Mostrar
+/// oficina" y la ventana abre el asistente (acoplada, también el panel) con el foco en su
+/// encabezado. Abrirlo solo revisa: no corre ningún paso.
+fn abrir_primeros_pasos(app: &AppHandle) {
+    if let Some(v) = ventana(app) {
+        let _ = v.unminimize();
+        let _ = v.show();
+        let _ = v.set_focus();
+    }
+    despertar(&app.state::<Estado>());
+    let _ = app.emit("oficina://primeros-pasos-abrir", ());
 }
 
 /// Rectángulo de un monitor en píxeles físicos: x, y, ancho y alto.
@@ -442,7 +461,18 @@ fn al_segundo_arranque(app: &AppHandle) {
     let _ = app.emit("oficina://abrir", ());
 }
 
+/// Al salir, el paso de primeros pasos que corre (gh, winget, claude) no queda huérfano: se mata
+/// sin esperarlo. Si no se puede (un instalador ya elevado), se anota y la salida sigue.
+fn apagar_paso() {
+    if let Err(e) = primeros_pasos::TURNO.apagar() {
+        if let Some(ruta) = diagnostico::ruta_log() {
+            let _ = diagnostico::agregar_linea(&ruta, &format!("primeros pasos al salir: {e}"), chrono::Utc::now(), diagnostico::TOPE_BYTES);
+        }
+    }
+}
+
 fn salir(app: &AppHandle) {
+    apagar_paso();
     // El hilo del sondeo termina en su próxima vuelta
     let estado = app.state::<Estado>();
     estado.apagar.store(true, Ordering::Relaxed);
@@ -488,6 +518,74 @@ async fn leer_equipo(estado: State<'_, Estado>) -> Result<serde_json::Value, Str
         .map_err(|e| e.to_string())?
         .and_then(|t| equipo::comentarios_desde_json(&t));
     Ok(equipo::respuesta(yo, comentarios))
+}
+
+/// Qué falta en la máquina para la Oficina (bienvenida-ux.md 3.3), solo con comandos de lectura.
+/// Se llama al arrancar, al abrir el asistente y con "Volver a buscar"; nunca en el ciclo de 1,5 s.
+#[tauri::command]
+async fn revisar_primeros_pasos() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(primeros_pasos::revisar).await.map_err(|e| e.to_string())
+}
+
+/// Pone el texto del ítem "Primeros pasos" de la bandeja según los pasos que faltan (3.5).
+#[tauri::command]
+fn menu_primeros_pasos(estado: State<'_, Estado>, faltan: Option<u32>) -> Result<(), String> {
+    if let Some(m) = estado.menu.lock().unwrap().as_ref() {
+        m.primeros_pasos.set_text(primeros_pasos::texto_menu(faltan)).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Corre un paso de primeros pasos porque el usuario tocó su botón (bienvenida-ux.md 9.5). Un paso
+/// por vez: si ya corre otro, se rechaza. Lo que pasa llega a la ventana como `oficina://primeros-pasos`.
+/// Al conectar una cuenta, el login guardado de `leer_equipo` se olvida (el tablero lee la cuenta nueva).
+#[tauri::command]
+fn correr_paso(app: AppHandle, paso: String) -> Result<(), String> {
+    let accion = primeros_pasos::Accion::desde(&paso).ok_or("paso desconocido")?;
+    primeros_pasos::TURNO.empezar(accion)?;
+    let lanzado = std::thread::Builder::new().name(String::from("oficina-paso")).spawn(move || {
+        let emitir = |v: serde_json::Value| {
+            let _ = app.emit(primeros_pasos::EVENTO, v);
+        };
+        let para_abrir = app.clone();
+        // Sin terminal, gh imprime la dirección en vez de abrir el navegador: se abre en el mismo clic
+        let abrir = move || {
+            let _ = para_abrir.run_on_main_thread(|| {
+                if let Err(e) = primeros_pasos::abrir_en_navegador(primeros_pasos::URL_DISPOSITIVO) {
+                    if let Some(ruta) = diagnostico::ruta_log() {
+                        let _ = diagnostico::agregar_linea(&ruta, &format!("primeros pasos: {e}"), chrono::Utc::now(), diagnostico::TOPE_BYTES);
+                    }
+                }
+            });
+        };
+        let fin = {
+            // El turno se suelta al salir de este bloque, aunque el paso se caiga
+            let _soltar = primeros_pasos::TURNO.soltar_al_terminar();
+            let fin = primeros_pasos::ejecutar(accion, &primeros_pasos::TURNO, &emitir, &abrir);
+            if fin == primeros_pasos::Fin::Listo && accion.conecta() {
+                *app.state::<Estado>().login.lock().unwrap_or_else(PoisonError::into_inner) = None;
+            }
+            fin
+        };
+        emitir(fin.evento(accion));
+    });
+    lanzado.map(|_| ()).map_err(|e| {
+        primeros_pasos::TURNO.terminar();
+        e.to_string()
+    })
+}
+
+/// "Cancelar" mientras se pide o se muestra el código de GitHub: mata el proceso de `gh`.
+#[tauri::command]
+fn cancelar_paso() -> bool {
+    primeros_pasos::TURNO.cancelar()
+}
+
+/// Abre en el navegador una de las direcciones conocidas del asistente (nunca una que mande la ventana).
+#[tauri::command]
+fn abrir_enlace(cual: String) -> Result<(), String> {
+    let url = primeros_pasos::enlace(&cual).ok_or("enlace desconocido")?;
+    primeros_pasos::abrir_en_navegador(url)
 }
 
 /// Fija la ventana arriba de las demás y sincroniza la marca del menú de la bandeja.
@@ -757,7 +855,25 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
     )?;
     let salir_item = MenuItem::with_id(app, "salir", "Salir", true, None::<&str>)?;
     let separador = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&mostrar_item, &arriba, &avisar_item, &pausa, &submenu_acople, &submenu, &arranque_item, &separador, &salir_item])?;
+    let primeros_pasos_item = MenuItem::with_id(app, "primeros-pasos", primeros_pasos::texto_menu(None), true, None::<&str>)?;
+    let items: Vec<&dyn IsMenuItem<Wry>> = ORDEN_BANDEJA
+        .iter()
+        .map(|id| -> &dyn IsMenuItem<Wry> {
+            match *id {
+                "mostrar" => &mostrar_item,
+                "primeros-pasos" => &primeros_pasos_item,
+                "arriba" => &arriba,
+                "avisar" => &avisar_item,
+                "pausa" => &pausa,
+                "acoplar" => &submenu_acople,
+                "tamano" => &submenu,
+                "arranque" => &arranque_item,
+                "separador" => &separador,
+                _ => &salir_item,
+            }
+        })
+        .collect();
+    let menu = Menu::with_items(app, &items)?;
 
     let mut bandeja = TrayIconBuilder::with_id(BANDEJA)
         .menu(&menu)
@@ -770,6 +886,7 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
             };
             match evento.id().as_ref() {
                 "mostrar" => mostrar(app),
+                "primeros-pasos" => abrir_primeros_pasos(app),
                 "arriba" => {
                     let valor = marca(|m| &m.arriba);
                     // Acoplada, la muesca queda siempre arriba; la marca vale para cuando flote
@@ -820,7 +937,17 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
         bandeja = bandeja.icon(icono.clone());
     }
     bandeja.build(app)?;
-    *app.state::<Estado>().menu.lock().unwrap() = Some(MenuBandeja { arriba, avisar: avisar_item, pausa, arranque: arranque_item, agrandar, achicar, tamano_actual, acople });
+    *app.state::<Estado>().menu.lock().unwrap() = Some(MenuBandeja {
+        arriba,
+        avisar: avisar_item,
+        pausa,
+        arranque: arranque_item,
+        agrandar,
+        achicar,
+        tamano_actual,
+        acople,
+        primeros_pasos: primeros_pasos_item,
+    });
     Ok(())
 }
 
@@ -829,6 +956,11 @@ mod tests {
     use super::*;
 
     const PRINCIPAL: Rect = (0, 0, 1920, 1080);
+
+    #[test]
+    fn primeros_pasos_va_debajo_de_mostrar_y_el_resto_del_menu_no_cambia() {
+        assert_eq!(ORDEN_BANDEJA, ["mostrar", "primeros-pasos", "arriba", "avisar", "pausa", "acoplar", "tamano", "arranque", "separador", "salir"]);
+    }
 
     #[test]
     fn el_rectangulo_fisico_redondea_posicion_y_tamano_con_la_escala() {
@@ -1094,8 +1226,19 @@ pub fn run() {
             responder,
             estado_respuesta,
             borrar_respuesta,
-            registrar
+            registrar,
+            revisar_primeros_pasos,
+            menu_primeros_pasos,
+            correr_paso,
+            cancelar_paso,
+            abrir_enlace
         ])
-        .run(tauri::generate_context!())
-        .expect("no se pudo iniciar el widget de la oficina");
+        .build(tauri::generate_context!())
+        .expect("no se pudo iniciar el widget de la oficina")
+        .run(|_app, evento| {
+            // Cualquier salida de la aplicación, no solo "Salir" de la bandeja
+            if let tauri::RunEvent::Exit = evento {
+                apagar_paso();
+            }
+        });
 }
