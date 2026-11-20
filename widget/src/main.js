@@ -6,7 +6,7 @@
 import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, escapar } from './logica.js'
 import { companeros } from './equipo.js'
 import { iconoBandeja, textoInsignia } from './bandeja.js'
-import { zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, posicionEnPantalla, tamanoMini, PASO_POR_DEFECTO } from './tamano.js'
+import { zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, fueraDeLugar, posicionEnPantalla, tamanoMini, medidaVentana, PASO_POR_DEFECTO } from './tamano.js'
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
   prepararProyecto, firmaTablero, sesiones, carasMini, companero, firmaCompanero,
@@ -16,7 +16,7 @@ import { globo, avisoOtroProyecto, quienPregunta, anuncioPregunta } from './preg
 import { defsAvis } from './avis.js'
 import { entrada, cambioProyecto } from './tableroMotion.js'
 import {
-  esHorizontal, bordeCercano, lugarDe, lugarAjustado, rectMuesca, rectPanel, rectLuz, recorte, relativo, cajaArrastre,
+  esHorizontal, bordeCercano, lugarDe, lugarAjustado, disposicionAcoplada, zonaInteractiva, recorte, cajaArrastre,
   posicionFlotante, dentroDe, estadoMuesca, contenidoMuesca, contenidoPildora, ESTADO_INICIAL, siguiente, tocaGolpe, PILDORA,
 } from './muesca.js'
 import * as movimientoMuesca from './muescaMotion.js'
@@ -100,8 +100,14 @@ const st = {
   /** Rectángulo de la ventana acoplada (px de pantalla) y última posición flotante. */
   ventana: null,
   ultimaFlotante: null,
-  /** Puntero en px de pantalla, para saber si quedó sobre la muesca al cerrarse. */
-  puntero: null,
+  /** Última disposición acoplada (`disposicionAcoplada`): ventana fija, muesca y panel (9.6). */
+  disp: null,
+  /** El puntero en la zona interactiva, según el sondeo de Rust (`oficina://puntero-zona`, 9.6). */
+  dentroZona: false,
+  /** Número del último aviso del sondeo: uno más viejo se descarta. */
+  zonaN: -1,
+  /** Última zona mandada a Rust, para no repetirla. */
+  zonaEnviada: null,
   /** Foco que hay que dar cuando termine la animación: 'proyecto' o 'muesca'. */
   focoPendiente: null,
 }
@@ -277,12 +283,16 @@ function pintar() {
   }
 }
 
-/** Va a otro proyecto: solo la columna principal entra desde el lado de `direccion` (6.2). */
+/**
+ * Va a otro proyecto: solo la columna principal entra desde el lado de `direccion` (6.2). El
+ * tablero no cambia de tamaño (alto fijo, 9.2) y la columna vuelve arriba.
+ */
 function irAProyecto(repo, direccion) {
   if (repo === st.repo) return
   st.repo = repo
   st.activa = 0
   pintar()
+  $('.principal').scrollTop = 0
   cambioProyecto(direccion)
 }
 
@@ -476,6 +486,8 @@ async function leerEquipo() {
 async function ciclo() {
   await leer()
   ponerFuera(await fueraDeVista())
+  // Acoplada, si el área de trabajo o el monitor cambiaron, la ventana fija se recoloca (9.6)
+  if (st.acople) programarAjuste()
   setTimeout(ciclo, INTERVALO_MS)
 }
 
@@ -675,9 +687,10 @@ document.addEventListener('keydown', e => {
 })
 
 /**
- * Tamaño natural del contenido, en px de la ventana (ya con el zoom aplicado): #contenido más el
- * relleno del área que desplaza, su barra, el borde de #marco y el margen transparente del body
- * para la sombra (dirección 9.5).
+ * Tamaño del tablero en px de la ventana (ya con el zoom aplicado), con el margen transparente del
+ * body para la sombra (dirección 9.5). El ancho es el de #contenido más el relleno del área que
+ * desplaza, su barra y el borde de #marco. El alto del tablero es fijo (`--alto-tablero`, 9.2): no
+ * cambia de un proyecto a otro. En el vacío y la carga el alto sigue al contenido.
  */
 function medirContenido() {
   const marco = $('#marco'), cuerpo = $('#cuerpo'), contenido = $('#contenido')
@@ -686,10 +699,18 @@ function medirContenido() {
   const f = marco.offsetWidth ? rMarco.width / marco.offsetWidth : 1
   const suma = (el, a, b) => { const cs = getComputedStyle(el); return parseFloat(cs[a]) + parseFloat(cs[b]) }
   const barra = cuerpo.offsetWidth - cuerpo.clientWidth
-  return {
-    ancho: rContenido.width + (suma(cuerpo, 'paddingLeft', 'paddingRight') + barra + suma(marco, 'borderLeftWidth', 'borderRightWidth') + suma(document.body, 'paddingLeft', 'paddingRight')) * f,
-    alto: rContenido.height + (suma(cuerpo, 'paddingTop', 'paddingBottom') + suma(marco, 'borderTopWidth', 'borderBottomWidth') + suma(document.body, 'paddingTop', 'paddingBottom')) * f,
-  }
+  const compacto = marco.classList.contains('vacio') || marco.classList.contains('cargando')
+  const fijo = parseFloat(getComputedStyle(marco).getPropertyValue('--alto-tablero'))
+  return medidaVentana({
+    contenido: { ancho: rContenido.width, alto: rContenido.height },
+    extras: {
+      ancho: suma(cuerpo, 'paddingLeft', 'paddingRight') + barra + suma(marco, 'borderLeftWidth', 'borderRightWidth') + suma(document.body, 'paddingLeft', 'paddingRight'),
+      alto: suma(cuerpo, 'paddingTop', 'paddingBottom') + suma(marco, 'borderTopWidth', 'borderBottomWidth') + suma(document.body, 'paddingTop', 'paddingBottom'),
+    },
+    f,
+    altoTablero: compacto || !Number.isFinite(fijo) ? null : fijo,
+    margen: suma(document.body, 'paddingTop', 'paddingBottom'),
+  })
 }
 
 let esperaAjuste = null
@@ -739,34 +760,70 @@ function tamMuesca() {
 /** Largo del área de trabajo a lo largo de un borde. */
 const largoDe = (borde, area) => esHorizontal(borde) ? area.ancho : area.alto
 
-/**
- * Ubica adentro de la ventana (`ventana`, px de pantalla) la muesca, su luz y, abierta, el
- * tablero (`p.tablero`), en px CSS.
- */
-function colocar(ventana, m, p) {
-  const z = zoom(), cuerpo = document.body.style
-  const poner = (prefijo, r) => {
-    const c = relativo(r, ventana, z)
-    cuerpo.setProperty(`--${prefijo}x`, `${c.x}px`)
-    cuerpo.setProperty(`--${prefijo}y`, `${c.y}px`)
-    if (prefijo !== 'm') { cuerpo.setProperty(`--${prefijo}w`, `${c.ancho}px`); cuerpo.setProperty(`--${prefijo}h`, `${c.alto}px`) }
-  }
-  poner('m', m.caja)
-  poner('l', rectLuz(m, st.acople.borde, z))
-  if (p) poner('t', p.tablero)
-  st.ventana = { x: ventana.x, y: ventana.y, ancho: ventana.ancho, alto: ventana.alto }
+/** Disposición acoplada con el área de trabajo `area`: ventana fija, muesca y panel (9.6). */
+function disposicion(area, tablero = medirContenido()) {
+  return disposicionAcoplada(st.acople, tamMuesca(), tablero, area, zoom())
 }
 
-/** Ajuste acoplado: la muesca cerrada o el panel abierto, en su borde y su lugar. */
-async function colocarAcoplada(g) {
-  const z = zoom(), tm = tamMuesca()
-  const m = rectMuesca(st.acople, tm, g.area, z)
-  const p = st.vista ? rectPanel(st.acople, medirContenido(), tm, g.area, z) : null
-  const ventana = p ?? m
-  colocar(ventana, m, p)
-  if (debeAjustar(g, ventana) || Math.abs(g.x - ventana.x) > 1 || Math.abs(g.y - ventana.y) > 1) {
-    await invocar('ajustar_ventana', { ancho: ventana.ancho, alto: ventana.alto, x: ventana.x, y: ventana.y })
+/**
+ * Ubica adentro de la ventana fija la muesca, su luz y el tablero (`d.local`, px CSS). Abierta o
+ * cerrada es lo mismo: lo que cambia es el recorte y la clase `abierta`.
+ */
+function colocar(d) {
+  const cuerpo = document.body.style
+  const poner = (prefijo, c, conTamano = true) => {
+    cuerpo.setProperty(`--${prefijo}x`, `${c.x}px`)
+    cuerpo.setProperty(`--${prefijo}y`, `${c.y}px`)
+    if (conTamano) { cuerpo.setProperty(`--${prefijo}w`, `${c.ancho}px`); cuerpo.setProperty(`--${prefijo}h`, `${c.alto}px`) }
   }
+  poner('m', d.local.muesca, false)
+  poner('l', d.local.luz)
+  poner('t', d.local.tablero)
+  st.disp = d
+  st.ventana = { ...d.ventana }
+}
+
+/**
+ * Coloca la ventana acoplada (9.6): una sola vez al acoplar, al cambiar de borde, de lugar, de
+ * tamaño elegido, de contenido o de área de trabajo. Abrir y cerrar no la tocan.
+ */
+async function colocarAcoplada(g) {
+  const d = disposicion(g.area)
+  colocar(d)
+  if (fueraDeLugar(g, d.ventana)) await invocar('ajustar_ventana', { ...d.ventana })
+  await enviarZona()
+}
+
+/**
+ * Le dice a Rust qué parte de la ventana fija toma el mouse (`zonaInteractiva`): fuera de ella los
+ * clics pasan a lo que hay debajo. Devuelve si el puntero está adentro ahora (null sin respuesta).
+ * Sin `forzar`, una zona igual a la última no se manda.
+ */
+async function enviarZona(forzar = false) {
+  if (!st.acople || !st.disp || !tauri?.core) return null
+  const zona = zonaInteractiva(st.disp, { abierta: st.vista, arrastrando: !!st.arrastre?.activo }, zoom())
+  const clave = `${zona.x},${zona.y},${zona.ancho},${zona.alto},${zona.toda}`
+  if (!forzar && clave === st.zonaEnviada) return null
+  st.zonaEnviada = clave
+  try {
+    return await invocar('zona_interactiva', zona)
+  } catch (e) {
+    st.zonaEnviada = null
+    registrar(`zona: ${e}`)
+    return null
+  }
+}
+
+/**
+ * El puntero entró o salió de la zona interactiva (aviso del sondeo de Rust, o el DOM cuando lo ve
+ * antes): el hover abre a los 180 ms y la salida cierra a los 650 ms, salvo fijada (7.2).
+ */
+function ponerDentro(dentro) {
+  if (st.dentroZona === dentro) return
+  st.dentroZona = dentro
+  // `st.ventana`: la muesca ya está en su borde (al arrancar, la ventana todavía está en otro lado)
+  if (!st.acople || st.arrastre || !st.ventana) return
+  evento({ tipo: dentro ? 'entra' : 'sale' })
 }
 
 /** Clases y estilos del modo: acoplada a un borde o flotante. Empieza cerrada. */
@@ -780,6 +837,8 @@ function aplicarModo() {
   for (const v of ['tx', 'ty', 'tw', 'th', 'mx', 'my', 'lx', 'ly', 'lw', 'lh']) cuerpo.style.removeProperty(`--${v}`)
   st.vista = false
   st.ventana = null
+  st.disp = null
+  st.zonaEnviada = null
   pintarControles()
 }
 
@@ -832,48 +891,56 @@ async function sincronizar() {
   programarAjuste()
 }
 
-/** Rectángulos de la muesca y del panel, y el recorte entre los dos, con el área de ahora. */
+/** La disposición con el área de ahora y el recorte de la muesca al tablero. */
 async function medidasAcople() {
   const g = await invocar('geometria')
-  const z = zoom(), tm = tamMuesca()
-  const m = rectMuesca(st.acople, tm, g.area, z)
-  const p = rectPanel(st.acople, medirContenido(), tm, g.area, z)
-  return { m, p, rc: recorte(m.caja, p.tablero, st.acople.borde, z) }
+  const d = disposicion(g.area)
+  return { g, d, rc: recorte(d.m.caja, d.p.tablero, st.acople.borde, zoom()) }
 }
 
-/** Abrir (6.4 y 9.2): la ventana toma el tamaño del panel, después el recorte crece desde la muesca. */
+/**
+ * Abrir (6.4 y 9.6): la ventana ya tiene el tamaño del panel; solo crece el recorte desde la muesca.
+ * Sin redimensionar, WebView2 no deja la ventana sin pintar y la isla se ve entera.
+ */
 async function animarApertura() {
-  const { m, p, rc } = await medidasAcople()
+  const { g, d, rc } = await medidasAcople()
   const marco = $('#marco')
+  // Red de seguridad: si el área o el contenido cambiaron y nadie recolocó la ventana todavía
+  // (el ciclo lo hace cada 1,5 s), se coloca una vez antes de animar
+  if (fueraDeLugar(g, d.ventana)) {
+    await colocarAcoplada(g)
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+  }
   marco.style.clipPath = rc.desde
-  // Primero se ubica adentro y después crece la ventana: un cuadro de desfase oculta la muesca en
-  // vez de mostrarla corrida
-  colocar(p, m, p)
-  await invocar('ajustar_ventana', { ancho: p.ancho, alto: p.alto, x: p.x, y: p.y })
+  colocar(d)
   st.vista = true
+  // Abierta, la zona que toma el mouse es el tablero entero
+  enviarZona()
   document.body.classList.add('abierta', 'abriendo')
+  // El movimiento de la apertura es el recorte que crece: el contenido ya está quieto adentro.
+  // Una entrada escalonada acá seguía acomodando tarjetas con el panel ya abierto (parpadeos).
   st.revelado = true
-  entrada()
-  await movimientoMuesca.abrir(marco, rc.desde, rc.hasta)
+  await movimientoMuesca.abrir(marco, rc, $('#contenido'))
   marco.style.clipPath = ''
   document.body.classList.add('desplegada')
   setTimeout(() => document.body.classList.remove('abriendo'), 1600)
 }
 
-/** Cerrar (6.4 y 9.2): el recorte vuelve a la muesca y recién después la ventana se achica. */
+/** Cerrar (6.4 y 9.6): el recorte vuelve a la muesca; la ventana no cambia. */
 async function animarCierre() {
-  const { m, rc } = await medidasAcople()
+  const { d, rc } = await medidasAcople()
   document.body.classList.remove('desplegada', 'abriendo')
-  const soltar = await movimientoMuesca.cerrar($('#marco'), $('#contenido'), rc.desde, rc.hasta)
+  const soltar = await movimientoMuesca.cerrar($('#marco'), $('#contenido'), rc)
   document.body.classList.remove('abierta')
   st.vista = false
   soltar()
-  await invocar('ajustar_ventana', { ancho: m.ancho, alto: m.alto, x: m.x, y: m.y })
-  colocar(m, m, null)
+  colocar(d)
   // Recién visto: el próximo golpe, dentro de 90 s si la pregunta sigue
   if (st.golpe.vistas.size) st.golpe.ultimo = Date.now()
-  // Si el mouse ya no está sobre la muesca, el hover vuelve a abrir (7.2)
-  if (!dentroDe(st.puntero, m)) st.muesca = siguiente(st.muesca, { tipo: 'sale' })
+  // La zona vuelve a ser la muesca: si el puntero no está en ella, el hover vuelve a abrir (7.2)
+  const dentro = await enviarZona(true)
+  const fuera = dentro === null ? !st.dentroZona : !dentro
+  if (fuera && !st.muesca.abierta) st.muesca = siguiente(st.muesca, { tipo: 'sale' })
 }
 
 /**
@@ -936,19 +1003,17 @@ function pliegueHacia(borde) {
 
 const muescaEl = $('#muesca')
 let justoArrastro = false
+// Quien manda es el sondeo de Rust (`oficina://puntero-zona`, 9.6): con los clics pasando de largo,
+// el WebView no ve salir al puntero. El DOM solo adelanta lo que el sondeo va a decir: la muesca
+// (cerrada) o el tablero (abierta) son parte de la zona, y salir de toda la ventana es salir de ella
 muescaEl.addEventListener('pointerenter', e => {
-  // `st.ventana`: la muesca ya está en su borde (al arrancar, la ventana todavía tiene otro tamaño)
-  if (e.pointerType === 'mouse' && st.acople && st.ventana && !st.muesca.abierta && !st.arrastre) evento({ tipo: 'entra' })
+  if (e.pointerType === 'mouse' && !st.muesca.abierta) ponerDentro(true)
 })
-muescaEl.addEventListener('pointerleave', () => {
-  if (st.acople && !st.muesca.abierta && !st.arrastre) evento({ tipo: 'sale' })
+$('#marco').addEventListener('pointerenter', e => {
+  if (e.pointerType === 'mouse' && st.muesca.abierta) ponerDentro(true)
 })
-// Abierta, cuenta toda la ventana (el panel)
-document.documentElement.addEventListener('pointerenter', e => {
-  if (e.pointerType === 'mouse' && st.acople && st.muesca.abierta && !st.arrastre) evento({ tipo: 'entra' })
-})
-document.documentElement.addEventListener('pointerleave', () => {
-  if (st.acople && st.muesca.abierta && !st.arrastre) evento({ tipo: 'sale' })
+document.documentElement.addEventListener('pointerleave', e => {
+  if (e.pointerType === 'mouse') ponerDentro(false)
 })
 // Clic, Enter o Espacio: abre y lleva el foco al proyecto activo
 muescaEl.addEventListener('click', () => {
@@ -993,7 +1058,6 @@ document.addEventListener('pointerdown', e => {
 })
 
 document.addEventListener('pointermove', e => {
-  if (st.ventana) st.puntero = { x: st.ventana.x + e.clientX, y: st.ventana.y + e.clientY }
   const a = st.arrastre
   if (!a || e.pointerId !== a.id) return
   a.dx = e.screenX - a.x0
@@ -1018,6 +1082,10 @@ function empezarArrastre(a, e) {
     $('#marco').style.clipPath = ''
     pintarControles()
     a.tam = { ancho: PILDORA.ancho * zoom(), alto: PILDORA.alto * zoom() }
+    // El tablero se mide una vez: a lo largo del borde la ventana fija solo se mueve (9.6)
+    a.tablero = medirContenido()
+    // Mientras se arrastra, toda la ventana toma el mouse: el puntero no se pierde a mitad de camino
+    enviarZona(true)
   }
 }
 
@@ -1042,9 +1110,10 @@ function moverArrastre(a) {
       const tm = tamMuesca()
       const centro = { x: caja.x + caja.ancho / 2, y: caja.y + caja.alto / 2 }
       st.acople.lugar = lugarAjustado(lugarDe(a.borde, centro, a.area), tm.largo, largoDe(a.borde, a.area), zoom())
-      const m = rectMuesca(st.acople, tm, a.area, zoom())
-      colocar(m, m, null)
-      pedirVentana(m)
+      // La ventana fija acompaña a la muesca: a lo largo del mismo borde cambia de lugar, no de tamaño
+      const d = disposicion(a.area, a.tablero)
+      colocar(d)
+      pedirVentana(d.ventana)
     } else {
       // Lejos de todo borde: la píldora flotante sigue al puntero
       document.body.classList.add('pildora')
@@ -1080,6 +1149,8 @@ async function soltarArrastre(e) {
     document.body.classList.remove('pildora')
     if (a.borde) {
       await invocar('guardar_acople', { borde: st.acople.borde, lugar: st.acople.lugar }).catch(err => registrar(`acople: ${err}`))
+      // La zona vuelve a ser la muesca: lo demás deja pasar los clics otra vez
+      await enviarZona(true)
       programarAjuste()
     } else {
       await acoplarA(null, { puntero: a.puntero })
@@ -1125,6 +1196,13 @@ async function iniciar() {
     escuchar('oficina://acoplar', ev => acoplarA(typeof ev.payload === 'string' ? ev.payload : null))
     // "Mostrar oficina", la notificación o abrir Oficina otra vez: acoplada, abre el panel
     escuchar('oficina://abrir', () => { if (st.acople) evento({ tipo: 'clic' }) })
+    // El puntero entró o salió de la zona interactiva (9.6); un aviso más viejo que el último se descarta
+    escuchar('oficina://puntero-zona', ev => {
+      const n = ev.payload?.n
+      if (typeof n !== 'number' || n <= st.zonaN) return
+      st.zonaN = n
+      ponerDentro(!!ev.payload.dentro)
+    })
   } else {
     await aplicarTamano(PASO_POR_DEFECTO)
   }

@@ -106,9 +106,9 @@ export function estadoMarca(n) {
   return plural(n, 'sesión abierta', 'sesiones abiertas')
 }
 
-/** El Avi de Claude de 54 de la marca (4.2): está solo, así que lleva nombre y estado. */
+/** El Avi de Claude de 38 de la marca (4.2): está solo, así que lleva nombre y estado. */
 export function figuraMarca(animo) {
-  return avi(CLAUDE, animo, 54, { alt: `Claude, ${ANIMO[animo] ?? animo}` })
+  return avi(CLAUDE, animo, 38, { alt: `Claude, ${ANIMO[animo] ?? animo}` })
 }
 
 /** Una fila por proyecto (reemplaza a ◀ ▶). `i`: el proyecto activo. */
@@ -166,14 +166,14 @@ export function textoMas(ocultos) {
   return `${plural(ocultos.length, 'subagente más', 'subagentes más')}: ` + ocultos.map(a => `${a.nombre} — ${a.tarea} (${textoEstado(a)})`).join('; ')
 }
 
-/** Ficha de un subagente con su Avi de 56. Dormido se atenúa solo el Avi, nunca el texto. */
+/** Ficha de un subagente con su Avi de 40. Dormido se atenúa solo el Avi, nunca el texto. */
 function ficha(a, ahoraMs, indice) {
   const tipo = a.inventado && a.tipo ? `<span>${escapar(a.tipo)}</span>` : ''
-  return `<li class="sub${a.animo === 'durmiendo' ? ' dorm' : ''}" style="--c:${a.color};--ce:${colorEstado(estadoLista(a))}">${avi(a, a.animo, 56, { indice })}<b>${escapar(a.nombre)}${tipo}</b><small title="${escapar(a.tarea)}">${escapar(a.tarea)}</small><span class="est">${escapar(textoEstado(a))} · ${escapar(tiempoSubagente(a, ahoraMs))}</span></li>`
+  return `<li class="sub${a.animo === 'durmiendo' ? ' dorm' : ''}" style="--c:${a.color};--ce:${colorEstado(estadoLista(a))}">${avi(a, a.animo, 40, { indice })}<b>${escapar(a.nombre)}${tipo}</b><small title="${escapar(a.tarea)}">${escapar(a.tarea)}</small><span class="est">${escapar(textoEstado(a))} · ${escapar(tiempoSubagente(a, ahoraMs))}</span></li>`
 }
 
 /**
- * Tarjeta de una sesión: el Avi de Claude de 84 en el estado de la sesión. El dato no trae el
+ * Tarjeta de una sesión: el Avi de Claude de 56 en el estado de la sesión. El dato no trae el
  * título de la tarea: hasta que se decida (dirección 4.4) el título es la rama, y la línea mono
  * de la rama no se repite. `k`: posición de la tarjeta (desfase de los Avis).
  */
@@ -182,7 +182,7 @@ function tarjeta({ s, animo, sub }, ahoraMs, k) {
   const tag = s.tarea ? `<span class="tag">#${escapar(s.tarea)}</span>` : '<span class="tag sin">sin tarea</span>'
   const titulo = s.rama ? `<b${s.tarea ? '' : ' class="sin"'}>${escapar(s.rama)}</b>` : ''
   const lleva = s.inicio ? `<span class="lleva"><span class="oculto">lleva </span>${escapar(tiempoRelativo(s.inicio, ahoraMs))}</span>` : ''
-  let h = `<article class="ses"><div class="ses-top">${avi(CLAUDE, animo, 84, { indice: base })}<div class="ses-t">`
+  let h = `<article class="ses"><div class="ses-top">${avi(CLAUDE, animo, 56, { indice: base })}<div class="ses-t">`
   h += `<h3 class="ses-tit">${tag}${titulo}</h3>`
   h += `<p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(s.actividad ?? '')}"><span class="pt" aria-hidden="true"></span>${escapar(textoActividad(s, ahoraMs))}</p>`
   h += `</div>${lleva}</div>`
@@ -242,8 +242,8 @@ export function companero(c, ahoraMs, abierto) {
   if (visibles.length) {
     const nombres = listaNombres(visibles.map(a => a.nombre)) + (resto ? `, y ${resto} más` : '')
     const mas = resto ? `<span class="mas-c" title="${escapar(textoMas(ocultos))}">+${resto}</span>` : ''
-    cabezas = `<span class="cabezas" role="img" aria-label="${escapar(nombres)}">${visibles.map((a, k) => avi(a, a.animo, 24, { indice: k + 1 })).join('')}${mas}</span>`
+    cabezas = `<span class="cabezas" role="img" aria-label="${escapar(nombres)}">${visibles.map((a, k) => avi(a, a.animo, 20, { indice: k + 1 })).join('')}${mas}</span>`
   }
-  const fila = `<div class="fila">${avi(CLAUDE, animo, 32)}<div class="fila-t"><b>${s.tarea ? `#${escapar(s.tarea)} ` : ''}${escapar(s.rama ?? 'sin rama')}</b><p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(s.actividad ?? '')}"><span class="pt" aria-hidden="true"></span>${escapar(textoActividad(s, ahoraMs))}</p></div>${cabezas}</div>`
+  const fila = `<div class="fila">${avi(CLAUDE, animo, 26)}<div class="fila-t"><b>${s.tarea ? `#${escapar(s.tarea)} ` : ''}${escapar(s.rama ?? 'sin rama')}</b><p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(s.actividad ?? '')}"><span class="pt" aria-hidden="true"></span>${escapar(textoActividad(s, ahoraMs))}</p></div>${cabezas}</div>`
   return `${abre}<summary>${ini}<span class="compa-t"><b>${escapar(c.nombre)}</b><small>${escapar(donde)}</small></span>${flecha}</summary>${fila}</details>`
 }

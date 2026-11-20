@@ -35,7 +35,7 @@ test('una opción: tarjeta con el contrato del globo, cabecera, texto y pie con 
   assert.match(h, /^<div class="preg[^"]*" role="dialog" aria-labelledby="g-p" data-globo data-pregunta="toolu_1" data-item="0">/)
   assert.match(h, /<b>Claude<\/b> te pregunta · #48 · hace 2 min/)
   // Cabecera: el Avi de 38 de quien pregunta, en teEspera y decorativo (5.6)
-  assert.match(h, /<div class="preg-cab"><span class="avi" style="--t:38px;[^"]*" aria-hidden="true"><svg[^>]*class="e-teEspera"/)
+  assert.match(h, /<div class="preg-cab"><span class="avi" style="--t:28px;[^"]*" aria-hidden="true"><svg[^>]*class="e-teEspera"/)
   assert.match(h, /<p class="preg-txt" id="g-p">¿Cómo mostramos los precios\?<\/p>/)
   assert.equal(opciones(h).length, 2)
   for (const b of opciones(h)) assert.match(b, /data-accion="op" data-i="\d" data-pregunta="toolu_1" data-item="0"/)
@@ -142,11 +142,11 @@ test('anuncio en vivo: una vez por pregunta nueva, con quién y en qué proyecto
 test('los Avis de la pregunta: Camila de 38 en teEspera en la cabecera; el hecho festeja con el de 34', () => {
   const agentes = [{ id: 'c9', nombre: 'Camila', estado: 'trabajando', desde: hace(3) }]
   const h = globo(pend(proyecto({ agentes, agente: 'c9' })), { ahoraMs: AHORA })
-  assert.match(h, /<div class="preg-cab"><span class="avi" style="--t:38px;[^"]*" aria-hidden="true"><svg[^>]*class="e-teEspera"[\s\S]*?M30 58L33 25L56 39Z[\s\S]*?<\/svg><\/span><span><b>Camila<\/b> te pregunta/)
+  assert.match(h, /<div class="preg-cab"><span class="avi" style="--t:28px;[^"]*" aria-hidden="true"><svg[^>]*class="e-teEspera"[\s\S]*?M30 58L33 25L56 39Z[\s\S]*?<\/svg><\/span><span><b>Camila<\/b> te pregunta/)
   const hecho = globo([], { ahoraMs: AHORA, ui: { hecho: { mensaje: 'Listo.', listo: true, color: '#F2B632', pj: 'antena' } } })
-  assert.match(hecho, /<span class="avi" style="--t:34px;[^"]*" aria-hidden="true"><svg[^>]*class="e-listo"/)
+  assert.match(hecho, /<span class="avi" style="--t:26px;[^"]*" aria-hidden="true"><svg[^>]*class="e-listo"/)
   const ya = globo([], { ahoraMs: AHORA, ui: { hecho: { mensaje: 'Ya se respondió en Claude.', listo: false, color: '#F2B632', pj: 'antena' } } })
   assert.match(ya, /class="e-esperando"/)
   // Aviso de otra pregunta: Avi de 36 en teEspera
-  assert.match(globo(pend(proyecto()), { ahoraMs: AHORA, ui: { plegado: true } }), /<span class="avi" style="--t:36px;[^"]*" aria-hidden="true"><svg[^>]*class="e-teEspera"/)
+  assert.match(globo(pend(proyecto()), { ahoraMs: AHORA, ui: { plegado: true } }), /<span class="avi" style="--t:28px;[^"]*" aria-hidden="true"><svg[^>]*class="e-teEspera"/)
 })

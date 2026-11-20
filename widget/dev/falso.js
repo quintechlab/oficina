@@ -27,6 +27,11 @@
 // window.__bandeja('oficina://acoplar', 'derecha') desde la consola del iframe. Lo guardado con
 // guardar_acople queda en window.__acople.
 // La ventana pedida por ajustar_ventana queda en window.__ventana y en la consola (info).
+// Zona interactiva (9.6): acoplada, zona_interactiva guarda la zona (window.__zona) y el puntero
+// del escritorio se sigue en vista.html y en el iframe; al entrar o salir se emite
+// oficina://puntero-zona { dentro, n }, como el sondeo de Rust. El paso de los clics se imita con
+// pointer-events: none en el iframe (el escritorio de vista.html recibe el clic). window.__puntero
+// dice el último punto visto y si estaba adentro.
 // Hay una hoja con todos los Avis en todas las poses en dev/avis.html.
 ;(() => {
   const url = new URLSearchParams(location.search)
@@ -190,6 +195,47 @@
   let previo = null
   const oyentes = {}
   let lecturas = 0
+  const emitir = (nombre, payload) => { for (const f of oyentes[nombre] ?? []) f({ payload }) }
+
+  // ---- zona interactiva (9.6): imita el sondeo de Rust y el paso de los clics
+  const zonaSt = { zona: null, toda: false, dentro: true, n: 0, punto: null, desfase: null }
+  /** Acoplada y fuera de la tira: como `debe_sondear` (la vista no se esconde). */
+  const sondea = () => !!acople && !previo
+  /** Como `evaluar`: sin zona o arrastrando cuenta como adentro; el borde derecho y el de abajo, afuera. */
+  const adentro = p => {
+    const z = zonaSt.zona
+    if (zonaSt.toda || !z || !p) return true
+    return p.x >= z.x && p.x < z.x + z.ancho && p.y >= z.y && p.y < z.y + z.alto
+  }
+  const evaluarZona = () => {
+    if (!marco) return
+    if (!sondea()) { marco.style.pointerEvents = ''; return }
+    if (!zonaSt.punto) return
+    const d = adentro(zonaSt.punto)
+    if (d !== zonaSt.dentro) {
+      zonaSt.dentro = d
+      zonaSt.n++
+      emitir('oficina://puntero-zona', { dentro: d, n: zonaSt.n })
+    }
+    // Fuera de la zona, el clic pasa al escritorio (vista.html)
+    marco.style.pointerEvents = d ? '' : 'none'
+    window.__puntero = { ...zonaSt.punto, dentro: d }
+  }
+  if (marco) {
+    // La "pantalla" son los px del escritorio (vista.html). screenX no cambia con el zoom del widget:
+    // el desfase entre screenX y clientX del escritorio pasa los puntos del iframe a la pantalla
+    parent.document.addEventListener('pointermove', e => {
+      zonaSt.desfase = { x: e.screenX - e.clientX, y: e.screenY - e.clientY }
+      zonaSt.punto = { x: e.clientX, y: e.clientY }
+      evaluarZona()
+    })
+    document.addEventListener('pointermove', e => {
+      zonaSt.punto = zonaSt.desfase
+        ? { x: e.screenX - zonaSt.desfase.x, y: e.screenY - zonaSt.desfase.y }
+        : { x: ventana.x + e.clientX, y: ventana.y + e.clientY }
+      evaluarZona()
+    })
+  }
 
   const comandos = {
     registrar: ({ linea }) => console.debug('[widget.log]', linea),
@@ -214,6 +260,17 @@
       acople = borde ? { borde, lugar } : null
       window.__acople = acople
       console.info('[acople]', JSON.stringify(acople))
+      // Flotando, la ventana vuelve a tomar todos los clics
+      evaluarZona()
+    },
+    zona_interactiva: ({ x, y, ancho, alto, toda }) => {
+      zonaSt.zona = { x, y, ancho, alto }
+      zonaSt.toda = !!toda
+      window.__zona = { ...zonaSt.zona, toda: zonaSt.toda }
+      // Como Rust: devuelve si el puntero está adentro ahora; el aviso lo da el "sondeo"
+      const d = adentro(zonaSt.punto)
+      setTimeout(evaluarZona, 0)
+      return d
     },
     cambiar_tamano: ({ direccion }) => {
       const k = PASOS.indexOf(paso)
@@ -231,6 +288,7 @@
         previo = null
       }
       aplicar()
+      evaluarZona()
     },
     esconder: () => console.info('[ventana] escondida en la bandeja'),
     avisar: () => null,
@@ -246,7 +304,7 @@
   }
 
   /** Imita un evento del menú de la bandeja, p. ej. __bandeja('oficina://acoplar', 'derecha'). */
-  window.__bandeja = (nombre, payload) => { for (const f of oyentes[nombre] ?? []) f({ payload }) }
+  window.__bandeja = emitir
 
   window.__TAURI__ = {
     core: {

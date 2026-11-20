@@ -7,6 +7,7 @@ import {
   BORDES, IMAN, HOMBRO, LUZ, HOLGURA, MARGEN_PANEL, ESPERA_ABRIR, ESPERA_CERRAR, CADA_GOLPE, PILDORA,
   esHorizontal, bordeCercano, lugarDe, lugarAjustado, rectMuesca, rectPanel, recorte, cajaArrastre, rectLuz, relativo,
   estadoMuesca, ESTADO_INICIAL, siguiente, tocaGolpe, dentroDe, posicionFlotante, contenidoMuesca, contenidoPildora,
+  disposicionAcoplada, zonaInteractiva, MARGEN_ZONA,
 } from '../src/muesca.js'
 import { agruparPorProyecto } from '../src/logica.js'
 
@@ -194,6 +195,21 @@ test('recorte: del tablero a la muesca, en px del tablero y con los radios de ca
   assert.equal(recorte(m.caja, p.tablero, 'arriba', 2).inset.izquierda, 145)
 })
 
+test('recorte medio (isla): estirado a todo lo largo del borde, con el espesor de la muesca', () => {
+  const p = rectPanel({ borde: 'arriba', lugar: 0.5 }, { ancho: 700, alto: 500 }, MUESCA_H, AREA)
+  const arriba = rectMuesca({ borde: 'arriba', lugar: 0.5 }, MUESCA_H, AREA)
+  // Arriba: primero crece a lo ancho (sin recorte a los costados), todavía con el alto de la muesca
+  assert.equal(recorte(arriba.caja, p.tablero, 'arriba').medio, 'inset(0px 0px 460px 0px round 0px 0px 22px 22px)')
+  // Abajo: lo mismo desde el borde de abajo
+  const rAbajo = recorte({ ...arriba.caja, y: p.tablero.y + 460 }, p.tablero, 'abajo')
+  assert.equal(rAbajo.medio, 'inset(460px 0px 0px 0px round 22px 22px 0px 0px)')
+  // A los costados: primero crece a lo alto, todavía con el ancho de la muesca
+  const caja = { x: p.tablero.x + 660, y: p.tablero.y + 200, ancho: 40, alto: 100 }
+  assert.equal(recorte(caja, p.tablero, 'derecha').medio, 'inset(0px 0px 0px 660px round 22px 0px 0px 22px)')
+  const cajaIzq = { x: p.tablero.x, y: p.tablero.y + 200, ancho: 40, alto: 100 }
+  assert.equal(recorte(cajaIzq, p.tablero, 'izquierda').medio, 'inset(0px 660px 0px 0px round 0px 22px 22px 0px)')
+})
+
 test('la luz de pregunta va sobre el borde, 3 px, a lo largo de la muesca, los hombros y 12 px más', () => {
   const m = rectMuesca({ borde: 'arriba', lugar: 0.5 }, MUESCA_H, AREA)
   assert.deepEqual(rectLuz(m, 'arriba'), { x: m.x, y: 0, ancho: 120 + 2 * (HOMBRO + LUZ), alto: 3 })
@@ -213,6 +229,85 @@ test('arrastre: la caja que se mide es la píldora centrada en el puntero, o el 
 test('al flotar, el tablero se abre donde se soltó, ajustado al área de trabajo', () => {
   assert.deepEqual(posicionFlotante({ x: 960, y: 500 }, { ancho: 700, alto: 500 }, AREA), { x: 610, y: 480 })
   assert.deepEqual(posicionFlotante({ x: 10, y: 1000 }, { ancho: 700, alto: 500 }, AREA), { x: 0, y: 540 })
+})
+
+// ------------------------------------------------------------------ ventana fija y zona interactiva (9.6)
+
+const TABLERO = { ancho: 676, alto: 656 }
+const tamDe = borde => esHorizontal(borde) ? MUESCA_H : MUESCA_V
+const contiene = (fuera, r) => r.x >= fuera.x && r.y >= fuera.y && r.x + r.ancho <= fuera.x + fuera.ancho && r.y + r.alto <= fuera.y + fuera.alto
+
+test('acoplada, la ventana contiene la muesca cerrada (con hombros y luz) y el panel abierto, en los cuatro bordes', () => {
+  for (const borde of BORDES) {
+    for (const lugar of [0, 0.3, 0.5, 1]) {
+      const d = disposicionAcoplada({ borde, lugar }, tamDe(borde), TABLERO, AREA)
+      assert.ok(contiene(d.ventana, d.m), `${borde} ${lugar}: la muesca`)
+      assert.ok(contiene(d.ventana, d.p), `${borde} ${lugar}: el panel`)
+      // Sin un píxel de más: la ventana es la unión de los dos
+      assert.equal(d.ventana.x, Math.min(d.m.x, d.p.x))
+      assert.equal(d.ventana.y + d.ventana.alto, Math.max(d.m.y + d.m.alto, d.p.y + d.p.alto))
+    }
+  }
+})
+
+test('acoplada, abrir y cerrar no cambian la ventana: es la misma con la muesca cerrada y con el panel abierto', () => {
+  // La disposición no depende de si está abierta: un solo rectángulo para los dos estados
+  const d = disposicionAcoplada({ borde: 'arriba', lugar: 0.5 }, MUESCA_H, TABLERO, AREA)
+  assert.deepEqual(d.ventana, { x: 960 - 338 - HOMBRO, y: 0, ancho: 676 + 2 * HOMBRO, alto: 656 })
+  // Correr la muesca a lo largo del borde solo mueve la ventana, no le cambia el tamaño
+  const otra = disposicionAcoplada({ borde: 'arriba', lugar: 0.3 }, MUESCA_H, TABLERO, AREA)
+  assert.deepEqual([otra.ventana.ancho, otra.ventana.alto], [d.ventana.ancho, d.ventana.alto])
+  const der = disposicionAcoplada({ borde: 'derecha', lugar: 0.5 }, MUESCA_V, TABLERO, AREA)
+  const der2 = disposicionAcoplada({ borde: 'derecha', lugar: 0.7 }, MUESCA_V, TABLERO, AREA)
+  assert.deepEqual([der2.ventana.ancho, der2.ventana.alto], [der.ventana.ancho, der.ventana.alto])
+})
+
+test('adentro de la ventana fija, la muesca toca el lado del borde donde está acoplada', () => {
+  for (const z of [1, 2]) {
+    for (const borde of BORDES) {
+      const tam = { largo: tamDe(borde).largo * z, grosor: tamDe(borde).grosor * z }
+      const tab = { ancho: TABLERO.ancho * z, alto: TABLERO.alto * z }
+      const d = disposicionAcoplada({ borde, lugar: 0.4 }, tam, tab, AREA, z)
+      const { muesca, tablero, luz } = d.local
+      const w = d.ventana.ancho / z, h = d.ventana.alto / z
+      if (borde === 'arriba') assert.equal(muesca.y, 0)
+      if (borde === 'abajo') assert.equal(muesca.y + muesca.alto, h)
+      if (borde === 'izquierda') assert.equal(muesca.x, 0)
+      if (borde === 'derecha') assert.equal(muesca.x + muesca.ancho, w)
+      // En px CSS (los de pantalla divididos por el zoom) y adentro de la ventana
+      assert.equal(muesca.ancho, d.m.caja.ancho / z, `${borde} ${z}`)
+      const toda = { x: 0, y: 0, ancho: w, alto: h }
+      assert.ok(contiene(toda, muesca) && contiene(toda, tablero), `${borde} ${z}`)
+      // La muesca queda adentro del tablero (el recorte nace de ella) y la luz sobre el borde
+      assert.ok(contiene(tablero, muesca), `${borde} ${z}`)
+      if (borde === 'arriba') assert.equal(luz.y, 0)
+      if (borde === 'izquierda') assert.equal(luz.x, 0)
+    }
+  }
+})
+
+test('zona interactiva: cerrada, la muesca con un margen; abierta, el tablero; arrastrando, toda la ventana', () => {
+  assert.ok(MARGEN_ZONA >= 6 && MARGEN_ZONA <= 8)
+  const d = disposicionAcoplada({ borde: 'arriba', lugar: 0.5 }, MUESCA_H, TABLERO, AREA)
+  const c = d.m.caja
+  assert.deepEqual(zonaInteractiva(d, { abierta: false }), { x: c.x - MARGEN_ZONA, y: c.y - MARGEN_ZONA, ancho: c.ancho + 2 * MARGEN_ZONA, alto: c.alto + 2 * MARGEN_ZONA, toda: false })
+  assert.deepEqual(zonaInteractiva(d, { abierta: true }), { ...d.p.tablero, toda: false })
+  assert.deepEqual(zonaInteractiva(d, { abierta: true, arrastrando: true }), { ...d.ventana, toda: true })
+  assert.deepEqual(zonaInteractiva(d, { abierta: false, arrastrando: true }), { ...d.ventana, toda: true })
+  // El margen crece con el zoom
+  assert.equal(zonaInteractiva(d, { abierta: false }, 2).x, c.x - 2 * MARGEN_ZONA)
+})
+
+test('zona interactiva cerrada: cubre la muesca corrida por el golpe (6 px) y no toma el panel escondido', () => {
+  for (const borde of BORDES) {
+    const d = disposicionAcoplada({ borde, lugar: 0.5 }, tamDe(borde), TABLERO, AREA)
+    const zona = zonaInteractiva(d, { abierta: false })
+    const c = d.m.caja
+    const corrida = { arriba: { ...c, y: c.y + 6 }, abajo: { ...c, y: c.y - 6 }, derecha: { ...c, x: c.x - 6 }, izquierda: { ...c, x: c.x + 6 } }[borde]
+    assert.ok(contiene(zona, corrida), borde)
+    // Lo que queda afuera de la zona deja pasar los clics: el panel escondido no los toma
+    assert.ok(!contiene(zona, d.p.tablero), borde)
+  }
 })
 
 // ------------------------------------------------------------------ estado y nombre (7.1, 7.2)

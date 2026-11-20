@@ -10,7 +10,7 @@ const BLOQUES = ['.marca', '#proyectos > .pj', '.lado-pie', '.cab', '#otro > *',
 const ENTRADA_MS = 620
 const ESCALON_MS = 65
 const RETRASO_MS = 120
-const CAMBIO_MS = 280
+const CAMBIO_MS = 240
 const ESCALON_TARJETAS_MS = 40
 
 /** ¿Hay que animar? No con movimiento reducido ni con "Pausar animaciones" de la bandeja (6.5). */
@@ -53,7 +53,7 @@ export function entrada() {
 }
 
 /**
- * Cambio de proyecto (6.2): solo la columna principal entra, 14 px desde el lado de `direccion`
+ * Cambio de proyecto (6.2): solo la columna principal entra en 240 ms, 14 px desde el lado de `direccion`
  * (−1 o 1), y las tarjetas de sesión entran escalonadas cada 40 ms. Se llama después de dibujar
  * el proyecto nuevo.
  */

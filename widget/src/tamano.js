@@ -43,8 +43,30 @@ export function tamanoDeseado(medida, area) {
   }
 }
 
+/**
+ * Medida de la ventana en px de pantalla, antes de topar (`tamanoDeseado`). El tablero tiene un alto
+ * fijo (`altoTablero`, px CSS del marco con su borde, más `margen`, el relleno vertical del body):
+ * no cambia de un proyecto a otro y lo que no entra se ve con scroll adentro. El ancho, y en el vacío
+ * y la carga (sin `altoTablero`) también el alto, salen del contenido: `contenido` medido en px de
+ * pantalla y `extras` (rellenos, bordes y barra) en px CSS. `f`: px de pantalla por px CSS (el zoom).
+ */
+export function medidaVentana({ contenido, extras, f = 1, altoTablero = null, margen = 0 }) {
+  return {
+    ancho: contenido.ancho + extras.ancho * f,
+    alto: altoTablero == null ? contenido.alto + extras.alto * f : (altoTablero + margen) * f,
+  }
+}
+
 export function debeAjustar(actual, deseado) {
   return Math.abs(actual.ancho - deseado.ancho) > TOLERANCIA || Math.abs(actual.alto - deseado.alto) > TOLERANCIA
+}
+
+/**
+ * Acoplada (9.6): ¿hay que volver a colocar la ventana? Si cambió de tamaño (más de 2 px, como
+ * `debeAjustar`) o de lugar (más de 1 px). Si no, abrir y cerrar no la tocan.
+ */
+export function fueraDeLugar(actual, deseado) {
+  return debeAjustar(actual, deseado) || Math.abs(actual.x - deseado.x) > 1 || Math.abs(actual.y - deseado.y) > 1
 }
 
 /**

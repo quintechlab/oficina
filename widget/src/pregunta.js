@@ -17,7 +17,7 @@ export function quienPregunta(q) {
  * plegada con "Más tarde" (`data-accion="ver"`). Solo muestra: nunca responde.
  */
 function aviso(atributos, pj, textoHtml) {
-  return `<button type="button" class="aviso" ${atributos}>${avi(pj, 'teEspera', 36)}<span>${textoHtml}</span><span class="ir">Ver →</span></button>`
+  return `<button type="button" class="aviso" ${atributos}>${avi(pj, 'teEspera', 28)}<span>${textoHtml}</span><span class="ir">Ver →</span></button>`
 }
 
 /** Una opción con su número, su etiqueta, el rótulo "Recomendada" si lo trae y la descripción. */
@@ -50,7 +50,7 @@ export function globo(pendientes, { activa = 0, nuevo = false, ahoraMs, ui = {} 
       return `<button type="button" class="preg-tab" role="tab" aria-selected="${k === i}" data-accion="tab" data-i="${k}"><span class="pt" style="--c:${xq.color}" aria-hidden="true"></span>${escapar(xq.nombre)}${x.item.encabezado ? ` · ${escapar(x.item.encabezado)}` : ''} <span aria-hidden="true">${hecha ? '✓' : '!'}</span></button>`
     }).join('')}</div>`
   }
-  h += `<div class="preg-cab">${avi(qn, 'teEspera', 38)}<span><b>${escapar(qn.nombre)}</b> te pregunta · ${escapar(qn.ses)} · hace ${escapar(tiempoRelativo(q.desde, ahoraMs))}</span></div>`
+  h += `<div class="preg-cab">${avi(qn, 'teEspera', 28)}<span><b>${escapar(qn.nombre)}</b> te pregunta · ${escapar(qn.ses)} · hace ${escapar(tiempoRelativo(q.desde, ahoraMs))}</span></div>`
   h += `<p class="preg-txt" id="g-p">${escapar(q.item.pregunta)}</p>`
   const total = q.pregunta?.items?.length ?? 1
   const modos = []
@@ -93,10 +93,10 @@ function ultimo(q, borrador) {
   return items.every(it => it.pregunta === q.item.pregunta || borrador[it.pregunta])
 }
 
-/** "Listo, le respondiste a …" (4.5.10): una píldora con borde verde y el Avi de 34 que festeja. */
+/** "Listo, le respondiste a …" (4.5.10): una píldora con borde verde y el Avi de 26 que festeja. */
 function tarjetaHecho(hecho, saliendo) {
   const pj = { color: hecho.color, pj: hecho.pj }
-  return `<div class="hecho${saliendo ? ' sale' : ''}" role="status">${avi(pj, hecho.listo ? 'listo' : 'esperando', 34)}${escapar(hecho.mensaje)}</div>`
+  return `<div class="hecho${saliendo ? ' sale' : ''}" role="status">${avi(pj, hecho.listo ? 'listo' : 'esperando', 26)}${escapar(hecho.mensaje)}</div>`
 }
 
 /** Aviso cuando la pregunta está en otro proyecto: al tocarlo, va a ese proyecto. */

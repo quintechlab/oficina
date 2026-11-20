@@ -87,18 +87,20 @@ Las dos son OFL y van **empaquetadas** en `widget/src/fuentes/`, en woff2 variab
 
 | Token | Fuente | Tamaño / interlínea | Peso | Tracking | Uso |
 |---|---|---|---|---|---|
-| `--t-display` | Manrope | 30 / 1.05 | 800 | −0.04em | Nombre del proyecto (`h1` de la ventana). |
-| `--t-cifra` | Manrope | 26 / 1 | 800 | −0.04em | Valor de los cuadros de conteo. |
-| `--t-marca` | Manrope | 20 / 1.1 | 800 | −0.03em | "Oficina". |
-| `--t-titulo` | Manrope | 17 / 1.3 | 800 | −0.02em | Título de la sesión y texto de la pregunta. |
-| `--t-cuerpo-f` | Manrope | 14.5 / 1.3 | 700 | 0 | Nombre de proyecto en la barra y etiqueta de opción (14). |
-| `--t-cuerpo` | Manrope | 13.5 / 1.5 | 500 a 700 | 0 | Subtítulos, aviso y línea de estado. |
-| `--t-chico` | Manrope | 12.5 / 1.35 | 500 | 0 | Descripción de opción, tarea del subagente y rótulo del cuadro. |
-| `--t-mono` | Martian Mono 75 | 11 / 1.5 | 400 a 600 | 0 | Chips, rama, "lleva", estado y etiquetas. |
-| `--t-mono-s` | Martian Mono 75 | 10.5 / 1.3 | 500 | 0 | Estado del subagente, nota y modo de la pregunta. |
+| `--t-display` | Manrope | 21 / 1.1 | 800 | −0.035em | Nombre del proyecto (`h1` de la ventana). |
+| `--t-cifra` | Manrope | 22 / 1 | 800 | −0.04em | Valor de los cuadros de conteo. |
+| `--t-marca` | Manrope | 16 / 1.1 | 800 | −0.03em | "Oficina". |
+| `--t-titulo` | Manrope | 14.5 / 1.3 | 800 | −0.02em | Título de la sesión y texto de la pregunta. |
+| `--t-cuerpo-f` | Manrope | 13 / 1.3 | 700 | 0 | Nombre de proyecto en la barra y etiqueta de opción. |
+| `--t-cuerpo` | Manrope | 12.5 / 1.45 | 500 a 700 | 0 | Subtítulos, aviso y línea de estado. |
+| `--t-chico` | Manrope | 11.5 / 1.35 | 500 | 0 | Descripción de opción, tarea del subagente y rótulo del cuadro. |
+| `--t-mono` | Martian Mono 75 | 10.5 / 1.5 | 400 a 600 | 0 | Chips, rama, "lleva", estado y etiquetas. |
+| `--t-mono-s` | Martian Mono 75 | 10 / 1.3 | 500 | 0 | Estado del subagente, nota y modo de la pregunta. |
 | `--t-rotulo` | Martian Mono 75 | 10 / 1 | 500 | 0.12em, en mayúsculas | Rótulos de sección ("EQUIPO"). |
 
 **El piso es 10 px.** El boceto tenía 9.5 px en el tipo del subagente. Se sube a 10 px y el boceto ya está corregido.
+
+> **Densidad (2026-11-20).** Todos los tamaños de esta sección y de las secciones 4 y 5 bajaron un escalón por pedido del usuario: «se ve todo un poco grande, como que entra poca informacion en el panel, me gustaria mas chica la tipografia». La referencia de densidad es la de Troko (solo la escala, no la marca). El panel conserva su huella: lo que se libera se usa para mostrar más.
 
 ### 3.3 Espaciado
 
@@ -106,26 +108,27 @@ Base 2, con los pasos que usa el boceto:
 
 `--e-1: 2px` · `--e-2: 4px` · `--e-3: 6px` · `--e-4: 8px` · `--e-5: 10px` · `--e-6: 12px` · `--e-7: 14px` · `--e-8: 16px` · `--e-9: 18px` · `--e-10: 20px` · `--e-11: 28px`.
 
-- **Ventana flotante:** relleno de 20 y separación de 20 entre la barra y la columna principal.
-- **Barra lateral:** 18 entre bloques y 4 entre proyectos.
-- **Columna principal:** 12 entre bloques y 10 entre cuadros de conteo.
-- **Tarjeta de sesión:** relleno de 14 / 16 / 16 y separación de 8 entre fichas.
+- **Ventana flotante:** relleno de 16 y separación de 16 entre la barra y la columna principal.
+- **Tamaño del tablero:** `--ancho-lado: 188px`, `--ancho-principal: 460px` (con el canal de su barra) y `--alto-tablero: 640px` (el marco con su borde). Ancho y alto fijos, iguales en todos los proyectos; lo que no entra se ve con scroll adentro de cada columna (9.2). A 100 % la ventana mide 676 × 656 (los 16 de abajo son el margen de la sombra).
+- **Barra lateral:** 14 entre bloques y 2 entre proyectos.
+- **Columna principal:** 10 entre bloques y 8 entre cuadros de conteo.
+- **Tarjeta de sesión:** relleno de 12 / 14 / 14 y separación de 6 entre fichas.
 
 ### 3.4 Radios
 
 | Token | Valor | Pieza |
 |---|---|---|
-| `--r-ventana` | 30px | Contenedor flotante. |
+| `--r-ventana` | 26px | Contenedor flotante. |
 | `--r-panel` | 26px | Panel abierto desde la muesca, en las esquinas que miran al centro. |
 | `--r-muesca` | 22px | Esquinas de la muesca que miran al centro. |
 | `--r-hombro` | 16px | Curva cóncava que funde la muesca con el borde. |
-| `--r-tarjeta` | 22px | Sesión y pregunta. |
-| `--r-cuadro` | 18px | Cuadro de conteo y fila compacta. |
-| `--r-ficha` | 16px | Ficha de subagente y "+n". |
-| `--r-fila` | 14px | Proyecto en la barra y opción. |
-| `--r-campo` | 12px | Campo de texto. |
-| `--r-icono` | 9px | Ícono de proyecto. El cuadrito del cuadro de conteo usa 8. |
-| `--r-tag` | 7px | Tag "#12". |
+| `--r-tarjeta` | 18px | Sesión y pregunta. |
+| `--r-cuadro` | 14px | Cuadro de conteo y fila compacta. |
+| `--r-ficha` | 13px | Ficha de subagente y "+n". |
+| `--r-fila` | 11px | Proyecto en la barra y opción. |
+| `--r-campo` | 10px | Campo de texto. |
+| `--r-icono` | 7px | Ícono de proyecto. El cuadrito del cuadro de conteo usa 6. |
+| `--r-tag` | 6px | Tag "#12". |
 | `--r-pildora` | 999px | Chips, aviso, botones y pestañas. |
 
 ### 3.5 Sombras y profundidad
@@ -165,14 +168,14 @@ El borde del contenedor flotante es `1px solid rgba(255,255,255,.07)`. No hay te
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ ┌ barra lateral 206 ┐  ┌ columna principal (392 a 560, según contenido) ┐│
+│ ┌ barra lateral 188 ┐  ┌ columna principal 460, alto fijo 640 ────────┐│
 │ │ [Avi] Oficina      │  │ oficina                     [📌][—][×]     ││
 │ │  · 4 sesiones      │  │ 1 sesión · 3 subagentes trabajando         ││
 │ │                    │  │ (aviso: Claude te pregunta en catalogo  →) ││
 │ │ [o] oficina     1  │  │ (tarjeta de pregunta de este proyecto)     ││
 │ │ [cn] central-…  2  │  │ [3 trabajando][2 terminados][42 min]       ││
 │ │ [ca] catalogo 1 ?  │  │ ┌ sesión ──────────────────────────────┐   ││
-│ │                    │  │ │ [Avi 84] #12 Estilo avis       42 min│   ││
+│ │                    │  │ │ [Avi 56] #12 Estilo avis       42 min│   ││
 │ │ ─────────────────  │  │ │ feat/12-estilo-avis                  │   ││
 │ │ EQUIPO             │  │ │ · ahora · coordinando el equipo      │   ││
 │ │ (NC) Campos  ▾     │  │ │ [Delfina][Ramiro][Lucas][Inés][+1]   │   ││
@@ -181,35 +184,37 @@ El borde del contenedor flotante es `1px solid rgba(255,255,255,.07)`. No hay te
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+**Alto fijo (2026-11-20).** El usuario pidió: «que siempre tenga un alto predeterminado, que no cambie el alto en funcion del proyecto, a lo sumo que tenga un scroll». El tablero mide siempre 640 de alto (`--alto-tablero`). La columna principal desplaza sola, con el encabezado (nombre y controles) fijo arriba y lo que pasa por debajo fundido en 8 px. La barra lateral también desplaza si los proyectos no entran. El scroll es fino, sin pista, y la barra se ve solo con el mouse encima.
+
 **Orden del DOM, que es también el orden del foco:** barra lateral (marca, proyectos, equipo y pie), después la columna principal (encabezado y controles, aviso, pregunta, cuadros y sesiones). Lo que se lee primero en la columna principal es el nombre del proyecto. Si hay pregunta, lo que más se ve es la tarjeta ámbar.
 
-### 4.2 Barra lateral (206 px, columna flex con separación de 18)
+### 4.2 Barra lateral (188 px, columna flex con separación de 14)
 
-1. **Marca.** Avi de Claude de 54 px, "Oficina" en `--t-marca` y debajo el estado: un punto, "4 sesiones abiertas" en mono itálica 11, `--crema2`.
+1. **Marca.** Avi de Claude de 38 px, "Oficina" en `--t-marca` y debajo el estado: un punto, "4 sesiones abiertas" en mono itálica 10.5, `--crema2`.
    - Estado del Avi de la marca: `teEspera` si hay alguna pregunta pendiente en cualquier proyecto; si no, `coordinando` si alguna sesión coordina; si no, `esperando`. Sin sesiones: `durmiendo`.
    - Hoy la marca usa `teEspera` o `saluda`. En el estilo Avis no existe la pose "saluda", así que se usa este orden.
    - Es zona de arrastre (ver 9.3).
 2. **Proyectos** (`<nav aria-label="Proyectos">`). Reemplaza a ◀ ▶. Una fila por proyecto:
-   - Es un `button` de alto mínimo 46 con relleno de 8 / 10.
-   - Ícono de 28 × 28 con radio 9: iniciales en mono 12 sobre su color al 16 %.
-   - Nombre en `--t-cuerpo-f` con elipsis y `title` con el repositorio completo.
-   - Chip con la cantidad de sesiones. Con preguntas, el chip pasa a ámbar: "1 ?", con `aria-label="1 pregunta pendiente"`.
+   - Es un `button` de alto mínimo 34 con relleno de 6 / 8.
+   - Ícono de 22 × 22 con radio 7: iniciales en mono 10 sobre su color al 16 %.
+   - Nombre **entero** en `--t-cuerpo-f`: si no entra en una línea sigue en una segunda (corta en los guiones) y recién después va la elipsis. Lleva `title` con el repositorio completo.
+   - Chip con la cantidad de sesiones (mono 10, más chico que el de la muesca). Con preguntas, el chip pasa a ámbar: "1 ?", con `aria-label="1 pregunta pendiente"`.
    - El proyecto activo lleva `aria-current="true"`, fondo `--ambar-osc`, texto ámbar y el chip en ámbar al 22 %.
    - **Iniciales:** la primera letra de cada una de las dos primeras palabras (se separa por `-`, `_` o espacio). Con una sola palabra va una sola letra. "fuera de un repositorio" muestra "·".
    - **Color del ícono:** fijo por nombre, con `huella()` de `logica.js` sobre `[ambar, celeste, violeta, verde, rosa]`.
    - El orden es el de `agruparPorProyecto` (no cambia).
 3. **Equipo** (pie de la barra, `margin-top: auto`, filete superior `--linea`). Lleva el rótulo "EQUIPO" (`--t-rotulo`) y un `<details>` por compañero, como hoy.
-   - El `summary` tiene alto mínimo 44 y muestra un círculo de 30 con las iniciales en violeta, el nombre (13.5 / 700) y la línea "en catalogo · hace 4 min" (11.5, `--tenue`) o "fuera".
-   - Al desplegarse muestra una **fila compacta** de su sesión principal: Avi de Claude de 32 en su estado, "#N rama", la línea de estado y cabecitas de 24 de sus subagentes (máximo 4 y "+n").
+   - El `summary` tiene alto mínimo 36 y muestra un círculo de 24 con las iniciales en violeta, el nombre (12.5 / 700) y la línea "en catalogo · hace 4 min" (11, `--tenue`) o "fuera".
+   - Al desplegarse muestra una **fila compacta** de su sesión principal: Avi de Claude de 26 en su estado, "#N rama", la línea de estado y cabecitas de 20 de sus subagentes (máximo 4 y "+n").
    - Si `gh` falla: "Equipo sin datos: …" en una línea `--tenue` con punto rojo y `title` con el error completo.
-4. **Pie.** "actualizado 12:04 · cada 1,5 s" en mono 10.5, `--tenue`, con `role="status"`, como hoy. Un error de lectura reemplaza el texto en `--rojo`.
+4. **Pie.** "actualizado 12:04 · cada 1,5 s" en mono 10, `--tenue`, con `role="status"`, como hoy. Un error de lectura reemplaza el texto en `--rojo`.
 
-### 4.3 Columna principal (columna flex con separación de 12)
+### 4.3 Columna principal (columna flex con separación de 10)
 
 1. **Encabezado.**
    - `h1` con el nombre del proyecto (`--t-display`), que es el único `h1`.
-   - Debajo, la línea "1 sesión · 3 subagentes trabajando" (13.5, `--crema2`). Si alguna sesión pregunta, dice "te hace una pregunta".
-   - A la derecha van los **controles de ventana**: 3 botones fantasma de 44 × 44 con ícono de 16 en `--crema2`. Al pasar el mouse van sobre `--s2` en crema. El activo (`aria-pressed="true"`) va en ámbar.
+   - Debajo, la línea "1 sesión · 3 subagentes trabajando" (12.5, `--crema2`). Si alguna sesión pregunta, dice "te hace una pregunta".
+   - A la derecha van los **controles de ventana**: 3 botones fantasma de 32 × 32 con ícono de 15 en `--crema2`. Al pasar el mouse van sobre `--s2` en crema. El activo (`aria-pressed="true"`) va en ámbar.
 
    | Modo | Botón 1 (chinche) | Botón 2 | Botón 3 |
    |---|---|---|---|
@@ -219,17 +224,17 @@ El borde del contenedor flotante es `1px solid rgba(255,255,255,.07)`. No hay te
    - Acoplada, la ventana está siempre arriba. "Siempre arriba" queda marcado y deshabilitado en el menú de la bandeja.
    - El encabezado, sin contar los botones, es zona de arrastre.
 2. **Aviso** (cuando la pregunta es de **otro** proyecto, igual que `avisoOtroProyecto`).
-   - Es una píldora `button` de alto mínimo 48 sobre `--s1`, con borde ámbar al 45 %.
-   - Contenido: Avi de 36 en `teEspera` y "**Claude** te pregunta algo en **catalogo**". A la derecha, "Ver →" en ámbar 800.
+   - Es una píldora `button` de alto mínimo 38 sobre `--s1`, con borde ámbar al 45 %.
+   - Contenido: Avi de 28 en `teEspera` y "**Claude** te pregunta algo en **catalogo**". A la derecha, "Ver →" en ámbar 800.
    - Al hacer clic va a ese proyecto (`data-accion="ir"`).
    - La misma pieza sirve para la **pregunta plegada** con "Más tarde" (`data-accion="ver"`): "**Claude** te pregunta algo · Ver →", o "3 preguntas esperan · Ver →".
 3. **Tarjeta de pregunta** (reemplaza al globo). Ver 4.5.
-4. **Cuadros de conteo** (grilla de 3 columnas con separación de 10). Cada cuadro tiene un cuadrito de color de 24 con radio 8, la cifra (`--t-cifra`) y el rótulo (`--t-chico`, `--crema2`). Todo sale de datos que ya existen:
+4. **Cuadros de conteo** (grilla de 3 columnas con separación de 8). Cada cuadro es una tira de relleno 10 / 12: a la izquierda un cuadrito de color de 20 con radio 6 y a su derecha la cifra (`--t-cifra`) con el rótulo debajo (`--t-chico`, `--crema2`). Todo sale de datos que ya existen:
 
    | Cuadro | Color | Cifra | Rótulo |
    |---|---|---|---|
    | Trabajando | ámbar | Subagentes del proyecto con `estado === 'trabajando'` | "trabajando" |
-   | Terminados | verde | Subagentes con `listo` o `fallo` (el mod los guarda 30 min) | "terminados". Si alguno falló, debajo va "1 con error" en `--rojo` mono 10.5 |
+   | Terminados | verde | Subagentes con `listo` o `fallo` (el mod los guarda 30 min) | "terminados". Si alguno falló, debajo va "1 con error" en `--rojo` mono 10 |
    | Tiempo | violeta | `tiempoRelativo` desde el `inicio` más antiguo de las sesiones del proyecto | "lleva la sesión" (1 sesión) o "la más larga" (varias) |
 
    La cifra es texto real, no un dibujo. El cuadro lleva `aria-label`, por ejemplo "3 subagentes trabajando".
@@ -237,68 +242,68 @@ El borde del contenedor flotante es `1px solid rgba(255,255,255,.07)`. No hay te
 
 ### 4.4 Tarjeta de sesión y ficha de subagente
 
-**Sesión** (`article`, `--s1`, borde `--linea`, radio 22):
+**Sesión** (`article`, `--s1`, borde `--linea`, radio 18, relleno de 12 / 14 / 14):
 
 - **Fila superior:**
-  - Avi de Claude de 84 en el estado de la sesión.
+  - Avi de Claude de 56 en el estado de la sesión.
   - Bloque de texto:
-    - Título: tag "#12" (mono 11 / 600, negro sobre ámbar, radio 7) y el título en `--t-titulo`. Sin tarea, el tag es "sin tarea" sobre `--s3` y el título es la rama en `--crema2`.
-    - Rama en mono 11, `--tenue`.
-    - Línea de estado: un punto y "ahora · coordinando el equipo" en 13.5 / 700, con el color del estado (tabla 5.4). El texto sale de `textoActividad` y lleva `title` con `s.actividad` entera.
-  - A la derecha, arriba: "lleva" en mono 11 (`tiempoRelativo(s.inicio)`).
+    - Título: tag "#12" (mono 10.5 / 600, negro sobre ámbar, radio 6) y el título en `--t-titulo`. Sin tarea, el tag es "sin tarea" sobre `--s3` y el título es la rama en `--crema2`.
+    - Rama en mono 10.5, `--tenue`.
+    - Línea de estado: un punto y "ahora · coordinando el equipo" en 12.5 / 700, con el color del estado (tabla 5.4). El texto sale de `textoActividad` y lleva `title` con `s.actividad` entera.
+  - A la derecha, arriba: "lleva" en mono 10.5 (`tiempoRelativo(s.inicio)`).
 - **Título de la tarea:** el dato de la sesión (`Presencia`) **no trae el título de la tarea**, solo el número, la rama y la nota. Propuesta: humanizar el slug de la rama cuando siga la convención `feat/N-slug` ("feat/12-estilo-avis" pasa a "Estilo avis"). Si no la sigue, se muestra la rama. *Pendiente de confirmar por el usuario* (ver Decisiones).
-- **Fichas de subagente** (`ul`, fila con separación de 8 y `flex-wrap` si el ancho topa):
+- **Fichas de subagente** (`ul`, fila con separación de 6 y `flex-wrap` si el ancho topa; las 4 fichas y el "+n" entran en una fila):
   - Hasta **4** fichas y una ficha "+n".
   - Se elige con la misma prioridad de hoy (`ORDEN_ANIMO`): pregunta, después trabajo, después falló, después listo y por último durmiendo.
   - Se muestran **en el orden en que se lanzaron**, para que no salten de lugar.
 - **Al pasar el mouse** solo cambia el borde a `--linea-hover`. La tarjeta **no se eleva**: no es un control y elevarla haría pensar que se puede tocar.
 
-**Ficha de subagente** (`li`, 104 de ancho, `--s2`, radio 16, relleno de 8 / 10 / 11):
+**Ficha de subagente** (`li`, de 86 a 120 de ancho según el lugar, `--s2`, radio 13, relleno de 6 / 8 / 8):
 
-- Avi de 56 centrado. Es `aria-hidden`, porque el texto ya dice quién es y qué hace.
-- Nombre en 13.5 / 700 con el color de su personaje.
+- Avi de 40 centrado. Es `aria-hidden`, porque el texto ya dice quién es y qué hace.
+- Nombre en 12 / 700 con el color de su personaje.
 - Si el nombre es inventado, debajo va el tipo ("Explore") en mono 10, `--tenue`. Es la regla de hoy (`a.inventado`).
-- Tarea en 12 / 1.3, `--crema2`, cortada a 2 líneas, con `title` completo.
-- Estado y tiempo en mono 10.5, con el color del estado: "escribiendo · 4 min" o "listo · hace 3 min" (`tiempoSubagente`). Un subagente dormido conserva su estado en el texto ("listo" o "falló"), como `estadoLista`.
+- Tarea en 11 / 1.3, `--crema2`, cortada a 2 líneas, con `title` completo.
+- Estado y tiempo en mono 10, con el color del estado: "escribiendo · 4 min" o "listo · hace 3 min" (`tiempoSubagente`). Un subagente dormido conserva su estado en el texto ("listo" o "falló"), como `estadoLista`.
 - Al pasar el mouse va a `--s3` con borde `--linea`, sube 3 px en 350 ms con `--ease` y el Avi pasa a opacidad 1.
 - Dormido: el Avi va al 60 % de opacidad. **El texto no se atenúa.**
-- **"+n":** 46 de ancho, `--s2`, borde punteado `#34343A`, mono 13 / 600. Lleva `aria-label` y `title`: "1 subagente más: Camila — copy del aviso (listo)".
+- **"+n":** 38 de ancho, `--s2`, borde punteado `#34343A`, mono 12 / 600. Lleva `aria-label` y `title`: "1 subagente más: Camila — copy del aviso (listo)".
 
 ### 4.5 Tarjeta de pregunta
 
-Usa `--s1`, borde ámbar al 50 % sobre `--linea`, radio 22, relleno de 14 / 16 / 12 y `--brillo-pregunta`. Lleva `role="dialog"` y `aria-labelledby` apuntando al texto de la pregunta. Conserva **todos** los `data-accion`, `data-pregunta`, `data-item` y `data-globo` de hoy: la lógica de `responder.js` no se toca.
+Usa `--s1`, borde ámbar al 50 % sobre `--linea`, radio 18, relleno de 12 / 14 / 10 y `--brillo-pregunta`. Lleva `role="dialog"` y `aria-labelledby` apuntando al texto de la pregunta. Conserva **todos** los `data-accion`, `data-pregunta`, `data-item` y `data-globo` de hoy: la lógica de `responder.js` no se toca.
 
-1. **Pestañas**, si hay más de una pendiente (`role="tablist"`). Son píldoras con una zona de toque de 44 (dibujo de 32 y `::before` con `inset: -6px 0`).
+1. **Pestañas**, si hay más de una pendiente (`role="tablist"`). Son píldoras con una zona de toque de 36 (dibujo de 28 y `::before` con `inset: -4px 0`), en 11.5 / 700.
    - Cada una muestra el punto del color de quien pregunta, "Claude · Precios" y "!" o "✓" (ya contestada en el borrador).
    - La activa va en `--s3` con anillo interior `#3A3A40`.
-2. **Cabecera:** Avi de 38 en `teEspera` y "**Claude** te pregunta · #48 · hace 2 min" en 12.5, `--crema2`.
-3. **Pregunta:** `--t-titulo`, con 12 de margen arriba.
-4. **Modo** (mono 10.5, violeta), cuando corresponde: "Se pueden elegir varias" y/o "Pregunta 1 de 2: se envían juntas".
-5. **Opciones:** son `button`, con grilla de 30 + 1fr, alto mínimo 54, `--s2` y radio 14.
-   - El número va en un cuadrito de 30 con radio 10, violeta sobre violeta al 18 %.
-   - La etiqueta va en 14 / 700 y la descripción en 12, `--crema2`.
+2. **Cabecera:** Avi de 28 en `teEspera` y "**Claude** te pregunta · #48 · hace 2 min" en 11.5, `--crema2`.
+3. **Pregunta:** `--t-titulo`, con 8 de margen arriba.
+4. **Modo** (mono 10, violeta), cuando corresponde: "Se pueden elegir varias" y/o "Pregunta 1 de 2: se envían juntas".
+5. **Opciones:** son `button`, con grilla de 26 + 1fr, alto mínimo 42, `--s2` y radio 11.
+   - El número va en un cuadrito de 26 con radio 8, violeta sobre violeta al 18 %.
+   - La etiqueta va en 13 / 700 y la descripción en 11.5, `--crema2`.
    - **Al pasar el mouse:** borde ámbar al 60 % y fondo `--ambar-osc`. **`:active`:** escala .985.
    - **Selección múltiple:** `aria-pressed`. Marcada lleva borde ámbar, el número en negro sobre ámbar y "✓" en lugar del número.
    - **"Recomendada"** es un rótulo mono 9.5 → **10**, ámbar con borde ámbar al 45 %. Sale de `etiquetaOpcion`.
    - **El rótulo no preselecciona nada:** la opción recomendada se ve igual que las demás hasta que se toca.
 6. **Pie:**
-   - A la izquierda, el enlace "Otra respuesta" (violeta 800, alto 44).
+   - A la izquierda, el enlace "Otra respuesta" (violeta 800, 12.5, alto 32).
    - A la derecha, "Más tarde" (botón secundario `--s3`) en la pregunta de una opción, o "Seguir (n)" / "Enviar (n)" en la múltiple. Este último va en ámbar y está deshabilitado (opacidad .38, `cursor: not-allowed`) mientras no haya nada marcado.
-7. **Otra respuesta:** rótulo "Tu respuesta" (mono 10.5) y un campo de 44 de alto sobre `--negro`, con borde `--linea` que pasa a ámbar con el foco. Al lado, "Enviar" o "Seguir". Con Enter se envía. El texto **se conserva** en cada redibujo (`st.textoOtra`).
+7. **Otra respuesta:** rótulo "Tu respuesta" (mono 10) y un campo de 32 de alto sobre `--negro`, con borde `--linea` que pasa a ámbar con el foco. Al lado, "Enviar" o "Seguir". Con Enter se envía. El texto **se conserva** en cada redibujo (`st.textoOtra`).
 8. **Solo lectura** (la sesión no publica `puedeResponder`):
    - Las opciones son `li` sin hover, con el número en `--tenue`.
-   - Abajo va la nota mono 10.5 con `role="status"`: "Responder en Claude: la sesión espera tu respuesta en su ventana."
+   - Abajo va la nota mono 10 con `role="status"`: "Responder en Claude: la sesión espera tu respuesta en su ventana."
 9. **Envío:**
    - Mientras se envía, las opciones van en solo lectura y la nota dice "Enviando tu respuesta a Claude…".
    - Después, "Respondé en Claude: la sesión no tomó la respuesta del widget." o "Ya se respondió en Claude.". Son los textos de hoy.
-10. **Hecho:** una píldora con borde verde al 50 %, el Avi de 34 en `listo` y "Listo, le respondiste a Claude." (`role="status"`). Se ve 1,6 s y se achica en 350 ms, con los tiempos de hoy.
+10. **Hecho:** una píldora con borde verde al 50 %, el Avi de 26 en `listo` y "Listo, le respondiste a Claude." (13 / 800) (`role="status"`). Se ve 1,6 s y se achica en 350 ms, con los tiempos de hoy.
 
 ### 4.6 Estados de la ventana
 
 | Estado | Qué se ve |
 |---|---|
-| **Cargando** (antes de la primera lectura, menos de 1,5 s) | El marco del vacío con el Avi de Claude en `esperando` y "Buscando sesiones…". Sin spinner. |
-| **Vacío** (sin sesiones) | No hay barra lateral. Es una sola tarjeta de 330 con los controles arriba a la derecha, el Avi de Claude de 120 en `durmiendo`, "No hay sesiones de Claude Code abiertas." (18 / 800) y "Cuando abras una, aparece acá con sus subagentes." (13.5, `--crema2`). Debajo, separado por un filete, van **Equipo** y el pie. El boceto dibuja solo la tarjeta, pero el equipo y los controles se mantienen porque hoy existen. |
+| **Cargando** (antes de la primera lectura, menos de 1,5 s) | El marco del vacío con el Avi de Claude en `esperando` y "Buscando sesiones…". Sin spinner. Como el vacío, es compacto: no usa el alto fijo. |
+| **Vacío** (sin sesiones) | No hay barra lateral. Es una sola tarjeta de 330 con los controles arriba a la derecha, el Avi de Claude de 120 en `durmiendo`, "No hay sesiones de Claude Code abiertas." (18 / 800) y "Cuando abras una, aparece acá con sus subagentes." (13.5, `--crema2`). Debajo, separado por un filete, van **Equipo** y el pie. El boceto dibuja solo la tarjeta, pero el equipo y los controles se mantienen porque hoy existen. **Queda compacto** (sigue a su contenido, sin el alto fijo del tablero): un tablero de 640 vacío sería una losa negra. |
 | **Error de lectura** | Se mantienen los últimos datos. El pie va en `--rojo` con el mensaje. |
 | **Error del equipo** | La línea "Equipo sin datos: …" (4.2). |
 | **Tira mini** (flotante, "Minimizar") | 400 × 56, `--negro`, radio 28. Lleva cabecitas de Avi de 32 apiladas (−10 px, borde de 2 `--s1`), el resumen de `resumenMini` (título 13.5 / 800 y detalle mono 11), el chip de preguntas y los botones "Expandir" y "Cerrar" de 44. |
@@ -434,7 +439,7 @@ Los bucles de los Avis, los estados de hover y foco y las entradas simples son C
 
 ### 6.2 Cambios de contenido
 
-- **Cambio de proyecto:** solo la columna principal sale y entra, con 280 ms y 14 px hacia el lado de `st.direccion` (como hoy). Las tarjetas entran escalonadas a 40 ms.
+- **Cambio de proyecto:** la ventana **no cambia de tamaño** (alto fijo, 9.2). Solo la columna principal entra, 240 ms con `--ease`: opacidad 0 → 1 y 14 px hacia el lado de `st.direccion`. Vuelve al principio del scroll. Las tarjetas entran escalonadas a 40 ms. Solo `transform` y `opacity`.
 - **Subagente nuevo:** la ficha entra de escala .9 a 1 con opacidad 0 → 1, en 360 ms con `--rebote`.
 - **Subagente que se va:** opacidad a 0 en 240 ms, antes de quitarla.
 - **Pregunta nueva:** la tarjeta entra con `sube`, 620 ms.
@@ -449,10 +454,12 @@ Los bucles de los Avis, los estados de hover y foco y las entradas simples son C
 ### 6.4 Muesca
 
 - **Abrir:**
-  1. La ventana toma el tamaño del panel (ver 9.2).
-  2. `clip-path: inset(...)` va del rectángulo de la muesca al panel completo, con el radio de cada borde. Tarda 560 ms con `--ease`.
-  3. Los bloques de adentro entran con `sube` desde los 200 ms, cada 40 ms.
-- **Cerrar:** el recorte vuelve a la muesca en 360 ms con `--ease-cierra`. El contenido se apaga en los primeros 120 ms.
+  1. La ventana ya tiene el tamaño del panel desde que se acopló (ver 9.6): abrir no la redimensiona.
+  2. Como la isla del iPhone, `clip-path: inset(...)` va en dos tramos encadenados, sin frenar en el medio, en 720 ms: de la muesca a todo lo largo del borde con el espesor de la muesca (`recorte().medio`, hasta el 38 %), y de ahí hacia el centro hasta el panel completo con un resorte críticamente amortiguado (`linear(...)` en `muescaMotion.js`, sin rebote). A los costados, primero crece a lo alto y después entra.
+  3. Los bloques de adentro no entran escalonados: el contenido ya está quieto y solo se funde (220 ms) en el segundo tramo. Una entrada escalonada seguía acomodando tarjetas con el panel abierto y se veía como parpadeo.
+  4. La muesca se funde en 90 ms desde el primer cuadro del recorte (que nace con su forma), así no se ven las dos superpuestas. Los hombros del panel (7.4) aparecen fundidos en 160 ms cuando termina.
+- **Cerrar (480 ms):** los hombros se funden, el contenido se apaga en los primeros 120 ms, el recorte se repliega hacia el borde (hasta el 55 %) y después se angosta hasta la muesca. La muesca reaparece fundida desde el 85 %. La ventana no cambia: al terminar, solo la zona que toma el mouse vuelve a ser la muesca (9.6).
+- **Sin redimensiones al abrir ni al cerrar (desde el 2026-11-20):** acoplada, la ventana tiene siempre el tamaño del panel abierto y es transparente salvo la muesca. Lo que se anima es `clip-path` y `opacity` adentro. Antes la ventana pasaba del tamaño de la muesca al del panel al abrir, y WebView2 dejaba la ventana transparente sin pintar unos 0,4 s: la muesca desaparecía, no se veía nada y el panel aparecía casi entero, sin la isla. Ver 9.6.
 - **Imán (al arrastrar):** el lado que mira al borde se pinta con un ámbar interior de 3 px y se corre 4 px hacia el borde, en 140 ms. Al soltar y acoplar, el recorte se cierra a la muesca, 360 ms.
 - **Golpe** (al llegar una pregunta y cada 90 s mientras siga sin respuesta y la muesca esté cerrada), 1100 ms en total:
   - La muesca se corre 6 px hacia el centro de la pantalla y vuelve con `--rebote` (520 ms).
@@ -568,7 +575,7 @@ En `preferencias.json`, junto a `tamano`:
   - Los chips de cantidad tienen `aria-label` en palabras.
   - Los proyectos llevan `aria-current`, los conmutadores `aria-pressed` y la muesca `aria-expanded`.
 - **Avisos en vivo:** el pie es `role="status"`. Además hay una región `aria-live="polite"` oculta que anuncia **una vez** "Claude te pregunta algo en catalogo" cuando llega una pregunta. No se repite con cada golpe.
-- **Zonas de toque:** 44 × 44 como mínimo en todo lo que se toca. Las pestañas tienen un dibujo de 32 con una zona de 44. El botón de cerrar del panel mide 44 × 44 (el boceto tenía 44 × 36).
+- **Zonas de toque:** 32 × 32 como mínimo en lo que se toca seguido (botones, enlaces, campo, controles de ventana; la opción mide 42 de alto); por encima del mínimo de 24 × 24 de WCAG 2.2 (2.5.8). Las pestañas tienen un dibujo de 28 con una zona de 36. Densidad del 2026-11-20: antes era 44 × 44.
 - **Contraste:** todo texto pasa 4.5:1 (sección 3.1). El foco ámbar sobre negro tiene 11.5:1.
 - **El color nunca va solo:** la pregunta tiene "?", "!" y texto, el error tiene "con error" y el estado siempre tiene su texto.
 - **Movimiento:** 6.5. Los bucles de los Avis duran más de 5 s, y el usuario los puede pausar desde la bandeja (ya existe).
@@ -583,21 +590,15 @@ En `preferencias.json`, junto a `tamano`:
 - Acoplada, la ventana se crea o se muestra **sin tomar el foco** (`focus: false` al mostrar por hover).
 - Hay que sumar permisos en `src-tauri/capabilities/default.json` para lo que se llame desde JS, o mover y redimensionar con los comandos de Rust que ya existen (`ajustar_ventana` y `geometria`). Hoy solo están `start-dragging`, `is-visible` e `is-minimized`.
 
-### 9.2 La ventana sigue al contenido, salvo durante la animación
+### 9.2 Tamaño de la ventana: fijo en el tablero, salvo la animación
 
-El `ResizeObserver`, `tamano.js` y `ajustar_ventana` se mantienen. **Mientras la muesca abre o cierra, el observador se pausa** y se fija el tamaño final. Si no, la ventana se redimensiona en cada cuadro.
+**Desde el 2026-11-20 el tablero tiene ancho y alto fijos** (`--ancho-lado`, `--ancho-principal` y `--alto-tablero`, 3.3). `medidaVentana` (`tamano.js`) toma el alto del token, no del contenido, así cambiar de proyecto o que aparezca una pregunta no redimensiona la ventana: lo que no entra se ve con scroll adentro. El ancho sale de las dos columnas, que también son fijas. El tamaño crece con el zoom (100 a 200 %) y se topa al 90 % del área de trabajo, como antes; topado, las columnas desplazan.
 
-- **Abrir:**
-  1. Pausar el observador.
-  2. Medir el Tablero (con el último tamaño conocido o renderizado fuera de vista).
-  3. `ajustar_ventana` al rectángulo del panel pegado al borde.
-  4. Recién ahí animar el recorte.
-  5. Al terminar, reanudar.
-- **Cerrar:**
-  1. Pausar.
-  2. Animar el recorte.
-  3. `ajustar_ventana` al tamaño de la muesca.
-  4. Reanudar.
+El `ResizeObserver`, `tamano.js` y `ajustar_ventana` se mantienen solo donde todavía hace falta seguir al contenido: el vacío y la carga (compactos, 4.6), el cambio de zoom, la muesca y la tira mini. **Mientras la muesca abre o cierra, el observador se pausa** y se fija el tamaño final. Si no, la ventana se redimensiona en cada cuadro.
+
+`ajustar_ventana` mueve y redimensiona en una sola llamada de Windows (`SetWindowPos`, `mover_y_redimensionar` en `lib.rs`): con `set_size` y después `set_position` se veía un cuadro con el tamaño nuevo en el lugar viejo.
+
+**Acoplada, la muesca ya no redimensiona al abrir ni al cerrar (9.6).** Mientras abre o cierra, el observador igual se pausa (`st.animando`) y el ajuste espera al final de la animación.
 
 ### 9.3 Arrastre propio
 
@@ -624,8 +625,30 @@ Hoy `body` pinta el fondo (`--ficha`), el borde y la animación `aparece`. Con l
 
 - `html` y `body` quedan **transparentes** y sin borde.
 - `#marco` (nuevo, que envuelve todo) lleva `--negro`, el radio y el borde de cada modo, `--sombra-ventana` y la animación de entrada.
-- **Cuidado: en WebView2 los píxeles transparentes de la ventana siguen recibiendo clics.** El margen transparente tiene que ser el mínimo: alrededor de 16 px para la sombra flotando, y solo los hombros y la luz para la muesca. No hay que agrandarlo por estética.
+- **Cuidado: en WebView2 los píxeles transparentes de la ventana siguen recibiendo clics.** Flotando, el margen transparente tiene que ser el mínimo: alrededor de 16 px para la sombra. No hay que agrandarlo por estética. Acoplada, la ventana es grande y transparente a propósito, y lo que no es la zona interactiva deja pasar los clics (9.6).
 - `medirContenido()` tiene que sumar ese margen y el borde del marco, no el de `body`.
+
+### 9.6 Muesca acoplada: ventana fija y clics que pasan de largo
+
+Decidido con el usuario el 2026-11-20 ("dale, probemos la opción 1"), después de filmar la ventana real: al pasar el mouse por la muesca, la ventana pasaba del tamaño de la muesca al del panel y WebView2 la dejaba sin pintar unos 0,4 s. La isla (6.4) no se veía nunca, y hacerla más lenta no servía porque el hueco venía antes de la animación.
+
+- **La ventana tiene un solo tamaño acoplada.** Es la unión de la muesca cerrada (con hombros, luz y holgura) y del panel abierto (`disposicionAcoplada` en `muesca.js`). Se coloca una sola vez, con `ajustar_ventana`, al acoplar y al cambiar de borde, de lugar, de tamaño elegido (zoom), de contenido (vacío, carga o tablero) o de área de trabajo. El ciclo de 1,5 s la revisa (`colocarAcoplada`, que solo la mueve si `fueraDeLugar`).
+- **Abrir y cerrar son solo el recorte adentro** (`desde` → `medio` → `hasta` y vuelta), sin `ajustar_ventana`. Única excepción, de seguridad: si al abrir la ventana quedó fuera de lugar (el área cambió y el ciclo todavía no la recolocó), se coloca una vez antes de animar.
+- **Cerrada, se ve solo la muesca**, en su lugar adentro de la ventana grande (`--mx`, `--my`), con su luz (`--lx`…) y el golpe. Va por encima del panel recortado (`z-index`). `html`, `body` y todo lo demás no pintan: ni fondo ni sombra.
+- **Zona interactiva** (`zonaInteractiva`, px lógicos de pantalla), que la ventana manda con el comando `zona_interactiva { x, y, ancho, alto, toda }`:
+  - cerrada: la muesca más 8 px (`MARGEN_ZONA`, cubre el golpe de 6 y el hover de 2);
+  - abierta: el tablero;
+  - arrastrando la muesca: toda la ventana (`toda`), para no perder el puntero.
+- **Clics que pasan de largo:** un solo hilo de Rust (`sondear_puntero`) mira el puntero cada 20 ms, solo acoplada, a la vista y fuera de la tira mini (`debe_sondear`). Usa `GetCursorPos`, en px físicos, y pasa la zona a px físicos con la escala de la ventana (`dentro_de_zona`: el borde izquierdo y el de arriba cuentan, el derecho y el de abajo no). Solo cuando el puntero cruza el borde de la zona llama a `set_ignore_cursor_events` y emite `oficina://puntero-zona { dentro, n }`. Flotando, en la tira o escondida en la bandeja, la ventana vuelve a tomar todos los clics y el hilo duerme (despierta a los 250 ms o cuando un comando lo despierta). "Salir" lo termina.
+- **Hover y salida los manda el sondeo:** con los clics pasando de largo, el WebView no ve salir al puntero. `oficina://puntero-zona` dispara `entra` (abre a los 180 ms) y `sale` (cierra a los 650 ms, salvo fijada). Un aviso con `n` más viejo se descarta. El DOM solo adelanta lo mismo: `pointerenter` en la muesca o en el tablero, y `pointerleave` de la ventana entera.
+- **Teclado:** Enter o Espacio sobre la muesca, "Mostrar oficina" y Esc siguen igual. Abierta desde la bandeja con el puntero lejos, el panel queda abierto (cuenta como adentro) hasta que el puntero entre y salga, o Esc.
+- **Arrastre:** a lo largo del mismo borde, la ventana fija acompaña a la muesca: cambia de lugar, no de tamaño. Al cambiar de borde, al pasar a la píldora y al soltar flotando se redimensiona, como antes.
+- **Vista de desarrollo:** `dev/falso.js` imita el sondeo con el puntero de `vista.html` y el paso de los clics con `pointer-events: none` en el iframe.
+- **Solo se puede confirmar en la ventana real de Tauri:**
+  - que `set_ignore_cursor_events` deje pasar los clics sin parpadeo (en Windows prende `WS_EX_TRANSPARENT | WS_EX_LAYERED`);
+  - el costo del sondeo en CPU;
+  - el comportamiento con monitores de distinta escala;
+  - que el panel abra sin el hueco sin pintar.
 
 ---
 

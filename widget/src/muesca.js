@@ -152,9 +152,15 @@ export function recorte(caja, tablero, borde, z = 1) {
     abajo: px(tablero.y + tablero.alto - (caja.y + caja.alto)),
     izquierda: px(caja.x - tablero.x),
   }
+  // Medio (isla): estirada a todo lo largo del borde, todavía con el espesor de la muesca
+  const medio = esHorizontal(borde)
+    ? { arriba: inset.arriba, derecha: 0, abajo: inset.abajo, izquierda: 0 }
+    : { arriba: 0, derecha: inset.derecha, abajo: 0, izquierda: inset.izquierda }
+  const forma = (i, r) => `inset(${i.arriba}px ${i.derecha}px ${i.abajo}px ${i.izquierda}px round ${radios(borde, r)})`
   return {
     inset,
-    desde: `inset(${inset.arriba}px ${inset.derecha}px ${inset.abajo}px ${inset.izquierda}px round ${radios(borde, RADIO_MUESCA)})`,
+    desde: forma(inset, RADIO_MUESCA),
+    medio: forma(medio, RADIO_MUESCA),
     hasta: `inset(0px 0px 0px 0px round ${radios(borde, RADIO_PANEL)})`,
   }
 }
@@ -175,6 +181,45 @@ export function rectLuz(m, borde, z = 1) {
 /** Un rectángulo relativo a la ventana, en px CSS (para ubicar la muesca y el tablero adentro). */
 export function relativo(r, ventana, z = 1) {
   return { x: (r.x - ventana.x) / z, y: (r.y - ventana.y) / z, ancho: r.ancho / z, alto: r.alto / z }
+}
+
+// ------------------------------------------------------------------ ventana fija y zona interactiva (9.6)
+
+/** Margen del puntero alrededor de la muesca cerrada: cubre el golpe (6 px) y el hover (2 px). */
+export const MARGEN_ZONA = 8
+
+const union = (a, b) => {
+  const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y)
+  return { x, y, ancho: Math.max(a.x + a.ancho, b.x + b.ancho) - x, alto: Math.max(a.y + a.alto, b.y + b.alto) - y }
+}
+
+/**
+ * Acoplada, la ventana no cambia de tamaño al abrir ni al cerrar (9.6): es siempre la unión de la
+ * muesca cerrada (`m`, con hombros, luz y holgura) y del panel abierto (`p`), y abrir es solo el
+ * recorte adentro. `local`: la muesca, su luz y el tablero en px CSS de esa ventana (para colocarlos
+ * con --mx, --lx, --tx…). `tam`: la muesca; `tablero`: el tamaño natural del tablero, ambos en px de
+ * pantalla (ya con el zoom `z`).
+ */
+export function disposicionAcoplada(acople, tam, tablero, area, z = 1) {
+  const m = rectMuesca(acople, tam, area, z)
+  const p = rectPanel(acople, tablero, tam, area, z)
+  const ventana = union(m, p)
+  return {
+    ventana, m, p,
+    local: { muesca: relativo(m.caja, ventana, z), luz: relativo(rectLuz(m, acople.borde, z), ventana, z), tablero: relativo(p.tablero, ventana, z) },
+  }
+}
+
+/**
+ * Lo que toma el mouse en la ventana fija (9.6), en px de pantalla; el resto deja pasar los clics a
+ * lo que hay debajo. Cerrada: la muesca más `MARGEN_ZONA`. Abierta: el tablero. Arrastrando (la
+ * muesca o la píldora), toda la ventana (`toda`), para no perder el puntero a mitad de camino.
+ */
+export function zonaInteractiva(d, { abierta, arrastrando = false }, z = 1) {
+  if (arrastrando) return { ...d.ventana, toda: true }
+  if (abierta) return { ...d.p.tablero, toda: false }
+  const c = d.m.caja, g = MARGEN_ZONA * z
+  return { x: c.x - g, y: c.y - g, ancho: c.ancho + 2 * g, alto: c.alto + 2 * g, toda: false }
 }
 
 /**

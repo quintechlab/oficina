@@ -31,24 +31,28 @@
   /* 3.2 tipografía */
   --f: "Manrope", "Segoe UI Variable", sans-serif;
   --m: "Martian Mono", "Cascadia Mono", monospace;
-  --t-display: 800 30px/1.05 var(--f);
-  --t-cifra: 800 26px/1 var(--f);
-  --t-marca: 800 20px/1.1 var(--f);
-  --t-titulo: 800 17px/1.3 var(--f);
-  --t-cuerpo-f: 700 14.5px/1.3 var(--f);
-  --t-cuerpo: 500 13.5px/1.5 var(--f);
-  --t-chico: 500 12.5px/1.35 var(--f);
-  --t-mono: 400 11px/1.5 var(--m);
-  --t-mono-s: 500 10.5px/1.3 var(--m);
+  /* Densidad (2026-11-20): un escalón más chico, para que entre más en el mismo panel */
+  --t-display: 800 21px/1.1 var(--f);
+  --t-cifra: 800 22px/1 var(--f);
+  --t-marca: 800 16px/1.1 var(--f);
+  --t-titulo: 800 14.5px/1.3 var(--f);
+  --t-cuerpo-f: 700 13px/1.3 var(--f);
+  --t-cuerpo: 500 12.5px/1.45 var(--f);
+  --t-chico: 500 11.5px/1.35 var(--f);
+  --t-mono: 400 10.5px/1.5 var(--m);
+  --t-mono-s: 500 10px/1.3 var(--m);
   --t-rotulo: 500 10px/1 var(--m);
 
   /* 3.3 espaciado */
   --e-1: 2px; --e-2: 4px; --e-3: 6px; --e-4: 8px; --e-5: 10px; --e-6: 12px; --e-7: 14px;
   --e-8: 16px; --e-9: 18px; --e-10: 20px; --e-11: 28px;
+  /* Tamaño del tablero (9.2): ancho y alto fijos, iguales en todos los proyectos; lo que no entra se
+     ve con scroll adentro de cada columna. Crece con el zoom y se topa al 90 % del área */
+  --ancho-lado: 188px; --ancho-principal: 460px; --alto-tablero: 640px;
 
   /* 3.4 radios */
-  --r-ventana: 30px; --r-panel: 26px; --r-muesca: 22px; --r-hombro: 16px; --r-tarjeta: 22px;
-  --r-cuadro: 18px; --r-ficha: 16px; --r-fila: 14px; --r-campo: 12px; --r-icono: 9px; --r-tag: 7px;
+  --r-ventana: 26px; --r-panel: 26px; --r-muesca: 22px; --r-hombro: 16px; --r-tarjeta: 18px;
+  --r-cuadro: 14px; --r-ficha: 13px; --r-fila: 11px; --r-campo: 10px; --r-icono: 7px; --r-tag: 6px;
   --r-pildora: 999px;
 
   /* 3.5 sombras: profundidad por escalón de superficies; sombra solo en tres lugares */
@@ -83,7 +87,7 @@ h1, h2, h3 { font: inherit }
 
 /* ------------------------------------------------------------------ marco de la ventana (9.5) */
 #marco {
-  display: flex; flex-direction: column; max-height: 100%; min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column; height: var(--alto-tablero); max-height: 100%; min-height: 0; overflow: hidden;
   background: var(--negro); color: var(--crema);
   border: 1px solid rgba(255, 255, 255, .07); border-radius: var(--r-ventana);
   box-shadow: var(--sombra-ventana);
@@ -91,26 +95,36 @@ h1, h2, h3 { font: inherit }
 }
 /* Sin escala: medirContenido() lee el tamaño de #marco y una escala lo falsearía */
 @keyframes aparece { from { opacity: 0; transform: translateY(12px) } }
+/* El tablero no desplaza entero: cada columna tiene su scroll (9.2). A la derecha no hay relleno:
+   el canal de la barra de la columna principal hace de margen */
 .desplaza {
-  flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: var(--e-10);
-  scrollbar-width: thin; scrollbar-color: var(--s3) transparent;
+  flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto;
+  padding: var(--e-8) 0 var(--e-8) var(--e-8);
 }
-/* Ventana al tamaño del contenido: el ancho lo dan la barra (206) y la columna principal */
-#contenido { display: flex; gap: var(--e-10); width: max-content }
+/* Scroll discreto: fino, sin pista y la barra visible solo con el mouse encima */
+.desplaza, .lado, .proyectos, .principal { scrollbar-width: thin; scrollbar-color: transparent transparent }
+.desplaza:hover, .lado:hover, .proyectos:hover, .principal:hover { scrollbar-color: var(--linea-hover) transparent }
+/* El ancho lo dan la barra (188) y la columna principal (460); el alto, el del tablero */
+#contenido { flex: 1; min-height: 0; display: flex; gap: var(--e-8); width: max-content }
 
 /* ------------------------------------------------------------------ barra lateral (4.2) */
-.lado { width: 206px; flex: none; display: flex; flex-direction: column; gap: var(--e-9) }
-.marca { display: flex; align-items: center; gap: var(--e-5); padding: var(--e-1) var(--e-2) var(--e-2); cursor: grab; user-select: none }
+/* Si los proyectos no entran, desplazan ellos; si tampoco alcanza, la barra entera */
+.lado { width: var(--ancho-lado); flex: none; min-height: 0; overflow-x: hidden; overflow-y: auto; display: flex; flex-direction: column; gap: var(--e-7) }
+.lado > * { flex: none }
+.lado > .proyectos { flex: 0 1 auto; min-height: 76px; overflow-x: hidden; overflow-y: auto }
+/* Con scroll la barra recorta lo que sale de ella: el foco va por dentro */
+.lado :focus-visible { outline-offset: -2px }
+.marca { display: flex; align-items: center; gap: var(--e-4); padding: 0 var(--e-2) var(--e-1); cursor: grab; user-select: none }
 /* Tauri arrastra solo si el clic cae en el elemento marcado: los hijos dejan pasar el clic */
 .marca > *, .cab-t > * { pointer-events: none }
 .marca-t { min-width: 0 }
 .marca-n { display: block; font: var(--t-marca); letter-spacing: -.03em }
-.estado { display: flex; align-items: center; gap: 7px; margin-top: var(--e-1); font: var(--t-mono); font-style: italic; color: var(--crema2); white-space: nowrap }
+.estado { display: flex; align-items: center; gap: var(--e-3); margin-top: var(--e-1); font: var(--t-mono); font-style: italic; color: var(--crema2); white-space: nowrap }
 .pt { display: inline-block; width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--c, var(--ambar)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c, var(--ambar)) 20%, transparent) }
 
-#proyectos { display: flex; flex-direction: column; gap: var(--e-2) }
+#proyectos { display: flex; flex-direction: column; gap: var(--e-1) }
 .pj {
-  display: flex; align-items: center; gap: 11px; width: 100%; min-height: 46px; padding: var(--e-4) var(--e-5);
+  display: flex; align-items: center; gap: var(--e-4); width: 100%; min-height: 34px; padding: var(--e-3) var(--e-4);
   border: 0; border-radius: var(--r-fila); background: transparent; color: var(--crema2);
   font: var(--t-cuerpo-f); text-align: left; cursor: pointer;
   transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
@@ -118,110 +132,136 @@ h1, h2, h3 { font: inherit }
 .pj:hover { background: var(--s2); color: var(--crema) }
 .pj:active { transform: scale(.97) }
 .pj.activo { background: var(--ambar-osc); color: var(--ambar) }
-.pj-ic { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: var(--r-icono); background: color-mix(in srgb, var(--c) 16%, transparent); color: var(--c); font: 500 12px/1 var(--m) }
-.pj-n { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.pj-ic { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: var(--r-icono); background: color-mix(in srgb, var(--c) 16%, transparent); color: var(--c); font: 500 10px/1 var(--m) }
+/* El nombre entero: si no entra, sigue en una segunda línea (corta en los guiones) y recién ahí "…" */
+.pj-n { flex: 1; min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden }
 .chip { flex: none; padding: 5px var(--e-4); border-radius: var(--r-pildora); background: var(--s3); color: var(--crema2); font: 500 11px/1 var(--m); white-space: nowrap }
+/* En la barra el chip es más chico; el de la muesca queda como estaba (F4) */
+.pj .chip { padding: 3px var(--e-3); font-size: 10px }
 .chip-preg { background: var(--ambar); color: var(--negro); font-weight: 600 }
 .pj.activo .chip { background: color-mix(in srgb, var(--ambar) 22%, var(--ambar-osc)); color: var(--ambar) }
 
 /* Equipo y pie: al fondo de la barra, con filete */
-.lado-pie { margin-top: auto; padding-top: var(--e-6); border-top: 1px solid var(--linea) }
-.rot { display: block; margin: 0 0 var(--e-5) var(--e-5); font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+.lado-pie { margin-top: auto; padding-top: var(--e-5); border-top: 1px solid var(--linea) }
+.rot { display: block; margin: 0 0 var(--e-3) var(--e-4); font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
 .compa > summary {
-  list-style: none; display: flex; align-items: center; gap: var(--e-5); min-height: 44px; padding: var(--e-3) var(--e-5);
+  list-style: none; display: flex; align-items: center; gap: var(--e-4); min-height: 36px; padding: var(--e-2) var(--e-4);
   border-radius: var(--r-fila); cursor: pointer; transition: background var(--d-color) ease;
 }
 .compa > summary::-webkit-details-marker { display: none }
 .compa > summary:hover { background: var(--s2) }
-.ini { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--violeta) 22%, transparent); color: var(--violeta); font: 600 10.5px/1 var(--m) }
+.ini { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--violeta) 22%, transparent); color: var(--violeta); font: 600 10px/1 var(--m) }
 .compa-t { flex: 1; min-width: 0 }
-.compa-t b { display: block; font-size: 13.5px; font-weight: 700; line-height: 1.3 }
-.compa-t small { display: block; font-size: 11.5px; line-height: 1.35; color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.compa-t b { display: block; font-size: 12.5px; font-weight: 700; line-height: 1.3 }
+.compa-t small { display: block; font-size: 11px; line-height: 1.35; color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .flecha { flex: none; color: var(--tenue); transition: transform var(--d-color) var(--ease) }
 .compa[open] > summary .flecha { transform: rotate(180deg) }
-.compa-nada { padding: var(--e-1) var(--e-5) var(--e-3); font: var(--t-chico); color: var(--tenue) }
-.compa-aviso { display: flex; align-items: center; gap: 7px; padding: var(--e-1) var(--e-5); font: var(--t-mono-s); color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.compa-nada { padding: var(--e-1) var(--e-4) var(--e-3); font: var(--t-chico); color: var(--tenue) }
+.compa-aviso { display: flex; align-items: center; gap: var(--e-3); padding: var(--e-1) var(--e-4); font: var(--t-mono-s); color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .compa-aviso::before { content: ""; width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--rojo) }
 /* Fila compacta de la sesión principal de un compañero */
-.fila { display: flex; align-items: center; gap: var(--e-4); margin: var(--e-2) 0 var(--e-2); padding: var(--e-4) var(--e-5) var(--e-4) var(--e-4); background: var(--s1); border: 1px solid var(--linea); border-radius: var(--r-cuadro) }
+.fila { display: flex; align-items: center; gap: var(--e-3); margin: var(--e-1) 0 var(--e-2); padding: var(--e-3) var(--e-4) var(--e-3) var(--e-3); background: var(--s1); border: 1px solid var(--linea); border-radius: var(--r-cuadro) }
 .fila-t { flex: 1; min-width: 0 }
-.fila-t b { display: block; font-size: 12.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.fila-t b { display: block; font-size: 12px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 /* Bloque y no flex: así el texto largo termina en "…" en vez de cortarse */
-.fila .linea { display: block; margin-top: 0; font-size: 11.5px }
+.fila .linea { display: block; margin-top: 0; font-size: 11px }
 .fila .linea .pt { margin-right: var(--e-3); vertical-align: 1px }
 .fila .linea, .fila-t b { max-width: 100% }
-.cabezas { display: flex; flex: none; align-items: center; padding-left: var(--e-5) }
-.cabezas .avi { margin-left: -10px; border-radius: 50%; background: var(--s2); border: 2px solid var(--s1) }
-.mas-c { margin-left: var(--e-1); font: 600 10.5px/1 var(--m); color: var(--crema2) }
-.pie-w { margin: var(--e-5) 0 0 var(--e-5); font: var(--t-mono-s); color: var(--tenue) }
+.cabezas { display: flex; flex: none; align-items: center; padding-left: var(--e-4) }
+.cabezas .avi { margin-left: -8px; border-radius: 50%; background: var(--s2); border: 2px solid var(--s1) }
+.mas-c { margin-left: var(--e-1); font: 600 10px/1 var(--m); color: var(--crema2) }
+.pie-w { margin: var(--e-4) 0 0 var(--e-4); font: var(--t-mono-s); color: var(--tenue) }
 .pie-w.error { color: var(--rojo) }
 
 /* ------------------------------------------------------------------ columna principal (4.3) */
-.principal { display: flex; flex-direction: column; gap: var(--e-6); min-width: 392px; max-width: 560px }
-.cab { display: flex; align-items: flex-start; gap: var(--e-6) }
+/* La columna desplaza sola. El relleno deja lugar al brillo de la pregunta y al foco (el scroll
+   recorta), y los márgenes negativos lo devuelven: el contenido queda donde estaba. El canal de la
+   barra (`scrollbar-gutter`) es fijo, así el ancho no salta cuando aparece el scroll */
+.principal {
+  display: flex; flex-direction: column; gap: var(--e-5); width: var(--ancho-principal); flex: none; min-height: 0;
+  overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain;
+  padding: var(--e-3) var(--e-3) var(--e-8); margin: calc(-1 * var(--e-3)) 0 calc(-1 * var(--e-8)) calc(-1 * var(--e-3));
+}
+.principal > * { flex: none }
+/* El encabezado (nombre y controles) queda fijo arriba mientras el resto desplaza */
+.cab {
+  display: flex; align-items: flex-start; gap: var(--e-6);
+  position: sticky; top: calc(-1 * var(--e-3)); z-index: 1; margin: calc(-1 * var(--e-3)) calc(-1 * var(--e-3)) 0; padding: var(--e-3) var(--e-3) var(--e-2);
+  background: var(--negro);
+}
+/* Lo que pasa por debajo del encabezado se funde en 8 px en vez de cortarse en seco */
+.cab::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: var(--e-4); background: linear-gradient(var(--negro), transparent); pointer-events: none }
+#marco.vacio .cab::after, #marco.cargando .cab::after { display: none }
 .cab-t { flex: 1; min-width: 0; padding-top: var(--e-1); cursor: grab; user-select: none; contain: inline-size }
-.cab h1 { font: var(--t-display); letter-spacing: -.04em; overflow-wrap: anywhere }
+.cab h1 { font: var(--t-display); letter-spacing: -.035em; overflow-wrap: anywhere }
 .cab p { margin-top: var(--e-1); font: var(--t-cuerpo); color: var(--crema2) }
-.controles { display: flex; flex: none; margin: -6px -10px 0 0 }
+.controles { display: flex; flex: none; margin: -4px -6px 0 0 }
 .tb {
-  width: 44px; height: 44px; flex: none; display: grid; place-items: center;
+  width: 32px; height: 32px; flex: none; display: grid; place-items: center;
   border: 0; border-radius: var(--r-fila); background: transparent; color: var(--crema2); cursor: pointer;
   transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
 }
 .tb:hover { background: var(--s2); color: var(--crema) }
 .tb:active { transform: scale(.97) }
 .tb[aria-pressed="true"] { color: var(--ambar) }
-.tb svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round }
+.tb svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round }
 
-/* Cuadros de conteo */
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--e-5) }
+/* Cuadros de conteo: en tira, el cuadrito a la izquierda de la cifra y el rótulo */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--e-4) }
 .stats:empty { display: none }
-.stat { min-width: 0; padding: var(--e-7) var(--e-7) var(--e-6); background: var(--s1); border: 1px solid var(--linea); border-radius: var(--r-cuadro) }
-.stat .ico { display: block; width: 24px; height: 24px; margin-bottom: var(--e-7); border-radius: 8px; background: var(--c) }
+.stat {
+  display: grid; grid-template-columns: 20px 1fr; column-gap: var(--e-4); align-content: start;
+  min-width: 0; padding: var(--e-5) var(--e-6); background: var(--s1); border: 1px solid var(--linea); border-radius: var(--r-cuadro);
+}
+.stat > * { grid-column: 2 }
+.stat .ico { grid-column: 1; grid-row: 1 / span 3; display: block; width: 20px; height: 20px; margin-top: 1px; border-radius: 6px; background: var(--c) }
 .stat b { display: block; font: var(--t-cifra); letter-spacing: -.04em; white-space: nowrap }
-.stat small { display: block; font: var(--t-chico); color: var(--crema2) }
+.stat small { display: block; margin-top: var(--e-1); font: var(--t-chico); color: var(--crema2) }
 .stat-error { display: block; margin-top: var(--e-1); font: var(--t-mono-s); color: var(--rojo) }
 
 /* Tarjeta de sesión (4.4): al pasar el mouse solo cambia el borde, no se eleva */
-.sesiones > div { display: flex; flex-direction: column; gap: var(--e-6) }
-.ses { padding: var(--e-7) var(--e-8) var(--e-8); background: var(--s1); border: 1px solid var(--linea); border-radius: var(--r-tarjeta); transition: border-color var(--d-color) ease }
+.sesiones > div { display: flex; flex-direction: column; gap: var(--e-4) }
+.ses { padding: var(--e-6) var(--e-7) var(--e-7); background: var(--s1); border: 1px solid var(--linea); border-radius: var(--r-tarjeta); transition: border-color var(--d-color) ease }
 .ses:hover { border-color: var(--linea-hover) }
-.ses-top { display: flex; align-items: center; gap: var(--e-6) }
+.ses-top { display: flex; align-items: center; gap: var(--e-5) }
 .ses-t { flex: 1; min-width: 0; contain: inline-size }
-.ses-tit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-4) }
+.ses-tit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-3) }
 .ses-tit b { min-width: 0; font: var(--t-titulo); letter-spacing: -.02em; overflow-wrap: anywhere }
 .ses-tit b.sin { color: var(--crema2) }
-.tag { padding: var(--e-2) 7px; border-radius: var(--r-tag); background: var(--ambar); color: var(--negro); font: 600 11px/1 var(--m) }
+.tag { padding: 3px var(--e-3); border-radius: var(--r-tag); background: var(--ambar); color: var(--negro); font: 600 10.5px/1 var(--m) }
 .tag.sin { background: var(--s3); color: var(--crema2) }
-.linea { display: flex; align-items: center; gap: var(--e-4); margin-top: var(--e-3); color: var(--c); font-weight: 700; font-size: 13.5px; line-height: 1.4; min-width: 0 }
+.linea { display: flex; align-items: center; gap: var(--e-3); margin-top: var(--e-2); color: var(--c); font-weight: 700; font-size: 12.5px; line-height: 1.4; min-width: 0 }
 .linea, .fila-t b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .lleva { align-self: flex-start; flex: none; font: var(--t-mono); color: var(--tenue); white-space: nowrap }
 
-/* Fichas de subagente */
-.subs { list-style: none; display: flex; flex-wrap: wrap; gap: var(--e-4); margin-top: var(--e-7) }
+/* Fichas de subagente: 4 y el "+n" entran en una fila */
+.subs { list-style: none; display: flex; flex-wrap: wrap; gap: var(--e-3); margin-top: var(--e-5) }
 .sub {
-  width: 104px; display: flex; flex-direction: column; gap: 1px; padding: var(--e-4) var(--e-5) 11px;
+  flex: 1 1 86px; min-width: 86px; max-width: 120px; display: flex; flex-direction: column; gap: 1px; padding: var(--e-3) var(--e-4) var(--e-4);
   background: var(--s2); border: 1px solid transparent; border-radius: var(--r-ficha);
   transition: background var(--d-color) ease, border-color var(--d-color) ease, transform var(--d-elevar) var(--ease);
 }
 .sub:hover { background: var(--s3); border-color: var(--linea); transform: translateY(-3px) }
 .sub .avi { align-self: center; margin-bottom: var(--e-1); transition: opacity var(--d-color) ease }
-.sub b { font-size: 13.5px; font-weight: 700; line-height: 1.2; color: var(--c); overflow-wrap: anywhere }
+.sub b { font-size: 12px; font-weight: 700; line-height: 1.2; color: var(--c); overflow-wrap: anywhere }
 .sub b span { display: block; font: 400 10px/1.3 var(--m); color: var(--tenue) }
-.sub small { font-size: 12px; line-height: 1.3; color: var(--crema2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere }
-.est { margin-top: 7px; font: var(--t-mono-s); color: var(--ce, var(--ambar)) }
+.sub small { font-size: 11px; line-height: 1.3; color: var(--crema2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere }
+.est { margin-top: var(--e-2); font: var(--t-mono-s); color: var(--ce, var(--ambar)) }
 /* Dormido: solo el Avi se atenúa; el texto atenuado no llega a 4.5:1 */
 .sub.dorm .avi { opacity: .6 }
 .sub.dorm:hover .avi { opacity: 1 }
-.mas { width: 46px; display: grid; place-items: center; background: var(--s2); border: 1px dashed #34343A; border-radius: var(--r-ficha); color: var(--crema2); font: 600 13px/1 var(--m) }
+.mas { width: 38px; display: grid; place-items: center; background: var(--s2); border: 1px dashed #34343A; border-radius: var(--r-ficha); color: var(--crema2); font: 600 12px/1 var(--m) }
 
 /* El lugar, el dibujo y las poses de los Avis están en avis.css */
 
 /* ------------------------------------------------------------------ vacío y carga (4.6) */
 #marco.vacio .marca, #marco.vacio .proyectos, #marco.cargando .marca, #marco.cargando .proyectos { display: none }
-#marco.vacio #contenido, #marco.cargando #contenido { flex-direction: column; width: 330px }
-#marco.vacio .lado, #marco.cargando .lado { width: auto; order: 1 }
-#marco.vacio .principal, #marco.cargando .principal { min-width: 0; max-width: none; gap: 0 }
+/* El vacío y la carga quedan compactos: una tarjeta de 330 que sigue a su contenido, sin alto fijo */
+#marco.vacio, #marco.cargando { height: auto }
+#marco.vacio .desplaza, #marco.cargando .desplaza { padding-right: var(--e-8) }
+#marco.vacio #contenido, #marco.cargando #contenido { flex: none; flex-direction: column; width: 330px }
+#marco.vacio .lado, #marco.cargando .lado { width: auto; order: 1; overflow: visible }
+#marco.vacio .principal, #marco.cargando .principal { width: auto; gap: 0; overflow: visible; padding: 0; margin: 0; scrollbar-gutter: auto }
 #marco.vacio .cab, #marco.cargando .cab { display: contents }
 #marco.vacio .controles, #marco.cargando .controles { order: 0; align-self: flex-end }
 #marco.vacio .vacio-avi, #marco.cargando .vacio-avi { order: 1; display: grid; justify-items: center; margin: 0 0 var(--e-4) }
@@ -234,7 +274,7 @@ h1, h2, h3 { font: inherit }
 /* ------------------------------------------------------------------ aviso (4.3.2): otro proyecto o pregunta plegada */
 #otro:empty, #w-globo:empty { display: none }
 .aviso {
-  display: flex; align-items: center; gap: var(--e-5); width: 100%; min-height: 48px; padding: var(--e-3) var(--e-7) var(--e-3) var(--e-4);
+  display: flex; align-items: center; gap: var(--e-4); width: 100%; min-height: 38px; padding: var(--e-2) var(--e-6) var(--e-2) var(--e-3);
   border-radius: var(--r-pildora); border: 1px solid color-mix(in srgb, var(--ambar) 45%, var(--linea)); background: var(--s1);
   color: var(--crema2); font: var(--t-cuerpo); text-align: left; cursor: pointer;
   transition: background var(--d-color) ease, border-color var(--d-color) ease, transform var(--d-presion) ease;
@@ -247,7 +287,7 @@ h1, h2, h3 { font: inherit }
 
 /* ------------------------------------------------------------------ tarjeta de pregunta (4.5): reemplaza al globo */
 .preg {
-  padding: var(--e-7) var(--e-8) var(--e-6); background: var(--s1);
+  padding: var(--e-6) var(--e-7) var(--e-5); background: var(--s1);
   border: 1px solid color-mix(in srgb, var(--ambar) 50%, var(--linea)); border-radius: var(--r-tarjeta);
   box-shadow: var(--brillo-pregunta);
 }
@@ -255,41 +295,41 @@ h1, h2, h3 { font: inherit }
 .preg.entra { animation: sube var(--d-entrada) var(--ease) both }
 @keyframes sube { from { opacity: 0; transform: translateY(14px) scale(.985) } }
 
-/* Pestañas: dibujo de 32 y zona de toque de 44 */
-.preg-tabs { display: flex; flex-wrap: wrap; gap: var(--e-3); margin-bottom: var(--e-6) }
+/* Pestañas: dibujo de 28 y zona de toque de 36 */
+.preg-tabs { display: flex; flex-wrap: wrap; gap: var(--e-3); margin-bottom: var(--e-5) }
 .preg-tab {
-  position: relative; display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 11px;
+  position: relative; display: inline-flex; align-items: center; gap: var(--e-3); min-height: 28px; padding: 0 var(--e-5);
   border: 0; border-radius: var(--r-pildora); background: var(--s2); color: var(--crema2);
-  font-size: 12px; font-weight: 700; cursor: pointer;
+  font-size: 11.5px; font-weight: 700; cursor: pointer;
   transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
 }
-.preg-tab::before { content: ""; position: absolute; inset: -6px 0 }
+.preg-tab::before { content: ""; position: absolute; inset: -4px 0 }
 .preg-tab:hover { color: var(--crema) }
 .preg-tab:active { transform: scale(.97) }
 .preg-tab[aria-selected="true"] { background: var(--s3); color: var(--crema); box-shadow: inset 0 0 0 1px #3A3A40 }
 .preg-tab .pt { box-shadow: none }
 
-.preg-cab { display: flex; align-items: center; gap: var(--e-5); font: var(--t-chico); color: var(--crema2) }
+.preg-cab { display: flex; align-items: center; gap: var(--e-4); font: var(--t-chico); color: var(--crema2) }
 .preg-cab b { color: var(--crema) }
-.preg-txt { margin-top: var(--e-6); font: var(--t-titulo); letter-spacing: -.02em; overflow-wrap: anywhere }
+.preg-txt { margin-top: var(--e-4); font: var(--t-titulo); letter-spacing: -.02em; overflow-wrap: anywhere }
 .preg-modo { margin-top: var(--e-1); font: var(--t-mono-s); line-height: 1.5; color: var(--violeta) }
 
-/* Opciones: botones de 30 + 1fr; la recomendada se ve igual que las demás (11) */
-.preg-ops { display: flex; flex-direction: column; gap: var(--e-3); margin-top: var(--e-6); list-style: none }
+/* Opciones: botones de 26 + 1fr; la recomendada se ve igual que las demás (11) */
+.preg-ops { display: flex; flex-direction: column; gap: var(--e-2); margin-top: var(--e-5); list-style: none }
 .op {
-  display: grid; grid-template-columns: 30px 1fr; column-gap: var(--e-6); align-items: center;
-  width: 100%; min-height: 54px; padding: 9px var(--e-6); text-align: left;
+  display: grid; grid-template-columns: 26px 1fr; column-gap: var(--e-5); align-items: center;
+  width: 100%; min-height: 42px; padding: 7px var(--e-5); text-align: left;
   background: var(--s2); border: 1px solid transparent; border-radius: var(--r-fila); color: var(--crema);
 }
 .op .n {
-  grid-row: span 2; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 10px;
-  background: color-mix(in srgb, var(--violeta) 18%, var(--s2)); color: var(--violeta); font: 600 12px/1 var(--m);
+  grid-row: span 2; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px;
+  background: color-mix(in srgb, var(--violeta) 18%, var(--s2)); color: var(--violeta); font: 600 11px/1 var(--m);
   transition: background var(--d-color) ease, color var(--d-color) ease;
 }
-.op b { font: var(--t-cuerpo-f); font-size: 14px; overflow-wrap: anywhere }
-.op small { grid-column: 2; font-size: 12px; line-height: 1.35; color: var(--crema2); overflow-wrap: anywhere }
+.op b { font: var(--t-cuerpo-f); overflow-wrap: anywhere }
+.op small { grid-column: 2; font-size: 11.5px; line-height: 1.35; color: var(--crema2); overflow-wrap: anywhere }
 .recom {
-  display: inline-block; margin-left: var(--e-4); padding: 3px var(--e-3); vertical-align: 2px; white-space: nowrap;
+  display: inline-block; margin-left: var(--e-3); padding: 2px var(--e-3); vertical-align: 1px; white-space: nowrap;
   border: 1px solid color-mix(in srgb, var(--ambar) 45%, transparent); border-radius: var(--r-pildora);
   color: var(--ambar); font: 500 10px/1 var(--m);
 }
@@ -303,16 +343,16 @@ button.op:active { transform: scale(.985) }
 .op.ro { cursor: default }
 .op.ro .n { background: var(--s3); color: var(--tenue) }
 
-.preg-pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e-5); margin-top: var(--e-4) }
+.preg-pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e-4); margin-top: var(--e-4) }
 .preg-link {
-  min-height: 44px; display: inline-flex; align-items: center; padding: 0 var(--e-2);
-  border: 0; border-radius: 6px; background: none; color: var(--violeta); font-weight: 800; font-size: 13px; cursor: pointer;
+  min-height: 32px; display: inline-flex; align-items: center; padding: 0 var(--e-2);
+  border: 0; border-radius: 6px; background: none; color: var(--violeta); font-weight: 800; font-size: 12.5px; cursor: pointer;
 }
 .preg-link:hover { text-decoration: underline; text-underline-offset: 3px }
 .btn {
-  min-height: 44px; display: inline-flex; align-items: center; gap: var(--e-3); padding: 0 var(--e-9);
+  min-height: 32px; display: inline-flex; align-items: center; gap: var(--e-3); padding: 0 var(--e-7);
   border: 0; border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro);
-  font-weight: 800; font-size: 13.5px; cursor: pointer;
+  font-weight: 800; font-size: 12.5px; cursor: pointer;
   transition: transform var(--d-presion) ease, filter var(--d-color) ease, opacity var(--d-color) ease;
 }
 .btn:hover { filter: brightness(1.08) }
@@ -324,22 +364,22 @@ button.op:active { transform: scale(.985) }
 .btn:disabled { opacity: .38; cursor: not-allowed; filter: none; transform: none }
 
 /* Otra respuesta: el texto se conserva en cada redibujo (st.textoOtra) */
-.preg-otra { display: grid; grid-template-columns: 1fr auto; gap: var(--e-4); align-items: end; margin-top: var(--e-5) }
+.preg-otra { display: grid; grid-template-columns: 1fr auto; gap: var(--e-3) var(--e-4); align-items: end; margin-top: var(--e-4) }
 .preg-otra label { grid-column: 1 / -1; font: var(--t-mono-s); color: var(--crema2) }
 .preg-otra input {
-  min-width: 0; min-height: 44px; padding: 0 var(--e-6); background: var(--negro); color: var(--crema);
-  border: 1px solid var(--linea); border-radius: var(--r-campo); font: 600 14px var(--f); outline: none;
+  min-width: 0; min-height: 32px; padding: 0 var(--e-5); background: var(--negro); color: var(--crema);
+  border: 1px solid var(--linea); border-radius: var(--r-campo); font: 600 13px var(--f); outline: none;
   transition: border-color var(--d-color) ease;
 }
 .preg-otra input:focus { border-color: var(--ambar) }
 
-.preg-nota { margin-top: var(--e-5); font: var(--t-mono-s); line-height: 1.5; color: var(--tenue) }
+.preg-nota { margin-top: var(--e-4); font: var(--t-mono-s); line-height: 1.5; color: var(--tenue) }
 
 /* Hecho (4.5.10): píldora con borde verde, se ve 1,6 s y se achica en 350 ms */
 .hecho {
-  display: flex; align-items: center; gap: var(--e-5); width: max-content; max-width: 100%; padding: var(--e-3) var(--e-8) var(--e-3) var(--e-4);
+  display: flex; align-items: center; gap: var(--e-4); width: max-content; max-width: 100%; padding: var(--e-2) var(--e-7) var(--e-2) var(--e-3);
   border: 1px solid color-mix(in srgb, var(--verde) 50%, var(--linea)); border-radius: var(--r-pildora); background: var(--s1);
-  font-weight: 800; font-size: 14px; overflow-wrap: anywhere; animation: sube var(--d-entrada) var(--ease) both;
+  font-weight: 800; font-size: 13px; overflow-wrap: anywhere; animation: sube var(--d-entrada) var(--ease) both;
 }
 .hecho.sale { animation: sale .35s ease-in both }
 @keyframes sale { to { opacity: 0; transform: scale(.4) translateY(30px) } }
@@ -360,14 +400,18 @@ body.mini #marco { display: none }
 .caras, .cabezas-g { display: flex; flex: none; align-items: center }
 .caras { padding-left: var(--e-5) }
 .caras .avi { margin-left: -10px; border-radius: 50%; background: var(--s2); border: 2px solid var(--s1) }
-.resumen { min-width: 0; font: var(--t-mono); color: var(--crema2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+/* La tira conserva su escala de antes de la densidad: 400 × 56 con botones de 44 */
+.tira .tb { width: 44px; height: 44px }
+.tira .tb svg { width: 16px; height: 16px }
+.resumen { min-width: 0; font: 400 11px/1.5 var(--m); color: var(--crema2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .resumen b { display: block; font: 800 13.5px/1.25 var(--f); color: var(--crema) }
 .pend { flex: none; margin-right: var(--e-1); padding: 5px var(--e-4); border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro); font: 600 11px/1 var(--m); white-space: nowrap }
 
 /* ------------------------------------------------------------------ muesca acoplable (secciones 6.4, 7 y 9)
-   Acoplada, la ventana es la muesca (cerrada) o el panel pegado al borde (abierta). muesca.js
-   calcula los rectángulos y main.js ubica la muesca (--mx, --my) y el tablero (--tx, --ty, --tw,
-   --th) en px CSS. Fuera de la muesca no hay márgenes: los píxeles transparentes toman clics. */
+   Acoplada, la ventana tiene siempre el tamaño del panel abierto (9.6): abrir y cerrar son solo el
+   recorte adentro. muesca.js calcula la disposición y main.js ubica la muesca (--mx, --my), su luz
+   y el tablero (--tx, --ty, --tw, --th) en px CSS. Todo lo demás es transparente y no pinta nada
+   (ni fondo ni sombra): ahí los clics pasan a lo que hay debajo (zona interactiva, Rust). */
 #muesca, #luz, #pildora, #aviso-iman { display: none }
 body.acoplada { display: block; padding: 0 }
 body.acoplada #tira { display: none }
@@ -375,7 +419,7 @@ body.acoplada [data-accion="mini"] { display: none }
 
 /* El panel abierto: el tablero entero, sin borde ni radio contra el borde de la pantalla (7.4) */
 body.acoplada #marco {
-  position: fixed; left: var(--tx, 0); top: var(--ty, 0); width: var(--tw, auto); height: var(--th, auto); max-height: none;
+  position: fixed; left: var(--tx, 0); top: var(--ty, 0); width: var(--tw, auto); height: var(--th, var(--alto-tablero)); max-height: none;
   box-shadow: none; animation: none; z-index: 0;
 }
 body.acoplada[data-borde="arriba"] #marco { border-top: 0; border-radius: 0 0 var(--r-panel) var(--r-panel) }
@@ -387,24 +431,28 @@ body.acoplada:not(.abierta) #marco { visibility: hidden; pointer-events: none }
 body.acoplada:not(.abierta) #marco *, body.acoplada:not(.abierta) #marco *::before, body.acoplada:not(.abierta) #marco *::after { animation-play-state: paused !important }
 
 /* Hombros del panel abierto, a los lados del tablero contra el borde (7.4) */
-body.acoplada.desplegada::before, body.acoplada.desplegada::after { content: ""; position: fixed; width: var(--r-hombro); height: var(--r-hombro); z-index: 0 }
-body.acoplada.desplegada[data-borde="arriba"]::before { left: calc(var(--tx) - var(--r-hombro)); top: 0; background: radial-gradient(circle at 0 100%, transparent 15.5px, var(--negro) 16px) }
-body.acoplada.desplegada[data-borde="arriba"]::after { left: calc(var(--tx) + var(--tw)); top: 0; background: radial-gradient(circle at 100% 100%, transparent 15.5px, var(--negro) 16px) }
-body.acoplada.desplegada[data-borde="abajo"]::before { left: calc(var(--tx) - var(--r-hombro)); bottom: 0; background: radial-gradient(circle at 0 0, transparent 15.5px, var(--negro) 16px) }
-body.acoplada.desplegada[data-borde="abajo"]::after { left: calc(var(--tx) + var(--tw)); bottom: 0; background: radial-gradient(circle at 100% 0, transparent 15.5px, var(--negro) 16px) }
-body.acoplada.desplegada[data-borde="derecha"]::before { right: 0; top: calc(var(--ty) - var(--r-hombro)); background: radial-gradient(circle at 0 0, transparent 15.5px, var(--negro) 16px) }
-body.acoplada.desplegada[data-borde="derecha"]::after { right: 0; top: calc(var(--ty) + var(--th)); background: radial-gradient(circle at 0 100%, transparent 15.5px, var(--negro) 16px) }
-body.acoplada.desplegada[data-borde="izquierda"]::before { left: 0; top: calc(var(--ty) - var(--r-hombro)); background: radial-gradient(circle at 100% 0, transparent 15.5px, var(--negro) 16px) }
-body.acoplada.desplegada[data-borde="izquierda"]::after { left: 0; top: calc(var(--ty) + var(--th)); background: radial-gradient(circle at 100% 100%, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.abierta::before, body.acoplada.abierta::after { content: ""; position: fixed; width: var(--r-hombro); height: var(--r-hombro); z-index: 0; opacity: 0; transition: opacity 160ms ease }
+/* Los hombros aparecen cuando el panel terminó de abrir y se van al empezar a cerrar, fundidos */
+body.acoplada.desplegada::before, body.acoplada.desplegada::after { opacity: 1 }
+body.acoplada.abierta[data-borde="arriba"]::before { left: calc(var(--tx) - var(--r-hombro)); top: 0; background: radial-gradient(circle at 0 100%, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.abierta[data-borde="arriba"]::after { left: calc(var(--tx) + var(--tw)); top: 0; background: radial-gradient(circle at 100% 100%, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.abierta[data-borde="abajo"]::before { left: calc(var(--tx) - var(--r-hombro)); bottom: 0; background: radial-gradient(circle at 0 0, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.abierta[data-borde="abajo"]::after { left: calc(var(--tx) + var(--tw)); bottom: 0; background: radial-gradient(circle at 100% 0, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.abierta[data-borde="derecha"]::before { right: 0; top: calc(var(--ty) - var(--r-hombro)); background: radial-gradient(circle at 0 0, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.abierta[data-borde="derecha"]::after { right: 0; top: calc(var(--ty) + var(--th)); background: radial-gradient(circle at 0 100%, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.abierta[data-borde="izquierda"]::before { left: 0; top: calc(var(--ty) - var(--r-hombro)); background: radial-gradient(circle at 100% 0, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.abierta[data-borde="izquierda"]::after { left: 0; top: calc(var(--ty) + var(--th)); background: radial-gradient(circle at 100% 100%, transparent 15.5px, var(--negro) 16px) }
 
 /* La muesca (7.1): negra, pegada al borde, esquinas de 22 hacia el centro y hombros de 16.
    Va por encima del panel recortado (z-index 1, 7.4): si no, el panel tapa al Avi, el punto y el chip */
 body.acoplada:not(.pildora) #muesca {
   position: fixed; left: var(--mx, 0); top: var(--my, 0); z-index: 1;
   display: flex; align-items: center; gap: var(--e-4); margin: 0; border: 0; background: var(--negro); color: var(--crema);
-  white-space: nowrap; cursor: pointer; box-shadow: var(--sombra-muesca); transition: transform var(--d-elevar) var(--ease);
+  white-space: nowrap; cursor: pointer; box-shadow: var(--sombra-muesca);
+  transition: transform var(--d-elevar) var(--ease), opacity 120ms ease, visibility 0s;
 }
-body.acoplada.muesca-oculta #muesca { visibility: hidden }
+/* Al abrir, la muesca se funde en el panel que crece (90 ms, desde el primer cuadro) en vez de desaparecer de golpe */
+body.acoplada.muesca-oculta #muesca { opacity: 0; visibility: hidden; transition: transform var(--d-elevar) var(--ease), opacity 90ms ease, visibility 0s linear 90ms }
 #muesca:focus-visible { outline: 2px solid var(--ambar); outline-offset: -4px }
 #muesca::before, #muesca::after { content: ""; position: absolute; width: var(--r-hombro); height: var(--r-hombro) }
 body[data-borde="arriba"] #muesca { border-radius: 0 0 var(--r-muesca) var(--r-muesca); padding: 0 14px 6px 12px; --gy: 6px }
@@ -482,15 +530,15 @@ body[data-iman="izquierda"] #aviso-iman { left: var(--e-6); top: 50%; transform:
 @keyframes golpe-luz { 0%, 100% { opacity: .75 } 40% { opacity: 1 } }
 @keyframes latido { 0%, 100% { transform: scale(1) } 30% { transform: scale(1.18) } 60% { transform: scale(.96) } }
 @media (prefers-reduced-motion: reduce) {
-  #muesca, #marco { transition: none }
+  #muesca, #marco, body.acoplada:not(.pildora) #muesca, body.acoplada.muesca-oculta #muesca, body.acoplada.abierta::before, body.acoplada.abierta::after { transition: none }
 }
-body.pausa #muesca, body.pausa #marco { transition: none }
+body.pausa #muesca, body.pausa #marco, body.pausa.acoplada:not(.pildora) #muesca, body.pausa.acoplada.muesca-oculta #muesca, body.pausa.acoplada.abierta::before, body.pausa.acoplada.abierta::after { transition: none }
 
 /* ------------------------------------------------------------------ entrada escalonada y cambio de proyecto (6.1 y 6.2)
    tableroMotion.js pone las clases y el índice (--i) y las saca al terminar */
 @media (prefers-reduced-motion: no-preference) {
   body:not(.pausa) .rv { animation: sube var(--d-entrada) var(--ease) both; animation-delay: calc(var(--i, 0) * var(--d-escalon) + 120ms) }
-  body:not(.pausa) .principal.cambia { animation: cambia 280ms var(--ease) both }
+  body:not(.pausa) .principal.cambia { animation: cambia 240ms var(--ease) both }
   body:not(.pausa) .rv-ses { animation: sube var(--d-entrada) var(--ease) both; animation-delay: calc(var(--i, 0) * 40ms) }
 }
 @keyframes cambia { from { opacity: 0; transform: translateX(var(--desde, 0)) } }

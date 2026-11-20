@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, posicionEnPantalla, tamanoMini, MINIMO, FRACCION_MAXIMA,
+  zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, posicionEnPantalla, tamanoMini, medidaVentana, fueraDeLugar, MINIMO, FRACCION_MAXIMA,
 } from '../src/tamano.js'
 
 const AREA = { x: 0, y: 0, ancho: 1920, alto: 1040 }
@@ -64,4 +64,35 @@ test('la tira mini crece con el zoom', () => {
   assert.deepEqual(tamanoMini(zoomDe(125)), { ancho: 500, alto: 70 })
   assert.deepEqual(tamanoMini(zoomDe(175)), { ancho: 700, alto: 98 })
   assert.deepEqual(tamanoMini(zoomDe(200)), { ancho: 800, alto: 112 })
+})
+
+test('tablero: alto fijo, el mismo en todos los proyectos; el ancho sale del contenido', () => {
+  const extras = { ancho: 34, alto: 50 }
+  // Un proyecto con poco contenido y otro con mucho miden lo mismo: el alto no depende del proyecto
+  const corto = medidaVentana({ contenido: { ancho: 664, alto: 300 }, extras, altoTablero: 640, margen: 16 })
+  const largo = medidaVentana({ contenido: { ancho: 664, alto: 1400 }, extras, altoTablero: 640, margen: 16 })
+  assert.deepEqual(corto, { ancho: 698, alto: 656 })
+  assert.deepEqual(largo, corto)
+})
+
+test('tablero: el alto fijo crece con el zoom (en px de la ventana)', () => {
+  const m = medidaVentana({ contenido: { ancho: 996, alto: 300 }, extras: { ancho: 34, alto: 50 }, f: 1.5, altoTablero: 640, margen: 16 })
+  assert.deepEqual(m, { ancho: 1047, alto: 984 })
+  // Topado al 90 % del área, como siempre: el resto se ve con scroll adentro
+  assert.equal(tamanoDeseado(medidaVentana({ contenido: { ancho: 1328, alto: 0 }, extras: { ancho: 34, alto: 50 }, f: 2, altoTablero: 640, margen: 16 }), AREA).alto, 936)
+})
+
+test('vacío y carga: siguen al contenido (sin alto fijo)', () => {
+  const m = medidaVentana({ contenido: { ancho: 330, alto: 410 }, extras: { ancho: 34, alto: 50 } })
+  assert.deepEqual(m, { ancho: 364, alto: 460 })
+  assert.deepEqual(medidaVentana({ contenido: { ancho: 330, alto: 410 }, extras: { ancho: 34, alto: 50 }, f: 2 }), { ancho: 398, alto: 510 })
+})
+
+test('acoplada, la ventana se recoloca solo si cambió de tamaño (más de 2 px) o de lugar (más de 1 px)', () => {
+  const v = { x: 600, y: 0, ancho: 708, alto: 656 }
+  assert.equal(fueraDeLugar(v, { ...v }), false)
+  assert.equal(fueraDeLugar(v, { ...v, ancho: 710, x: 601 }), false)
+  assert.equal(fueraDeLugar(v, { ...v, ancho: 711 }), true)
+  assert.equal(fueraDeLugar(v, { ...v, x: 602 }), true)
+  assert.equal(fueraDeLugar(v, { ...v, y: -2 }), true)
 })

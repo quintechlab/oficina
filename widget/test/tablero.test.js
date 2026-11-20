@@ -121,9 +121,9 @@ test('tarjeta de sesión: hasta 4 fichas y "+n"; dormido atenúa solo el Avi, nu
   // La ficha dormida no lleva opacidad propia: estilos.css atenúa solo su .avi
   assert.doesNotMatch(h, /<li[^>]*opacity/)
   assert.doesNotMatch(h, /<(b|small|span class="est")[^>]*opacity/)
-  // Los Avis de la tarjeta son decorativos (5.6): Claude de 84 coordinando y las fichas de 56
-  assert.match(h, /<div class="ses-top"><span class="avi" style="--t:84px;--d:[^"]*" aria-hidden="true"><svg viewBox="0 0 120 120" class="e-coordinando"/)
-  assert.equal((h.match(/<li class="sub[^"]*" style="[^"]*"><span class="avi" style="--t:56px;--d:[^"]*" aria-hidden="true">/g) ?? []).length, 4)
+  // Los Avis de la tarjeta son decorativos (5.6): Claude de 56 coordinando y las fichas de 40
+  assert.match(h, /<div class="ses-top"><span class="avi" style="--t:56px;--d:[^"]*" aria-hidden="true"><svg viewBox="0 0 120 120" class="e-coordinando"/)
+  assert.equal((h.match(/<li class="sub[^"]*" style="[^"]*"><span class="avi" style="--t:40px;--d:[^"]*" aria-hidden="true">/g) ?? []).length, 4)
   assert.doesNotMatch(h, /role="img"/)
   // Inés terminó hace 3 min: duerme con ojos cerrados y "z"; su texto conserva "listo"
   assert.match(h, /<li class="sub dorm"[^>]*><span class="avi[^>]*><svg[^>]*class="e-durmiendo"[\s\S]*?<b>Inés<\/b>[\s\S]*?<span class="est">listo · hace 3 min<\/span>/)
@@ -150,7 +150,7 @@ test('la firma del tablero cambia con la pose de un subagente y no con el tiempo
 })
 
 test('la marca y el vacío: Avi de Claude solo, con nombre y estado (role="img")', () => {
-  assert.match(figuraMarca('coordinando'), /^<span class="avi" style="--t:54px;--d:[^"]*" role="img" aria-label="Claude, coordinando el equipo"><svg viewBox="0 0 120 120" class="e-coordinando"/)
+  assert.match(figuraMarca('coordinando'), /^<span class="avi" style="--t:38px;--d:[^"]*" role="img" aria-label="Claude, coordinando el equipo"><svg viewBox="0 0 120 120" class="e-coordinando"/)
   assert.match(figuraMarca('teEspera'), /aria-label="Claude, esperándote"><svg[^>]*class="e-teEspera"/)
   assert.match(figuraVacio('durmiendo'), /^<span class="avi" style="--t:120px;--d:[^"]*" role="img" aria-label="Claude, durmiendo"><svg[^>]*class="e-durmiendo"/)
   assert.match(figuraVacio('esperando'), /aria-label="Claude, esperando"><svg[^>]*class="e-esperando"/)
@@ -168,6 +168,6 @@ test('equipo: la fila del compañero lleva a Claude de 32 y cabecitas de 24 con 
   const s = { sesion: 'c', repo: 'q/catalogo', rama: 'feat/51-carrito', tarea: 51, inicio: hace(30), actualizado: hace(4), actividad: 'editando carrito.ts', agentes: [sub('1', 'Lucas', 'trabajando')] }
   const c = { usuario: 'NC', nombre: 'Nicolás Campos', actualizado: hace(4), sesiones: [s], principal: s }
   const h = companero(c, AHORA, true)
-  assert.match(h, /<div class="fila"><span class="avi" style="--t:32px;[^"]*" aria-hidden="true"><svg[^>]*class="e-coordinando"/)
-  assert.match(h, /<span class="cabezas" role="img" aria-label="Lucas"><span class="avi" style="--t:24px;[^"]*" aria-hidden="true"><svg[^>]*class="e-escribiendo"/)
+  assert.match(h, /<div class="fila"><span class="avi" style="--t:26px;[^"]*" aria-hidden="true"><svg[^>]*class="e-coordinando"/)
+  assert.match(h, /<span class="cabezas" role="img" aria-label="Lucas"><span class="avi" style="--t:20px;[^"]*" aria-hidden="true"><svg[^>]*class="e-escribiendo"/)
 })
