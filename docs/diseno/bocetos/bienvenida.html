@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oficina · Primeros pasos — bocetos (#10)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Martian+Mono:wdth,wght@75..112.5,400..600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --negro:#000;--s1:#0C0C0E;--s2:#141417;--s3:#1D1D21;--linea:#25252A;--linea-hover:#36363C;
+  --crema:#F3EBD8;--crema2:#BDB5A4;--tenue:#8A8478;--ambar:#F2B632;--ambar-osc:#1D1707;--pico:#E9A13B;
+  --violeta:#A58BFF;--celeste:#7FB3FF;--verde:#8FD694;--rosa:#E78FB3;--rojo:#FF7A6B;
+  --f:"Manrope","Segoe UI Variable",sans-serif;--m:"Martian Mono","Cascadia Mono",monospace;
+  --t-display:800 21px/1.1 var(--f);--t-marca:800 16px/1.1 var(--f);--t-titulo:800 14.5px/1.3 var(--f);
+  --t-cuerpo:500 12.5px/1.45 var(--f);--t-chico:500 11.5px/1.4 var(--f);
+  --t-mono:400 10.5px/1.5 var(--m);--t-mono-s:500 10px/1.3 var(--m);--t-rotulo:500 10px/1 var(--m);
+  --r-ventana:26px;--r-tarjeta:18px;--r-cuadro:14px;--r-fila:11px;--r-campo:10px;
+  --sombra-ventana:0 16px 32px -16px rgba(0,0,0,.8);
+  --ease:cubic-bezier(.16,1,.3,1);--rebote:cubic-bezier(.34,1.56,.64,1);
+  --d-presion:140ms;--d-color:200ms;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#050506}
+body{color:var(--crema);font:var(--t-cuerpo);-webkit-font-smoothing:antialiased}
+.m{font-family:var(--m);font-stretch:75%}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.btn.pri:focus-visible{outline-color:var(--crema)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ===== página ===== */
+.pagina{max-width:1320px;margin:0 auto;padding:48px 32px 96px}
+.top{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;padding-bottom:28px;border-bottom:1px solid var(--linea)}
+.kicker{font:var(--t-rotulo);font-family:var(--m);font-stretch:75%;letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+.top h1{font:800 56px/.95 var(--f);letter-spacing:-.045em;margin-top:14px}
+.top h1 em{font-style:normal;color:var(--ambar)}
+.lead{max-width:660px;color:var(--crema2);font:500 14px/1.6 var(--f);margin-top:14px}
+.lead b{color:var(--crema)}
+.conm{min-height:36px;padding:0 16px;border-radius:999px;background:var(--s2);border:1px solid var(--linea);font:500 11px/1 var(--m);font-stretch:75%;color:var(--crema2);transition:color var(--d-color),border-color var(--d-color)}
+.conm[aria-pressed=true]{color:var(--ambar);border-color:rgba(242,182,50,.5)}
+
+.pose{display:grid;grid-template-columns:auto 1fr;gap:36px;align-items:center;margin-top:44px;padding:24px 28px;background:var(--s1);border:1px solid var(--linea);border-radius:var(--r-tarjeta)}
+.pose h2{font:800 22px/1.1 var(--f);letter-spacing:-.03em}
+.pose p{color:var(--crema2);font:500 13px/1.55 var(--f);margin-top:6px;max-width:62ch}
+.mapa{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;list-style:none}
+.mapa li{display:flex;align-items:center;gap:6px;background:var(--s2);border-radius:999px;padding:2px 12px 2px 4px;font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--crema2)}
+.mapa b{color:var(--crema);font-weight:600}
+.mapa .nueva{color:var(--ambar)}
+
+.opcion{margin-top:72px}
+.op-cab{display:grid;grid-template-columns:76px 1fr auto;gap:20px;align-items:start}
+.letra{font:800 72px/.8 var(--f);letter-spacing:-.06em;color:var(--crema2)}
+.opcion.rec .letra{color:var(--ambar)}
+.op-cab h2{font:800 30px/1.05 var(--f);letter-spacing:-.04em}
+.op-cab ul{list-style:none;margin-top:10px;color:var(--crema2);font:500 13.5px/1.55 var(--f);max-width:78ch}
+.op-cab li+li{margin-top:2px}
+.trade{font:var(--t-mono);font-family:var(--m);font-stretch:75%;color:var(--tenue);margin-top:10px}
+.trade b{color:var(--crema2);font-weight:600}
+.sello{font:600 10px/1 var(--m);font-stretch:75%;letter-spacing:.12em;color:#000;background:var(--ambar);padding:7px 10px;border-radius:999px}
+.repetir{min-height:32px;padding:0 12px;border-radius:999px;font:500 10.5px var(--m);font-stretch:75%;color:var(--crema2);border:1px solid var(--linea);margin-top:10px}
+.repetir:hover{color:var(--crema);border-color:var(--linea-hover)}
+.tira{display:flex;gap:28px;overflow-x:auto;padding:28px 4px 24px;align-items:flex-start;scroll-snap-type:x proximity;scrollbar-width:thin;scrollbar-color:var(--s3) transparent}
+.estado{flex:none;scroll-snap-align:start}
+.estado figcaption{font:var(--t-rotulo);font-family:var(--m);font-stretch:75%;letter-spacing:.12em;text-transform:uppercase;color:var(--tenue);margin-bottom:12px}
+.estado figcaption b{color:var(--crema);font-weight:600;margin-right:6px}
+
+/* ===== piezas compartidas ===== */
+.marco{background:var(--negro);border:1px solid rgba(255,255,255,.07);border-radius:var(--r-ventana);box-shadow:var(--sombra-ventana);padding:16px;position:relative}
+.ctl{width:32px;height:32px;border-radius:999px;display:grid;place-items:center;color:var(--crema2);flex:none;transition:background var(--d-color),color var(--d-color)}
+.ctl:hover{background:var(--s2);color:var(--crema)}
+.ctl svg{width:15px;height:15px}
+.btn{min-height:32px;padding:0 14px;border-radius:999px;font:800 12px/1 var(--f);display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background var(--d-color),transform var(--d-presion)}
+.btn.pri{background:var(--ambar);color:#000}
+.btn.pri:hover{background:#FFC64A}
+.btn.sec{background:var(--s3);color:var(--crema)}
+.btn.sec:hover{background:#27272C}
+.btn:active{transform:scale(.97)}
+.btn[disabled]{opacity:.38;cursor:not-allowed;transform:none}
+.btn .ext{font-weight:600;opacity:.8}
+.lnk{font:800 12px/1 var(--f);color:var(--violeta);min-height:32px;display:inline-flex;align-items:center;text-decoration:none}
+.lnk:hover{text-decoration:underline;text-underline-offset:3px}
+.motivo{font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--tenue)}
+.acc{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
+.txt{font:var(--t-chico);color:var(--crema2);margin-top:3px}
+.chip{font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;padding:4px 8px;border-radius:999px;background:var(--s3);color:var(--crema2);white-space:nowrap}
+.c-hecho{color:var(--verde);background:rgba(143,214,148,.1)}
+.c-trabajando,.c-codigo{color:var(--ambar);background:rgba(242,182,50,.12)}
+.c-error{color:var(--rojo);background:rgba(255,122,107,.12)}
+.c-bloqueado{color:var(--tenue);background:transparent;box-shadow:inset 0 0 0 1px var(--linea)}
+
+.nodo{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:600 11px/1 var(--m);font-stretch:75%;background:var(--s2);border:1px solid var(--linea);color:var(--crema2);position:relative;flex:none}
+.nodo svg{width:14px;height:14px}
+.n-bloqueado{border-style:dashed;color:var(--tenue);background:transparent}
+.n-hecho{background:rgba(143,214,148,.14);border-color:rgba(143,214,148,.5);color:var(--verde)}
+.n-error{background:rgba(255,122,107,.14);border-color:rgba(255,122,107,.55);color:var(--rojo);font:800 13px/1 var(--f)}
+.n-trabajando,.n-codigo{background:var(--ambar-osc);border-color:rgba(242,182,50,.25);color:var(--ambar)}
+.n-codigo{box-shadow:inset 0 0 0 1.5px var(--ambar)}
+.n-trabajando::before{content:"";position:absolute;inset:-1px;border-radius:50%;background:conic-gradient(var(--ambar) 0 30%,transparent 30%);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 2px))}
+.visto{fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:20;stroke-dashoffset:0}
+
+.log{margin-top:8px;background:var(--negro);border:1px solid var(--linea);border-radius:var(--r-campo);padding:8px 10px;font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--crema2);display:grid;gap:4px}
+.log .ok::before{content:"✓ ";color:var(--verde)}
+.log .va{color:var(--crema)}
+.log .va::before{content:"› ";color:var(--ambar)}
+.barra{height:3px;border-radius:999px;background:var(--s3);overflow:hidden;position:relative;margin-top:3px}
+.barra::after{content:"";position:absolute;top:0;bottom:0;left:0;width:38%;background:var(--ambar);border-radius:inherit}
+.err{margin-top:8px;border:1px solid rgba(255,122,107,.4);background:rgba(255,122,107,.06);border-radius:var(--r-campo);padding:8px 10px;display:grid;gap:3px}
+.err .m{font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--rojo)}
+.err p{font:var(--t-chico);color:var(--crema)}
+.caja-cod{margin-top:10px;display:flex;align-items:center;gap:10px;background:var(--negro);border:1px solid rgba(242,182,50,.45);border-radius:12px;padding:6px 6px 6px 14px}
+.cod{flex:1;font:600 22px/1 var(--m);font-stretch:75%;letter-spacing:.1em;color:var(--crema);user-select:all}
+.cod i{font-style:normal;display:inline-block}
+.cod .g{color:var(--tenue)}
+.espera{display:flex;gap:7px;align-items:center;font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--ambar);margin-top:8px}
+.pt{width:6px;height:6px;border-radius:50%;background:var(--ambar);flex:none}
+.cuenta{display:flex;align-items:center;gap:7px;font:var(--t-chico);color:var(--crema2)}
+.cuenta b{color:var(--crema)}
+.ini{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(165,139,255,.18);color:var(--violeta);font:600 10px/1 var(--m);font-stretch:75%;flex:none}
+.final{display:grid;grid-template-columns:40px 1fr;gap:10px;align-items:center;border:1px solid rgba(143,214,148,.5);border-radius:var(--r-tarjeta);padding:10px 12px;background:var(--s1)}
+.final b{font:800 13px/1.3 var(--f)}
+.final p{font:var(--t-chico);color:var(--crema2);margin-top:2px}
+.final code{font:var(--t-mono);font-family:var(--m);font-stretch:75%;color:var(--crema)}
+
+/* ===== A · Hoja de ruta ===== */
+.a{width:384px;display:flex;flex-direction:column;gap:12px}
+.a-cab{display:grid;grid-template-columns:56px 1fr 32px;gap:12px;align-items:center}
+.a-h{font:var(--t-display);letter-spacing:-.035em}
+.a-sub{font:var(--t-chico);color:var(--crema2);margin-top:3px}
+.prog{display:grid;grid-template-columns:repeat(3,1fr) auto;gap:4px;align-items:center}
+.seg{height:4px;border-radius:999px;background:var(--s3);overflow:hidden;position:relative}
+.seg.hecho{background:var(--verde)}
+.seg.error{background:var(--rojo)}
+.seg.codigo{background:rgba(242,182,50,.4)}
+.seg.trabajando::after{content:"";position:absolute;top:0;bottom:0;left:0;width:45%;background:var(--ambar);border-radius:inherit}
+.prog .m{font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--crema2);margin-left:8px;letter-spacing:.06em}
+.a-pasos{list-style:none;display:flex;flex-direction:column;gap:4px}
+.a-paso{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:8px 10px 8px 8px;border-radius:var(--r-cuadro);border:1px solid transparent;position:relative}
+.a-paso:not(:last-child)::after{content:"";position:absolute;left:21.5px;top:38px;bottom:-12px;width:1px;background:var(--linea)}
+.a-paso.e-hecho:not(:last-child)::after{background:rgba(143,214,148,.45)}
+.a-paso.actual{background:var(--s1);border-color:var(--linea);padding:12px 12px 12px 8px}
+.a-paso.actual::after{top:42px}
+.a-paso.e-error{border-color:rgba(255,122,107,.45)}
+.a-paso.e-codigo{border-color:rgba(242,182,50,.4)}
+.a-fila{display:flex;align-items:center;gap:8px;min-height:28px}
+.a-fila b{font:800 13px/1.3 var(--f);letter-spacing:-.01em;flex:1}
+.a-paso.e-hecho .res{margin-top:-2px}
+.res{font:var(--t-chico);color:var(--crema2)}
+
+/* ===== B · Un paso a la vez ===== */
+.b{width:340px;display:flex;flex-direction:column;gap:12px;padding:14px 16px 10px}
+.b-top{display:flex;align-items:center;justify-content:space-between;padding-left:4px}
+.b-top .m{font:var(--t-rotulo);font-family:var(--m);font-stretch:75%;letter-spacing:.12em;color:var(--tenue)}
+.b-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;background:var(--s1);border-radius:999px;padding:3px}
+.tab{min-height:32px;border-radius:999px;font:700 11.5px/1 var(--f);color:var(--crema2);display:flex;align-items:center;justify-content:center;gap:6px;transition:background var(--d-color),color var(--d-color)}
+.tab:hover{color:var(--crema)}
+.tab[aria-selected=true]{background:var(--s3);color:var(--crema);box-shadow:inset 0 0 0 1px #3A3A40}
+.tab .g{font:600 10px/1 var(--m);font-stretch:75%;color:var(--tenue)}
+.tab .g.hecho{color:var(--verde)}.tab .g.error{color:var(--rojo);font-family:var(--f);font-weight:800;font-size:12px}
+.tab .g.trabajando,.tab .g.codigo{width:6px;height:6px;border-radius:50%;background:var(--ambar);font-size:0}
+.b-escena{display:flex;flex-direction:column;align-items:center;text-align:center;padding:2px 4px 0}
+.b-n{font:var(--t-rotulo);font-family:var(--m);font-stretch:75%;letter-spacing:.12em;color:var(--tenue);margin-top:2px}
+.b-h{font:800 19px/1.15 var(--f);letter-spacing:-.035em;margin-top:8px;max-width:22ch}
+.b-txt{font:var(--t-cuerpo);color:var(--crema2);margin-top:6px;max-width:32ch}
+.b-escena .log,.b-escena .err,.b-escena .caja-cod,.b-escena .cuenta{width:100%;text-align:left}
+.b-escena .espera{justify-content:center}
+.b-acc{display:flex;flex-direction:column;gap:6px;width:100%;margin-top:14px}
+.b-acc .btn{width:100%;min-height:38px}
+.b-acc .motivo{margin-top:2px}
+.b-pie{display:flex;justify-content:space-between;border-top:1px solid var(--linea);padding-top:4px;margin-top:2px}
+.b-pie .lnk{color:var(--crema2)}
+.b-pie .lnk.sig{color:var(--ambar)}
+.b-pie .lnk[disabled]{opacity:.38;cursor:not-allowed;text-decoration:none}
+
+/* ===== C · En el tablero ===== */
+.c{width:676px;height:640px;display:grid;grid-template-columns:188px 1fr;gap:16px}
+.c-lado{display:flex;flex-direction:column;gap:14px;min-height:0}
+.c-marca{display:flex;gap:8px;align-items:center}
+.c-marca b{font:var(--t-marca);letter-spacing:-.03em;display:block}
+.c-marca span{font:italic 400 10.5px/1.4 var(--m);font-stretch:75%;color:var(--crema2)}
+.c-vacio{font:var(--t-chico);color:var(--tenue);border:1px dashed #34343A;border-radius:var(--r-fila);padding:10px}
+.c-eq{margin-top:auto;border-top:1px solid var(--linea);padding-top:12px;display:grid;gap:8px}
+.rot{font:var(--t-rotulo);font-family:var(--m);font-stretch:75%;letter-spacing:.12em;color:var(--tenue)}
+.c-eq .motivo{display:flex;gap:6px;align-items:center}
+.c-eq .pt{background:var(--tenue)}
+.comp{display:flex;align-items:center;gap:8px;min-height:36px}
+.comp b{font:700 12.5px/1.2 var(--f);display:block}
+.comp span{font:500 11px/1.3 var(--f);color:var(--tenue)}
+.c-pie{font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--tenue)}
+.c-main{display:flex;flex-direction:column;gap:10px;min-width:0}
+.c-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.c-h{font:var(--t-display);letter-spacing:-.035em}
+.c-sub{font:var(--t-cuerpo);color:var(--crema2);margin-top:3px}
+.ctls{display:flex}
+.c-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{background:var(--s1);border:1px solid var(--linea);border-radius:var(--r-cuadro);padding:10px 10px 10px 12px;text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:6px;transition:border-color var(--d-color),background var(--d-color)}
+.tile:hover{border-color:var(--linea-hover)}
+.tile[aria-current=true]{background:var(--ambar-osc);border-color:rgba(242,182,50,.5)}
+.tile.e-error{border-color:rgba(255,122,107,.5)}
+.t-top{display:flex;justify-content:space-between;align-items:center;width:100%}
+.t-top .m{font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--tenue)}
+.tile .nodo{width:22px;height:22px;font-size:10px}
+.tile .nodo svg{width:12px;height:12px}
+.tile b{font:800 13px/1.25 var(--f)}
+.c-det{background:var(--s1);border:1px solid var(--linea);border-radius:var(--r-tarjeta);padding:12px 14px 14px}
+.c-det.e-error{border-color:rgba(255,122,107,.45)}
+.c-det.e-codigo{border-color:rgba(242,182,50,.45);box-shadow:0 0 0 5px rgba(242,182,50,.04)}
+.c-det h4{font:var(--t-titulo);letter-spacing:-.02em}
+.c-det .rot{display:block;margin-bottom:6px}
+
+/* ===== dónde vive ===== */
+.vive{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:28px}
+.vive article{background:var(--s1);border:1px solid var(--linea);border-radius:var(--r-tarjeta);padding:20px;display:flex;flex-direction:column;gap:12px}
+.vive h3{font:800 16px/1.2 var(--f);letter-spacing:-.02em}
+.vive p{font:500 12.5px/1.55 var(--f);color:var(--crema2)}
+.vive p b{color:var(--crema)}
+.menu{width:252px;background:#2B2B2B;border:1px solid #3B3B3B;border-radius:8px;padding:4px;font:400 12px/1 "Segoe UI Variable","Segoe UI",sans-serif;color:#F2F2F2;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.menu li{list-style:none;padding:8px 12px;border-radius:4px;display:flex;justify-content:space-between}
+.menu li.nuevo{background:#3A3A3A;box-shadow:inset 2px 0 0 var(--ambar)}
+.menu li.sep{padding:0;height:1px;background:#3B3B3B;margin:4px 0}
+.menu .k{color:#9A9A9A}
+.aviso{display:flex;align-items:center;gap:8px;min-height:38px;padding:3px 14px 3px 5px;border-radius:999px;background:var(--s1);border:1px solid var(--linea-hover);font:var(--t-cuerpo);color:var(--crema2);text-align:left;width:100%;transition:border-color var(--d-color)}
+.aviso:hover{border-color:#4A4A52}
+.aviso b{color:var(--crema)}
+.aviso .ver{margin-left:auto;color:var(--ambar);font-weight:800;white-space:nowrap}
+.nombre-muesca{font:var(--t-mono);font-family:var(--m);font-stretch:75%;color:var(--crema2);background:var(--negro);border:1px solid var(--linea);border-radius:10px;padding:10px 12px}
+
+.decis{margin-top:64px;border-top:1px solid var(--linea);padding-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.decis h2{font:800 18px/1.2 var(--f);letter-spacing:-.02em;margin-bottom:10px}
+.decis li{margin:6px 0 6px 18px;font:500 12.5px/1.55 var(--f);color:var(--crema2)}
+.decis b{color:var(--crema)}
+
+/* ===== Avi ===== */
+.avi{display:inline-block;width:var(--t,64px);height:var(--t,64px);flex:none;vertical-align:middle}
+.avi svg{width:100%;height:100%;overflow:visible;display:block}
+.avi .piel{fill:url(#gPiel)}
+.avi .sombreado{fill:#B9A780;opacity:.34}
+.avi .brillo{fill:#fff;opacity:.72;filter:url(#fBlur)}
+.avi .pata{fill:#D6C8A6}
+.avi .suelo{fill:url(#gSuelo)}
+.avi .contacto{fill:#000;opacity:.55}
+.avi .ojo{fill:#1B1712}
+.avi .luz{fill:#fff}
+.avi .trazo{stroke:#1B1712;stroke-width:2.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.avi .pico{fill:#E9A13B}
+.avi .cuerpo,.avi .ojos,.avi .mirada,.avi .mano,.avi .chispa,.avi .saludo{transform-box:fill-box}
+.avi .cuerpo{transform-origin:50% 100%}
+.avi .ojos{transform-origin:50% 50%}
+.avi .saludo{transform-origin:30% 100%;transform:rotate(-8deg)}
+.avi .e-saluda .vaiven{opacity:0}
+.quieto .avi .e-saluda .vaiven{opacity:1}
+@media (prefers-reduced-motion:reduce){.avi .e-saluda .vaiven{opacity:1}}
+.e-escribiendo .mirada{transform:translateY(2.5px)}
+
+/* ===== movimiento ===== */
+@media (prefers-reduced-motion:no-preference){
+  .avi .cuerpo{animation:respira 3.4s ease-in-out infinite var(--d,0s)}
+  .avi .ojos{animation:parpadea 4.8s infinite var(--d,0s)}
+  .e-escribiendo .cuerpo{animation:teclea .34s ease-in-out infinite alternate}
+  .e-escribiendo .mano{animation:tecla .2s ease-in-out infinite alternate}
+  .e-escribiendo .mano.m2{animation-delay:.1s}
+  .e-escribiendo .logo{animation:titila 1.6s ease-in-out infinite}
+  .e-listo .cuerpo{animation:festeja 1s var(--rebote) infinite}
+  .e-listo .chispa{animation:chispa 1s ease-out infinite;transform-origin:50% 50%}
+  .e-listo .c2{animation-delay:.25s}.e-listo .c3{animation-delay:.5s}.e-listo .c4{animation-delay:.75s}
+  .e-fallo .cuerpo{animation:tambalea 3s ease-in-out infinite}
+  /* saluda: tres vaivenes al entrar y queda con la mano arriba (no es un bucle eterno) */
+  .ver .e-saluda .saludo{animation:saluda .5s ease-in-out 6 alternate .5s both}
+  .ver .e-saluda .vaiven{animation:vaiven 3s ease-out .5s both}
+
+  .n-trabajando::before{animation:gira 1.1s linear infinite}
+  .barra::after,.seg.trabajando::after{animation:indet 1.5s var(--ease) infinite}
+  .pt{animation:pulsoPt 1.8s ease-in-out infinite}
+  .ver .n-hecho svg .visto{animation:traza .5s var(--ease) both calc(var(--i,0) * 65ms + 260ms)}
+  .ver .n-hecho{animation:pop .36s var(--rebote) both calc(var(--i,0) * 65ms + 200ms)}
+  .ver .e-error.sacude{animation:sacude .42s ease-in-out .7s both}
+  .ver .cod i{animation:letra .42s var(--ease) both calc(var(--k) * 45ms + 420ms)}
+
+  .ver .rv{animation:sube .62s var(--ease) both;animation-delay:calc(var(--i,0) * 65ms + 120ms)}
+  .tira:not(.ver) .rv{opacity:0}
+}
+.quieto *,.quieto *::before,.quieto *::after{animation:none!important;transition:none!important}
+.quieto .tira .rv{opacity:1!important}
+@keyframes sube{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes respira{0%,100%{transform:scale(1,1)}50%{transform:scale(1.03,.965)}}
+@keyframes parpadea{0%,91%,97%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}}
+@keyframes teclea{from{transform:translateY(0)}to{transform:translateY(1.5px) scale(1.01,.99)}}
+@keyframes tecla{from{transform:translateY(0)}to{transform:translateY(-2px)}}
+@keyframes titila{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes festeja{0%,100%{transform:translateY(0) scale(1,1)}20%{transform:scale(1.08,.9)}50%{transform:translateY(-10px) scale(.95,1.06)}75%{transform:scale(1.04,.96)}}
+@keyframes chispa{0%{transform:scale(0);opacity:1}60%{transform:scale(1.1);opacity:1}100%{transform:scale(.6);opacity:0}}
+@keyframes tambalea{0%,100%{transform:rotate(0)}10%{transform:rotate(-5deg)}20%{transform:rotate(4deg)}30%{transform:rotate(-2deg)}40%{transform:rotate(0)}}
+@keyframes saluda{from{transform:rotate(-8deg)}to{transform:rotate(20deg)}}
+@keyframes vaiven{0%{opacity:0}15%,80%{opacity:1}100%{opacity:0}}
+@keyframes gira{to{transform:rotate(360deg)}}
+@keyframes indet{0%{transform:translateX(-100%)}100%{transform:translateX(270%)}}
+@keyframes pulsoPt{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+@keyframes traza{from{stroke-dashoffset:20}to{stroke-dashoffset:0}}
+@keyframes pop{from{transform:scale(.6)}to{transform:scale(1)}}
+@keyframes sacude{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(3px)}60%{transform:translateX(-2px)}80%{transform:translateX(1px)}}
+@keyframes letra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<radialGradient id="gPiel" cx="36%" cy="28%" r="78%"><stop offset="0" stop-color="#FFFCF4"/><stop offset=".42" stop-color="#F5EDDC"/><stop offset=".8" stop-color="#E1D4B6"/><stop offset="1" stop-color="#CBBB97"/></radialGradient>
+<radialGradient id="gSuelo" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#F2B632" stop-opacity=".22"/><stop offset="1" stop-color="#F2B632" stop-opacity="0"/></radialGradient>
+<filter id="fBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.7"/></filter>
+</defs></svg>
+
+<div class="pagina">
+  <header class="top">
+    <div>
+      <p class="kicker">Oficina · issue #10 · boceto · estilo Avis</p>
+      <h1>Primeros <em>pasos</em></h1>
+      <p class="lead">Tres maneras de dejar a un compañero listo sin escribir comandos: <b>Claude Code</b>, <b>el mod</b> y <b>GitHub</b>. Cada opción muestra los cinco momentos: todo pendiente, instalando, error con reintento, el código de GitHub y todo listo. <b>Nada se instala ni se conecta sin un clic.</b> Paleta, tipografías y tokens: los de <code class="m">estilo-avis-ux.md</code>, sin cambios.</p>
+    </div>
+    <button class="conm" id="quieto" aria-pressed="false">Movimiento reducido</button>
+  </header>
+
+  <section class="pose" aria-labelledby="t-pose">
+    <span class="tira ver" style="padding:0;overflow:visible" id="pose-avi"></span>
+    <div>
+      <h2 id="t-pose">El Avi base, que saluda</h2>
+      <p>El asistente lo presenta el Avi base (copete ámbar, la firma de la familia), no Claude: todavía no hay ninguna sesión. Suma <b style="color:var(--ambar)">una sola pose nueva, «saluda»</b>: la mano crema sube, da tres vaivenes al aparecer y queda en alto. Los demás momentos reusan poses del elenco; la burbuja «!» de <code class="m">teEspera</code> no se usa, porque es la señal de pregunta.</p>
+      <ul class="mapa" id="mapa"></ul>
+    </div>
+  </section>
+
+  <section class="opcion" id="op-a" aria-labelledby="t-a">
+    <div class="op-cab">
+      <span class="letra" aria-hidden="true">A</span>
+      <div>
+        <h2 id="t-a">Hoja de ruta</h2>
+        <ul>
+          <li>Una tarjeta compacta de 384 con los tres pasos a la vista sobre un riel: el que toca se abre en su tarjeta; los hechos quedan en una línea con su resultado.</li>
+          <li>Es la misma pieza flotando (en lugar del vacío) y acoplada (arriba de la columna principal de 460), sin tocar el alto fijo del tablero.</li>
+          <li>Funciona porque todo el estado se lee de un vistazo: un error nunca queda escondido atrás de otra pantalla.</li>
+        </ul>
+        <p class="trade"><b>+</b> honesta, densa, un solo componente para los dos modos · <b>−</b> menos teatral: el Avi mide 56.</p>
+        <button class="repetir" data-repetir="op-a">↺ repetir la entrada</button>
+      </div>
+    </div>
+    <div class="tira" data-op="A"></div>
+  </section>
+
+  <section class="opcion rec" id="op-b" aria-labelledby="t-b">
+    <div class="op-cab">
+      <span class="letra" aria-hidden="true">B</span>
+      <div>
+        <h2 id="t-b">Un paso a la vez</h2>
+        <ul>
+          <li>Un escenario centrado de 340: pestañas con el estado de cada paso arriba y un solo paso en grande, con el Avi de 104 actuando lo que pasa.</li>
+          <li>Cambiar de paso es un clic («Siguiente →» o la pestaña): la vista no avanza sola.</li>
+          <li>Funciona como bienvenida cálida para quien nunca vio la Oficina.</li>
+        </ul>
+        <p class="trade"><b>+</b> la más guiada y cálida · <b>−</b> esconde los otros pasos atrás de pestañas (un error ajeno se ve como «!», sin su motivo), suma clics y no entra en el panel acoplado sin otra versión.</p>
+        <button class="repetir" data-repetir="op-b">↺ repetir la entrada</button>
+      </div>
+      <span class="sello">ELEGIDA · VER BIENVENIDA-UX.MD</span>
+    </div>
+    <div class="tira" data-op="B"></div>
+  </section>
+
+  <section class="opcion" id="op-c" aria-labelledby="t-c">
+    <div class="op-cab">
+      <span class="letra" aria-hidden="true">C</span>
+      <div>
+        <h2 id="t-c">En el tablero</h2>
+        <ul>
+          <li>El tablero completo de 676 × 640, con su barra lateral real (sin proyectos, equipo sin datos) y los tres pasos como cuadros de conteo; el detalle del paso elegido va abajo.</li>
+          <li>Es la ventana que va a ver todos los días: el lugar se aprende desde el primer minuto.</li>
+          <li>Funciona igual flotando y acoplada, porque el panel abierto es el tablero.</li>
+        </ul>
+        <p class="trade"><b>+</b> idéntica en los dos modos, enseña el tablero · <b>−</b> 640 de alto casi vacíos la primera vez, cuadros angostos para el error y el código, y un solo detalle por vez.</p>
+        <button class="repetir" data-repetir="op-c">↺ repetir la entrada</button>
+      </div>
+    </div>
+    <div class="tira" data-op="C"></div>
+  </section>
+
+  <section class="opcion" aria-labelledby="t-vive">
+    <div class="op-cab">
+      <span class="letra" aria-hidden="true">·</span>
+      <div>
+        <h2 id="t-vive">Dónde vive (dirección: docs/diseno/bienvenida-ux.md, 3.2)</h2>
+        <ul><li>La primera vez flota; acoplada no molesta; se vuelve a abrir desde la bandeja y desde un aviso del tablero.</li></ul>
+      </div>
+    </div>
+    <div class="vive">
+      <article>
+        <h3>1 · Primera vez: flotando</h3>
+        <p>Sin acople guardado, la Oficina arranca <b>flotando</b> y muestra el escenario B <b>en lugar del vacío</b>, de 340 × 600 fijos (cambiar de paso no redimensiona la ventana). Al abrir solo <b>revisa</b> (lee versiones y la sesión de <code class="m">gh</code>); no instala nada. Mientras falte algo, el vacío no aparece. Acoplar sigue permitido.</p>
+        <p>«×» cierra la tarjeta sin hacer nada: se ve el vacío o el tablero.</p>
+      </article>
+      <article>
+        <h3>2 · Acoplada: sin golpe</h3>
+        <p>La muesca <b>no golpea ni enciende la luz</b>: eso es solo para preguntas. Su nombre accesible suma lo que falta:</p>
+        <p class="nombre-muesca">Oficina: falta 1 paso de configuración. Abrir</p>
+        <p>Sin sesiones, el panel compacto lleva el mismo escenario B. Con el tablero, «Ver →» abre la <b>hoja</b> de B en la columna principal (460 × el alto que queda), con el encabezado arriba. Mientras se muestra el código, el panel no se pliega solo.</p>
+      </article>
+      <article>
+        <h3>3 · Volver a abrirla</h3>
+        <p>Un ítem nuevo en el menú nativo de la bandeja, debajo de «Mostrar Oficina». Con sesiones abiertas y algo pendiente, el <b>aviso</b> del tablero (la misma pieza que el de pregunta, sin el borde ámbar):</p>
+        <ul class="menu" aria-label="Menú de la bandeja (maqueta)">
+          <li>Mostrar oficina</li>
+          <li class="nuevo">Primeros pasos (falta 1)…</li>
+          <li>Siempre arriba</li>
+          <li>Avisarme con cada pregunta</li>
+          <li>Pausar animaciones</li>
+          <li>Acoplar a <span class="k">›</span></li>
+          <li>Tamaño <span class="k">›</span></li>
+          <li>Arrancar con Windows</li>
+          <li class="sep"></li>
+          <li>Salir</li>
+        </ul>
+        <div class="tira" style="padding:0;overflow:visible"><button class="aviso" id="aviso" aria-label="Primeros pasos: falta conectar GitHub. Ver"></button></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="decis" aria-label="Decisiones">
+    <div>
+      <h2>Reglas que respeta cada opción</h2>
+      <ul>
+        <li><b>Solo un clic actúa.</b> Revisar al abrir solo lee; instalar, conectar, reintentar y cancelar son botones. Sin tiempo, sin botón por defecto, sin foco puesto en el primario.</li>
+        <li><b>Un paso por vez:</b> mientras uno corre, los otros botones quedan deshabilitados con su motivo escrito.</li>
+        <li><b>Un error se queda</b> con su motivo, «Reintentar» y «Copiar detalle», hasta que el usuario lo resuelva.</li>
+        <li><b>El color nunca va solo:</b> cada estado tiene ✓, «!», número o texto en el chip.</li>
+        <li>Una región <code class="m">aria-live="polite"</code> anuncia cada cambio de estado una vez («Mod instalado», «No se pudo instalar el mod»). El código lleva <code class="m">aria-label</code> deletreado.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Contenido propuesto (inventado para el boceto)</h2>
+      <ul>
+        <li>El código <b>4F2A-91C7</b>, la cuenta <b>nicoequintana</b>, «oficina 0.5» y el texto del error de red.</li>
+        <li>En la maqueta el título es <code class="m">h3</code>; en el widget es el <code class="m">h1</code> de la ventana.</li>
+        <li>El código usa Martian Mono a 22 px: la única pieza mono por encima de 10.5, porque se copia y se compara letra por letra.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ===== Avi base (trazados de widget/src/avis.js) ===== */
+const CREMA_MANO = '#EFE6D2'
+const COPETE = c => `<g><path d="M56 38Q50 24 60 18Q56 28 64 36Z" fill="${c}"/><path d="M62 37Q64 26 74 25Q67 30 67 38Z" fill="${c}" opacity=".85"/></g>`
+const OJOS = {
+  base: `<ellipse class="ojo" cx="49" cy="70" rx="4.5" ry="5.8"/><ellipse class="ojo" cx="71" cy="70" rx="4.5" ry="5.8"/><circle class="luz" cx="50.7" cy="67.6" r="1.5"/><circle class="luz" cx="72.7" cy="67.6" r="1.5"/>`,
+  feliz: `<path class="trazo" d="M44.5 72.5Q49 65.5 53.5 72.5M66.5 72.5Q71 65.5 75.5 72.5"/>`,
+  x: `<path class="trazo" d="M45.5 66.5l7 7m0-7l-7 7M67.5 66.5l7 7m0-7l-7 7"/>`,
+}
+function efectos(pose, c) {
+  switch (pose) {
+    case 'escribiendo': return `<ellipse cx="60" cy="79" rx="24" ry="8" fill="${c}" opacity=".14"/><rect x="35" y="80" width="50" height="21" rx="4.5" fill="#1C1C21" stroke="#34343B" stroke-width="1.2"/><circle class="logo" cx="60" cy="90.5" r="2.8" fill="${c}"/><rect x="28" y="100" width="64" height="5" rx="2.5" fill="#2A2A31"/><ellipse class="mano" cx="43" cy="81" rx="5.5" ry="3.8" fill="${CREMA_MANO}"/><ellipse class="mano m2" cx="77" cy="81" rx="5.5" ry="3.8" fill="${CREMA_MANO}"/>`
+    case 'listo': return `<path class="chispa" d="M20 34l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#F2B632"/><path class="chispa c2" d="M100 26l1.6 4 4 1.6-4 1.6-1.6 4-1.6-4-4-1.6 4-1.6z" fill="#8FD694"/><circle class="chispa c3" cx="104" cy="62" r="2.6" fill="#A58BFF"/><circle class="chispa c4" cx="16" cy="66" r="2.2" fill="#E78FB3"/>`
+    case 'fallo': return `<path d="M84 30q3-7 10-3q6-4 9 3" stroke="#8A8478" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M89 22l3 3m0-3l-3 3" stroke="#FF7A6B" stroke-width="2" stroke-linecap="round"/>`
+    /* pose nueva: la mano crema en alto, a la derecha del cuerpo, con dos trazos de vaivén */
+    case 'saluda': return `<g class="saludo"><ellipse cx="103" cy="61" rx="6.6" ry="8" fill="${CREMA_MANO}"/><ellipse cx="97.6" cy="65.5" rx="2.6" ry="3.6" fill="${CREMA_MANO}" transform="rotate(-35 97.6 65.5)"/><path d="M100 55.5q3-1.6 6 0" stroke="#D9CCAD" stroke-width="1.4" fill="none" stroke-linecap="round"/></g><path class="vaiven" d="M112 50q4 5 2.5 11M116.5 45.5q6.5 7 3.5 17" stroke="#8A8478" stroke-width="2" fill="none" stroke-linecap="round"/>`
+    default: return ''
+  }
+}
+function svgAvi(pose) {
+  const c = '#F2B632'
+  const ojos = pose === 'listo' ? OJOS.feliz : pose === 'fallo' ? OJOS.x : OJOS.base
+  return `<svg viewBox="0 0 120 120" class="e-${pose}" aria-hidden="true" focusable="false">`
+    + `<ellipse class="suelo" cx="60" cy="104" rx="42" ry="9"/><ellipse class="contacto" cx="60" cy="104" rx="26" ry="3.6"/>`
+    + `<g class="cuerpo">${COPETE(c)}<ellipse class="pata" cx="47" cy="101" rx="8.5" ry="4.4"/><ellipse class="pata" cx="73" cy="101" rx="8.5" ry="4.4"/>`
+    + `<path class="piel" d="M60 34C84 34 97 52 97 74C97 92 81 102 60 102C39 102 23 92 23 74C23 52 36 34 60 34Z"/>`
+    + `<path class="sombreado" d="M25 80C30 95 90 95 95 80C92 99 28 99 25 80Z"/>`
+    + `<ellipse class="brillo" cx="43" cy="49" rx="11" ry="5.6" transform="rotate(-30 43 49)"/>`
+    + `<ellipse cx="37" cy="81" rx="6.8" ry="3.5" fill="${c}" opacity=".36"/><ellipse cx="83" cy="81" rx="6.8" ry="3.5" fill="${c}" opacity=".36"/>`
+    + `<g class="mirada"><g class="ojos">${ojos}</g></g><path class="pico" d="M56 78.5Q60 85.5 64 78.5Q60 76.8 56 78.5Z"/></g>`
+    + efectos(pose, c) + `</svg>`
+}
+let nAvi = 0
+const avi = (pose, t) => `<span class="avi" style="--t:${t}px;--d:-${((nAvi++ * 0.83) % 3.3).toFixed(2)}s" aria-hidden="true">${svgAvi(pose)}</span>`
+
+/* ===== datos de los pasos ===== */
+const VISTO = '<svg viewBox="0 0 16 16" aria-hidden="true"><path class="visto" d="M3.5 8.5l3 3 6-7"/></svg>'
+const X = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
+const PASOS = [
+  { id: 'claude', n: 1, nombre: 'Claude Code', corto: 'Claude' },
+  { id: 'mod', n: 2, nombre: 'Mod de la Oficina', corto: 'Mod' },
+  { id: 'gh', n: 3, nombre: 'GitHub', corto: 'GitHub' },
+]
+const pri = (l, ext) => ({ t: 'pri', l, ext })
+const sec = (l, ext) => ({ t: 'sec', l, ext })
+const off = l => ({ t: 'off', l })
+const LOG = `<div class="log" aria-label="Progreso de la instalación"><p class="ok">claude plugin marketplace add quintechlab/oficina</p><p class="va">claude plugin install oficina@quintech</p><div class="barra" role="progressbar" aria-label="Instalando el mod"></div></div>`
+const ERR = `<div class="err"><p class="m">✕ claude plugin install oficina@quintech</p><p>No se pudo descargar quintechlab/oficina: no hay conexión con github.com.</p></div>`
+const CODIGO = '4F2A-91C7'
+const COD = `<div class="caja-cod"><span class="cod" aria-label="Código: ${CODIGO.split('').join(' ')}">${CODIGO.split('').map((ch, k) => `<i style="--k:${k}"${ch === '-' ? ' class="g"' : ''}>${ch}</i>`).join('')}</span><button class="btn sec">Copiar</button></div>`
+  + `<p class="espera"><i class="pt"></i>esperando que autorices en el navegador…</p>`
+  + `<a class="lnk" href="#" onclick="return false">¿No se abrió? Abrir github.com/login/device ↗</a>`
+const CUENTA = `<p class="cuenta"><span class="ini" aria-hidden="true">NQ</span>Conectado como <b>nicoequintana</b></p>`
+
+const INFO = {
+  claude: {
+    pendiente: { e: 'pendiente', chip: 'no encontrado', titulo: 'Primero, Claude Code', texto: 'No lo encontramos en este equipo. La Oficina no puede instalarlo por vos: seguí la guía y volvé acá.', acc: [pri('Ver cómo instalarlo', 1), sec('Volver a buscar')] },
+    hecho: { e: 'hecho', chip: 'listo', res: 'Encontrado en este equipo' },
+  },
+  mod: {
+    bloqueado: { e: 'bloqueado', chip: 'espera el paso 1', texto: 'Se instala adentro de Claude Code, así que primero hace falta el paso 1.', acc: [off('Instalar en Claude Code')] },
+    trabajando: { e: 'trabajando', chip: 'instalando', titulo: 'Instalando la Oficina en Claude Code', texto: 'Tarda unos segundos. Podés dejar la ventana abierta.', extra: LOG },
+    error: { e: 'error', chip: 'falló', titulo: 'No se pudo instalar el mod', texto: 'Revisá tu conexión y probá de nuevo.', extra: ERR, acc: [pri('Reintentar'), sec('Copiar detalle')] },
+    hecho: { e: 'hecho', chip: 'listo', res: 'Instalado en Claude Code · oficina 0.5' },
+  },
+  gh: {
+    sinGh: { e: 'pendiente', chip: 'falta gh', titulo: 'Conectá tu GitHub', texto: 'Para ver a tu equipo hace falta GitHub CLI. Se instala con winget; Windows puede pedirte permiso.', acc: [pri('Instalar GitHub CLI'), off('Conectar con GitHub')], motivo: 'Conectar: primero instalá GitHub CLI.' },
+    sinGhEspera: { e: 'pendiente', chip: 'falta gh', texto: 'Para ver a tu equipo hace falta GitHub CLI. Se instala con winget; Windows puede pedirte permiso.', acc: [off('Instalar GitHub CLI')], motivo: 'Esperá a que termine el paso 2.' },
+    conGh: { e: 'pendiente', chip: 'sin conectar', titulo: 'Conectá tu GitHub', texto: 'GitHub CLI ya está. Conectá tu cuenta: se abre el navegador para que entres a GitHub.', acc: [pri('Conectar con GitHub', 1)] },
+    codigo: { e: 'codigo', chip: 'esperándote', titulo: 'Pegá este código en GitHub', texto: 'Se abrió GitHub en tu navegador. Pegá este código y autorizá el acceso.', extra: COD, acc: [sec('Cancelar')] },
+    hecho: { e: 'hecho', chip: 'listo', res: CUENTA },
+  },
+}
+const ESTADOS = [
+  { id: 'pendiente', rot: 'Todo pendiente', pose: 'saluda', p: { claude: 'pendiente', mod: 'bloqueado', gh: 'sinGh' } },
+  { id: 'trabajando', rot: 'Instalando', pose: 'escribiendo', p: { claude: 'hecho', mod: 'trabajando', gh: 'sinGhEspera' } },
+  { id: 'error', rot: 'Error con reintento', pose: 'fallo', p: { claude: 'hecho', mod: 'error', gh: 'conGh' } },
+  { id: 'codigo', rot: 'Código de GitHub', pose: 'esperando', p: { claude: 'hecho', mod: 'hecho', gh: 'codigo' } },
+  { id: 'listo', rot: 'Todo listo', pose: 'listo', p: { claude: 'hecho', mod: 'hecho', gh: 'hecho' } },
+]
+const pasosDe = st => PASOS.map(p => ({ ...p, ...INFO[p.id][st.p[p.id]] }))
+const listos = ps => ps.filter(p => p.e === 'hecho').length
+/* el paso que toca: el que corre, falla o espera; si no, el primero sin hacer */
+const actual = ps => ps.find(p => ['trabajando', 'error', 'codigo'].includes(p.e)) ?? ps.find(p => p.e !== 'hecho')
+const glifo = p => p.e === 'hecho' ? VISTO : p.e === 'error' ? '!' : p.n
+/* un solo primario ámbar por pantalla: el del paso que toca; en los demás, el primario baja a secundario */
+const botones = (acc = [], motivo = '', baja = false) => acc.map(b => b.t === 'off'
+  ? `<button class="btn sec" disabled>${b.l}</button>`
+  : `<button class="btn ${baja ? 'sec' : b.t}"${b.ext ? ` aria-label="${b.l} (abre el navegador)"` : ''}>${b.l}${b.ext ? ' <span class="ext" aria-hidden="true">↗</span>' : ''}</button>`).join('')
+  + (motivo ? `<span class="motivo">${motivo}</span>` : '')
+const FINAL = `<div class="final rv" style="--i:6" role="status">${avi('listo', 40)}<div><b>Todo listo.</b><p>Reiniciá tus sesiones de Claude Code o escribí <code>/reload-plugins</code></p></div></div>`
+const BOT_FINAL = `<div class="acc rv" style="--i:7;margin-top:0"><button class="btn pri">Ir a la Oficina</button><button class="btn sec">Copiar <span class="m">/reload-plugins</span></button></div>`
+const cerrar = `<button class="ctl" aria-label="Cerrar primeros pasos" title="Cerrar primeros pasos">${X}</button>`
+
+/* ===== A · Hoja de ruta ===== */
+function opA(st) {
+  const ps = pasosDe(st), ya = listos(ps), act = actual(ps)
+  const pasos = ps.map((p, i) => {
+    const esAct = p === act
+    const cuerpo = p.e === 'hecho'
+      ? `<div class="res">${p.res}</div>`
+      : `<p class="txt">${p.texto}</p>${p.extra ?? ''}${p.acc || p.motivo ? `<div class="acc">${botones(p.acc, p.motivo, !esAct)}</div>` : ''}`
+    return `<li class="a-paso e-${p.e}${esAct ? ' actual' : ''}${p.e === 'error' ? ' sacude' : ''} rv" style="--i:${i + 2}">`
+      + `<span class="nodo n-${p.e}" aria-hidden="true">${glifo(p)}</span>`
+      + `<div><div class="a-fila"><b>${p.n} · ${p.nombre}</b><span class="chip c-${p.e}">${p.chip}</span></div>${cuerpo}</div></li>`
+  }).join('')
+  const segs = ps.map(p => `<span class="seg ${p.e}"></span>`).join('')
+  return `<div class="marco a">`
+    + `<div class="a-cab rv" style="--i:0">${avi(st.pose, 56)}<div><h3 class="a-h">Primeros pasos</h3><p class="a-sub">${ya === 3 ? 'Tu Oficina quedó conectada.' : 'Tres pasos y tu Oficina queda conectada. Nada se instala hasta que lo toques.'}</p></div>${cerrar}</div>`
+    + `<div class="prog rv" style="--i:1" aria-label="${ya} de 3 pasos listos">${segs}<span class="m">${ya} DE 3 LISTOS</span></div>`
+    + `<ol class="a-pasos">${pasos}</ol>`
+    + (ya === 3 ? FINAL + BOT_FINAL : '')
+    + `</div>`
+}
+
+/* ===== B · Un paso a la vez ===== */
+function opB(st) {
+  const ps = pasosDe(st), ya = listos(ps), act = actual(ps)
+  const tabs = ps.map(p => {
+    const g = p.e === 'hecho' ? `<span class="g hecho" aria-hidden="true">✓</span>` : p.e === 'error' ? `<span class="g error" aria-hidden="true">!</span>` : ['trabajando', 'codigo'].includes(p.e) ? `<span class="g ${p.e}" aria-hidden="true"></span>` : `<span class="g" aria-hidden="true">${p.n}</span>`
+    return `<button class="tab" role="tab" aria-selected="${p === act}" aria-label="${p.nombre}: ${p.chip}">${g}${p.corto}</button>`
+  }).join('')
+  let escena
+  if (!act) {
+    escena = `<div class="rv" style="--i:2">${avi('listo', 104)}</div><p class="b-n rv" style="--i:3">LISTO · 3 DE 3</p><h3 class="b-h rv" style="--i:3">Tu Oficina está lista</h3>`
+      + `<p class="b-txt rv" style="--i:4">Reiniciá tus sesiones de Claude Code o escribí <code class="m" style="color:var(--crema)">/reload-plugins</code></p>`
+      + `<div class="rv" style="--i:5;width:100%;margin-top:12px">${CUENTA.replace('class="cuenta"', 'class="cuenta" style="justify-content:center"')}</div>`
+      + `<div class="b-acc rv" style="--i:6"><button class="btn pri">Ir a la Oficina</button><button class="btn sec">Copiar <span class="m">/reload-plugins</span></button></div>`
+  } else {
+    escena = `<div class="rv" style="--i:2">${avi(st.pose, 104)}</div><p class="b-n rv" style="--i:3">PASO ${act.n} DE 3 · ${act.nombre.toUpperCase()}</p>`
+      + `<h3 class="b-h rv" style="--i:3">${act.titulo}</h3><p class="b-txt rv" style="--i:4">${act.texto}</p>`
+      + `<div class="rv${act.e === 'error' ? ' e-error sacude' : ''}" style="--i:5;width:100%">${act.extra ?? ''}</div>`
+      + (act.acc ? `<div class="b-acc rv" style="--i:6">${botones(act.acc, act.motivo)}</div>` : '')
+  }
+  const puedeSeguir = act && act.e === 'hecho'
+  return `<div class="marco b">`
+    + `<div class="b-top rv" style="--i:0"><span class="m">PRIMEROS PASOS · ${ya} DE 3</span>${cerrar}</div>`
+    + `<div class="b-tabs rv" style="--i:1" role="tablist" aria-label="Pasos">${tabs}</div>`
+    + `<div class="b-escena">${escena}</div>`
+    + `<div class="b-pie rv" style="--i:7"><button class="lnk"${act && act.n > 1 ? '' : ' disabled'}>← Anterior</button><button class="lnk sig"${puedeSeguir ? '' : ' disabled'}>Siguiente →</button></div>`
+    + `</div>`
+}
+
+/* ===== C · En el tablero ===== */
+function opC(st) {
+  const ps = pasosDe(st), ya = listos(ps), act = actual(ps)
+  const tiles = ps.map((p, i) => `<button class="tile e-${p.e} rv" style="--i:${i + 2}"${p === act ? ' aria-current="true"' : ''}>`
+    + `<span class="t-top"><span class="nodo n-${p.e}" aria-hidden="true">${glifo(p)}</span><span class="m">0${p.n}</span></span>`
+    + `<b>${p.nombre}</b><span class="chip c-${p.e}">${p.chip}</span></button>`).join('')
+  const det = act
+    ? `<div class="c-det e-${act.e} rv${act.e === 'error' ? ' sacude' : ''}" style="--i:5"><span class="rot">PASO ${act.n} · ${act.nombre.toUpperCase()}</span><h4>${act.titulo ?? act.nombre}</h4><p class="txt">${act.texto}</p>${act.extra ?? ''}${act.acc || act.motivo ? `<div class="acc">${botones(act.acc, act.motivo)}</div>` : ''}</div>`
+    : FINAL + BOT_FINAL
+  const equipo = ya === 3
+    ? `<div class="comp"><span class="ini" aria-hidden="true" style="width:24px;height:24px">NC</span><div><b>Campos</b><span>en catalogo · hace 4 min</span></div></div>`
+    : `<p class="motivo"><i class="pt" style="animation:none"></i>Sin datos: falta conectar GitHub</p>`
+  return `<div class="marco c">`
+    + `<aside class="c-lado"><div class="c-marca rv" style="--i:0">${avi(st.pose, 38)}<div><b>Oficina</b><span>primeros pasos</span></div></div>`
+    + `<p class="c-vacio rv" style="--i:1">Tus proyectos aparecen acá cuando abras una sesión de Claude Code.</p>`
+    + `<div class="c-eq rv" style="--i:6"><span class="rot">EQUIPO</span>${equipo}<p class="c-pie">sin sesiones todavía</p></div></aside>`
+    + `<main class="c-main"><div class="c-cab rv" style="--i:1"><div><h3 class="c-h">Primeros pasos</h3><p class="c-sub">${ya} de 3 listos · nada se instala hasta que lo toques</p></div>`
+    + `<div class="ctls"><button class="ctl" aria-label="Siempre arriba"><svg viewBox="0 0 16 16"><path d="M6 2h4l-.6 4 2.1 2.2H4.5L6.6 6 6 2zM8 8.2V14" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/></svg></button><button class="ctl" aria-label="Minimizar a la tira"><svg viewBox="0 0 16 16"><path d="M3.5 8h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button><button class="ctl" aria-label="Cerrar a la bandeja">${X}</button></div></div>`
+    + `<div class="c-tiles">${tiles}</div>${det}</main></div>`
+}
+
+/* ===== armar la página ===== */
+const OPS = { A: opA, B: opB, C: opC }
+document.querySelectorAll('.tira[data-op]').forEach(t => {
+  t.innerHTML = ESTADOS.map((st, i) => `<figure class="estado"><figcaption><b>${i + 1}</b>${st.rot}</figcaption>${OPS[t.dataset.op](st)}</figure>`).join('')
+})
+document.getElementById('pose-avi').innerHTML = avi('saluda', 150)
+document.getElementById('mapa').innerHTML = [
+  ['saluda', 'pendiente → saluda', 1], ['escribiendo', 'instalando → escribiendo'], ['fallo', 'error → fallo'],
+  ['esperando', 'código → esperando'], ['listo', 'todo listo → listo'],
+].map(([p, l, n]) => `<li class="tira ver" style="padding:2px 12px 2px 4px;overflow:visible">${avi(p, 40)}<span${n ? ' class="nueva"' : ''}>${l}${n ? ' · nueva' : ''}</span></li>`).join('')
+document.getElementById('aviso').innerHTML = `${avi('saluda', 28)}<span>Falta <b>conectar GitHub</b></span><span class="ver">Ver →</span>`
+
+/* entrada escalonada al entrar en pantalla */
+const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('ver'); io.unobserve(e.target) } }), { threshold: .2 })
+document.querySelectorAll('.tira[data-op]').forEach(t => io.observe(t))
+document.querySelectorAll('[data-repetir]').forEach(b => b.addEventListener('click', () => {
+  const t = document.querySelector(`#${b.dataset.repetir} .tira`)
+  t.classList.remove('ver'); void t.offsetWidth; t.classList.add('ver')
+}))
+const q = document.getElementById('quieto')
+q.addEventListener('click', () => {
+  const on = q.getAttribute('aria-pressed') !== 'true'
+  q.setAttribute('aria-pressed', on); document.body.classList.toggle('quieto', on)
+})
+</script>
+</body>
+</html>
