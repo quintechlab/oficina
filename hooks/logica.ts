@@ -288,6 +288,14 @@ export function preguntaDesdeEntrada(entrada: unknown, id: string, agente: strin
 
 /** Cuánto sigue a la vista un subagente que terminó. */
 export const MINUTOS_SUBAGENTE_TERMINADO = 30
+/**
+ * Latido del archivo local: lo último que la sesión escribió, con la hora renovada. Así el widget
+ * distingue una sesión quieta de una que murió sin `session.end` en un par de minutos.
+ */
+export function latidoLocal(ultima: Presencia | null, ahoraIso: string): Presencia | null {
+  return ultima ? { ...ultima, actualizado: ahoraIso } : null
+}
+
 const MAX_SUBAGENTES = 8
 
 /** Los que trabajan siempre quedan; los terminados, durante un rato. Como mucho 8. */

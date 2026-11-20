@@ -16,6 +16,7 @@ import {
   formatoDuracion,
   actividadDesdeHerramienta,
   iniciales,
+  latidoLocal,
   mapaNombres,
   NOMBRES_INVENTADOS,
   nombreSubagente,
@@ -280,6 +281,13 @@ test('una sesión colgada hace más de 12 h se descarta', async () => {
   const c: ComentarioPresencia = { v: 2, usuario: 'campos', nombre: 'Campos', ausente: false, actualizado: colgada.actualizado, sesiones: [colgada] }
   expect(elegirPrincipal(c, ahora).presencia.estado).toBe('fuera')
   expect(ponerSesion(c, presencia({ sesion: 'nueva' }), ahora).sesiones.map(s => s.sesion)).toEqual(['nueva'])
+})
+
+test('el latido local solo renueva la hora de lo último escrito', async () => {
+  const ultima = presencia({ sesion: 'viva', actividad: 'editando a.ts' })
+  expect(latidoLocal(ultima, '2026-11-12T17:00:30.000Z')).toEqual({ ...ultima, actualizado: '2026-11-12T17:00:30.000Z' })
+  // Sin nada escrito todavía (o con la sesión ya cerrada) no hay latido que dar
+  expect(latidoLocal(null, '2026-11-12T17:00:30.000Z')).toBe(null)
 })
 
 test('los archivos sin commitear salen de git status', async () => {

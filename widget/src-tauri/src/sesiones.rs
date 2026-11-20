@@ -8,8 +8,10 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, Duration, Utc};
 use serde_json::Value;
 
-/// Una sesión que no publica hace este tiempo se descarta (máquina apagada, sesión cortada).
-pub const HORAS_VIGENCIA: i64 = 12;
+/// Una sesión que no publica hace este tiempo se descarta (máquina apagada, proceso cortado sin
+/// `session.end`). Desde la v0.5.2 el mod renueva la hora de su archivo cada 30 s aunque la sesión
+/// esté quieta, así que 2 min son cuatro latidos perdidos.
+pub const MINUTOS_VIGENCIA: i64 = 2;
 
 /// `%USERPROFILE%/.claude/oficina/sesiones`, o `None` si no se conoce la carpeta del usuario.
 pub fn carpeta_sesiones() -> Option<PathBuf> {
@@ -22,7 +24,7 @@ pub fn leer_sesiones_de(carpeta: &Path, ahora: DateTime<Utc>) -> Vec<Value> {
     let Ok(entradas) = std::fs::read_dir(carpeta) else {
         return Vec::new();
     };
-    let limite = ahora - Duration::hours(HORAS_VIGENCIA);
+    let limite = ahora - Duration::minutes(MINUTOS_VIGENCIA);
     entradas
         .filter_map(Result::ok)
         .map(|e| e.path())
@@ -83,7 +85,7 @@ mod tests {
     fn devuelve_las_sesiones_abiertas_con_todos_sus_campos() {
         let c = carpeta_temporal("abiertas");
         escribir(&c, "a.json", r#"{"sesion":"a","repo":"quintechlab/oficina","actividad":"pensando","agentes":[],"preguntas":[],"actualizado":"2026-11-19T23:49:00Z","cerrada":false}"#);
-        escribir(&c, "b.json", r#"{"sesion":"b","repo":null,"actualizado":"2026-11-19T20:00:00Z"}"#);
+        escribir(&c, "b.json", r#"{"sesion":"b","repo":null,"actualizado":"2026-11-19T23:48:30Z"}"#);
         let r = leer_sesiones_de(&c, ahora());
         assert_eq!(ids(&r), vec!["a", "b"]);
         let a = r.iter().find(|s| s["sesion"] == "a").unwrap();
@@ -102,10 +104,12 @@ mod tests {
     }
 
     #[test]
-    fn descarta_las_que_no_publican_hace_mas_de_12_horas() {
+    fn descarta_las_que_no_publican_hace_mas_de_2_minutos() {
+        // El mod late cada 30 s: una sesión que se perdió cuatro latidos murió sin avisar
+        // (proceso cortado, ventana de VS Code recargada) y no tiene que seguir en la oficina.
         let c = carpeta_temporal("viejas");
-        escribir(&c, "nueva.json", r#"{"sesion":"nueva","actualizado":"2026-11-19T12:00:00Z"}"#);
-        escribir(&c, "vieja.json", r#"{"sesion":"vieja","actualizado":"2026-11-19T11:49:59Z"}"#);
+        escribir(&c, "nueva.json", r#"{"sesion":"nueva","actualizado":"2026-11-19T23:48:00Z"}"#);
+        escribir(&c, "vieja.json", r#"{"sesion":"vieja","actualizado":"2026-11-19T23:47:59Z"}"#);
         escribir(&c, "sin-fecha.json", r#"{"sesion":"sin-fecha"}"#);
         escribir(&c, "fecha-rota.json", r#"{"sesion":"fecha-rota","actualizado":"ayer"}"#);
         assert_eq!(ids(&leer_sesiones_de(&c, ahora())), vec!["nueva"]);

@@ -16,6 +16,7 @@ import {
   nombreSubagente,
   podarSubagentes,
   preguntaDesdeEntrada,
+  latidoLocal,
   ciDesdeRollup,
   choques,
   diferencias,
@@ -78,6 +79,12 @@ const preguntas = new Map<string, Pregunta>()
 let publicacionPendiente: Timer | null = null
 let cola: Promise<void> = Promise.resolve()
 const ESPERA_PUBLICACION_MS = 15000
+/** Lo último que esta sesión escribió en su archivo local; null antes de escribir o ya cerrada. */
+let ultimaLocal: Presencia | null = null
+/** La sesión ya escribió su cierre: nada vuelve a abrir su archivo. */
+let cerradaLocal = false
+/** Cada cuánto se renueva la hora del archivo local (el widget descarta lo que no late en 2 min). */
+const LATIDO_LOCAL_MS = 30000
 
 // ------------------------------------------------------------------ gh
 async function gh($: EngineInterface, args: readonly string[], cwd?: string): Promise<string> {
@@ -238,13 +245,23 @@ function esperarCortable($: EngineInterface, ms: number, senal: AbortSignal): Pr
 /** Escribe el estado de esta sesión en un archivo propio; el widget lee la carpeta entera. */
 async function escribirEstadoLocal($: EngineInterface, p: Presencia, cerrada = false): Promise<void> {
   const carpeta = await carpetaLocal($)
-  if (!carpeta) return
+  if (!carpeta || cerradaLocal) return
+  if (!cerrada) ultimaLocal = p
   await $.fs.write(`${carpeta}/${p.sesion}.json`, JSON.stringify({ ...p, cerrada }, null, 2)).catch(() => undefined)
+}
+
+/** Renueva la hora del archivo local sin consultar git ni GitHub. */
+async function latirLocal($: EngineInterface): Promise<void> {
+  const p = latidoLocal(ultimaLocal, new Date(await $.clock.now()).toISOString())
+  if (p) await escribirEstadoLocal($, p)
 }
 
 /** Marca cerrada la sesión en su archivo local, para que el widget la saque. */
 async function cerrarEstadoLocal($: EngineInterface, sesion: string): Promise<void> {
   const carpeta = await carpetaLocal($)
+  // Que ningún latido ni publicación en vuelo la reviva
+  ultimaLocal = null
+  cerradaLocal = true
   if (!carpeta) return
   const ahora = new Date(await $.clock.now()).toISOString()
   await $.fs.write(`${carpeta}/${sesion}.json`, JSON.stringify({ sesion, cerrada: true, actualizado: ahora })).catch(() => undefined)
@@ -403,6 +420,9 @@ async function arrancar($: EngineInterface): Promise<void> {
   })
   $.clock.every(5 * 60000, () => {
     void publicar($, true).catch(() => undefined)
+  })
+  $.clock.every(LATIDO_LOCAL_MS, () => {
+    void latirLocal($).catch(() => undefined)
   })
 }
 
