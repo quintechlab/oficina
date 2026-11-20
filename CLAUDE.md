@@ -13,6 +13,7 @@ Mod de Claude Code "oficina": panel de presencia del equipo Quintech Studio. Lee
 - Regla del usuario para responder: el widget nunca decide por él. Solo un clic envía; sin opción por defecto, sin tiempo que elija. Hay tests que lo fijan en `hooks/oficina.test.tsx` y `widget/test/responder.test.js`.
 - Modelo de amenaza aceptado: cualquier proceso que corra con el mismo usuario de Windows puede responder una pregunta pendiente escribiendo un archivo válido en `respuestas/` (la misma confianza que la propia máquina).
 - `$.tool.call` con `answers` lo rechaza el motor ("that is $.ui.ask"): no usarlo para responder.
+- Instalador del widget (#5): `npm run tauri build` en `widget/` arma el `.msi` (WiX, en español) y el `.exe` (NSIS, por usuario) en `widget/src-tauri/target/release/bundle/`. "Arrancar con Windows" usa `tauri-plugin-autostart`, viene apagado y solo cambia con el clic del usuario en la bandeja; la marca sale de `is_enabled()` (`arranque.rs`).
 - Integrantes: Quintana = `nicoequintana`, Campos = `NCsolucionesdigitales` (ambos owners de la organización `quintechlab`).
 - Archivos: `hooks/register.tsx` (hooks y panel), `hooks/logica.ts` (funciones puras), `hooks/oficina.test.tsx` (tests), `types/index.d.ts` (contrato de datos y estado).
 

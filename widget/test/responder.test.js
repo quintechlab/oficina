@@ -65,7 +65,8 @@ test('después de enviar: listo si la sesión la tomó; si no, se responde en Cl
 
 test('en la ventana, la respuesta sale solo de un clic: un único envío, llamado desde el manejador de clics', async () => {
   const { readFile } = await import('node:fs/promises')
-  const fuente = await readFile(new URL('../src/main.js', import.meta.url), 'utf8')
+  // Con core.autocrlf el checkout trae CRLF: se normaliza para buscar los bloques por línea
+  const fuente = (await readFile(new URL('../src/main.js', import.meta.url), 'utf8')).replace(/\r\n/g, '\n')
   // Un solo lugar escribe la respuesta, dentro de elegir()
   const envios = [...fuente.matchAll(/invocar\('responder'/g)]
   assert.equal(envios.length, 1)

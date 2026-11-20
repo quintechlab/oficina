@@ -1,3 +1,4 @@
+mod arranque;
 mod diagnostico;
 mod equipo;
 mod respuestas;
@@ -9,6 +10,7 @@ use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, State, WebviewWindow, Wry};
+use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
@@ -38,6 +40,7 @@ struct MenuBandeja {
     arriba: CheckMenuItem<Wry>,
     avisar: CheckMenuItem<Wry>,
     pausa: CheckMenuItem<Wry>,
+    arranque: CheckMenuItem<Wry>,
 }
 
 fn ventana(app: &AppHandle) -> Option<WebviewWindow> {
@@ -219,9 +222,12 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
     let arriba = CheckMenuItem::with_id(app, "arriba", "Siempre arriba", true, true, None::<&str>)?;
     let avisar_item = CheckMenuItem::with_id(app, "avisar", "Avisarme con cada pregunta", true, true, None::<&str>)?;
     let pausa = CheckMenuItem::with_id(app, "pausa", "Pausar animaciones", true, false, None::<&str>)?;
+    // Apagado salvo que el usuario lo haya prendido: la marca sale del estado real de Windows
+    let arranca = arranque::marca_real(app.autolaunch().is_enabled());
+    let arranque_item = CheckMenuItem::with_id(app, "arranque", "Arrancar con Windows", true, arranca, None::<&str>)?;
     let salir_item = MenuItem::with_id(app, "salir", "Salir", true, None::<&str>)?;
     let separador = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&mostrar_item, &arriba, &avisar_item, &pausa, &separador, &salir_item])?;
+    let menu = Menu::with_items(app, &[&mostrar_item, &arriba, &avisar_item, &pausa, &arranque_item, &separador, &salir_item])?;
 
     let mut bandeja = TrayIconBuilder::with_id(BANDEJA)
         .menu(&menu)
@@ -247,6 +253,15 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
                 "pausa" => {
                     let _ = app.emit("oficina://pausa", marca(|m| &m.pausa));
                 }
+                "arranque" => {
+                    // Solo con este clic del usuario cambia el inicio de Windows
+                    let deseado = marca(|m| &m.arranque);
+                    let auto = app.autolaunch();
+                    let real = arranque::aplicar(deseado, || auto.enable(), || auto.disable(), || auto.is_enabled());
+                    if let Some(m) = app.state::<Estado>().menu.lock().unwrap().as_ref() {
+                        let _ = m.arranque.set_checked(real);
+                    }
+                }
                 "salir" => salir(app),
                 _ => {}
             }
@@ -260,7 +275,7 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
         bandeja = bandeja.icon(icono.clone());
     }
     bandeja.build(app)?;
-    *app.state::<Estado>().menu.lock().unwrap() = Some(MenuBandeja { arriba, avisar: avisar_item, pausa });
+    *app.state::<Estado>().menu.lock().unwrap() = Some(MenuBandeja { arriba, avisar: avisar_item, pausa, arranque: arranque_item });
     Ok(())
 }
 
@@ -268,6 +283,8 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        // Registrar el plugin no prende nada: el arranque con Windows solo cambia desde el menú
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .plugin(tauri_plugin_window_state::Builder::default().with_state_flags(banderas_estado()).build())
         .manage(Estado {
             tamano_previo: Mutex::new(None),

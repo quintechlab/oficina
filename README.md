@@ -85,6 +85,22 @@ Debajo, plegada, la habitación de cada compañero con su sesión principal, le�
 
 Desde la versión 0.5 del mod, el globo también responde: tocás una opción (o las teclas 1–4 con el foco en el globo), marcás varias y "Enviar (n)", o escribís en "Otra respuesta". Solo se envía lo que tocás: no hay opción por defecto ni tiempo que elija solo, y si no tocás nada la pregunta sigue esperando en Claude como siempre. El widget deja la respuesta en `%USERPROFILE%\.claude\oficina\respuestas\<id>.json`; la sesión la valida (preguntas y opciones que existen) y se la entrega al modelo. Si a los 5 s la sesión no la tomó (respondiste antes en Claude, o el mod no está actualizado), el globo pide responder en Claude. Con una sesión que todavía corre una versión anterior del mod, el globo queda de solo lectura.
 
+### Instalar
+
+1. Conseguir `Oficina_0.1.0_x64_es-ES.msi` (se arma con `npm run tauri build` dentro de `widget/`; queda en `widget/src-tauri/target/release/bundle/msi/`). También se arma un instalador `.exe` en `bundle/nsis/`, que instala solo para tu usuario.
+2. Abrirlo con doble clic y seguir los pasos. Queda en el menú Inicio como **Oficina**.
+3. Necesita el mod **oficina 0.5 o posterior** en Claude Code (`claude plugin update oficina` y `/reload-plugins` en cada sesión abierta): sin eso no hay estado en vivo que mostrar ni respuestas desde el globo.
+
+El widget lee lo que escribe cada sesión en `%USERPROFILE%\.claude\oficina\sesiones`, deja las respuestas del globo en `%USERPROFILE%\.claude\oficina\respuestas` y anota un log de diagnóstico en `%USERPROFILE%\.claude\oficina\widget.log`. Posición y tamaño de la ventana se guardan en la carpeta de configuración de la app (`%APPDATA%\studio.quintech.oficina`).
+
+"Arrancar con Windows", en el menú de la bandeja, viene apagado: solo se prende si lo marcás (agrega el widget al inicio de tu usuario en Windows) y la marca siempre muestra si de verdad está prendido.
+
+### Desinstalar
+
+Configuración de Windows → Aplicaciones → **Aplicaciones instaladas** → Oficina → Desinstalar. Si estaba prendido "Arrancar con Windows", apagalo antes desde el menú de la bandeja. Las carpetas de `%USERPROFILE%\.claude\oficina` son del mod y quedan.
+
+### Desarrollo
+
 Requisitos: Node, Rust (`rustup`, con MSVC) y WebView2 (viene con Windows 11).
 
 ```
