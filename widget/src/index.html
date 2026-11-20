@@ -60,7 +60,9 @@
       </div>
     </div>
   </div>
-  <!-- Tira mini (400 × 56): caras, resumen, expandir y cerrar -->
+  <!-- Anuncia una sola vez cada pregunta que llega (dirección 8); nunca mueve el foco -->
+  <p class="oculto" id="anuncio" aria-live="polite"></p>
+  <!-- Tira mini (400 × 56): caras, resumen, preguntas, expandir y cerrar -->
   <div class="tira" id="tira" hidden>
     <div class="arrastre" data-tauri-drag-region title="Arrastrá para mover">
       <span class="caras" id="tira-caras"></span>

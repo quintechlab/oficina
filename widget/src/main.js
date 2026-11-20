@@ -1,5 +1,5 @@
 // Ventana del widget: lee las sesiones locales cada 1,5 s y el equipo cada 60 s, y pinta el
-// tablero (barra de proyectos, encabezado, cuadros, sesiones y equipo), el globo, la tira mini,
+// tablero (barra de proyectos, encabezado, cuadros, sesiones y equipo), la tarjeta de pregunta, la tira mini,
 // la bandeja y los avisos. Cada parte se redibuja solo si cambió lo que muestra, para no cortar
 // las animaciones.
 
@@ -10,7 +10,7 @@ import { zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, posicionEnPantall
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
   prepararProyecto, firmaTerrario, sesiones, globo, avisoOtroProyecto, carasMini, companero, firmaCompanero,
-  quienPregunta, barraProyectos, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, cuadros, lineaEncabezado,
+  quienPregunta, anuncioPregunta, barraProyectos, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, cuadros, lineaEncabezado,
 } from './escena.js'
 
 const INTERVALO_MS = 1500
@@ -34,9 +34,8 @@ const st = {
   proyectos: [],
   /** Proyecto elegido, por repositorio: si aparece uno nuevo, la selección no salta. */
   repo: undefined,
-  /** Pestaña elegida del globo. */
+  /** Pestaña elegida de la tarjeta de pregunta. */
   activa: 0,
-  pos: {},
   /** Marcas del menú de la bandeja. */
   arriba: true,
   avisar: true,
@@ -201,7 +200,7 @@ function pintar() {
     registrar(`globo pregunta=${visible.pregunta?.id} item=${visible.indice} modo=${visible.responde ? 'interactivo' : 'solo-lectura'} sesion=${visible.sesion} items=${visible.pregunta?.items?.length ?? 1}`)
   }
   const escribiendo = document.activeElement?.id === 'g-otra-in'
-  if (poner('#w-globo', globo(pend, { activa: st.activa, pos: st.pos, nuevo, ahoraMs: ahora, ui }), firmaGlobo)) {
+  if (poner('#w-globo', globo(pend, { activa: st.activa, nuevo, ahoraMs: ahora, ui }), firmaGlobo)) {
     st.firmas.clavesGlobo = claves
     if (escribiendo) enfocarOtra()
   }
@@ -221,11 +220,13 @@ async function fueraDeVista() {
 /**
  * Avisa con una notificación de Windows cada pregunta nueva, si la ventana no está a la vista
  * y "Avisarme con cada pregunta" está marcado. Las que ya estaban al abrir el widget no se avisan.
+ * El lector de pantalla la oye una sola vez por la región en vivo (dirección 8); el foco no se mueve.
  */
 async function avisarNuevas() {
   const nuevas = preguntasNuevas(st.sesiones, st.avisadas)
   for (const q of nuevas) st.avisadas.add(q.id)
   if (st.primeraLectura) { st.primeraLectura = false; return }
+  if (nuevas.length) $('#anuncio').textContent = anuncioPregunta(nuevas, st.sesiones)
   if (!nuevas.length || !st.avisar || !(await fueraDeVista())) return
   for (const q of nuevas) {
     invocar('avisar', { titulo: `${q.quien} te pregunta`, cuerpo: q.pregunta }).catch(() => {})

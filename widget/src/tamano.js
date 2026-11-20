@@ -59,11 +59,6 @@ export function posicionEnPantalla(pos, tamano, area) {
   }
 }
 
-/** Dónde va la cola del globo (en px del globo) para apuntar a la mascota en `x`. */
-export function colaGlobo(x, anchoEscena) {
-  return Math.max(14, Math.min(anchoEscena - 34, (x ?? 40) - 6))
-}
-
 /** Tamaño de la tira mini para un zoom. */
 export function tamanoMini(zoom) {
   return { ancho: Math.round(MINI.ancho * zoom), alto: Math.round(MINI.alto * zoom) }

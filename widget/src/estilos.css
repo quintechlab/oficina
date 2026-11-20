@@ -146,7 +146,9 @@ h1, h2, h3 { font: inherit }
 .fila { display: flex; align-items: center; gap: var(--e-4); margin: var(--e-2) 0 var(--e-2); padding: var(--e-4) var(--e-5) var(--e-4) var(--e-4); background: var(--s1); border: 1px solid var(--linea); border-radius: var(--r-cuadro) }
 .fila-t { flex: 1; min-width: 0 }
 .fila-t b { display: block; font-size: 12.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-.fila .linea { margin-top: 0; font-size: 11.5px; gap: var(--e-3) }
+/* Bloque y no flex: así el texto largo termina en "…" en vez de cortarse */
+.fila .linea { display: block; margin-top: 0; font-size: 11.5px }
+.fila .linea .pt { margin-right: var(--e-3); vertical-align: 1px }
 .fila .linea, .fila-t b { max-width: 100% }
 .cabezas { display: flex; flex: none; align-items: center; padding-left: var(--e-5) }
 .cabezas .avi { margin-left: -10px; border-radius: 50%; background: var(--s2); border: 2px solid var(--s1) }
@@ -231,89 +233,150 @@ h1, h2, h3 { font: inherit }
 #marco.vacio #otro, #marco.vacio #w-globo, #marco.vacio .stats, #marco.vacio .sesiones,
 #marco.cargando #otro, #marco.cargando #w-globo, #marco.cargando .stats, #marco.cargando .sesiones { display: none }
 
-/* ------------------------------------------------------------------ aviso y pregunta plegada (forma de hoy; F2 los rehace) */
+/* ------------------------------------------------------------------ aviso (4.3.2): otro proyecto o pregunta plegada */
 #otro:empty, #w-globo:empty { display: none }
-.plegado {
-  display: flex; align-items: center; gap: var(--e-4); width: 100%; min-height: 48px; padding: 0 var(--e-7);
+.aviso {
+  display: flex; align-items: center; gap: var(--e-5); width: 100%; min-height: 48px; padding: var(--e-3) var(--e-7) var(--e-3) var(--e-4);
   border-radius: var(--r-pildora); border: 1px solid color-mix(in srgb, var(--ambar) 45%, var(--linea)); background: var(--s1);
   color: var(--crema2); font: var(--t-cuerpo); text-align: left; cursor: pointer;
-  transition: background var(--d-color) ease, border-color var(--d-color) ease;
+  transition: background var(--d-color) ease, border-color var(--d-color) ease, transform var(--d-presion) ease;
 }
-.plegado:hover { background: var(--ambar-osc); border-color: var(--ambar) }
-.plegado b { color: var(--ambar); font-weight: 800 }
+.aviso:hover { background: var(--ambar-osc); border-color: var(--ambar) }
+.aviso:active { transform: scale(.97) }
+.aviso > span:not(.avi):not(.ir) { flex: 1; min-width: 0; overflow-wrap: anywhere }
+.aviso b { color: var(--crema); font-weight: 700 }
+.aviso .ir { flex: none; margin-left: auto; color: var(--ambar); font-weight: 800; white-space: nowrap }
 
-/* ------------------------------------------------------------------ globo de pregunta: forma y lógica de hoy (F2 lo convierte en tarjeta) */
-.globo { --tinta: #1A1530; --papel: #FFF6E3; --papel2: #5A5470; --cola: 40px; position: relative; margin: var(--e-1) 0 var(--e-9); background: var(--papel); color: var(--tinta); border: 2px solid var(--tinta); border-radius: var(--r-cuadro); box-shadow: var(--brillo-pregunta); padding: 10px 12px 8px; transform-origin: var(--cola) 100%; font-family: var(--f) }
-.globo::before, .globo::after { content: ""; position: absolute; clip-path: polygon(0 0, 100% 0, 25% 100%) }
-.globo::before { bottom: -16px; left: calc(var(--cola) - 2px); width: 22px; height: 16px; background: var(--tinta) }
-.globo::after { bottom: -11px; left: var(--cola); width: 17px; height: 12px; background: var(--papel) }
-.globo.entra { animation: pop .45s var(--rebote) both }
-@keyframes pop { 0% { opacity: 0; transform: scale(.55) translateY(18px) } 100% { opacity: 1; transform: none } }
-.g-cab { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--papel2) }
-.g-cab svg { width: 30px; height: 22px; flex: none }
-.g-cab b { color: var(--tinta) }
-.g-cab .punto { width: 9px; height: 9px; flex: none; border-radius: 50%; border: 1.5px solid var(--tinta) }
-.g-preg { font-weight: 800; font-size: 15.5px; line-height: 1.3; margin: 6px 0 9px; overflow-wrap: anywhere }
-.g-modo { font: 600 11px var(--m); color: var(--papel2); margin: -4px 0 8px }
-.g-ops { display: grid; gap: 6px; list-style: none }
-.op { display: grid; grid-template-columns: 22px 1fr; gap: 1px 9px; align-items: start; text-align: left; width: 100%; min-height: 44px; padding: 7px 10px; background: #fff; border: 1.5px solid var(--tinta); border-radius: 8px; color: var(--tinta) }
-.op .n { grid-row: span 2; width: 20px; height: 20px; margin-top: 1px; border: 1.5px solid var(--tinta); border-radius: 5px; display: grid; place-items: center; font: 700 11px var(--m) }
-.op.multi .n { border-radius: 4px }
-.op b { font-weight: 700; font-size: 13.5px; line-height: 1.3; overflow-wrap: anywhere }
-.op small { font-size: 12px; line-height: 1.35; color: var(--papel2); overflow-wrap: anywhere }
-.op.rec { background: #FFE6A6 }
+/* ------------------------------------------------------------------ tarjeta de pregunta (4.5): reemplaza al globo */
+.preg {
+  padding: var(--e-7) var(--e-8) var(--e-6); background: var(--s1);
+  border: 1px solid color-mix(in srgb, var(--ambar) 50%, var(--linea)); border-radius: var(--r-tarjeta);
+  box-shadow: var(--brillo-pregunta);
+}
+/* Pregunta nueva: entra con `sube` (6.2). Se llama subeBloque porque los SVG de las mascotas
+   pixel ya definen un @keyframes sube global (hasta F3) */
+.preg.entra { animation: subeBloque var(--d-entrada) var(--ease) both }
+@keyframes subeBloque { from { opacity: 0; transform: translateY(14px) scale(.985) } }
+
+/* Pestañas: dibujo de 32 y zona de toque de 44 */
+.preg-tabs { display: flex; flex-wrap: wrap; gap: var(--e-3); margin-bottom: var(--e-6) }
+.preg-tab {
+  position: relative; display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 11px;
+  border: 0; border-radius: var(--r-pildora); background: var(--s2); color: var(--crema2);
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
+}
+.preg-tab::before { content: ""; position: absolute; inset: -6px 0 }
+.preg-tab:hover { color: var(--crema) }
+.preg-tab:active { transform: scale(.97) }
+.preg-tab[aria-selected="true"] { background: var(--s3); color: var(--crema); box-shadow: inset 0 0 0 1px #3A3A40 }
+.preg-tab .pt { box-shadow: none }
+
+.preg-cab { display: flex; align-items: center; gap: var(--e-5); font: var(--t-chico); color: var(--crema2) }
+.preg-cab b { color: var(--crema) }
+.preg-txt { margin-top: var(--e-6); font: var(--t-titulo); letter-spacing: -.02em; overflow-wrap: anywhere }
+.preg-modo { margin-top: var(--e-1); font: var(--t-mono-s); line-height: 1.5; color: var(--violeta) }
+
+/* Opciones: botones de 30 + 1fr; la recomendada se ve igual que las demás (11) */
+.preg-ops { display: flex; flex-direction: column; gap: var(--e-3); margin-top: var(--e-6); list-style: none }
+.op {
+  display: grid; grid-template-columns: 30px 1fr; column-gap: var(--e-6); align-items: center;
+  width: 100%; min-height: 54px; padding: 9px var(--e-6); text-align: left;
+  background: var(--s2); border: 1px solid transparent; border-radius: var(--r-fila); color: var(--crema);
+}
+.op .n {
+  grid-row: span 2; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 10px;
+  background: color-mix(in srgb, var(--violeta) 18%, var(--s2)); color: var(--violeta); font: 600 12px/1 var(--m);
+  transition: background var(--d-color) ease, color var(--d-color) ease;
+}
+.op b { font: var(--t-cuerpo-f); font-size: 14px; overflow-wrap: anywhere }
+.op small { grid-column: 2; font-size: 12px; line-height: 1.35; color: var(--crema2); overflow-wrap: anywhere }
+.recom {
+  display: inline-block; margin-left: var(--e-4); padding: 3px var(--e-3); vertical-align: 2px; white-space: nowrap;
+  border: 1px solid color-mix(in srgb, var(--ambar) 45%, transparent); border-radius: var(--r-pildora);
+  color: var(--ambar); font: 500 10px/1 var(--m);
+}
+button.op { cursor: pointer; transition: border-color var(--d-color) ease, background var(--d-color) ease, transform var(--d-presion) ease }
+button.op:hover { border-color: color-mix(in srgb, var(--ambar) 60%, transparent); background: var(--ambar-osc) }
+button.op:active { transform: scale(.985) }
+.op[aria-pressed="true"] { border-color: var(--ambar); background: var(--ambar-osc) }
+/* El ✓ va en Manrope: Martian Mono no lo trae y el respaldo dibuja otro signo */
+.op[aria-pressed="true"] .n { background: var(--ambar); color: var(--negro); font-family: var(--f) }
+/* Solo lectura: sin hover y el número en tenue */
 .op.ro { cursor: default }
-.op .chip { font: 600 10px/1 var(--m); letter-spacing: .08em; text-transform: uppercase; background: var(--tinta); color: #FFE6A6; border-radius: 4px; padding: 3px 5px; margin-left: 6px; vertical-align: 2px }
-.g-pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; margin-top: 8px }
-.g-nota { font-size: 12px; color: var(--papel2); padding-bottom: 4px }
-.globo :focus-visible { outline: 2px solid #2F6FE0; outline-offset: 2px }
-.g-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 6px }
-.g-tab { min-height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 99px; border: 1.5px solid var(--tinta); background: transparent; cursor: pointer; font-weight: 600; font-size: 12px; color: var(--tinta); transition: background .15s, color .15s }
-.g-tab:hover { background: rgba(26, 21, 48, .08) }
-.g-tab[aria-selected="true"] { background: var(--tinta); color: var(--papel) }
-.g-tab .punto { width: 8px; height: 8px; border-radius: 50%; border: 1px solid currentColor }
-button.op { cursor: pointer; font: inherit; transition: transform .12s, box-shadow .12s, background .12s }
-button.op:hover { transform: translate(-1px, -1px); box-shadow: 2px 2px 0 var(--tinta) }
-button.op:active { transform: translate(1px, 1px); box-shadow: none }
-.op[aria-pressed="true"] { background: #DDF2D2 }
-.op[aria-pressed="true"] .n { background: var(--tinta); color: #DDF2D2 }
-.g-link { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; color: var(--tinta); cursor: pointer; font-weight: 700; font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px }
-.g-btn { min-height: 40px; padding: 0 14px; border-radius: 8px; border: 2px solid var(--tinta); background: var(--tinta); color: var(--papel); font-weight: 800; font-size: 13px; cursor: pointer }
-.g-btn:disabled { opacity: .35; cursor: not-allowed }
-.g-btn.sec { background: transparent; color: var(--tinta) }
-.g-otra { display: grid; grid-template-columns: 1fr auto; gap: 6px; margin-top: 6px }
-.g-otra label { grid-column: 1 / -1; font: 600 11px var(--m); color: var(--papel2) }
-.g-otra input { min-height: 40px; border: 1.5px solid var(--tinta); border-radius: 8px; padding: 0 10px; font: 500 13px var(--f); color: var(--tinta); background: #fff; min-width: 0 }
-.g-env { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; padding: 6px 0; overflow-wrap: anywhere }
-.g-env svg { width: 30px; height: 22px; flex: none }
-.globo.sale { animation: sale .35s ease-in both }
+.op.ro .n { background: var(--s3); color: var(--tenue) }
+
+.preg-pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e-5); margin-top: var(--e-4) }
+.preg-link {
+  min-height: 44px; display: inline-flex; align-items: center; padding: 0 var(--e-2);
+  border: 0; border-radius: 6px; background: none; color: var(--violeta); font-weight: 800; font-size: 13px; cursor: pointer;
+}
+.preg-link:hover { text-decoration: underline; text-underline-offset: 3px }
+.btn {
+  min-height: 44px; display: inline-flex; align-items: center; gap: var(--e-3); padding: 0 var(--e-9);
+  border: 0; border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro);
+  font-weight: 800; font-size: 13.5px; cursor: pointer;
+  transition: transform var(--d-presion) ease, filter var(--d-color) ease, opacity var(--d-color) ease;
+}
+.btn:hover { filter: brightness(1.08) }
+.btn:active { transform: scale(.97) }
+/* Sobre el botón primario ámbar el foco es crema (6.3) */
+.btn:focus-visible { outline-color: var(--crema) }
+.btn.sec { background: var(--s3); color: var(--crema) }
+.btn.sec:focus-visible { outline-color: var(--ambar) }
+.btn:disabled { opacity: .38; cursor: not-allowed; filter: none; transform: none }
+
+/* Otra respuesta: el texto se conserva en cada redibujo (st.textoOtra) */
+.preg-otra { display: grid; grid-template-columns: 1fr auto; gap: var(--e-4); align-items: end; margin-top: var(--e-5) }
+.preg-otra label { grid-column: 1 / -1; font: var(--t-mono-s); color: var(--crema2) }
+.preg-otra input {
+  min-width: 0; min-height: 44px; padding: 0 var(--e-6); background: var(--negro); color: var(--crema);
+  border: 1px solid var(--linea); border-radius: var(--r-campo); font: 600 14px var(--f); outline: none;
+  transition: border-color var(--d-color) ease;
+}
+.preg-otra input:focus { border-color: var(--ambar) }
+
+.preg-nota { margin-top: var(--e-5); font: var(--t-mono-s); line-height: 1.5; color: var(--tenue) }
+
+/* Hecho (4.5.10): píldora con borde verde, se ve 1,6 s y se achica en 350 ms */
+.hecho {
+  display: flex; align-items: center; gap: var(--e-5); width: max-content; max-width: 100%; padding: var(--e-3) var(--e-8) var(--e-3) var(--e-4);
+  border: 1px solid color-mix(in srgb, var(--verde) 50%, var(--linea)); border-radius: var(--r-pildora); background: var(--s1);
+  font-weight: 800; font-size: 14px; overflow-wrap: anywhere; animation: subeBloque var(--d-entrada) var(--ease) both;
+}
+.hecho.sale { animation: sale .35s ease-in both }
 @keyframes sale { to { opacity: 0; transform: scale(.4) translateY(30px) } }
 
 /* El texto largo no estira la ventana: el ancho lo dan las fichas, los cuadros y el mínimo */
 #otro, #w-globo, .stats, .compa-t, .fila-t, .pie-w, .lado-pie { contain: inline-size }
 
-/* ------------------------------------------------------------------ tira mini (400 × 56; F2 la rehace) */
+/* ------------------------------------------------------------------ tira mini (4.6): 400 × 56 */
 body.mini { padding: 0 }
 body.mini #marco { display: none }
-.tira { display: flex; align-items: center; width: 100%; height: 100%; padding: 0 var(--e-2) 0 0; background: var(--negro); border-radius: 28px; overflow: hidden; user-select: none }
-.tira .arrastre { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--e-5); height: 100%; padding-left: var(--e-7); cursor: grab }
+.tira {
+  display: flex; align-items: center; gap: var(--e-1); width: 100%; height: 100%; padding: 0 var(--e-1) 0 0;
+  background: var(--negro); border-radius: 28px; overflow: hidden; user-select: none;
+}
+.tira .arrastre { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--e-5); height: 100%; padding-left: var(--e-6); cursor: grab }
 .tira .arrastre > * { pointer-events: none }
-.caras { display: flex; gap: 2px; flex: none }
-.caras svg { display: block; width: 30px; height: 22px }
+/* Cabecitas de 32 apiladas: −10 px y borde de 2 en --s1 */
+.caras { display: flex; flex: none; align-items: center; padding-left: var(--e-5) }
+.caras .avi { width: var(--t); min-width: 0; margin-left: -10px; overflow: hidden; border-radius: 50%; background: var(--s2); border: 2px solid var(--s1) }
 .resumen { min-width: 0; font: var(--t-mono); color: var(--crema2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .resumen b { display: block; font: 800 13.5px/1.25 var(--f); color: var(--crema) }
-.pend { margin-right: var(--e-2); padding: 5px 9px; border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro); font: 600 11px/1 var(--m); white-space: nowrap }
+.pend { flex: none; margin-right: var(--e-1); padding: 5px var(--e-4); border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro); font: 600 11px/1 var(--m); white-space: nowrap }
 
-/* ------------------------------------------------------------------ movimiento reducido y pausa */
+/* ------------------------------------------------------------------ movimiento reducido y pausa (6.5) */
 @media (prefers-reduced-motion: reduce) {
-  #marco, .globo.entra, .globo.sale { animation: none }
-  .pj, .tb, .sub, .ses, .plegado, button.op { transition: none }
+  #marco, .preg.entra, .hecho, .hecho.sale { animation: none }
+  .pj, .tb, .sub, .ses, .aviso, button.op, .btn, .preg-tab, .preg-otra input { transition: none }
   .sub:hover { transform: none }
   svg * { animation-play-state: paused !important }
 }
-/* "Pausar animaciones" del menú de la bandeja */
-body.pausa svg *, body.pausa .globo { animation-play-state: paused !important }
+/* "Pausar animaciones" del menú de la bandeja: sin entradas */
+body.pausa svg * { animation-play-state: paused !important }
+body.pausa #marco, body.pausa .preg.entra, body.pausa .hecho, body.pausa .hecho.sale { animation: none }
 
 /* Las piezas mono son Martian Mono angosta. Va al final: el atajo `font` de cada pieza
    devuelve font-stretch a normal, así que esta regla tiene que ganar por orden. */
-.estado, .chip, .rot, .pie-w, .tag, .lleva, .est, .mas, .mas-c, .stat-error, .pj-ic, .ini, .sub b span, .compa-aviso, .resumen, .pend, .g-modo, .g-otra label, .op .n, .op .chip { font-stretch: 75% }
+.estado, .chip, .rot, .pie-w, .tag, .lleva, .est, .mas, .mas-c, .stat-error, .pj-ic, .ini, .sub b span, .compa-aviso, .resumen, .pend, .preg-modo, .preg-otra label, .preg-nota, .op .n, .recom { font-stretch: 75% }

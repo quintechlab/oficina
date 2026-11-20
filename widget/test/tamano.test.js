@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, posicionEnPantalla, colaGlobo, tamanoMini, MINIMO, FRACCION_MAXIMA,
+  zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, posicionEnPantalla, tamanoMini, MINIMO, FRACCION_MAXIMA,
 } from '../src/tamano.js'
 
 const AREA = { x: 0, y: 0, ancho: 1920, alto: 1040 }
@@ -57,14 +57,6 @@ test('al crecer la esquina de arriba a la izquierda no se mueve, salvo que se sa
   // Monitor secundario a la izquierda (coordenadas negativas)
   const izq = { x: -1280, y: 0, ancho: 1280, alto: 984 }
   assert.deepEqual(posicionEnPantalla({ x: -300, y: 50 }, { ancho: 764, alto: 641 }, izq), { x: -764, y: 50 })
-})
-
-test('la cola del globo apunta a la mascota sin salirse del globo', () => {
-  assert.equal(colaGlobo(28, 364), 22)
-  // Sin mascota conocida: a la altura de la primera
-  assert.equal(colaGlobo(undefined, 364), 34)
-  assert.equal(colaGlobo(360, 364), 330)
-  assert.equal(colaGlobo(2, 364), 14)
 })
 
 test('la tira mini crece con el zoom', () => {

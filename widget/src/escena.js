@@ -1,10 +1,9 @@
 // Tablero del estilo Avis (docs/diseno/estilo-avis-ux.md, opción A): barra de proyectos,
-// cuadros de conteo, tarjetas de sesión con sus fichas de subagente, equipo y globo de pregunta.
+// cuadros de conteo, tarjetas de sesión con sus fichas de subagente, equipo, tarjeta de pregunta, avisos y tira mini.
 // Arma texto HTML/SVG a partir de los datos reales; todo texto que viene de una sesión se escapa.
-// F1: las mascotas pixel de hoy ocupan, provisoriamente, el lugar de los Avis (llegan en F3).
+// F1 y F2: las mascotas pixel de hoy ocupan, provisoriamente, el lugar de los Avis (llegan en F3).
 
 import { sprite, svgDoc, cabeza } from './mascotas.js'
-import { colaGlobo } from './tamano.js'
 import { animoVisual, distribucion } from './sala.js'
 import {
   animoSesion, animoSubagente, personajeDeNombre, tiempoSubagente, textoActividad,
@@ -15,8 +14,6 @@ export const ANIMO = { coordinando: 'coordinando el equipo', durmiendo: 'durmien
 /** Estado de un subagente en su ficha. */
 const ESTADO = { coordinando: 'coordinando', escribiendo: 'escribiendo', comando: 'comando', leyendo: 'leyendo', editando: 'editando', comiendo: 'escribiendo', listo: 'listo', reposo: 'listo', teEspera: 'esperándote', esperando: 'esperando', pensando: 'pensando', inactiva: 'inactiva', fallo: 'falló' }
 const CLAUDE = personajeDeNombre('Claude')
-/** Ancho de referencia del globo, para la cola (el globo cambia de forma en F2). */
-const W = 364
 
 /** Prioridad para elegir qué subagentes tienen ficha cuando no entran todos. */
 const ORDEN_ANIMO = { teEspera: 0, comando: 1, leyendo: 1, escribiendo: 1, comiendo: 1, fallo: 2, listo: 3, durmiendo: 4 }
@@ -209,12 +206,12 @@ export function sesiones(preparadas, ahoraMs) {
 
 /** El Avi del vacío (`durmiendo`) o de la carga (`esperando`): está solo, lleva nombre. */
 export function figuraVacio(animo) {
-  return avi(animo, CLAUDE, 112, `Claude, ${ANIMO[animo] ?? animo}`)
+  return avi(animo, CLAUDE, 120, `Claude, ${ANIMO[animo] ?? animo}`)
 }
 
-/** Caras de la tira mini (cabezas recortadas, como en el boceto). */
+/** Cabecitas de 32 de la tira mini (4.6), apiladas; cada una lleva el nombre de quién es. */
 export function carasMini(caras) {
-  return caras.map(c => cabeza(c.animo, c.color, c.pj, escapar(c.nombre))).join('')
+  return caras.map(c => avi(c.animo, c, 32, c.nombre)).join('')
 }
 
 // ------------------------------------------------------------------ equipo
@@ -247,7 +244,10 @@ export function companero(c, ahoraMs, abierto) {
   return `${abre}<summary>${ini}<span class="compa-t"><b>${escapar(c.nombre)}</b><small>${escapar(donde)}</small></span>${flecha}</summary>${fila}</details>`
 }
 
-// ------------------------------------------------------------------ globo de pregunta (F2 cambia su forma)
+// ------------------------------------------------------------------ tarjeta de pregunta (4.5)
+// Reemplaza al globo: cambia la forma, no el contrato. Los mismos data-accion, data-pregunta,
+// data-item y data-globo; la lógica de envío sigue en main.js y responder.js. Regla firme (11):
+// ninguna opción viene marcada ni recibe el foco, y "Recomendada" es solo un rótulo.
 
 /** Datos de quien pregunta: nombre, personaje y en qué sesión. */
 export function quienPregunta(q) {
@@ -256,49 +256,60 @@ export function quienPregunta(q) {
 }
 
 /**
- * Globo de pregunta (boceto aprobado). Interactivo si la sesión acepta respuestas del widget
- * (`q.responde`); si no, la variante de solo lectura. `ui`: estado de la interacción
- * (selección múltiple, "Otra respuesta", borrador de la llamada y envío en curso).
- * `pos`: dónde quedó cada mascota, para la cola.
+ * Píldora de aviso (4.3.2): la pregunta de otro proyecto (`data-accion="ir"`) o la propia
+ * plegada con "Más tarde" (`data-accion="ver"`). Solo muestra: nunca responde.
  */
-export function globo(pendientes, { activa = 0, pos = {}, nuevo = false, ahoraMs, ui = {} }) {
-  if (ui.hecho) return globoHecho(ui.hecho, pos, ui.saliendo)
+function aviso(atributos, pj, textoHtml) {
+  return `<button type="button" class="aviso" ${atributos}>${avi('teEspera', pj, 36)}<span>${textoHtml}</span><span class="ir">Ver →</span></button>`
+}
+
+/** Una opción con su número, su etiqueta, el rótulo "Recomendada" si lo trae y la descripción. */
+function cuerpoOpcion(o, k, marcada) {
+  const e = etiquetaOpcion(o.etiqueta)
+  const recom = e.recomendada ? '<span class="recom">Recomendada</span>' : ''
+  return `<span class="n" aria-hidden="true">${marcada ? '✓' : k + 1}</span><b>${escapar(e.texto)}${recom}</b><small>${escapar(o.descripcion)}</small>`
+}
+
+/**
+ * Tarjeta de pregunta (dirección 4.5). Interactiva si la sesión acepta respuestas del widget
+ * (`q.responde`); si no, la variante de solo lectura. `ui`: estado de la interacción
+ * (selección múltiple, "Otra respuesta", borrador de la llamada, envío en curso, plegada y hecho).
+ */
+export function globo(pendientes, { activa = 0, nuevo = false, ahoraMs, ui = {} }) {
+  if (ui.hecho) return tarjetaHecho(ui.hecho, ui.saliendo)
   if (!pendientes.length) return ''
   const i = Math.min(activa, pendientes.length - 1), q = pendientes[i], qn = quienPregunta(q)
   if (ui.plegado) {
-    return `<button type="button" class="plegado" data-accion="ver"><b>!</b> ${pendientes.length === 1 ? `${escapar(qn.nombre)} te pregunta algo` : `${pendientes.length} preguntas esperan`} · ver</button>`
+    const texto = pendientes.length === 1 ? `<b>${escapar(qn.nombre)}</b> te pregunta algo` : `${pendientes.length} preguntas esperan`
+    return aviso('data-accion="ver"', qn, texto)
   }
-  const idMascota = q.agente ?? 'c-' + q.sesion
-  const cola = colaGlobo(pos[idMascota]?.x, W)
   const borrador = ui.borradores?.[q.pregunta?.id] ?? {}
   const envio = ui.envios?.[q.pregunta?.id]
-  let h = `<div class="globo${nuevo ? ' entra' : ''}" style="--cola:${cola}px" role="dialog" aria-labelledby="g-p" data-globo${q.responde ? ` data-pregunta="${escapar(q.pregunta?.id ?? '')}" data-item="${q.indice}"` : ''}>`
+  let h = `<div class="preg${nuevo ? ' entra' : ''}" role="dialog" aria-labelledby="g-p" data-globo${q.responde ? ` data-pregunta="${escapar(q.pregunta?.id ?? '')}" data-item="${q.indice}"` : ''}>`
   if (pendientes.length > 1) {
-    h += `<div class="g-tabs" role="tablist" aria-label="Preguntas pendientes">${pendientes.map((x, k) => {
+    h += `<div class="preg-tabs" role="tablist" aria-label="Preguntas pendientes">${pendientes.map((x, k) => {
       const xq = quienPregunta(x)
       const hecha = !!ui.borradores?.[x.pregunta?.id]?.[x.item.pregunta]
-      return `<button type="button" class="g-tab" role="tab" aria-selected="${k === i}" data-accion="tab" data-i="${k}"><span class="punto" style="background:${xq.color}"></span>${escapar(xq.nombre)}${x.item.encabezado ? ` · ${escapar(x.item.encabezado)}` : ''} <span aria-hidden="true">${hecha ? '✓' : '!'}</span></button>`
+      return `<button type="button" class="preg-tab" role="tab" aria-selected="${k === i}" data-accion="tab" data-i="${k}"><span class="pt" style="--c:${xq.color}" aria-hidden="true"></span>${escapar(xq.nombre)}${x.item.encabezado ? ` · ${escapar(x.item.encabezado)}` : ''} <span aria-hidden="true">${hecha ? '✓' : '!'}</span></button>`
     }).join('')}</div>`
   }
-  h += `<div class="g-cab">${cabeza('teEspera', qn.color, qn.pj, escapar(qn.nombre))}<span class="punto" style="background:${qn.color}"></span><span><b>${escapar(qn.nombre)}</b> te pregunta · ${escapar(qn.ses)} · hace ${escapar(tiempoRelativo(q.desde, ahoraMs))}</span></div>`
-  h += `<p class="g-preg" id="g-p">${escapar(q.item.pregunta)}</p>`
+  h += `<div class="preg-cab">${avi('teEspera', qn, 38)}<span><b>${escapar(qn.nombre)}</b> te pregunta · ${escapar(qn.ses)} · hace ${escapar(tiempoRelativo(q.desde, ahoraMs))}</span></div>`
+  h += `<p class="preg-txt" id="g-p">${escapar(q.item.pregunta)}</p>`
   const total = q.pregunta?.items?.length ?? 1
-  if (q.item.multiple) h += `<p class="g-modo">Se pueden elegir varias</p>`
-  if (q.responde && total > 1 && !envio) h += `<p class="g-modo">Pregunta ${q.indice + 1} de ${total}: se envían juntas</p>`
+  const modos = []
+  if (q.item.multiple) modos.push('Se pueden elegir varias')
+  if (q.responde && total > 1 && !envio) modos.push(`pregunta ${q.indice + 1} de ${total}: se envían juntas`)
+  if (modos.length) h += `<p class="preg-modo">${escapar(modos.join(' · ').replace(/^p/, 'P'))}</p>`
 
   const lectura = !q.responde || (envio && envio.estado !== 'enviando')
   const enviando = envio?.estado === 'enviando'
   if (lectura || enviando) {
-    h += `<ul class="g-ops">${(q.item.opciones ?? []).map((o, k) => {
-      const e = etiquetaOpcion(o.etiqueta)
-      return `<li class="op ro${e.recomendada ? ' rec' : ''}${q.item.multiple ? ' multi' : ''}"><span class="n">${k + 1}</span><b>${escapar(e.texto)}${e.recomendada ? '<span class="chip">Recomendada</span>' : ''}</b><small>${escapar(o.descripcion)}</small></li>`
-    }).join('')}</ul>`
+    h += `<ul class="preg-ops">${(q.item.opciones ?? []).map((o, k) => `<li class="op ro">${cuerpoOpcion(o, k, false)}</li>`).join('')}</ul>`
     let nota = 'Responder en Claude: la sesión espera tu respuesta en su ventana.'
     if (enviando) nota = `Enviando tu respuesta a ${qn.nombre}…`
     else if (envio?.estado === 'enClaude') nota = 'Respondé en Claude: la sesión no tomó la respuesta del widget.'
     else if (envio?.estado === 'yaRespondida') nota = 'Ya se respondió en Claude.'
-    h += `<div class="g-pie"><span class="g-nota" role="status">${escapar(nota)}</span></div>`
-    return h + `</div>`
+    return h + `<p class="preg-nota" role="status">${escapar(nota)}</p></div>`
   }
 
   // La selección vale solo para el ítem en el que se marcó
@@ -306,16 +317,16 @@ export function globo(pendientes, { activa = 0, pos = {}, nuevo = false, ahoraMs
   // Cada botón lleva su pregunta y su ítem tal como se dibujaron: el clic no depende de la pestaña activa
   const destino = ` data-pregunta="${escapar(q.pregunta?.id ?? '')}" data-item="${q.indice}"`
   const multi = q.item.multiple
-  h += `<div class="g-ops">${(q.item.opciones ?? []).map((o, k) => {
-    const e = etiquetaOpcion(o.etiqueta)
+  const verbo = ultimo(q, borrador) ? 'Enviar' : 'Seguir'
+  h += `<div class="preg-ops">${(q.item.opciones ?? []).map((o, k) => {
     const marcada = multi && sel.has(k)
-    return `<button type="button" class="op${multi ? ' multi' : ''}${e.recomendada ? ' rec' : ''}" data-accion="op" data-i="${k}"${destino}${multi ? ` aria-pressed="${marcada}"` : ''}><span class="n">${marcada ? '✓' : k + 1}</span><b>${escapar(e.texto)}${e.recomendada ? '<span class="chip">Recomendada</span>' : ''}</b><small>${escapar(o.descripcion)}</small></button>`
+    return `<button type="button" class="op" data-accion="op" data-i="${k}"${destino}${multi ? ` aria-pressed="${marcada}"` : ''}>${cuerpoOpcion(o, k, marcada)}</button>`
   }).join('')}</div>`
-  if (ui.otra) h += `<div class="g-otra"><label for="g-otra-in">Tu respuesta</label><input id="g-otra-in" type="text" autocomplete="off" value="${escapar(ui.textoOtra ?? '')}"><button type="button" class="g-btn" data-accion="enviar-otra"${destino}>${ultimo(q, borrador) ? 'Enviar' : 'Seguir'}</button></div>`
+  if (ui.otra) h += `<div class="preg-otra"><label for="g-otra-in">Tu respuesta</label><input id="g-otra-in" type="text" autocomplete="off" value="${escapar(ui.textoOtra ?? '')}"><button type="button" class="btn" data-accion="enviar-otra"${destino}>${verbo}</button></div>`
   const accion = multi
-    ? `<button type="button" class="g-btn" data-accion="enviar-multi"${destino}${sel.size ? '' : ' disabled'}>${ultimo(q, borrador) ? 'Enviar' : 'Seguir'}${sel.size ? ` (${sel.size})` : ''}</button>`
-    : `<button type="button" class="g-btn sec" data-accion="tarde">Más tarde</button>`
-  h += `<div class="g-pie"><span><button type="button" class="g-link" data-accion="otra">Otra respuesta</button></span>${accion}</div>`
+    ? `<button type="button" class="btn" data-accion="enviar-multi"${destino}${sel.size ? '' : ' disabled'}>${verbo}${sel.size ? ` (${sel.size})` : ''}</button>`
+    : `<button type="button" class="btn sec" data-accion="tarde">Más tarde</button>`
+  h += `<div class="preg-pie"><button type="button" class="preg-link" data-accion="otra">Otra respuesta</button>${accion}</div>`
   return h + `</div>`
 }
 
@@ -325,20 +336,34 @@ function ultimo(q, borrador) {
   return items.every(it => it.pregunta === q.item.pregunta || borrador[it.pregunta])
 }
 
-/** "Listo, le respondiste a …": el globo festeja y se achica. */
-function globoHecho(hecho, pos, saliendo) {
-  const cola = colaGlobo(pos[hecho.mascota]?.x, W)
-  return `<div class="globo entra${saliendo ? ' sale' : ''}" style="--cola:${cola}px" role="status"><div class="g-env">${cabeza(hecho.listo ? 'saluda' : 'esperando', hecho.color, hecho.pj, '')} ${escapar(hecho.mensaje)}</div></div>`
+/** "Listo, le respondiste a …" (4.5.10): una píldora con borde verde que después se achica. */
+function tarjetaHecho(hecho, saliendo) {
+  const pj = { color: hecho.color, pj: hecho.pj }
+  return `<div class="hecho${saliendo ? ' sale' : ''}" role="status">${avi(hecho.listo ? 'listo' : 'esperando', pj, 34)}${escapar(hecho.mensaje)}</div>`
 }
 
-/** Aviso plegado cuando la pregunta está en otro proyecto. */
+/** Aviso cuando la pregunta está en otro proyecto: al tocarlo, va a ese proyecto. */
 export function avisoOtroProyecto(proyectos, indiceActual) {
   for (let k = 0; k < proyectos.length; k++) {
     if (k === indiceActual) continue
     const pend = preguntasPendientes(proyectos[k])
-    if (pend.length) return `<button type="button" class="plegado" data-accion="ir" data-proy="${k}"><b>!</b> ${escapar(pend[0].quien)} te pregunta algo en ${escapar(proyectos[k].nombre)} · ir</button>`
+    if (pend.length) {
+      const qn = quienPregunta(pend[0])
+      return aviso(`data-accion="ir" data-proy="${k}"`, qn, `<b>${escapar(qn.nombre)}</b> te pregunta algo en <b>${escapar(proyectos[k].nombre)}</b>`)
+    }
   }
   return ''
+}
+
+/**
+ * Lo que anuncia una sola vez la región en vivo (8) cuando llegan preguntas nuevas:
+ * "Claude te pregunta algo en catalogo". `nuevas`: las de `preguntasNuevas`.
+ */
+export function anuncioPregunta(nuevas, sesionesLeidas) {
+  if (!nuevas.length) return ''
+  const q = nuevas[0]
+  const s = sesionesLeidas.find(x => (x.preguntas ?? []).some(p => p.id === q.id))
+  return `${q.quien} te pregunta algo${s ? ` en ${nombreProyecto(s.repo)}` : ''}`
 }
 
 export { cabeza, CLAUDE }
