@@ -1,13 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permisos de la ventana del widget: leer sesiones, arrastrar, fijar arriba, minimizar y cerrar.",
+  "description": "Permisos de la ventana del widget: eventos del menú de la bandeja, arrastrar y saber si está a la vista. Fijar, esconder, la tira mini, la bandeja y los avisos pasan por comandos propios.",
   "windows": ["principal"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
-    "core:window:allow-set-always-on-top",
-    "core:window:allow-minimize",
-    "core:window:allow-close"
+    "core:window:allow-is-visible",
+    "core:window:allow-is-minimized"
   ]
 }

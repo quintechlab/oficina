@@ -4,7 +4,7 @@
 import { P, sprite, svgDoc, cabeza, nuevoId } from './mascotas.js'
 import {
   animoSesion, animoSubagente, personajeDeNombre, tiempoSubagente, textoActividad,
-  preguntasPendientes, etiquetaOpcion, escapar, tiempoRelativo,
+  preguntasPendientes, etiquetaOpcion, escapar, tiempoRelativo, nombreProyecto,
 } from './logica.js'
 
 export const ANIMO = { pensando: 'pensando', leyendo: 'leyendo', comando: 'ejecutando un comando', editando: 'editando', comiendo: 'comiendo tokens', listo: 'listo', reposo: 'listo', fallo: 'falló', esperando: 'esperando', teEspera: 'esperándote', inactiva: 'sin actividad', saluda: 'saluda' }
@@ -42,12 +42,12 @@ export function firmaTerrario(preparadas) {
   return preparadas.map(({ s, animo, sub }) => [s.sesion, s.tarea, s.rama, animo, ...sub.map(a => `${a.id}:${a.nombre}:${a.animo}`)].join('|')).join('/')
 }
 
-function piso(sesiones, u, f, arriba) {
+function piso(sesiones, u, f, arriba, mini) {
   const n = sesiones.length, z = W / n
   let css = '', b = '', defs = ''
   const pos = {}
   b += `<rect width="${W}" height="128" fill="url(#${u}l)"/>`
-  if (arriba) {
+  if (arriba && !mini) {
     // Ventana con cielo nocturno y reloj de pared
     b += `<rect x="246" y="14" width="64" height="40" fill="#262B3A"/><rect x="249" y="17" width="58" height="34" fill="#0A1226"/><rect x="294" y="21" width="6" height="4" fill="#F2D58A"/><rect x="295" y="20" width="4" height="6" fill="#F2D58A"/><rect x="277" y="17" width="2" height="34" fill="#262B3A"/><rect x="249" y="33" width="58" height="2" fill="#262B3A"/>`
     ;[[254, 22], [264, 28], [258, 43], [286, 44], [302, 41], [270, 21]].forEach(([x, y], i) => { b += `<rect x="${x}" y="${y}" width="1" height="1" fill="#FFFFFF" style="animation:titila 2.4s ease-in-out ${-i * 0.4}s infinite"/>` })
@@ -96,7 +96,7 @@ function piso(sesiones, u, f, arriba) {
     if (pregunta) b += `<rect class="fx" x="${mx + 38}" y="78" width="3" height="12" fill="${P.amarillo}" style="animation:parpadeo 1s step-end infinite"/><rect class="fx" x="${mx + 38}" y="93" width="3" height="3" fill="${P.amarillo}" style="animation:parpadeo 1s step-end infinite"/>`
     if (animo === 'inactiva') b += `<text x="${mx + 34}" y="92" font-family="${MONO}" font-size="9" fill="#5C6270">z z</text>`
     // Taza humeante en el primer escritorio de la planta baja
-    if (k === 0 && arriba) b += `<rect x="${dx0 + dw - 22}" y="105" width="6" height="7" fill="#E9EAEE"/><rect x="${dx0 + dw - 16}" y="107" width="2" height="3" fill="#E9EAEE"/><rect class="fx" x="${dx0 + dw - 20}" y="101" width="1" height="2" fill="#9AA0AC" style="opacity:0;animation:humo 2s ease-out infinite"/><rect class="fx" x="${dx0 + dw - 18}" y="100" width="1" height="2" fill="#9AA0AC" style="opacity:0;animation:humo 2s ease-out -1s infinite"/>`
+    if (k === 0 && arriba && !mini) b += `<rect x="${dx0 + dw - 22}" y="105" width="6" height="7" fill="#E9EAEE"/><rect x="${dx0 + dw - 16}" y="107" width="2" height="3" fill="#E9EAEE"/><rect class="fx" x="${dx0 + dw - 20}" y="101" width="1" height="2" fill="#9AA0AC" style="opacity:0;animation:humo 2s ease-out infinite"/><rect class="fx" x="${dx0 + dw - 18}" y="100" width="1" height="2" fill="#9AA0AC" style="opacity:0;animation:humo 2s ease-out -1s infinite"/>`
     if (resto) b += `<text x="${ox + zw - 10}" y="150" text-anchor="end" font-family="${MONO}" font-size="9" fill="#8B909C">+${resto}</text>`
     pets.push(['c-' + s.sesion, animo, CLAUDE.color, CLAUDE.pj, ox + 4, 92, 'Claude'])
     visibles.forEach((a, i) => pets.push([a.id, a.animo, a.color, a.pj, ox + 56 + i * 50, 98, a.nombre]))
@@ -111,20 +111,24 @@ function piso(sesiones, u, f, arriba) {
   return { b, css, defs, pos }
 }
 
-/** El terrario de un proyecto: un piso cada 2 sesiones. Devuelve el SVG y dónde quedó cada mascota. */
-export function terrario(proyecto, preparadas) {
+/**
+ * El terrario de un proyecto: un piso cada 2 sesiones. Devuelve el SVG y dónde quedó cada mascota.
+ * `mini`: el de un compañero, sin ventana ni reloj y con la habitación recortada arriba.
+ */
+export function terrario(proyecto, preparadas, { mini = false } = {}) {
   const u = nuevoId('t'), pisos = []
   for (let i = 0; i < preparadas.length; i += 2) pisos.push(preparadas.slice(i, i + 2))
   let b = '', css = '', defs = ''
   const pos = {}
   pisos.forEach((ses, f) => {
-    const r = piso(ses, u, f, f === 0)
+    const r = piso(ses, u, f, f === 0, mini)
     css += r.css; defs += r.defs
     for (const [id, p] of Object.entries(r.pos)) pos[id] = { x: p.x, piso: f }
     b += `<g transform="translate(0 ${f * FH})">${r.b}</g>`
     if (f > 0) b += `<rect y="${f * FH - 3}" width="${W}" height="5" fill="#1C2130"/><rect y="${f * FH + 2}" width="${W}" height="1" fill="#2A2F40"/>`
   })
-  const H = pisos.length * FH
+  const recorte = mini ? 44 : 0, H = pisos.length * FH - recorte
+  b = `<g transform="translate(0 ${-recorte})">${b}</g>`
   const body = `<defs><clipPath id="${u}c"><rect width="${W}" height="${H}" rx="8"/></clipPath><pattern id="${u}l" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#111522"/><rect y="7" width="16" height="1" fill="#151A2A"/><rect x="7" width="1" height="3" fill="#151A2A"/><rect x="15" y="3" width="1" height="4" fill="#151A2A"/></pattern>${defs}</defs><g clip-path="url(#${u}c)">${b}</g>`
   const alt = `${proyecto.nombre}: ` + preparadas.map(({ s, animo, sub }) => `${s.tarea ? '#' + s.tarea : 'sin tarea'}, Claude ${ANIMO[animo]}${sub.map(a => `, ${a.nombre} ${ANIMO[a.animo]}`).join('')}`).join('; ')
   return { svg: svgDoc(W, H, body, css, escapar(alt)), pos }
@@ -199,6 +203,40 @@ export function avisoOtroProyecto(proyectos, indiceActual) {
 export function vacio() {
   const sp = sprite('inactiva', CLAUDE.color, CLAUDE.pj, { x: 0, y: 0, s: 3 })
   return `<div class="vacio-w">${svgDoc(72, 84, sp.g, sp.css, 'Claude duerme', 96, 112)}<p class="vacio-t">No hay sesiones de Claude Code abiertas.</p><p class="vacio-s">Cuando abras una, aparece acá con su escritorio y sus subagentes.</p></div>`
+}
+
+
+/** Caras de la tira mini (cabezas recortadas, como en el boceto). */
+export function carasMini(caras) {
+  return caras.map(c => cabeza(c.animo, c.color, c.pj, escapar(c.nombre))).join('')
+}
+
+const nAg = n => `${n} ${n === 1 ? 'agente' : 'agentes'}`
+const nSe = n => `${n} ${n === 1 ? 'sesión' : 'sesiones'}`
+
+/** Firma de la ficha de un compañero: si no cambia, no se redibuja. */
+export function firmaCompanero(c, ahoraMs) {
+  if (!c.principal) return `${c.usuario}|fuera`
+  const proyecto = { repo: c.principal.repo, nombre: nombreProyecto(c.principal.repo), sesiones: [c.principal] }
+  return `${c.usuario}|${c.sesiones.length}|${firmaTerrario(prepararProyecto(proyecto, ahoraMs))}`
+}
+
+/**
+ * Habitación plegable de un compañero (boceto: "Campos"): su sesión principal en un terrario
+ * chico y la lista de texto debajo. `abierto`: si el usuario la desplegó.
+ */
+export function companero(c, ahoraMs, abierto) {
+  const flecha = '<span class="flecha" aria-hidden="true">▾</span>'
+  if (!c.principal) {
+    return `<details class="compa" data-usuario="${escapar(c.usuario)}"${abierto ? ' open' : ''}><summary>${cabeza('inactiva', CLAUDE.color, CLAUDE.pj, '')}<span><b>${escapar(c.nombre)}</b><span class="dim"> · fuera</span></span>${flecha}</summary><p class="t dim">Sin sesiones abiertas.</p></details>`
+  }
+  const s = c.principal
+  const proyecto = { repo: s.repo, nombre: nombreProyecto(s.repo), sesiones: [s] }
+  const preparadas = prepararProyecto(proyecto, ahoraMs)
+  const t = terrario(proyecto, preparadas, { mini: true })
+  const donde = `${escapar(proyecto.nombre)}${s.tarea ? ` #${escapar(s.tarea)}` : ''}`
+  return `<details class="compa" data-usuario="${escapar(c.usuario)}"${abierto ? ' open' : ''}><summary>${cabeza(preparadas[0].animo, CLAUDE.color, CLAUDE.pj, '')}<span><b>${escapar(c.nombre)}</b><span class="dim"> · ${donde} · ${nSe(c.sesiones.length)} · ${nAg((s.agentes ?? []).length)}</span></span>${flecha}</summary>
+    <div class="escena">${t.svg}</div>${lista(proyecto, preparadas, ahoraMs)}</details>`
 }
 
 export { cabeza, CLAUDE }

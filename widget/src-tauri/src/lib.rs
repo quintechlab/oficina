@@ -1,4 +1,96 @@
+mod equipo;
 mod sesiones;
+
+use std::sync::Mutex;
+
+use tauri::image::Image;
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, State, WebviewWindow, Wry};
+use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
+
+const VENTANA: &str = "principal";
+const BANDEJA: &str = "bandeja";
+/// Tamaño de la ventana expandida por defecto y de la tira mini (boceto: 400 × 56).
+const ANCHO: f64 = 400.0;
+const ALTO: f64 = 620.0;
+const ALTO_MINI: f64 = 56.0;
+const MINIMO: (f64, f64) = (360.0, 320.0);
+
+/// Qué guarda la ventana con posición y tamaño: todo menos la visibilidad (si se sale con la
+/// ventana en la bandeja, al volver a abrir igual se muestra).
+fn banderas_estado() -> StateFlags {
+    StateFlags::all() & !StateFlags::VISIBLE
+}
+
+struct Estado {
+    /// Tamaño de la ventana expandida antes de pasar a la tira mini.
+    tamano_previo: Mutex<Option<LogicalSize<f64>>>,
+    mini: Mutex<bool>,
+    login: Mutex<Option<String>>,
+    menu: Mutex<Option<MenuBandeja>>,
+}
+
+struct MenuBandeja {
+    arriba: CheckMenuItem<Wry>,
+    avisar: CheckMenuItem<Wry>,
+    pausa: CheckMenuItem<Wry>,
+}
+
+fn ventana(app: &AppHandle) -> Option<WebviewWindow> {
+    app.get_webview_window(VENTANA)
+}
+
+fn mostrar(app: &AppHandle) {
+    if let Some(v) = ventana(app) {
+        let _ = v.unminimize();
+        let _ = v.show();
+        let _ = v.set_focus();
+    }
+}
+
+fn alternar(app: &AppHandle) {
+    if let Some(v) = ventana(app) {
+        let visible = v.is_visible().unwrap_or(false) && !v.is_minimized().unwrap_or(false);
+        if visible {
+            let _ = v.hide();
+        } else {
+            mostrar(app);
+        }
+    }
+}
+
+/// Pasa la ventana a la tira mini o la devuelve a su tamaño anterior.
+fn aplicar_mini(v: &WebviewWindow, estado: &Estado, mini: bool) -> tauri::Result<()> {
+    let mut actual = estado.mini.lock().unwrap();
+    if *actual == mini {
+        return Ok(());
+    }
+    if mini {
+        let escala = v.scale_factor()?;
+        *estado.tamano_previo.lock().unwrap() = Some(v.inner_size()?.to_logical(escala));
+        v.set_min_size(Some(LogicalSize::new(ANCHO, ALTO_MINI)))?;
+        v.set_size(LogicalSize::new(ANCHO, ALTO_MINI))?;
+        v.set_resizable(false)?;
+    } else {
+        let previo = estado.tamano_previo.lock().unwrap().take().unwrap_or(LogicalSize::new(ANCHO, ALTO));
+        v.set_resizable(true)?;
+        v.set_min_size(Some(LogicalSize::new(MINIMO.0, MINIMO.1)))?;
+        v.set_size(previo)?;
+    }
+    *actual = mini;
+    Ok(())
+}
+
+fn salir(app: &AppHandle) {
+    // Guardar el tamaño expandido, no el de la tira mini
+    if let Some(v) = ventana(app) {
+        let _ = aplicar_mini(&v, &app.state::<Estado>(), false);
+    }
+    let _ = app.save_window_state(banderas_estado());
+    app.exit(0);
+}
 
 /// Sesiones vivas de Claude Code de esta máquina, leídas de `~/.claude/oficina/sesiones`.
 #[tauri::command]
@@ -9,12 +101,181 @@ fn leer_sesiones() -> Vec<serde_json::Value> {
     }
 }
 
+/// Comentarios del Issue "Presencia" y tu login, con el `gh` de la máquina. Nunca falla:
+/// un problema con `gh` vuelve como `error` para mostrarlo en una línea.
+#[tauri::command]
+async fn leer_equipo(estado: State<'_, Estado>) -> Result<serde_json::Value, String> {
+    let guardado = estado.login.lock().unwrap().clone();
+    let yo = match guardado {
+        Some(login) => Some(login),
+        None => {
+            let leido = tauri::async_runtime::spawn_blocking(|| equipo::correr_gh(&["api", "user"]))
+                .await
+                .map_err(|e| e.to_string())?
+                .ok()
+                .and_then(|t| equipo::login_desde_json(&t));
+            if leido.is_some() {
+                *estado.login.lock().unwrap() = leido.clone();
+            }
+            leido
+        }
+    };
+    let comentarios = tauri::async_runtime::spawn_blocking(|| equipo::correr_gh(&["api", equipo::RUTA_COMENTARIOS]))
+        .await
+        .map_err(|e| e.to_string())?
+        .and_then(|t| equipo::comentarios_desde_json(&t));
+    Ok(equipo::respuesta(yo, comentarios))
+}
+
+/// Fija la ventana arriba de las demás y sincroniza la marca del menú de la bandeja.
+#[tauri::command]
+fn fijar_arriba(app: AppHandle, estado: State<'_, Estado>, valor: bool) -> Result<(), String> {
+    if let Some(v) = ventana(&app) {
+        v.set_always_on_top(valor).map_err(|e| e.to_string())?;
+    }
+    if let Some(m) = estado.menu.lock().unwrap().as_ref() {
+        let _ = m.arriba.set_checked(valor);
+    }
+    Ok(())
+}
+
+/// Marcas del menú de la bandeja, para que la ventana arranque sincronizada.
+#[tauri::command]
+fn estado_menu(estado: State<'_, Estado>) -> serde_json::Value {
+    let menu = estado.menu.lock().unwrap();
+    let marca = |item: Option<&CheckMenuItem<Wry>>| item.and_then(|i| i.is_checked().ok());
+    serde_json::json!({
+        "arriba": marca(menu.as_ref().map(|m| &m.arriba)),
+        "avisar": marca(menu.as_ref().map(|m| &m.avisar)),
+        "pausa": marca(menu.as_ref().map(|m| &m.pausa)),
+    })
+}
+
+#[tauri::command]
+fn modo_mini(app: AppHandle, estado: State<'_, Estado>, mini: bool) -> Result<(), String> {
+    let v = ventana(&app).ok_or("sin ventana")?;
+    aplicar_mini(&v, &estado, mini).map_err(|e| e.to_string())
+}
+
+/// Esconde la ventana en la bandeja (la × de la barra de título).
+#[tauri::command]
+fn esconder(app: AppHandle) {
+    if let Some(v) = ventana(&app) {
+        let _ = v.hide();
+    }
+}
+
+/// Cambia el ícono de la bandeja (la cabeza con la cuenta de preguntas, dibujada en `bandeja.js`).
+#[tauri::command]
+fn poner_bandeja(app: AppHandle, rgba: Vec<u8>, ancho: u32, alto: u32, texto: String) -> Result<(), String> {
+    if rgba.len() != (ancho * alto * 4) as usize {
+        return Err(String::from("ícono con tamaño inválido"));
+    }
+    let bandeja = app.tray_by_id(BANDEJA).ok_or("sin bandeja")?;
+    bandeja.set_icon(Some(Image::new_owned(rgba, ancho, alto))).map_err(|e| e.to_string())?;
+    bandeja.set_tooltip(Some(texto)).map_err(|e| e.to_string())
+}
+
+/// Notificación de Windows con una pregunta nueva.
+#[tauri::command]
+fn avisar(app: AppHandle, titulo: String, cuerpo: String) -> Result<(), String> {
+    app.notification().builder().title(titulo).body(cuerpo).show().map_err(|e| e.to_string())
+}
+
+fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
+    let mostrar_item = MenuItem::with_id(app, "mostrar", "Mostrar oficina", true, None::<&str>)?;
+    let arriba = CheckMenuItem::with_id(app, "arriba", "Siempre arriba", true, true, None::<&str>)?;
+    let avisar_item = CheckMenuItem::with_id(app, "avisar", "Avisarme con cada pregunta", true, true, None::<&str>)?;
+    let pausa = CheckMenuItem::with_id(app, "pausa", "Pausar animaciones", true, false, None::<&str>)?;
+    let salir_item = MenuItem::with_id(app, "salir", "Salir", true, None::<&str>)?;
+    let separador = PredefinedMenuItem::separator(app)?;
+    let menu = Menu::with_items(app, &[&mostrar_item, &arriba, &avisar_item, &pausa, &separador, &salir_item])?;
+
+    let mut bandeja = TrayIconBuilder::with_id(BANDEJA)
+        .menu(&menu)
+        .tooltip("Oficina")
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, evento| {
+            let estado = app.state::<Estado>();
+            let marca = |f: fn(&MenuBandeja) -> &CheckMenuItem<Wry>| {
+                estado.menu.lock().unwrap().as_ref().and_then(|m| f(m).is_checked().ok()).unwrap_or(false)
+            };
+            match evento.id().as_ref() {
+                "mostrar" => mostrar(app),
+                "arriba" => {
+                    let valor = marca(|m| &m.arriba);
+                    if let Some(v) = ventana(app) {
+                        let _ = v.set_always_on_top(valor);
+                    }
+                    let _ = app.emit("oficina://arriba", valor);
+                }
+                "avisar" => {
+                    let _ = app.emit("oficina://avisar", marca(|m| &m.avisar));
+                }
+                "pausa" => {
+                    let _ = app.emit("oficina://pausa", marca(|m| &m.pausa));
+                }
+                "salir" => salir(app),
+                _ => {}
+            }
+        })
+        .on_tray_icon_event(|bandeja, evento| {
+            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = evento {
+                alternar(bandeja.app_handle());
+            }
+        });
+    if let Some(icono) = app.default_window_icon() {
+        bandeja = bandeja.icon(icono.clone());
+    }
+    bandeja.build(app)?;
+    *app.state::<Estado>().menu.lock().unwrap() = Some(MenuBandeja { arriba, avisar: avisar_item, pausa });
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // TODO(bandeja): ícono en la bandeja de Windows y cerrar a la bandeja en vez de salir.
-    // TODO(avisos): notificación de Windows cuando llega una pregunta con la ventana oculta.
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![leer_sesiones])
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_window_state::Builder::default().with_state_flags(banderas_estado()).build())
+        .manage(Estado {
+            tamano_previo: Mutex::new(None),
+            mini: Mutex::new(false),
+            login: Mutex::new(None),
+            menu: Mutex::new(None),
+        })
+        .setup(|app| {
+            let handle = app.handle().clone();
+            crear_bandeja(&handle)?;
+            // Clic en la notificación: mostrar la ventana
+            let al_clic = handle.clone();
+            let _ = handle.notification().on_action(move |_| mostrar(&al_clic));
+            if let Some(v) = ventana(&handle) {
+                // Si se guardó un tamaño de tira mini (cierre forzado), volver al tamaño normal
+                let escala = v.scale_factor()?;
+                let tamano = v.inner_size()?.to_logical::<f64>(escala);
+                if tamano.height < MINIMO.1 {
+                    v.set_size(LogicalSize::new(ANCHO.max(tamano.width), ALTO))?;
+                }
+            }
+            Ok(())
+        })
+        .on_window_event(|v, evento| {
+            // Alt+F4 o el cierre del sistema esconden en la bandeja; "Salir" del menú cierra de verdad
+            if let tauri::WindowEvent::CloseRequested { api, .. } = evento {
+                api.prevent_close();
+                let _ = v.hide();
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            leer_sesiones,
+            leer_equipo,
+            fijar_arriba,
+            estado_menu,
+            modo_mini,
+            esconder,
+            poner_bandeja,
+            avisar
+        ])
         .run(tauri::generate_context!())
         .expect("no se pudo iniciar el widget de la oficina");
 }

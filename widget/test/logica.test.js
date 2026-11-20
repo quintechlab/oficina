@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
   agruparPorProyecto, nombreProyecto, animoSesion, animoSubagente, personajeDeNombre,
   tiempoRelativo, tiempoSubagente, textoActividad, preguntasPendientes, etiquetaOpcion, escapar,
+  preguntasNuevas, resumenMini,
 } from '../src/logica.js'
 
 const AHORA = Date.parse('2026-11-19T23:50:00Z')
@@ -138,4 +139,48 @@ test('opción recomendada: la marca del texto se vuelve un chip', () => {
 test('escapa el texto antes de meterlo en HTML o SVG', () => {
   assert.equal(escapar('corriendo a && b <x> "y" \'z\''), 'corriendo a &amp;&amp; b &lt;x&gt; &quot;y&quot; &#39;z&#39;')
   assert.equal(escapar(null), '')
+})
+
+const conPreguntas = () => {
+  const item = pregunta => ({ pregunta, encabezado: 'X', multiple: false, opciones: [] })
+  return [
+    sesion({
+      sesion: 's1',
+      agentes: [
+        { id: 'a1', nombre: 'Camila', inventado: false, tipo: 'general-purpose', tarea: 'cupones', desde: hace(MIN), estado: 'trabajando', hasta: null },
+        { id: 'a2', nombre: 'Ramiro', inventado: false, tipo: 'Explore', tarea: 'mapa', desde: hace(MIN), estado: 'trabajando', hasta: null },
+      ],
+      preguntas: [{ id: 'q1', agente: 'a1', desde: hace(MIN), items: [item('¿Terrario?'), item('¿Colores?')] }],
+    }),
+    sesion({ sesion: 's2', repo: null, preguntas: [{ id: 'q2', agente: null, desde: hace(MIN), items: [item('¿Stock?')] }] }),
+  ]
+}
+
+test('preguntas nuevas: una por llamada, solo las que todavía no se avisaron', () => {
+  const sesiones = conPreguntas()
+  assert.deepEqual(preguntasNuevas(sesiones, new Set()), [
+    { id: 'q1', quien: 'Camila', pregunta: '¿Terrario?' },
+    { id: 'q2', quien: 'Claude', pregunta: '¿Stock?' },
+  ])
+  assert.deepEqual(preguntasNuevas(sesiones, new Set(['q1'])).map(q => q.id), ['q2'])
+  assert.deepEqual(preguntasNuevas(sesiones, new Set(['q1', 'q2'])), [])
+})
+
+test('resumen de la tira mini con preguntas: quien pregunta primero', () => {
+  const r = resumenMini(agruparPorProyecto(conPreguntas()), AHORA)
+  // Cuenta cada pregunta (ítem), igual que la insignia de la barra de título
+  assert.equal(r.titulo, '3 preguntas para vos')
+  assert.equal(r.detalle, '2 sesiones · 2 agentes · 2 proyectos')
+  assert.equal(r.pendientes, 3)
+  assert.deepEqual(r.caras.map(c => [c.nombre, c.animo]), [['Camila', 'teEspera'], ['Claude', 'teEspera'], ['Ramiro', 'leyendo']])
+})
+
+test('resumen de la tira mini sin preguntas', () => {
+  const r = resumenMini(agruparPorProyecto([sesion({ actividad: 'editando a.ts' })]), AHORA)
+  assert.equal(r.titulo, 'Todo en marcha')
+  assert.equal(r.detalle, '1 sesión · 0 agentes · 1 proyecto')
+  assert.equal(r.pendientes, 0)
+  // Sin subagentes, la tira muestra a Claude con el ánimo de la sesión
+  assert.deepEqual(r.caras.map(c => [c.nombre, c.animo]), [['Claude', 'editando']])
+  assert.equal(resumenMini([], AHORA).titulo, 'Sin sesiones abiertas')
 })

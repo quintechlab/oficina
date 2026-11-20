@@ -143,3 +143,53 @@ export function etiquetaOpcion(etiqueta) {
   const recomendada = re.test(etiqueta ?? '')
   return { texto: String(etiqueta ?? '').replace(re, ' ').trim(), recomendada }
 }
+
+const quienPregunta = (s, p) => p.agente ? ((s.agentes ?? []).find(a => a.id === p.agente)?.nombre ?? 'Un subagente') : 'Claude'
+
+/**
+ * Preguntas (una por llamada a AskUserQuestion) que todavía no se avisaron, con su primera
+ * pregunta. `avisadas`: ids ya vistos.
+ */
+export function preguntasNuevas(sesiones, avisadas) {
+  const nuevas = []
+  for (const s of sesiones) {
+    for (const p of s.preguntas ?? []) {
+      if (avisadas.has(p.id)) continue
+      nuevas.push({ id: p.id, quien: quienPregunta(s, p), pregunta: p.items?.[0]?.pregunta ?? '' })
+    }
+  }
+  return nuevas
+}
+
+const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`
+const MAX_CARAS = 4
+
+/**
+ * Lo que muestra la tira mini (boceto): caras (quien pregunta primero, después los subagentes),
+ * un título y la cuenta de sesiones, agentes y proyectos.
+ */
+export function resumenMini(proyectos, ahoraMs) {
+  const sesiones = proyectos.flatMap(p => p.sesiones)
+  const pendientes = proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
+  const agentes = sesiones.reduce((n, s) => n + (s.agentes ?? []).length, 0)
+  const caras = []
+  const otras = []
+  for (const s of sesiones) {
+    const conPregunta = new Set((s.preguntas ?? []).map(p => p.agente).filter(Boolean))
+    const animo = animoSesion(s, ahoraMs)
+    if (animo === 'teEspera') caras.push({ nombre: 'Claude', ...personajeDeNombre('Claude'), animo })
+    for (const a of s.agentes ?? []) {
+      const cara = { nombre: a.nombre, ...personajeDeNombre(a.nombre), animo: animoSubagente(a, ahoraMs, conPregunta.has(a.id)) }
+      if (cara.animo === 'teEspera') caras.push(cara)
+      else if (a.estado === 'trabajando') otras.push(cara)
+    }
+  }
+  const lista = [...caras, ...otras].slice(0, MAX_CARAS)
+  if (!lista.length && sesiones[0]) lista.push({ nombre: 'Claude', ...personajeDeNombre('Claude'), animo: animoSesion(sesiones[0], ahoraMs) })
+  return {
+    caras: lista,
+    pendientes,
+    titulo: pendientes ? `${plural(pendientes, 'pregunta', 'preguntas')} para vos` : sesiones.length ? 'Todo en marcha' : 'Sin sesiones abiertas',
+    detalle: `${plural(sesiones.length, 'sesión', 'sesiones')} · ${plural(agentes, 'agente', 'agentes')} · ${plural(proyectos.length, 'proyecto', 'proyectos')}`,
+  }
+}

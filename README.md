@@ -79,6 +79,10 @@ El código es público; los datos no. La presencia (nombre del repositorio, rama
 
 Ventana flotante para Windows (Tauri 2, en `widget/`) que muestra tus sesiones de Claude Code abiertas en esta máquina como un terrario de mascotas pixel: un proyecto por vez (◀ ▶ o las flechas del teclado), un escritorio por sesión con su Claude y sus subagentes, una lista de texto debajo y un globo con las preguntas que esperan respuesta (por ahora de solo lectura: se contestan en Claude). Lee los archivos que cada sesión escribe en `%USERPROFILE%\.claude\oficina\sesiones` cada 1,5 s; descarta las sesiones cerradas y las que no publican hace más de 12 horas.
 
+Vive en la bandeja de Windows: la × esconde la ventana y el ícono (la cabeza de Claude, con la cuenta de preguntas en ámbar) la muestra o la esconde con un clic. Su menú tiene «Mostrar oficina», «Siempre arriba», «Avisarme con cada pregunta» (una notificación de Windows por cada pregunta nueva mientras la ventana está escondida o minimizada), «Pausar animaciones» y «Salir». El botón de minimizar pliega la ventana a una tira de 400 × 56 con las caras y el resumen. Recuerda posición y tamaño entre usos.
+
+Debajo, plegada, la habitación de cada compañero con su sesión principal, leída cada 60 s del Issue "Presencia" con el `gh` de la máquina (`gh api user` para saber quién sos). Sin `gh` o sin sesión, esa parte muestra un aviso de una línea y el resto sigue funcionando.
+
 Requisitos: Node, Rust (`rustup`, con MSVC) y WebView2 (viene con Windows 11).
 
 ```

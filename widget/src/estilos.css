@@ -7,6 +7,7 @@
   --ui: "Segoe UI", Manrope, Helvetica, Arial, sans-serif;
 }
 * { box-sizing: border-box; margin: 0; padding: 0 }
+[hidden] { display: none !important }
 html, body { height: 100% }
 body {
   display: flex; flex-direction: column; overflow: hidden;
@@ -104,3 +105,29 @@ button { font: inherit; color: inherit }
   body, .globo.entra, .pend, .escena.cambia svg { animation: none }
   svg * { animation-play-state: paused !important }
 }
+
+/* tira mini (400 × 56) */
+.titulo.tira { height: auto; flex: 1; border-bottom: 0 }
+.tira .arrastre { gap: 10px }
+.caras { display: flex; gap: 2px; flex: none }
+.caras svg { display: block; width: 30px; height: 22px }
+.resumen { font: 12.5px/1.25 var(--ui); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.resumen b { display: block; font-size: 13px }
+.tira .pend { margin-right: 4px }
+body.mini { animation: none }
+body.mini .titulo:not(.tira), body.mini .cuerpo-w { display: none }
+
+/* habitación plegable de cada compañero */
+.compa { margin-top: 14px; border-top: 1px solid var(--linea) }
+.compa > summary { list-style: none; min-height: 48px; display: flex; align-items: center; gap: 8px; cursor: pointer; font: 13px var(--ui); min-width: 0 }
+.compa > summary::-webkit-details-marker { display: none }
+.compa > summary > span:not(.flecha) { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.compa > summary svg { width: 30px; height: 22px; flex: none }
+.compa > summary .flecha { margin-left: auto; color: var(--tenue); transition: transform .2s }
+.compa[open] > summary .flecha { transform: rotate(180deg) }
+.compa > summary:hover { color: #fff }
+.compa[open] > .escena { animation: entra-escena .3s ease both }
+.compa-aviso { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--linea); font: 11px var(--mono); color: #6B7180; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+
+/* "Pausar animaciones" del menú de la bandeja */
+body.pausa svg *, body.pausa .pend, body.pausa .globo { animation-play-state: paused !important }
