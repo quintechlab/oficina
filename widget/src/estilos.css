@@ -517,6 +517,12 @@ body[data-iman="abajo"] #aviso-iman { bottom: calc(var(--margen-sombra) + var(--
 body[data-iman="derecha"] #aviso-iman { right: var(--e-6); top: 50%; transform: translateY(-50%) }
 body[data-iman="izquierda"] #aviso-iman { left: var(--e-6); top: 50%; transform: translateY(-50%) }
 
+/* Velo al redimensionar (9.6): mientras la ventana cambia de tamaño (borde, lugar, zoom, carga,
+   píldora) lo que se ve se esconde al instante, sin transición; muescaMotion.js lo funde de vuelta
+   cuando WebView2 ya pintó el tamaño nuevo. `!important` gana también a las animaciones (golpe) */
+body.velada #muesca, body.velada #marco, body.velada #luz, body.velada #pildora,
+body.velada.acoplada.abierta::before, body.velada.acoplada.abierta::after { opacity: 0 !important; transition: none !important }
+
 /* Golpe de la pregunta (6.4), 1100 ms: la muesca se corre 6 px hacia el centro y vuelve, el Avi
    salta una vez, la luz sube a 1 y el chip late. Sin movimiento o en pausa, no hay golpe */
 @media (prefers-reduced-motion: no-preference) {

@@ -61,16 +61,35 @@ const coordinando = s => (s.agentes ?? []).some(a => a.estado === 'trabajando')
 /** El mod pone "esperándote" cuando termina el turno y Claude espera tu próximo mensaje. */
 const esperaMensaje = s => s.actividad === 'esperándote'
 
+/** Lo que publica el mod (v0.6) cuando terminó el turno y quedan procesos en segundo plano. */
+const LINEA_PROCESOS = /^esperando (\d+) procesos?$/
+/**
+ * Cuántos procesos en segundo plano espera la sesión, solo si no está haciendo otra cosa (terminó
+ * su turno o no dice nada): un servidor de desarrollo corriendo no tapa lo que Claude hace ahora.
+ * La lista (`procesos`, v0.6) manda; sin ella (un compañero leído de GitHub) alcanza la línea.
+ */
+function procesosEnEspera(s) {
+  const a = s.actividad
+  const lista = Array.isArray(s.procesos) ? s.procesos.length : 0
+  const deLinea = Number(LINEA_PROCESOS.exec(a ?? '')?.[1] ?? 0)
+  if (!a || a === 'esperándote') return lista
+  return deLinea ? (lista || deLinea) : 0
+}
+
+const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`
+
 /**
  * Ánimo del Avi de Claude de una sesión, por orden de prioridad:
  * 1. una pregunta suya pendiente → te espera ("!");
  * 2. subagentes trabajando → coordina el equipo (aunque el turno haya terminado);
- * 3. "esperándote" → espera tu mensaje, tranquilo y despierto;
- * 4. si no, lo que diga su actividad (dormida si no publica hace rato).
+ * 3. procesos en segundo plano y nada más que hacer → mira el anillo que gira (5.5);
+ * 4. "esperándote" → espera tu mensaje, tranquilo y despierto;
+ * 5. si no, lo que diga su actividad (dormida si no publica hace rato).
  */
 export function animoSesion(s, ahoraMs) {
   if (preguntaDeLaSesion(s)) return 'teEspera'
   if (coordinando(s)) return 'coordinando'
+  if (procesosEnEspera(s)) return 'proceso'
   if (esperaMensaje(s)) return 'esperando'
   if (inactiva(s, ahoraMs)) return 'inactiva'
   const a = s.actividad
@@ -136,9 +155,20 @@ export function textoActividad(s, ahoraMs) {
   const animo = animoSesion(s, ahoraMs)
   if (animo === 'teEspera') return 'ahora · te hace una pregunta'
   if (animo === 'coordinando') return 'ahora · coordinando el equipo'
+  if (animo === 'proceso') return `ahora · esperando ${plural(procesosEnEspera(s), 'proceso', 'procesos')}`
   if (esperaMensaje(s)) return 'ahora · esperando tu mensaje'
   if (inactiva(s, ahoraMs)) return `sin actividad hace ${tiempoRelativo(s.actualizado, ahoraMs)}`
   return `ahora · ${s.actividad || 'sin actividad'}`
+}
+
+/**
+ * El título (al pasar el mouse) de la línea de una sesión: sus procesos en segundo plano, uno por
+ * renglón con hace cuánto arrancó, o si no tiene, la actividad tal cual.
+ */
+export function tituloActividad(s, ahoraMs) {
+  const procesos = Array.isArray(s.procesos) ? s.procesos : []
+  if (procesos.length) return procesos.map(p => `${p.descripcion} · hace ${tiempoRelativo(p.desde, ahoraMs)}`).join('\n')
+  return s.actividad ?? ''
 }
 
 /**
@@ -181,7 +211,6 @@ export function preguntasNuevas(sesiones, avisadas) {
   return nuevas
 }
 
-const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`
 const MAX_CARAS = 4
 
 /**

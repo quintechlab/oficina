@@ -18,6 +18,7 @@ import { entrada, cambioProyecto } from './tableroMotion.js'
 import {
   esHorizontal, bordeCercano, lugarDe, lugarAjustado, disposicionAcoplada, zonaInteractiva, recorte, cajaArrastre,
   posicionFlotante, dentroDe, estadoMuesca, contenidoMuesca, contenidoPildora, ESTADO_INICIAL, siguiente, tocaGolpe, PILDORA,
+  eventoZona, planVentana,
 } from './muesca.js'
 import * as movimientoMuesca from './muescaMotion.js'
 
@@ -102,6 +103,8 @@ const st = {
   ultimaFlotante: null,
   /** Última disposición acoplada (`disposicionAcoplada`): ventana fija, muesca y panel (9.6). */
   disp: null,
+  /** Borde con el que se colocó esa disposición: otro borde cambia la forma de adentro (velo). */
+  dispBorde: null,
   /** El puntero en la zona interactiva, según el sondeo de Rust (`oficina://puntero-zona`, 9.6). */
   dentroZona: false,
   /** Número del último aviso del sondeo: uno más viejo se descarta. */
@@ -672,6 +675,9 @@ document.addEventListener('keydown', e => {
  * mismo zoom. Después la ventana se ajusta al contenido.
  */
 async function aplicarTamano(porcentaje) {
+  // Acoplada, otro zoom redimensiona la ventana fija: se vela ya, antes de que el contenido cambie
+  // de tamaño adentro; colocarAcoplada lo levanta cuando la ventana quedó en su tamaño nuevo
+  if (st.acople && !st.mini && zoomDe(porcentaje) !== zoomDe(st.tamano)) movimientoMuesca.velar()
   st.tamano = porcentaje
   document.documentElement.style.zoom = String(zoomDe(porcentaje))
   if (st.mini) await invocar('modo_mini', { mini: true, ...tamanoMini(zoomDe(porcentaje)) }).catch(() => {})
@@ -780,17 +786,26 @@ function colocar(d) {
   poner('l', d.local.luz)
   poner('t', d.local.tablero)
   st.disp = d
+  st.dispBorde = st.acople.borde
   st.ventana = { ...d.ventana }
 }
 
 /**
  * Coloca la ventana acoplada (9.6): una sola vez al acoplar, al cambiar de borde, de lugar, de
- * tamaño elegido, de contenido o de área de trabajo. Abrir y cerrar no la tocan.
+ * tamaño elegido, de contenido o de área de trabajo. Abrir y cerrar no la tocan. Si cambia de
+ * tamaño o de forma (`planVentana`), lo que se ve se vela antes y vuelve cuando WebView2 ya pintó.
  */
 async function colocarAcoplada(g) {
   const d = disposicion(g.area)
+  const plan = planVentana(g, d.ventana, { cambiaForma: st.dispBorde !== st.acople.borde })
+  const turno = plan === 'velar' ? movimientoMuesca.velar() : undefined
   colocar(d)
-  if (fueraDeLugar(g, d.ventana)) await invocar('ajustar_ventana', { ...d.ventana })
+  try {
+    if (plan !== 'nada') await invocar('ajustar_ventana', { ...d.ventana })
+  } finally {
+    // También levanta el velo que puso otro antes (el del zoom o el del acople nuevo)
+    if (movimientoMuesca.velada()) movimientoMuesca.revelar(turno)
+  }
   await enviarZona()
 }
 
@@ -819,11 +834,12 @@ async function enviarZona(forzar = false) {
  * antes): el hover abre a los 180 ms y la salida cierra a los 650 ms, salvo fijada (7.2).
  */
 function ponerDentro(dentro) {
-  if (st.dentroZona === dentro) return
   st.dentroZona = dentro
   // `st.ventana`: la muesca ya está en su borde (al arrancar, la ventana todavía está en otro lado)
   if (!st.acople || st.arrastre || !st.ventana) return
-  evento({ tipo: dentro ? 'entra' : 'sale' })
+  // Decide lo que la muesca todavía no sabe: Rust repite el estado real con cada zona nueva
+  const tipo = eventoZona(st.muesca, dentro)
+  if (tipo) evento({ tipo })
 }
 
 /** Clases y estilos del modo: acoplada a un borde o flotante. Empieza cerrada. */
@@ -838,6 +854,7 @@ function aplicarModo() {
   st.vista = false
   st.ventana = null
   st.disp = null
+  st.dispBorde = null
   st.zonaEnviada = null
   pintarControles()
 }
@@ -961,6 +978,8 @@ async function acoplarA(borde, { lugar, puntero, plegar } = {}) {
       const l = lugar ?? (st.acople ? st.acople.lugar : lugarDe(borde, centro, g.area))
       st.acople = { borde, lugar: l }
       st.muesca = { ...ESTADO_INICIAL, armado: false }
+      // La ventana va a cambiar de forma y de tamaño: velada desde ya; colocarAcoplada la revela
+      movimientoMuesca.velar()
       aplicarModo()
       soltar()
       pintar()
@@ -970,12 +989,15 @@ async function acoplarA(borde, { lugar, puntero, plegar } = {}) {
     } else {
       st.acople = null
       st.muesca = ESTADO_INICIAL
+      // De la muesca (o la píldora) al tablero flotante: velado hasta que la ventana tenga su tamaño
+      const turno = movimientoMuesca.velar()
       aplicarModo()
       await invocar('guardar_acople', { borde: null, lugar: null })
       const g2 = await invocar('geometria')
       const tam = tamanoDeseado(medirContenido(), g2.area)
       const pos = puntero ? posicionFlotante(puntero, tam, g2.area) : posicionEnPantalla(st.ultimaFlotante ?? { x: g2.x, y: g2.y }, tam, g2.area)
       await invocar('ajustar_ventana', { ...tam, ...pos })
+      movimientoMuesca.revelar(turno)
       st.revelado = false
       pintar()
     }
@@ -1025,10 +1047,14 @@ muescaEl.addEventListener('click', () => {
 
 const UMBRAL_ARRASTRE = 4
 
-/** Pide mover o redimensionar la ventana; si hay un pedido en vuelo, gana el último. */
+/**
+ * Pide mover o redimensionar la ventana; si hay un pedido en vuelo, gana el último. `turno`: el del
+ * velo puesto para este pedido (`velar`); un pedido que reemplaza a otro sin mandar hereda su velo,
+ * así nunca queda uno sin revelar.
+ */
 let destinoVentana = null, enviandoVentana = null
-function pedirVentana(r) {
-  destinoVentana = r
+function pedirVentana(r, turno = 0) {
+  destinoVentana = { ...r, turno: Math.max(turno, destinoVentana?.turno ?? 0) }
   if (!enviandoVentana) enviandoVentana = enviarVentana()
 }
 async function enviarVentana() {
@@ -1039,8 +1065,15 @@ async function enviarVentana() {
       if (r.ancho) await invocar('ajustar_ventana', { ancho: r.ancho, alto: r.alto, x: r.x, y: r.y })
       else await invocar('mover_ventana', { x: r.x, y: r.y })
     } catch (e) { registrar(`arrastre: ${e}`) }
+    // Ya redimensionada: lo velado vuelve cuando se pintó (si no se veló otra vez mientras tanto)
+    if (r.turno) movimientoMuesca.revelar(r.turno)
   }
   enviandoVentana = null
+}
+
+/** Vela si el pedido que sigue a `st.ventana` la redimensiona o cambia su forma (9.6). Devuelve el turno o 0. */
+function velarSiRedimensiona(rect, cambiaForma) {
+  return planVentana(st.ventana, rect, { cambiaForma }) === 'velar' ? movimientoMuesca.velar() : 0
 }
 
 document.addEventListener('pointerdown', e => {
@@ -1101,6 +1134,8 @@ function moverArrastre(a) {
     const caja = cajaArrastre(puntero, null, a.tam)
     a.borde = bordeCercano(caja, a.area, a.libres)
     if (a.borde) {
+      // Otro borde o volver de la píldora cambia la forma de adentro (velo, 9.6)
+      const cambiaForma = st.acople.borde !== a.borde || document.body.classList.contains('pildora')
       // Cerca de un borde: la muesca se pega a él y se desliza a lo largo
       if (st.acople.borde !== a.borde) {
         st.acople = { borde: a.borde, lugar: 0.5 }
@@ -1110,15 +1145,21 @@ function moverArrastre(a) {
       const tm = tamMuesca()
       const centro = { x: caja.x + caja.ancho / 2, y: caja.y + caja.alto / 2 }
       st.acople.lugar = lugarAjustado(lugarDe(a.borde, centro, a.area), tm.largo, largoDe(a.borde, a.area), zoom())
-      // La ventana fija acompaña a la muesca: a lo largo del mismo borde cambia de lugar, no de tamaño
+      // La ventana fija acompaña a la muesca: a lo largo del mismo borde cambia de lugar, no de
+      // tamaño (salvo cerca de una punta, donde el panel se ajusta al área: ahí se vela)
       const d = disposicion(a.area, a.tablero)
+      // Todo en esta misma tarea: el velo y la forma nueva llegan juntos al próximo cuadro
+      const turno = velarSiRedimensiona(d.ventana, cambiaForma)
       colocar(d)
-      pedirVentana(d.ventana)
+      pedirVentana(d.ventana, turno)
     } else {
       // Lejos de todo borde: la píldora flotante sigue al puntero
+      const entra = !document.body.classList.contains('pildora')
+      const pildora = { x: Math.round(caja.x), y: Math.round(caja.y), ancho: Math.round(caja.ancho), alto: Math.round(caja.alto) }
+      const turno = velarSiRedimensiona(pildora, entra)
       document.body.classList.add('pildora')
-      st.ventana = { x: Math.round(caja.x), y: Math.round(caja.y), ancho: Math.round(caja.ancho), alto: Math.round(caja.alto) }
-      pedirVentana(st.ventana)
+      st.ventana = pildora
+      pedirVentana(st.ventana, turno)
     }
   } else {
     const caja = cajaArrastre(puntero, a.agarre, a.inicio)
@@ -1181,6 +1222,8 @@ async function iniciar() {
       // Acoplada al cerrar la última vez: vuelve como muesca, en el monitor de la última posición (7.5)
       if (typeof m.acople?.borde === 'string') {
         st.acople = { borde: m.acople.borde, lugar: Number(m.acople.lugar) }
+        // La ventana todavía está donde la dejó window-state: velada hasta colocarla en su borde
+        movimientoMuesca.velar()
         aplicarModo()
       }
       await aplicarTamano(typeof m.tamano === 'number' ? m.tamano : PASO_POR_DEFECTO)

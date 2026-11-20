@@ -4,7 +4,7 @@
 
 import { avi, CLAUDE } from './avis.js'
 import {
-  animoSesion, animoSubagente, personajeDeNombre, tiempoSubagente, textoActividad,
+  animoSesion, animoSubagente, personajeDeNombre, tiempoSubagente, textoActividad, tituloActividad,
   preguntasPendientes, escapar, tiempoRelativo, nombreProyecto, FUERA_DE_REPO,
 } from './logica.js'
 
@@ -55,14 +55,14 @@ export function subagentesVisibles(sub) {
 
 /** Firma de lo que se ve de las sesiones: si no cambia, no se redibuja (y no se cortan las animaciones). */
 export function firmaTablero(preparadas) {
-  return preparadas.map(({ s, animo, sub }) => [s.sesion, s.tarea, s.rama, animo, ...sub.map(a => `${a.id}:${a.nombre}:${a.animo}`)].join('|')).join('/')
+  return preparadas.map(({ s, animo, sub }) => [s.sesion, s.tarea, s.rama, animo, (s.procesos ?? []).map(p => p.id).join(','), ...sub.map(a => `${a.id}:${a.nombre}:${a.animo}`)].join('|')).join('/')
 }
 
 /** Color de la línea de estado y del estado de un subagente (dirección, tabla 5.4). */
 export function colorEstado(animo) {
   switch (animo) {
     case 'teEspera': case 'coordinando': case 'editando': case 'comando': case 'escribiendo': case 'comiendo': return 'var(--ambar)'
-    case 'leyendo': return 'var(--celeste)'
+    case 'leyendo': case 'proceso': return 'var(--celeste)'
     case 'inactiva': case 'durmiendo': return 'var(--tenue)'
     case 'listo': case 'reposo': return 'var(--verde)'
     case 'fallo': return 'var(--rojo)'
@@ -184,7 +184,7 @@ function tarjeta({ s, animo, sub }, ahoraMs, k) {
   const lleva = s.inicio ? `<span class="lleva"><span class="oculto">lleva </span>${escapar(tiempoRelativo(s.inicio, ahoraMs))}</span>` : ''
   let h = `<article class="ses"><div class="ses-top">${avi(CLAUDE, animo, 56, { indice: base })}<div class="ses-t">`
   h += `<h3 class="ses-tit">${tag}${titulo}</h3>`
-  h += `<p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(s.actividad ?? '')}"><span class="pt" aria-hidden="true"></span>${escapar(textoActividad(s, ahoraMs))}</p>`
+  h += `<p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span>${escapar(textoActividad(s, ahoraMs))}</p>`
   h += `</div>${lleva}</div>`
   if (sub.length) {
     const { visibles, ocultos, resto } = subagentesVisibles(sub)
@@ -244,6 +244,6 @@ export function companero(c, ahoraMs, abierto) {
     const mas = resto ? `<span class="mas-c" title="${escapar(textoMas(ocultos))}">+${resto}</span>` : ''
     cabezas = `<span class="cabezas" role="img" aria-label="${escapar(nombres)}">${visibles.map((a, k) => avi(a, a.animo, 20, { indice: k + 1 })).join('')}${mas}</span>`
   }
-  const fila = `<div class="fila">${avi(CLAUDE, animo, 26)}<div class="fila-t"><b>${s.tarea ? `#${escapar(s.tarea)} ` : ''}${escapar(s.rama ?? 'sin rama')}</b><p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(s.actividad ?? '')}"><span class="pt" aria-hidden="true"></span>${escapar(textoActividad(s, ahoraMs))}</p></div>${cabezas}</div>`
+  const fila = `<div class="fila">${avi(CLAUDE, animo, 26)}<div class="fila-t"><b>${s.tarea ? `#${escapar(s.tarea)} ` : ''}${escapar(s.rama ?? 'sin rama')}</b><p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span>${escapar(textoActividad(s, ahoraMs))}</p></div>${cabezas}</div>`
   return `${abre}<summary>${ini}<span class="compa-t"><b>${escapar(c.nombre)}</b><small>${escapar(donde)}</small></span>${flecha}</summary>${fila}</details>`
 }

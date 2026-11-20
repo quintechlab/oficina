@@ -171,3 +171,19 @@ test('equipo: la fila del compañero lleva a Claude de 32 y cabecitas de 24 con 
   assert.match(h, /<div class="fila"><span class="avi" style="--t:26px;[^"]*" aria-hidden="true"><svg[^>]*class="e-coordinando"/)
   assert.match(h, /<span class="cabezas" role="img" aria-label="Lucas"><span class="avi" style="--t:20px;[^"]*" aria-hidden="true"><svg[^>]*class="e-escribiendo"/)
 })
+
+test('una sesión que espera procesos: línea celeste, anillo, y los procesos en el título', () => {
+  const procesos = [{ id: 'b1', descripcion: 'Arma el instalador', desde: hace(2) }]
+  const s = { sesion: 'a', repo: 'q/oficina', rama: 'feat/10-x', tarea: 10, inicio: hace(5), actualizado: hace(0), actividad: 'esperando 1 proceso', procesos }
+  assert.equal(colorEstado('proceso'), 'var(--celeste)')
+  const [p] = agruparPorProyecto([s])
+  const h = sesiones(prepararProyecto(p, AHORA), AHORA)
+  assert.match(h, /<svg[^>]*class="e-proceso"/)
+  assert.match(h, /<p class="linea" style="--c:var\(--celeste\)" title="Arma el instalador · hace 2 min">.*ahora · esperando 1 proceso<\/p>/)
+  // Un proceso más (o uno menos) cambia la firma: la tarjeta se redibuja enseguida, no al minuto
+  const otra = agruparPorProyecto([{ ...s, procesos: [...procesos, { id: 'b2', descripcion: 'npm run dev', desde: hace(1) }] }])[0]
+  assert.notEqual(firmaTablero(prepararProyecto(p, AHORA)), firmaTablero(prepararProyecto(otra, AHORA)))
+  // Sin procesos, el título sigue siendo la actividad
+  const quieta = agruparPorProyecto([{ ...s, actividad: 'editando main.js', procesos: [] }])[0]
+  assert.match(sesiones(prepararProyecto(quieta, AHORA), AHORA), /title="editando main.js"/)
+})

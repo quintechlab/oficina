@@ -7,7 +7,7 @@ import {
   BORDES, IMAN, HOMBRO, LUZ, HOLGURA, MARGEN_PANEL, ESPERA_ABRIR, ESPERA_CERRAR, CADA_GOLPE, PILDORA,
   esHorizontal, bordeCercano, lugarDe, lugarAjustado, rectMuesca, rectPanel, recorte, cajaArrastre, rectLuz, relativo,
   estadoMuesca, ESTADO_INICIAL, siguiente, tocaGolpe, dentroDe, posicionFlotante, contenidoMuesca, contenidoPildora,
-  disposicionAcoplada, zonaInteractiva, MARGEN_ZONA,
+  disposicionAcoplada, zonaInteractiva, MARGEN_ZONA, eventoZona, planVentana, secuenciaVelo, ASIENTO_VELO_MS, REAPARECE_MS,
 } from '../src/muesca.js'
 import { agruparPorProyecto } from '../src/logica.js'
 
@@ -458,4 +458,87 @@ test('dentroDe: el puntero dentro de un rectángulo (borde derecho y de abajo af
   assert.equal(dentroDe({ x: 109, y: 49 }, r), true)
   assert.equal(dentroDe({ x: 110, y: 20 }, r), false)
   assert.equal(dentroDe(null, r), false)
+})
+
+// ------------------------------------------------------------------ avisos del sondeo (9.6)
+
+test('aviso del sondeo: el puntero ya sobre la muesca al arrancar abre con el primer aviso', () => {
+  // Sin evento previo del DOM: el primer aviso "adentro" es una entrada y el hover programa abrir
+  assert.equal(eventoZona(ESTADO_INICIAL, true), 'entra')
+  const e = siguiente(ESTADO_INICIAL, { tipo: eventoZona(ESTADO_INICIAL, true) })
+  assert.deepEqual(e.espera, { que: 'abrir', ms: ESPERA_ABRIR })
+})
+
+test('aviso del sondeo: lo que la muesca ya sabe no se repite (DOM y Rust avisan lo mismo)', () => {
+  const adentro = siguiente(ESTADO_INICIAL, { tipo: 'entra' })
+  assert.equal(eventoZona(adentro, true), null)
+  const afuera = siguiente(adentro, { tipo: 'sale' })
+  assert.equal(eventoZona(afuera, false), null)
+  // Abierta y saliendo: un segundo "afuera" no reinicia la espera de cerrar
+  const abierta = { ...siguiente(ESTADO_INICIAL, { tipo: 'clic' }), dentro: false }
+  const saliendo = siguiente(abierta, { tipo: 'sale' })
+  assert.equal(eventoZona(saliendo, false), null)
+})
+
+test('aviso del sondeo: tras reacoplar sin armar, "afuera" vuelve a armar el hover en un solo paso', () => {
+  // acoplarA deja la muesca sin armar; el puntero está lejos: el aviso afuera la arma, y la primera
+  // entrada ya abre (antes hacían falta dos)
+  const reacoplada = { ...ESTADO_INICIAL, armado: false }
+  assert.equal(eventoZona(reacoplada, false), 'sale')
+  const armada = siguiente(reacoplada, { tipo: 'sale' })
+  assert.equal(armada.armado, true)
+  assert.deepEqual(siguiente(armada, { tipo: eventoZona(armada, true) }).espera, { que: 'abrir', ms: ESPERA_ABRIR })
+  // Con el puntero encima al reacoplar (soltó la muesca ahí), no abre sola: hay que salir una vez
+  const encima = siguiente(reacoplada, { tipo: eventoZona(reacoplada, true) })
+  assert.equal(encima.espera, null)
+  assert.equal(encima.abierta, false)
+})
+
+test('aviso del sondeo: después de Esc no reabre con el puntero encima, y salir la vuelve a armar', () => {
+  const abierta = siguiente(siguiente(ESTADO_INICIAL, { tipo: 'entra' }), { tipo: 'clic' })
+  const cerrada = siguiente(abierta, { tipo: 'esc' })
+  assert.equal(eventoZona(cerrada, true), null)
+  assert.equal(siguiente(cerrada, { tipo: eventoZona(cerrada, false) }).armado, true)
+})
+
+// ------------------------------------------------------------------ redimensionar sin parpadeo (9.6)
+
+const V = { x: 100, y: 0, ancho: 600, alto: 400 }
+
+test('plan de la ventana: igual o casi igual no se toca (abrir y cerrar no redimensionan)', () => {
+  assert.equal(planVentana(V, { ...V }), 'nada')
+  assert.equal(planVentana(V, { ...V, x: 101, ancho: 602 }), 'nada')
+})
+
+test('plan de la ventana: solo cambia el lugar, se mueve sin esconder nada', () => {
+  assert.equal(planVentana(V, { ...V, x: 300 }), 'mover')
+  assert.equal(planVentana(V, { ...V, y: 50 }), 'mover')
+})
+
+test('plan de la ventana: cambia el tamaño, el borde o no se sabe dónde está: velar', () => {
+  // Zoom, contenido que llega, borde nuevo o la píldora: WebView2 deja la ventana sin pintar
+  assert.equal(planVentana(V, { ...V, ancho: 700 }), 'velar')
+  assert.equal(planVentana(V, { ...V, x: 300, alto: 48 }), 'velar')
+  assert.equal(planVentana(V, { ...V, x: 300 }, { cambiaForma: true }), 'velar')
+  assert.equal(planVentana(null, V), 'velar')
+  // Un cambio de tamaño chico con el lugar cambiado también se vela (no hay tolerancia de tamaño)
+  assert.equal(planVentana(V, { ...V, x: 300, ancho: 601 }), 'velar')
+})
+
+test('secuencia del velo: esconder, redimensionar, dos cuadros y un asiento, y reaparecer en 160 ms', () => {
+  const s = secuenciaVelo(true)
+  assert.deepEqual(s.map(p => p.paso), ['ocultar', 'ajustar', 'esperar', 'mostrar'])
+  assert.equal(s[0].ms, 0)
+  assert.equal(s[2].cuadros, 2)
+  assert.equal(s[2].ms, ASIENTO_VELO_MS)
+  assert.ok(ASIENTO_VELO_MS >= 180 && ASIENTO_VELO_MS <= 250)
+  assert.equal(s[3].ms, REAPARECE_MS)
+  assert.equal(REAPARECE_MS, 160)
+})
+
+test('secuencia del velo sin movimiento: también se esconde y espera, pero reaparece al instante', () => {
+  const s = secuenciaVelo(false)
+  assert.deepEqual(s.map(p => p.paso), ['ocultar', 'ajustar', 'esperar', 'mostrar'])
+  assert.equal(s[2].ms, ASIENTO_VELO_MS)
+  assert.equal(s[3].ms, 0)
 })

@@ -51,7 +51,7 @@ Todos como propiedades CSS en `:root` de `estilos.css`. Los nombres van en espa�
 | `--ambar-osc` | `#1D1707` | Fondo del proyecto activo, de la opción al pasar el mouse y de la opción marcada. |
 | `--pico` | `#E9A13B` | Pico de los Avis (ámbar un tono más quemado, así se separa de la piel). |
 | `--violeta` | `#A58BFF` | Secundario: número de opción, "Otra respuesta", equipo e Inés. |
-| `--celeste` | `#7FB3FF` | Estado "leyendo", Ramiro y el estado reservado "proceso". |
+| `--celeste` | `#7FB3FF` | Estado "leyendo", Ramiro y el estado "proceso" (5.5). |
 | `--verde` | `#8FD694` | "Listo" y Lucas. |
 | `--rosa` | `#E78FB3` | Camila. |
 | `--rojo` | `#FF7A6B` | "Falló" y errores. |
@@ -374,7 +374,7 @@ Por defecto, todos los Avis respiran (`respira` 3,4 s, escala 1 → 1.03 / .965)
 | `durmiendo` / `inactiva` | Ojos cerrados y tres "z" `--tenue`. | `duerme` 5,6 s (respira más hondo); las "z" suben y se apagan (3,6 s, cada 1,2 s); sin parpadeo |
 | `listo` | Ojos felices y cuatro chispas (ámbar, verde, violeta y rosa). | `festeja` 1 s con `--rebote` y chispas cada 0,25 s. Dura 6 s (`MS_FESTEJO`) y después pasa a `durmiendo` |
 | `fallo` | Ojos en "x" y una nubecita con "x" roja. | `tambalea` 3 s (−5° a 4°). Dura 6 s y después pasa a `durmiendo` |
-| `proceso` **(reservado, pendiente)** | Anillo celeste girando a la derecha y la mirada que lo sigue. | `gira` 1,1 s lineal. **No se implementa ahora** (ver 5.5) |
+| `proceso` | Anillo celeste girando a la derecha y la mirada que lo sigue. | `gira` 1,1 s lineal; la mirada `sigue` 4 s (ver 5.5) |
 
 Los `@keyframes` son los del boceto, con los mismos nombres y valores: `respira`, `duerme`, `parpadea`, `teclea`, `tecla`, `titila`, `mira`, `idea`, `onda`, `pulso`, `salto`, `gira`, `sigue`, `zeta`, `festeja`, `chispa` y `tambalea`.
 
@@ -399,19 +399,16 @@ Es una función pura nueva, `poseAvi(animo)` en `avis.js`, con tests. Reemplaza 
 | subagente `durmiendo` (más de 6 s) | `durmiendo` | conserva "listo" o "falló" | verde o rojo |
 | `comiendo`, `reposo` y `saluda` (heredados de `escena.js`) | `escribiendo`, `listo` y `esperando` | — | — |
 
-La prioridad de la línea de Claude no cambia: 1) pregunta propia, 2) algún subagente trabajando, 3) "esperándote", 4) la actividad tal cual o dormido.
+La prioridad de la línea de Claude: 1) pregunta propia, 2) algún subagente trabajando, 3) procesos en segundo plano sin otra actividad (5.5), 4) "esperándote", 5) la actividad tal cual o dormido.
 
-### 5.5 Estado reservado: "esperando 1 proceso" — **PENDIENTE, NO APROBADO**
+### 5.5 "esperando 1 proceso" (desde la v0.6)
 
-Necesita un dato que el mod no publica hoy, por ejemplo `procesos: [{ comando, desde }]` en cada `Presencia` para los Bash en segundo plano. Hasta que el usuario lo apruebe y el mod lo publique:
+Aprobado con el "arregla todo" del 2026-11-20. El mod publica `procesos: [{ id, descripcion, desde }]` en cada `Presencia`: los Bash (y PowerShell) de la sesión que siguen corriendo en segundo plano, hasta su aviso (`<task-notification>`), un `TaskStop` o 2 h. Al terminar el turno con procesos pendientes, la actividad dice "esperando 1 proceso" en vez de "esperándote".
 
-- **No se implementa nada:** ni la pose `proceso`, ni la fila de proceso, ni el color celeste de la línea.
-- El diseño queda reservado así:
-  - Pose `proceso`.
-  - Línea "ahora · esperando 1 proceso" en celeste.
-  - Bajo la fila superior de la tarjeta, una fila `--s2` con radio 12: el comando en mono 11, una barra **indeterminada** de 4 px y el tiempo transcurrido. No hay porcentaje, porque ese dato no existe.
-  - Punto celeste en la muesca.
-- **Falta decidir** su lugar en la prioridad de la línea de Claude.
+- **Prioridad:** tercera, después de la pregunta propia y del equipo trabajando, y solo si Claude no está haciendo otra cosa (terminó su turno o no dice nada). Un servidor de desarrollo corriendo no tapa "editando main.js". Una sesión que espera un proceso no se duerme.
+- **Pose `proceso`:** despierto, mira un anillo celeste que gira (indeterminado: no hay porcentaje). Con movimiento reducido o en pausa, el anillo queda quieto.
+- **Línea** "ahora · esperando 1 proceso" (o "N procesos") en `--celeste`. Al pasar el mouse, su título lista cada proceso con hace cuánto arrancó.
+- **Sin hacer todavía (falta decidir):** la fila `--s2` con el comando y la barra indeterminada bajo la tarjeta, y el punto celeste en la muesca.
 
 ### 5.6 Accesibilidad de los Avis
 
@@ -643,6 +640,8 @@ Decidido con el usuario el 2026-11-20 ("dale, probemos la opción 1"), después 
 - **Hover y salida los manda el sondeo:** con los clics pasando de largo, el WebView no ve salir al puntero. `oficina://puntero-zona` dispara `entra` (abre a los 180 ms) y `sale` (cierra a los 650 ms, salvo fijada). Un aviso con `n` más viejo se descarta. El DOM solo adelanta lo mismo: `pointerenter` en la muesca o en el tablero, y `pointerleave` de la ventana entera.
 - **Teclado:** Enter o Espacio sobre la muesca, "Mostrar oficina" y Esc siguen igual. Abierta desde la bandeja con el puntero lejos, el panel queda abierto (cuenta como adentro) hasta que el puntero entre y salga, o Esc.
 - **Arrastre:** a lo largo del mismo borde, la ventana fija acompaña a la muesca: cambia de lugar, no de tamaño. Al cambiar de borde, al pasar a la píldora y al soltar flotando se redimensiona, como antes.
+- **Primer aviso de cada zona:** el sondeo avisa el estado real en su primera vuelta al arrancar, con cada zona nueva y al volver a sondear, aunque no haya cambiado (`informado`). `guardar_acople` olvida la zona vieja (`olvidar_zona`). La muesca decide qué hacer con cada aviso (`eventoZona`): con el puntero ya encima al arrancar, el hover abre; tras reacoplar con el puntero lejos, la primera entrada abre.
+- **Redimensionar sin parpadeo:** cuando la ventana acoplada cambia de tamaño o de forma (borde, lugar cerca de una punta, zoom, carga, píldora, flotar), `planVentana` decide velar: `body.velada` esconde al instante la muesca, la luz, la píldora y el tablero, se llama a `ajustar_ventana`, se esperan dos cuadros y `ASIENTO_VELO_MS` (220 ms, ajustable) y todo vuelve en 160 ms (al instante sin movimiento). Abrir y cerrar no velan: no redimensionan.
 - **Vista de desarrollo:** `dev/falso.js` imita el sondeo con el puntero de `vista.html` y el paso de los clics con `pointer-events: none` en el iframe.
 - **Solo se puede confirmar en la ventana real de Tauri:**
   - que `set_ignore_cursor_events` deje pasar los clics sin parpadeo (en Windows prende `WS_EX_TRANSPARENT | WS_EX_LAYERED`);
@@ -693,6 +692,6 @@ Cada fase es un corte revisable de unas 400 líneas. Todas las fases deben dejar
 | **F3 · Avis** | `avis.js` (generador y `poseAvi`) y `avis.css`; colores de `ELENCO`; se borran `mascotas.js` y `sala.js`; se divide `escena.js`; `tableroMotion.js` (entrada escalonada y cambio de proyecto). | Tests nuevos de `poseAvi` y del reparto entre visibles y "+n"; prueba de movimiento reducido y pausa. |
 | **F4 · Muesca** | `acople` en `preferencias.rs` (leer, guardar y migrar); `geometria` con el monitor bajo el puntero; arrastre propio e imán; muesca por borde; abrir y cerrar con el observador pausado; golpe y luz; `muescaMotion.js`; menú "Acoplar a". Puede partirse en F4a (Rust y estado guardado) y F4b (interfaz y movimiento). | Tests de Rust de `preferencias`; tests puros del imán (distancia, borde y `lugar`); recorrer los cuatro bordes y la posición flotante. |
 | **F5 · Opcional** | Redibujo del ícono de la bandeja como Avi. **Solo si el usuario lo pide.** | `bandeja.test.js`. |
-| **Reservada** | "Esperando 1 proceso" (5.5), cuando el mod publique el dato y el usuario lo apruebe. | — |
+| **v0.6** | "Esperando 1 proceso" (5.5): pose, línea y título. La fila de proceso y el punto celeste de la muesca siguen sin decidir. | — |
 
 Al cerrar F2, F3 y F4, Delfina hace una revisión de diseño. Para eso hace falta ver la interfaz en un navegador con datos de prueba, porque Playwright no maneja la ventana de Tauri (ver los puntos abiertos en el informe).

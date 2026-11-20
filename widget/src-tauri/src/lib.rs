@@ -97,22 +97,43 @@ fn debe_sondear(acoplada: bool, visible: bool, mini: bool) -> bool {
 }
 
 /// Lo que sabe el sondeo: la zona que mandó la ventana (`toda`: arrastrando, toda la ventana), la
-/// escala de la ventana, si el puntero estaba adentro, si la ventana deja pasar los clics y cuántas
-/// veces cambió `dentro` (el `n` de cada evento, para descartar uno viejo).
+/// escala de la ventana, si el puntero estaba adentro, si la ventana ya sabe ese estado
+/// (`informado`), si deja pasar los clics y cuántos avisos se dieron (el `n` de cada evento, para
+/// descartar uno viejo).
 #[derive(Debug)]
 struct Puntero {
     zona: Option<Zona>,
     toda: bool,
     escala: f64,
     dentro: bool,
+    /// Falso al arrancar, con cada zona nueva y al volver a sondear: la próxima vuelta con zona
+    /// avisa el estado real aunque coincida con `dentro` (que arranca en "adentro" para tomar los
+    /// clics). Sin esto, con el puntero ya sobre la muesca al arrancar, el hover no abría nunca.
+    informado: bool,
     ignorando: bool,
     cambios: u64,
 }
 
 impl Default for Puntero {
     fn default() -> Self {
-        Puntero { zona: None, toda: false, escala: 1.0, dentro: true, ignorando: false, cambios: 0 }
+        Puntero { zona: None, toda: false, escala: 1.0, dentro: true, informado: false, ignorando: false, cambios: 0 }
     }
+}
+
+/// La zona nueva que mandó la ventana: la próxima vuelta avisa el estado real.
+fn poner_zona(p: &mut Puntero, zona: Zona, toda: bool, escala: f64) {
+    p.zona = Some(zona);
+    p.toda = toda;
+    p.escala = escala;
+    p.informado = false;
+}
+
+/// Al acoplar (otro borde, otro lugar o flotante) la zona vieja ya no vale: sin zona la ventana
+/// toma los clics y no avisa nada hasta que llegue la nueva.
+fn olvidar_zona(p: &mut Puntero) {
+    p.zona = None;
+    p.toda = false;
+    p.informado = false;
 }
 
 /// Lo que hay que hacer después de mirar el puntero: avisar a la ventana (`dentro`, `n`) y prender o
@@ -125,10 +146,13 @@ struct Paso {
 
 /// Mira el puntero y actualiza `p`. Sin sondeo, la ventana vuelve a tomar los clics. Sin zona todavía
 /// o arrastrando, el puntero cuenta como adentro (nunca deja pasar los clics sin saber dónde está la
-/// muesca). Sin posición del puntero no cambia nada.
+/// muesca); sin zona tampoco avisa nada. Sin posición del puntero no cambia nada. Con zona avisa
+/// cuando `dentro` cambia y, una vez, el primer estado después de una zona nueva o de volver a sondear.
 fn evaluar(p: &mut Puntero, cursor: Option<(f64, f64)>, sondea: bool) -> Paso {
     let mut paso = Paso::default();
     if !sondea {
+        // Mientras nadie mira, el puntero puede moverse: al volver se avisa lo que haya
+        p.informado = false;
         if p.ignorando {
             p.ignorando = false;
             paso.ignorar = Some(false);
@@ -141,11 +165,12 @@ fn evaluar(p: &mut Puntero, cursor: Option<(f64, f64)>, sondea: bool) -> Paso {
         (Some(z), Some(c)) => dentro_de_zona(c, &z, p.escala),
         (Some(_), None) => return paso,
     };
-    if dentro != p.dentro {
-        p.dentro = dentro;
+    if p.zona.is_some() && (dentro != p.dentro || !p.informado) {
         p.cambios += 1;
+        p.informado = true;
         paso.avisar = Some((dentro, p.cambios));
     }
+    p.dentro = dentro;
     if p.ignorando == dentro {
         p.ignorando = !dentro;
         paso.ignorar = Some(!dentro);
@@ -554,6 +579,9 @@ fn guardar_acople(app: AppHandle, estado: State<'_, Estado>, borde: Option<Strin
         None => None,
     };
     *estado.acople.lock().unwrap() = acople;
+    // La zona del acople anterior ya no vale (ni "toda" de un arrastre): hasta que la ventana mande
+    // la nueva, toma los clics; con la nueva, el sondeo avisa el estado real en su primera vuelta
+    olvidar_zona(&mut estado.puntero.lock().unwrap_or_else(PoisonError::into_inner));
     // Flotando, el sondeo se detiene y la ventana vuelve a tomar todos los clics; acoplada, arranca
     despertar(&estado);
     marcar_acople(&estado);
@@ -647,12 +675,8 @@ fn zona_interactiva(app: AppHandle, estado: State<'_, Estado>, x: f64, y: f64, a
     let zona = zona_valida(x, y, ancho, alto).ok_or("zona inválida")?;
     let escala = ventana(&app).ok_or("sin ventana")?.scale_factor().map_err(|e| e.to_string())?;
     let toda = toda.unwrap_or(false);
-    {
-        let mut p = estado.puntero.lock().unwrap();
-        p.zona = Some(zona);
-        p.toda = toda;
-        p.escala = escala;
-    }
+    // Una zona nueva: la próxima vuelta del sondeo avisa el estado real aunque no haya cambiado
+    poner_zona(&mut estado.puntero.lock().unwrap(), zona, toda, escala);
     despertar(&estado);
     Ok(toda || cursor_fisico(&app).is_none_or(|c| dentro_de_zona(c, &zona, escala)))
 }
@@ -849,11 +873,71 @@ mod tests {
 
     #[test]
     fn sin_zona_la_ventana_toma_los_clics() {
-        // Hasta que la ventana diga su zona, nunca deja pasar los clics
+        // Hasta que la ventana diga su zona, nunca deja pasar los clics ni avisa nada
         let mut p = Puntero::default();
         let paso = evaluar(&mut p, Some((5000.0, 5000.0)), true);
         assert_eq!(paso.ignorar, None);
+        assert_eq!(paso.avisar, None);
         assert!(p.dentro && !p.ignorando);
+    }
+
+    #[test]
+    fn al_arrancar_con_el_puntero_sobre_la_muesca_avisa_que_esta_adentro() {
+        // El sondeo arranca suponiendo "adentro" (toma los clics); el primer estado con zona se
+        // avisa igual, aunque coincida, porque la ventana todavía no sabe nada
+        let mut p = Puntero::default();
+        poner_zona(&mut p, ZONA, false, 1.0);
+        let paso = evaluar(&mut p, Some((150.0, 10.0)), true);
+        assert_eq!(paso.avisar, Some((true, 1)));
+        assert_eq!(paso.ignorar, None);
+        // Ya avisado, el mismo estado no se repite
+        assert_eq!(evaluar(&mut p, Some((160.0, 20.0)), true), Paso::default());
+    }
+
+    #[test]
+    fn cada_zona_nueva_avisa_una_vez_el_estado_real() {
+        let mut p = Puntero::default();
+        poner_zona(&mut p, ZONA, false, 1.0);
+        evaluar(&mut p, Some((150.0, 10.0)), true);
+        // Abrir, cerrar o reacomodar manda otra zona: la primera vuelta avisa lo que hay
+        poner_zona(&mut p, ZONA, false, 1.0);
+        assert_eq!(evaluar(&mut p, Some((150.0, 10.0)), true).avisar, Some((true, 2)));
+        poner_zona(&mut p, Zona { x: 0.0, y: 0.0, ancho: 50.0, alto: 50.0 }, false, 1.0);
+        let afuera = evaluar(&mut p, Some((150.0, 10.0)), true);
+        assert_eq!(afuera.avisar, Some((false, 3)));
+        assert_eq!(afuera.ignorar, Some(true));
+    }
+
+    #[test]
+    fn al_reacoplar_la_zona_vieja_se_olvida_hasta_que_llegue_la_nueva() {
+        let mut p = Puntero::default();
+        poner_zona(&mut p, ZONA, true, 1.0);
+        evaluar(&mut p, Some((10.0, 10.0)), true);
+        poner_zona(&mut p, ZONA, false, 1.0);
+        evaluar(&mut p, Some((10.0, 10.0)), true);
+        assert!(p.ignorando);
+        // guardar_acople: sin zona ni "toda", la ventana toma los clics y no avisa con datos viejos
+        olvidar_zona(&mut p);
+        assert_eq!(p.zona, None);
+        assert!(!p.toda);
+        let paso = evaluar(&mut p, Some((10.0, 10.0)), true);
+        assert_eq!(paso.ignorar, Some(false));
+        assert_eq!(paso.avisar, None);
+        // Llega la zona del borde nuevo con el puntero encima: avisa "adentro" aunque ya lo suponía
+        poner_zona(&mut p, ZONA, false, 1.0);
+        let adentro = evaluar(&mut p, Some((150.0, 10.0)), true);
+        assert_eq!(adentro.avisar.map(|(d, _)| d), Some(true));
+        assert_eq!(adentro.ignorar, None);
+    }
+
+    #[test]
+    fn al_volver_a_sondear_avisa_el_estado_real() {
+        // Escondida o en la tira el puntero se movió sin que nadie mirara: al volver, se avisa
+        let mut p = Puntero::default();
+        poner_zona(&mut p, ZONA, false, 1.0);
+        evaluar(&mut p, Some((150.0, 10.0)), true);
+        evaluar(&mut p, Some((150.0, 10.0)), false);
+        assert_eq!(evaluar(&mut p, Some((150.0, 10.0)), true).avisar, Some((true, 2)));
     }
 
     #[test]

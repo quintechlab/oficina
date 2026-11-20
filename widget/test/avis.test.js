@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { poseAvi, POSES, svgAvi, avi, desfase, defsAvis, CLAUDE, PERSONAJE_BASE } from '../src/avis.js'
-import { animoSesion, animoSubagente, personajeDeNombre, textoActividad, MS_FESTEJO } from '../src/logica.js'
+import { animoSesion, animoSubagente, personajeDeNombre, textoActividad, tituloActividad, MS_FESTEJO } from '../src/logica.js'
 
 const AHORA = Date.parse('2026-11-20T12:00:00Z')
 const hace = min => new Date(AHORA - min * 60000).toISOString()
@@ -22,12 +22,55 @@ test('poseAvi sigue la tabla 5.4: cada ánimo de sesión y de subagente tiene su
   assert.deepEqual(poseAvi('comando'), { pose: 'escribiendo', comando: true })
 })
 
-test('un ánimo desconocido o vacío queda esperando; "proceso" (5.5, reservado) no existe', () => {
+test('un ánimo desconocido o vacío queda esperando', () => {
   assert.deepEqual(poseAvi(undefined), { pose: 'esperando', comando: false })
   assert.deepEqual(poseAvi('raro'), { pose: 'esperando', comando: false })
-  assert.deepEqual(poseAvi('proceso'), { pose: 'esperando', comando: false })
-  assert.ok(!POSES.includes('proceso'))
-  assert.doesNotMatch(svgAvi(CLAUDE, 'proceso'), /class="e-proceso|giro/)
+})
+
+test('"proceso" (5.5): despierto, mira un anillo celeste que gira, sin porcentaje', () => {
+  assert.deepEqual(poseAvi('proceso'), { pose: 'proceso', comando: false })
+  assert.ok(POSES.includes('proceso'))
+  const svg = svgAvi(CLAUDE, 'proceso')
+  assert.match(svg, /class="e-proceso"/)
+  // El anillo: un riel oscuro y un arco celeste que gira (indeterminado: no dice cuánto falta)
+  assert.match(svg, /class="giro"[^>]*stroke="#7FB3FF"/)
+  // Ojos abiertos (despierto), sin zetas
+  assert.match(svg, /class="ojo"/)
+  assert.doesNotMatch(svg, /class="z/)
+})
+
+test('la pose de Claude con procesos en segundo plano: los espera solo cuando no hace otra cosa', () => {
+  const s = { sesion: 'a', actualizado: hace(0), actividad: 'esperando 1 proceso', procesos: [{ id: 'b1', descripcion: 'Arma el instalador', desde: hace(2) }] }
+  const dos = [...s.procesos, { id: 'b2', descripcion: 'npm run dev', desde: hace(1) }]
+  const trabajando = { id: '1', nombre: 'Lucas', estado: 'trabajando', desde: hace(2) }
+  const pregunta = { id: 'p', agente: null, items: [{ pregunta: '¿?' }] }
+  const caso = (x, pose, linea) => {
+    assert.equal(poseAvi(animoSesion(x, AHORA)).pose, pose)
+    assert.equal(textoActividad(x, AHORA), linea)
+  }
+  // 1) pregunta propia y 2) equipo trabajando siguen ganando
+  caso({ ...s, preguntas: [pregunta] }, 'teEspera', 'ahora · te hace una pregunta')
+  caso({ ...s, agentes: [trabajando] }, 'coordinando', 'ahora · coordinando el equipo')
+  // 3) procesos pendientes, antes que "esperando tu mensaje"
+  caso(s, 'proceso', 'ahora · esperando 1 proceso')
+  caso({ ...s, actividad: 'esperándote', procesos: dos }, 'proceso', 'ahora · esperando 2 procesos')
+  caso({ ...s, actividad: null }, 'proceso', 'ahora · esperando 1 proceso')
+  // Una sesión que ya no publica hace rato sigue esperando su proceso, no se duerme
+  caso({ ...s, actualizado: hace(25) }, 'proceso', 'ahora · esperando 1 proceso')
+  // Si Claude está haciendo otra cosa, se ve eso (un servidor de desarrollo no tapa todo)
+  caso({ ...s, actividad: 'editando main.js' }, 'escribiendo', 'ahora · editando main.js')
+  // Sin procesos: lo de siempre
+  caso({ ...s, actividad: 'esperándote', procesos: [] }, 'esperando', 'ahora · esperando tu mensaje')
+  // Lo que publica el mod sin la lista (un compañero leído de GitHub): la línea basta
+  caso({ sesion: 'b', actualizado: hace(0), actividad: 'esperando 2 procesos' }, 'proceso', 'ahora · esperando 2 procesos')
+})
+
+test('los procesos de la sesión se nombran en el título de su línea', () => {
+  const s = { sesion: 'a', actualizado: hace(0), actividad: 'esperando 2 procesos', procesos: [{ id: 'b1', descripcion: 'Arma el instalador', desde: hace(2) }, { id: 'b2', descripcion: 'npm run dev', desde: hace(1) }] }
+  assert.equal(tituloActividad(s, AHORA), 'Arma el instalador · hace 2 min\nnpm run dev · hace 1 min')
+  // Sin procesos, el título es la actividad tal cual
+  assert.equal(tituloActividad({ ...s, procesos: [], actividad: 'editando main.js' }, AHORA), 'editando main.js')
+  assert.equal(tituloActividad({ sesion: 'c' }, AHORA), '')
 })
 
 test('la pose de Claude respeta la prioridad de la línea: pregunta, equipo, "esperándote", actividad', () => {

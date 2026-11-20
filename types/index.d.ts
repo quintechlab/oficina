@@ -33,6 +33,18 @@ export type Presencia = {
   preguntas?: Pregunta[]
   /** Esta sesión acepta respuestas del widget de escritorio (archivo en ~/.claude/oficina/respuestas). Desde la v0.5. */
   puedeResponder?: boolean
+  /** Procesos en segundo plano de la sesión (Bash con run_in_background) que todavía no avisaron que terminaron. Desde la v0.6. */
+  procesos?: Proceso[]
+}
+
+/** Un proceso en segundo plano lanzado por la sesión. */
+export type Proceso = {
+  /** Id de la tarea que da el motor (`backgroundTaskId`, el `<task-id>` de su aviso). */
+  id: string
+  /** La descripción del comando, o el comando, recortada a 80 caracteres. */
+  descripcion: string
+  /** Cuándo arrancó (ISO). */
+  desde: string
 }
 
 /** Un subagente lanzado por una sesión. */

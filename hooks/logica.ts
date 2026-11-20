@@ -1,6 +1,6 @@
 // Funciones puras del mod "oficina": sin acceso al motor, fáciles de probar.
 
-import type { Ci, ComentarioPresencia, ItemPregunta, Miembro, Pregunta, Presencia, RespuestaWidget, Subagente, Tarea } from '../types'
+import type { Ci, ComentarioPresencia, ItemPregunta, Miembro, Pregunta, Presencia, Proceso, RespuestaWidget, Subagente, Tarea } from '../types'
 
 /** Horas máximas por talle, según el acuerdo (S: hasta medio día; M: hasta 2 días). */
 export const HORAS_POR_TALLE: Record<'S' | 'M', number> = { S: 4, M: 16 }
@@ -74,7 +74,14 @@ function normalizar(d: Partial<Presencia>, sesionPorDefecto: string): Presencia 
     ...(typeof d.actividad === 'string' ? { actividad: d.actividad } : {}),
     ...(Array.isArray(d.agentes) ? { agentes: d.agentes.filter(esSubagente) } : {}),
     ...(Array.isArray(d.preguntas) ? { preguntas: d.preguntas.filter(esPregunta) } : {}),
+    // Campo de la v0.6
+    ...(Array.isArray(d.procesos) ? { procesos: d.procesos.filter(esProceso) } : {}),
   }
+}
+
+function esProceso(p: unknown): p is Proceso {
+  const q = p as Partial<Proceso> | null
+  return !!q && typeof q.id === 'string' && typeof q.descripcion === 'string' && typeof q.desde === 'string'
 }
 
 function esSubagente(s: unknown): s is Subagente {
@@ -305,6 +312,80 @@ export function podarSubagentes(lista: readonly Subagente[], ahoraMs: number): S
   const trabajando = vivos.filter(s => s.estado === 'trabajando')
   const terminados = vivos.filter(s => s.estado !== 'trabajando')
   return [...trabajando, ...terminados].slice(0, MAX_SUBAGENTES)
+}
+
+// ------------------------------------------------------------------ procesos en segundo plano (v0.6)
+
+/** Pasadas estas horas sin su aviso, un proceso se olvida (red de seguridad: el aviso nunca llegó). */
+export const HORAS_PROCESO = 2
+const LARGO_DESCRIPCION_PROCESO = 80
+const ID_TAREA = /^[A-Za-z0-9_-]{1,64}$/
+
+const idValido = (id: unknown): string | null => (typeof id === 'string' && ID_TAREA.test(id) ? id : null)
+
+/**
+ * El id de la tarea en segundo plano que dejó una llamada a Bash (o PowerShell): el
+ * `backgroundTaskId` de su registro o, si no viene, el del texto que lee el modelo ("Command
+ * running in background with ID: b9fejzkst. …"). null para un comando en primer plano, un rechazo
+ * o cualquier cosa con otra forma.
+ */
+export function idProcesoDesdeResultado(resultado: unknown): string | null {
+  const r = resultado as { result?: unknown; text?: unknown } | null
+  if (!r || typeof r !== 'object') return null
+  const registro = r.result as { backgroundTaskId?: unknown } | null | undefined
+  if (registro && typeof registro === 'object' && registro.backgroundTaskId !== undefined) return idValido(registro.backgroundTaskId)
+  if (typeof r.text !== 'string') return null
+  return idValido(/\bin background with ID:\s*([A-Za-z0-9_-]+)/i.exec(r.text)?.[1])
+}
+
+/** El proceso de una llamada en segundo plano: su descripción (o la primera línea del comando), recortada. */
+export function procesoDesdeEntrada(id: string, entrada: Readonly<Record<string, unknown>>, desde: string): Proceso {
+  const descripcion = typeof entrada.description === 'string' && entrada.description.trim()
+    ? entrada.description
+    : String(entrada.command ?? '').split('\n')[0] ?? ''
+  const limpio = descripcion.replace(/\s+/g, ' ').trim()
+  const corto = limpio.length > LARGO_DESCRIPCION_PROCESO ? `${limpio.slice(0, LARGO_DESCRIPCION_PROCESO - 1)}…` : limpio
+  return { id, descripcion: corto || 'proceso en segundo plano', desde }
+}
+
+/**
+ * Los avisos de tareas en el texto de un prompt con origen `task-notification`: el `<task-id>` y
+ * el `<status>` de cada `<task-notification>` (pueden llegar varios juntos).
+ */
+export function avisosDeTareas(texto: string): { id: string; estado: string | null }[] {
+  const avisos: { id: string; estado: string | null }[] = []
+  for (const bloque of texto.split(/<task-notification>/i).slice(1)) {
+    const id = idValido(/<task-id>\s*([^<]*?)\s*<\/task-id>/i.exec(bloque)?.[1])
+    if (!id) continue
+    const estado = /<status>\s*([^<]*?)\s*<\/status>/i.exec(bloque)?.[1]?.toLowerCase() || null
+    avisos.push({ id, estado })
+  }
+  return avisos
+}
+
+/** ¿El aviso dice que la tarea terminó? Todo menos "running" o "pending" (sin estado también). */
+export function tareaTerminada(estado: string | null): boolean {
+  return estado !== 'running' && estado !== 'pending'
+}
+
+/** Los procesos que siguen: los de hace menos de 2 h, con fecha válida. */
+export function podarProcesos(lista: readonly Proceso[], ahoraMs: number): Proceso[] {
+  const limite = ahoraMs - HORAS_PROCESO * 3600000
+  return lista.filter(p => {
+    const desde = Date.parse(p.desde)
+    return !Number.isNaN(desde) && desde >= limite
+  })
+}
+
+/** Qué hace la sesión cuando terminó su turno: espera sus procesos o tu mensaje. */
+export function actividadEnEspera(procesos: number): string {
+  if (procesos <= 0) return 'esperándote'
+  return `esperando ${procesos} ${procesos === 1 ? 'proceso' : 'procesos'}`
+}
+
+/** ¿La sesión está esperando (y no haciendo algo)? Solo entonces la cuenta de procesos cambia la actividad. */
+export function esActividadEnEspera(actividad: string | null): boolean {
+  return actividad === 'esperándote' || (!!actividad && /^esperando \d+ procesos?$/.test(actividad))
 }
 
 /** Rutas de `git status --porcelain` (cambios sin commitear y archivos nuevos). */

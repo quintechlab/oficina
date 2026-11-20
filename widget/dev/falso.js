@@ -14,8 +14,9 @@
 //   ?envio=ya     la pregunta desaparece sin tomar el archivo: "Ya se respondió en Claude."
 //   ?envio=error  el comando responder falla: "Respondé en Claude…" al instante
 //   (sin ?envio, el archivo queda pendiente y a los 5 s pide responder en Claude)
+//   ?procesos     central-nucleo espera dos procesos en segundo plano (pose "proceso", v0.6)
 //   ?poses        recorre los Avis: "poses" tiene una sesión por estado de Claude (editando,
-//                 comando, leyendo, pensando, esperándote, inactiva); "elenco" coordina a los cinco
+//                 comando, leyendo, pensando, esperándote, proceso, inactiva); "elenco" coordina a los cinco
 //                 subagentes (escribiendo, leyendo, listo y falló recién, dormido; 4 fichas y "+1")
 //   ?pausa        arranca con "Pausar animaciones" marcado, como desde la bandeja
 //   ?acople=arriba&lugar=0.5  arranca acoplada (arriba, derecha, abajo o izquierda), como si estuviera guardado
@@ -104,6 +105,15 @@
       }],
     })
   }
+  // ?procesos: la sesión de central-nucleo terminó su turno y espera dos procesos en segundo plano (v0.6)
+  if (url.has('procesos')) {
+    const nucleo = SESIONES.find(s => s.sesion === 'ses-nucleo')
+    nucleo.actividad = 'esperando 2 procesos'
+    nucleo.procesos = [
+      { id: 'bvista1', descripcion: 'Arma el instalador del widget', desde: hace(3) },
+      { id: 'bvista2', descripcion: 'npm run dev', desde: hace(1) },
+    ]
+  }
   /** Preguntas que el falso da por tomadas (?envio=listo) o respondidas en Claude (?envio=ya). */
   const tomadas = new Set()
   const sinTomadas = () => SESIONES.map(s => ({ ...s, preguntas: (s.preguntas ?? []).filter(p => !tomadas.has(p.id)) }))
@@ -124,6 +134,7 @@
       ses('p-leyendo', 'quintechlab/poses', 'leyendo logica.js'),
       ses('p-pensando', 'quintechlab/poses', 'pensando'),
       ses('p-esperando', 'quintechlab/poses', 'esperándote'),
+      ses('p-proceso', 'quintechlab/poses', 'esperando 1 proceso', { procesos: [{ id: 'bposes1', descripcion: 'Arma el instalador del widget', desde: hace(2) }] }),
       ses('p-inactiva', 'quintechlab/poses', 'editando main.js', { actualizado: hace(25) }),
       ses('e-equipo', 'quintechlab/elenco', 'lanzando Camila', {
         rama: 'feat/12-estilo-avis', tarea: 12,
@@ -198,7 +209,7 @@
   const emitir = (nombre, payload) => { for (const f of oyentes[nombre] ?? []) f({ payload }) }
 
   // ---- zona interactiva (9.6): imita el sondeo de Rust y el paso de los clics
-  const zonaSt = { zona: null, toda: false, dentro: true, n: 0, punto: null, desfase: null }
+  const zonaSt = { zona: null, toda: false, dentro: true, informado: false, n: 0, punto: null, desfase: null }
   /** Acoplada y fuera de la tira: como `debe_sondear` (la vista no se esconde). */
   const sondea = () => !!acople && !previo
   /** Como `evaluar`: sin zona o arrastrando cuenta como adentro; el borde derecho y el de abajo, afuera. */
@@ -209,14 +220,16 @@
   }
   const evaluarZona = () => {
     if (!marco) return
-    if (!sondea()) { marco.style.pointerEvents = ''; return }
+    if (!sondea()) { zonaSt.informado = false; marco.style.pointerEvents = ''; return }
     if (!zonaSt.punto) return
     const d = adentro(zonaSt.punto)
-    if (d !== zonaSt.dentro) {
-      zonaSt.dentro = d
+    // Como Rust: con zona, avisa cada cambio y, una vez, el primer estado tras una zona nueva
+    if (zonaSt.zona && (d !== zonaSt.dentro || !zonaSt.informado)) {
       zonaSt.n++
+      zonaSt.informado = true
       emitir('oficina://puntero-zona', { dentro: d, n: zonaSt.n })
     }
+    zonaSt.dentro = d
     // Fuera de la zona, el clic pasa al escritorio (vista.html)
     marco.style.pointerEvents = d ? '' : 'none'
     window.__puntero = { ...zonaSt.punto, dentro: d }
@@ -260,12 +273,14 @@
       acople = borde ? { borde, lugar } : null
       window.__acople = acople
       console.info('[acople]', JSON.stringify(acople))
-      // Flotando, la ventana vuelve a tomar todos los clics
+      // Como olvidar_zona: la zona vieja no vale; flotando, la ventana vuelve a tomar todos los clics
+      Object.assign(zonaSt, { zona: null, toda: false, informado: false })
       evaluarZona()
     },
     zona_interactiva: ({ x, y, ancho, alto, toda }) => {
       zonaSt.zona = { x, y, ancho, alto }
       zonaSt.toda = !!toda
+      zonaSt.informado = false
       window.__zona = { ...zonaSt.zona, toda: zonaSt.toda }
       // Como Rust: devuelve si el puntero está adentro ahora; el aviso lo da el "sondeo"
       const d = adentro(zonaSt.punto)

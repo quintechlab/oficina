@@ -7,7 +7,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { ComentarioPresencia, Info, Miembro, Pr, Pregunta, Presencia, Subagente, Tarea } from '../types'
+import type { ComentarioPresencia, Info, Miembro, Pr, Pregunta, Presencia, Proceso, Subagente, Tarea } from '../types'
 import {
   actividadDesdeHerramienta,
   carreraConDialogo,
@@ -15,6 +15,13 @@ import {
   vigilarRespuesta,
   nombreSubagente,
   podarSubagentes,
+  idProcesoDesdeResultado,
+  procesoDesdeEntrada,
+  avisosDeTareas,
+  tareaTerminada,
+  podarProcesos,
+  actividadEnEspera,
+  esActividadEnEspera,
   preguntaDesdeEntrada,
   latidoLocal,
   ciDesdeRollup,
@@ -76,6 +83,8 @@ const cacheTareas = new Map<string, { en: number; tarea: Tarea }>()
 let actividad: string | null = null
 const subagentes = new Map<string, Subagente>()
 const preguntas = new Map<string, Pregunta>()
+/** Procesos en segundo plano de esta sesión que todavía no avisaron que terminaron (v0.6), por id de tarea. */
+const procesos = new Map<string, Proceso>()
 let publicacionPendiente: Timer | null = null
 let cola: Promise<void> = Promise.resolve()
 const ESPERA_PUBLICACION_MS = 15000
@@ -208,6 +217,8 @@ async function publicar($: EngineInterface, forzar = false, ausente?: boolean): 
     preguntas: [...preguntas.values()],
     // Desde la v0.5 el widget puede responder las preguntas de esta sesión
     puedeResponder: true,
+    // Desde la v0.6: los procesos en segundo plano que la sesión espera (los de más de 2 h se olvidan)
+    procesos: podarVivos(ahoraMs),
   }
   await escribirEstadoLocal($, p)
   // Sin cambios de fondo desde la última vez: no gastar llamadas (el latido igual publica cada 5 min)
@@ -277,6 +288,42 @@ function publicarPronto($: EngineInterface): void {
     publicacionPendiente = null
     cola = cola.then(() => publicar($)).catch(() => undefined)
   })
+}
+
+/** Los procesos que siguen vivos (olvida los de más de 2 h sin aviso) y, si la sesión espera, su cuenta. */
+function podarVivos(ahoraMs: number): Proceso[] {
+  const vivos = podarProcesos([...procesos.values()], ahoraMs)
+  if (vivos.length !== procesos.size) {
+    const ids = new Set(vivos.map(p => p.id))
+    for (const id of procesos.keys()) if (!ids.has(id)) procesos.delete(id)
+    refrescarEspera()
+  }
+  return vivos
+}
+
+/** Si la sesión está esperando, "esperando N procesos" o "esperándote" según cuántos quedan. */
+function refrescarEspera(): void {
+  if (esActividadEnEspera(actividad)) actividad = actividadEnEspera(procesos.size)
+}
+
+/** Anota el proceso si la llamada de la sesión quedó corriendo en segundo plano. Nunca tira. */
+async function anotarProceso($: EngineInterface, e: { agentId?: string }, resultado: unknown): Promise<void> {
+  try {
+    if (e.agentId !== undefined) return
+    const id = idProcesoDesdeResultado(resultado)
+    if (!id) return
+    procesos.set(id, procesoDesdeEntrada(id, e as unknown as Readonly<Record<string, unknown>>, new Date(await $.clock.now()).toISOString()))
+    publicarPronto($)
+  } catch {
+    // Observar nunca rompe la llamada
+  }
+}
+
+/** Un proceso terminó (su aviso o TaskStop): sale de la lista y se publica pronto. */
+function quitarProceso($: EngineInterface, id: string): void {
+  if (!procesos.delete(id)) return
+  refrescarEspera()
+  publicarPronto($)
 }
 
 /** Saca la entrada de una sesión al cerrarla; mis otras sesiones abiertas siguen publicando la suya. */
@@ -536,12 +583,51 @@ export const register: Register = (on, options) => {
     }
   })
 
-  // Cambio de rama con git: la tarea puede haber cambiado.
+  // ---- Procesos en segundo plano (v0.6): los Bash (o PowerShell) que siguen corriendo después de
+  // responder, hasta que llega su aviso o se detienen con TaskStop. Solo los de la sesión: el aviso
+  // del proceso de un subagente le llega a él. Observan y nunca cambian lo que pasa: si el mod
+  // falla, el comando y el prompt siguen igual (`next` es seguro de repetir en el .catch).
+
+  // Cambio de rama con git: la tarea puede haber cambiado. Y un comando en segundo plano (v0.6).
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const resultado = await next(e)
     if (e.tool === 'Bash' && /\bgit\s+(switch|checkout)\b/.test(e.command)) void publicar($).catch(() => undefined)
+    await anotarProceso($, e, resultado)
     return resultado
   }).catch((_$, e, next) => next(e)) // nunca bloquea un comando: si el mod falla, el comando sigue
+
+  on('tool.call', { tool: 'PowerShell' }, async ($, e, next) => {
+    const resultado = await next(e)
+    await anotarProceso($, e, resultado)
+    return resultado
+  }).catch((_$, e, next) => next(e))
+
+  // Claude detuvo una tarea en segundo plano
+  on('tool.call', { tool: 'TaskStop' }, async ($, e, next) => {
+    const resultado = await next(e)
+    try {
+      const entrada = e as unknown as Readonly<Record<string, unknown>>
+      const id = typeof entrada.task_id === 'string' ? entrada.task_id : typeof entrada.shell_id === 'string' ? entrada.shell_id : null
+      if (id) quitarProceso($, id)
+    } catch {
+      // Observar nunca rompe la llamada
+    }
+    return resultado
+  }).catch((_$, e, next) => next(e))
+
+  // El aviso de una tarea terminada llega como un prompt con origen `task-notification` (cuando la
+  // sesión queda libre o adentro del turno en curso). `session.receive` no sirve: ahí llegan los
+  // eventos de un relay o un disparador, no los avisos de las tareas locales. El prompt pasa tal cual.
+  on('prompt.submit', async ($, e, next) => {
+    if (e.origin.kind === 'task-notification') {
+      try {
+        for (const aviso of avisosDeTareas(e.text)) if (tareaTerminada(aviso.estado)) quitarProceso($, aviso.id)
+      } catch {
+        // Un aviso con otra forma no cambia nada
+      }
+    }
+    return next(e)
+  }).catch((_$, e, next) => next(e))
 
   // ---- Agentes en paralelo (v0.4): qué hace la sesión, sus subagentes y sus preguntas.
   // Todos observan y nunca bloquean: si el mod falla, lo de Claude sigue igual.
@@ -571,7 +657,8 @@ export const register: Register = (on, options) => {
       subagentes.set(sub.id, { ...sub, estado: e.reason === 'answer' ? 'listo' : 'fallo', hasta })
       publicarPronto($)
     } else if (e.agentId === undefined) {
-      actividad = 'esperándote'
+      // Terminó el turno: espera sus procesos en segundo plano, si hay, o tu mensaje
+      actividad = actividadEnEspera(procesos.size)
       publicarPronto($)
     }
     return next(e)

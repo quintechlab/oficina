@@ -6,6 +6,7 @@
 import { animoMarca } from './tablero.js'
 import { avi, CLAUDE } from './avis.js'
 import { animoSesion, preguntasPendientes, escapar } from './logica.js'
+import { fueraDeLugar } from './tamano.js'
 
 /** Un borde a la vez (7). El orden desempata el imán en una esquina. */
 export const BORDES = ['arriba', 'derecha', 'abajo', 'izquierda']
@@ -351,6 +352,56 @@ export function siguiente(estado, evento) {
     default:
       return e
   }
+}
+
+/**
+ * El evento de la muesca para un aviso de la zona (`dentro`, del sondeo de Rust o del DOM), o null
+ * si la muesca ya lo sabe. Rust avisa el estado real con cada zona nueva aunque no haya cambiado:
+ * "adentro" entra solo si la muesca no lo sabía (al arrancar con el puntero encima, el hover abre);
+ * "afuera" sale si no lo sabía o si la muesca está sin armar, así un reacople con el puntero lejos
+ * deja el hover listo para la primera entrada.
+ */
+export function eventoZona(estado, dentro) {
+  if (dentro) return estado.dentro ? null : 'entra'
+  return !estado.dentro && estado.armado ? null : 'sale'
+}
+
+// ------------------------------------------------------------------ redimensionar sin parpadeo (9.6)
+
+/**
+ * Después de redimensionar, WebView2 deja la ventana transparente sin pintar hasta ~0,4 s: lo que
+ * se ve se esconde antes y vuelve recién cuando el nuevo tamaño ya se pintó (dos cuadros y este
+ * asiento, ajustable).
+ */
+export const ASIENTO_VELO_MS = 220
+/** Lo que tarda en volver a verse la muesca (o el tablero) después del velo. */
+export const REAPARECE_MS = 160
+
+/**
+ * Qué hacer con la ventana para llevarla de `actual` a `deseado` (px de pantalla): 'nada' si está
+ * en su lugar (abrir y cerrar no la tocan), 'mover' si solo cambia el lugar (no deja de pintarse) y
+ * 'velar' si cambia el tamaño, la forma de adentro (`cambiaForma`: otro borde, la píldora, el
+ * acople nuevo) o no se sabe cómo está: hay que esconder lo que se ve mientras se redimensiona.
+ */
+export function planVentana(actual, deseado, { cambiaForma = false } = {}) {
+  if (!actual) return 'velar'
+  if (!cambiaForma && !fueraDeLugar(actual, deseado)) return 'nada'
+  const mismoTamano = Math.round(actual.ancho) === Math.round(deseado.ancho) && Math.round(actual.alto) === Math.round(deseado.alto)
+  return mismoTamano && !cambiaForma ? 'mover' : 'velar'
+}
+
+/**
+ * Los pasos de un redimensionado velado: esconder al instante (sin transición), redimensionar,
+ * esperar dos cuadros y el asiento, y reaparecer en 160 ms. Sin movimiento (reducido o "Pausar
+ * animaciones") también se esconde y espera, pero reaparece al instante.
+ */
+export function secuenciaVelo(movimiento) {
+  return [
+    { paso: 'ocultar', ms: 0 },
+    { paso: 'ajustar' },
+    { paso: 'esperar', cuadros: 2, ms: ASIENTO_VELO_MS },
+    { paso: 'mostrar', ms: movimiento ? REAPARECE_MS : 0 },
+  ]
 }
 
 // ------------------------------------------------------------------ golpe (6.4)

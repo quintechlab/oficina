@@ -33,6 +33,14 @@ import {
   vigilarRespuesta,
   carreraConDialogo,
   resultadoDelWidget,
+  idProcesoDesdeResultado,
+  procesoDesdeEntrada,
+  avisosDeTareas,
+  tareaTerminada,
+  podarProcesos,
+  actividadEnEspera,
+  esActividadEnEspera,
+  HORAS_PROCESO,
 } from './logica'
 
 const PANE = {
@@ -189,6 +197,76 @@ test('los subagentes de una sesión viajan en su entrada, y una entrada sin suba
   expect(extraerComentario(envolverComentario(c))?.sesiones[0]?.agentes).toEqual(agentes)
   // Lo que publica la v0.3.1 no trae el campo
   expect(extraerComentario(envolverComentario(ponerSesion(null, presencia({}), ahora)))?.sesiones[0]?.agentes).toBe(undefined)
+})
+
+// ------------------------------------------------------------------ procesos en segundo plano (v0.6)
+
+test('los procesos de una sesión viajan en su entrada, y una entrada sin procesos se sigue leyendo', async () => {
+  const ahora = Date.parse(AHORA)
+  const procesos = [{ id: 'b9fejzkst', descripcion: 'Arma el instalador', desde: '2026-11-12T16:58:00.000Z' }]
+  const c = ponerSesion(null, presencia({ procesos, agentes: [], actividad: 'esperando 1 proceso' }), ahora)
+  const leida = extraerComentario(envolverComentario(c))?.sesiones[0]
+  expect(leida?.procesos).toEqual(procesos)
+  // Los demás campos siguen igual
+  expect(leida?.actividad).toBe('esperando 1 proceso')
+  expect(leida?.agentes).toEqual([])
+  // Lo que publica la v0.5 no trae el campo; uno mal formado se descarta entero
+  expect(extraerComentario(envolverComentario(ponerSesion(null, presencia({}), ahora)))?.sesiones[0]?.procesos).toBe(undefined)
+  const roto = { ...presencia({}), procesos: [{ id: 3 }, { id: 'ok', descripcion: 'x', desde: AHORA }, null] }
+  const cuerpo = `<!-- oficina:presencia -->\n\`\`\`json\n${JSON.stringify({ v: 2, usuario: 'campos', nombre: 'Campos', ausente: false, actualizado: AHORA, sesiones: [roto] })}\n\`\`\``
+  expect(extraerComentario(cuerpo)?.sesiones[0]?.procesos).toEqual([{ id: 'ok', descripcion: 'x', desde: AHORA }])
+})
+
+test('el id del proceso en segundo plano sale del resultado de Bash, o de su texto', async () => {
+  // El registro de Bash trae backgroundTaskId (también si el usuario lo mandó atrás con Ctrl+B)
+  expect(idProcesoDesdeResultado({ result: { stdout: '', stderr: '', interrupted: false, backgroundTaskId: 'b9fejzkst' }, text: '' })).toBe('b9fejzkst')
+  // Sin registro, del texto que lee el modelo
+  expect(idProcesoDesdeResultado({ text: 'Command running in background with ID: b9fejzkst. Output is being written to: C:\\tmp\\b9fejzkst.output' })).toBe('b9fejzkst')
+  // Un comando en primer plano, un rechazo o algo raro: nada
+  expect(idProcesoDesdeResultado({ result: { stdout: 'ok', stderr: '', interrupted: false }, text: 'ok' })).toBe(null)
+  expect(idProcesoDesdeResultado({ deny: 'no' })).toBe(null)
+  expect(idProcesoDesdeResultado(null)).toBe(null)
+  expect(idProcesoDesdeResultado({ result: { backgroundTaskId: '../../etc' }, text: '' })).toBe(null)
+  expect(idProcesoDesdeResultado({ text: 'background with ID: ' })).toBe(null)
+})
+
+test('el proceso guarda su descripción (o el comando), recortada, y desde cuándo', async () => {
+  expect(procesoDesdeEntrada('b1', { command: 'npm run build', description: 'Arma el instalador' }, AHORA)).toEqual({ id: 'b1', descripcion: 'Arma el instalador', desde: AHORA })
+  expect(procesoDesdeEntrada('b2', { command: 'npm   run dev\n# otra línea' }, AHORA).descripcion).toBe('npm run dev')
+  expect(procesoDesdeEntrada('b3', { command: 'x'.repeat(200) }, AHORA).descripcion.length).toBeLessThanOrEqual(80)
+  expect(procesoDesdeEntrada('b4', {}, AHORA).descripcion).toBe('proceso en segundo plano')
+})
+
+test('el aviso de una tarea terminada trae su id y su estado', async () => {
+  const aviso = '<task-notification>\n<task-id>b9fejzkst</task-id>\n<tool-use-id>toolu_1</tool-use-id>\n<status>completed</status>\n<summary>Background command "Arma" completed (exit code 0)</summary>\n</task-notification>'
+  expect(avisosDeTareas(aviso)).toEqual([{ id: 'b9fejzkst', estado: 'completed' }])
+  // Varios avisos juntos, uno sin estado
+  const dos = `${aviso}\n<task-notification><task-id>otro_1</task-id></task-notification>`
+  expect(avisosDeTareas(dos)).toEqual([{ id: 'b9fejzkst', estado: 'completed' }, { id: 'otro_1', estado: null }])
+  expect(avisosDeTareas('hola, sin aviso')).toEqual([])
+  // Terminó: completed, failed, killed o sin estado; sigue: running o pending
+  expect(['completed', 'failed', 'killed', null].map(tareaTerminada)).toEqual([true, true, true, true])
+  expect(['running', 'pending'].map(tareaTerminada)).toEqual([false, false])
+})
+
+test('un proceso sin aviso se olvida a las 2 h', async () => {
+  const ahora = Date.parse(AHORA)
+  const hace = (min: number) => new Date(ahora - min * 60000).toISOString()
+  const lista = [
+    { id: 'nuevo', descripcion: 'a', desde: hace(5) },
+    { id: 'viejo', descripcion: 'b', desde: hace(HORAS_PROCESO * 60 + 1) },
+    { id: 'roto', descripcion: 'c', desde: 'no es fecha' },
+  ]
+  expect(podarProcesos(lista, ahora).map(p => p.id)).toEqual(['nuevo'])
+})
+
+test('sin nada más que hacer, la sesión espera sus procesos o tu mensaje', async () => {
+  expect(actividadEnEspera(0)).toBe('esperándote')
+  expect(actividadEnEspera(1)).toBe('esperando 1 proceso')
+  expect(actividadEnEspera(3)).toBe('esperando 3 procesos')
+  // Solo se recalcula si la sesión estaba esperando: una actividad en curso no se pisa
+  expect(['esperándote', 'esperando 1 proceso', 'esperando 2 procesos'].every(esActividadEnEspera)).toBe(true)
+  expect([null, 'pensando', 'corriendo npm run dev', 'editando a.ts'].some(esActividadEnEspera)).toBe(false)
 })
 
 test('el nombre del subagente sale de su descripción "Nombre — tarea"', async () => {

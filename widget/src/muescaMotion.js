@@ -4,6 +4,7 @@
 // "Pausar animaciones" todo pasa al instante y no hay golpe (6.5).
 
 import { hayMovimiento } from './tableroMotion.js'
+import { secuenciaVelo } from './muesca.js'
 
 export const ABRE_MS = 720
 export const CIERRA_MS = 480
@@ -78,6 +79,66 @@ export async function plegar(marco, recorte) {
   const anim = marco.animate([{ clipPath: 'inset(0px 0px 0px 0px round 26px)' }, { clipPath: recorte, opacity: 0.4 }], { duration: PLIEGA_MS, easing: EASE_CIERRA, fill: 'forwards' })
   await fin(anim)
   return () => anim.cancel()
+}
+
+// ---- velo para redimensionar (9.6): WebView2 deja la ventana transparente sin pintar después de
+// redimensionarla. Lo que se ve (muesca, luz, píldora, tablero y sus hombros) se esconde al
+// instante con `body.velada` (estilos.css) y vuelve cuando el tamaño nuevo ya se pintó.
+
+/** Lo que se esconde mientras la ventana cambia de tamaño. */
+const VELADOS = ['#muesca', '#marco', '#luz', '#pildora']
+/** Si nadie revela (un error en el medio), el velo se levanta solo a este tiempo. */
+const VELO_MAXIMO_MS = 1500
+let turnoVelo = 0
+let seguroVelo = null
+
+/** Un cuadro pintado; si el WebView no pinta (ventana escondida, sin cuadros), a los 100 ms igual sigue. */
+const CUADRO_MAXIMO_MS = 100
+const cuadro = () => new Promise(r => {
+  const t = setTimeout(r, CUADRO_MAXIMO_MS)
+  requestAnimationFrame(() => { clearTimeout(t); r() })
+})
+const espera = ms => new Promise(r => setTimeout(r, ms))
+
+/**
+ * Esconde al instante lo que se ve, antes de redimensionar (en la misma tarea que el cambio, así
+ * ningún cuadro muestra la ventana rota). Devuelve el turno, para `revelar`.
+ */
+export function velar() {
+  turnoVelo++
+  document.body.classList.add('velada')
+  const t = turnoVelo
+  clearTimeout(seguroVelo)
+  seguroVelo = setTimeout(() => revelar(t), VELO_MAXIMO_MS)
+  return t
+}
+
+/** ¿Hay un velo puesto? */
+export const velada = () => document.body.classList.contains('velada')
+
+/**
+ * Después de redimensionar: espera dos cuadros y el asiento (`secuenciaVelo`) y vuelve a mostrar
+ * lo velado, fundido en 160 ms (al instante sin movimiento). Si mientras tanto se veló otra vez
+ * (`turno` viejo), no hace nada: revela el último. Sin `turno`, el último.
+ */
+export async function revelar(turno = turnoVelo) {
+  if (!velada()) return
+  const pasos = secuenciaVelo(hayMovimiento())
+  const { cuadros, ms } = pasos.find(p => p.paso === 'esperar')
+  for (let i = 0; i < cuadros; i++) await cuadro()
+  await espera(ms)
+  if (turno !== turnoVelo || !velada()) return
+  clearTimeout(seguroVelo)
+  document.body.classList.remove('velada')
+  const fundido = pasos.find(p => p.paso === 'mostrar').ms
+  if (!fundido) return
+  // Desde transparente hasta lo que cada uno tenga (la luz queda en .75, la muesca oculta en 0)
+  const opciones = { duration: fundido, easing: 'ease-out' }
+  for (const sel of VELADOS) document.querySelector(sel)?.animate([{ opacity: 0 }], opciones)
+  // Los hombros del panel abierto (body::before y ::after)
+  try {
+    for (const pseudoElement of ['::before', '::after']) document.body.animate([{ opacity: 0 }], { ...opciones, pseudoElement })
+  } catch { /* sin animación de pseudoelementos: aparecen al instante */ }
 }
 
 /**

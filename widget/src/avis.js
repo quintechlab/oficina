@@ -6,8 +6,8 @@
 
 import { escapar, personajeDeNombre } from './logica.js'
 
-/** Poses que se dibujan. "proceso" (5.5) está reservada y no se implementa. */
-export const POSES = ['esperando', 'escribiendo', 'leyendo', 'pensando', 'coordinando', 'teEspera', 'durmiendo', 'inactiva', 'listo', 'fallo']
+/** Poses que se dibujan. "proceso" (5.5): espera procesos en segundo plano. */
+export const POSES = ['esperando', 'escribiendo', 'leyendo', 'pensando', 'coordinando', 'teEspera', 'durmiendo', 'inactiva', 'listo', 'fallo', 'proceso']
 
 /** El personaje de Claude: antena con foco, en ámbar. */
 export const CLAUDE = personajeDeNombre('Claude')
@@ -17,7 +17,7 @@ export const PERSONAJE_BASE = { pj: 'copete', color: '#F2B632' }
 const POSE_DE_ANIMO = {
   teEspera: 'teEspera', coordinando: 'coordinando', esperando: 'esperando', editando: 'escribiendo',
   comando: 'escribiendo', leyendo: 'leyendo', pensando: 'pensando', inactiva: 'inactiva',
-  escribiendo: 'escribiendo', listo: 'listo', fallo: 'fallo', durmiendo: 'durmiendo',
+  escribiendo: 'escribiendo', listo: 'listo', fallo: 'fallo', durmiendo: 'durmiendo', proceso: 'proceso',
   // heredados de escena.js
   comiendo: 'escribiendo', reposo: 'listo', saluda: 'esperando',
 }
@@ -87,6 +87,8 @@ function efectos(pose, c, comando) {
     case 'teEspera': return `<g class="burbuja"><path d="M86 6h18a9 9 0 0 1 9 9v6a9 9 0 0 1-9 9h-9l-7 7v-7a9 9 0 0 1-8-9v-6a9 9 0 0 1 9-9z" fill="#F2B632"/><text x="95" y="25.5" text-anchor="middle" font-family="Manrope,sans-serif" font-weight="800" font-size="17" fill="#000">!</text></g>`
     case 'durmiendo': case 'inactiva': return `<text class="z" x="86" y="44">z</text><text class="z z2" x="94" y="32" font-size="15">z</text><text class="z z3" x="103" y="18" style="font-size:18px">Z</text>`
     case 'listo': return `<path class="chispa" d="M20 34l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#F2B632"/><path class="chispa c2" d="M100 26l1.6 4 4 1.6-4 1.6-1.6 4-1.6-4-4-1.6 4-1.6z" fill="#8FD694"/><circle class="chispa c3" cx="104" cy="62" r="2.6" fill="#A58BFF"/><circle class="chispa c4" cx="16" cy="66" r="2.2" fill="#E78FB3"/>`
+    // Despierto, mira un anillo celeste que gira: indeterminado, sin porcentaje (5.5)
+    case 'proceso': return `<circle cx="103" cy="42" r="10" fill="none" stroke="#24242A" stroke-width="4"/><circle class="giro" cx="103" cy="42" r="10" fill="none" stroke="#7FB3FF" stroke-width="4" stroke-linecap="round" stroke-dasharray="20 43"/>`
     case 'fallo': return `<path d="M84 30q3-7 10-3q6-4 9 3" stroke="#8A8478" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M89 22l3 3m0-3l-3 3" stroke="#FF7A6B" stroke-width="2" stroke-linecap="round"/>`
     default: return ''
   }

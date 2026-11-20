@@ -99,7 +99,7 @@ El widget lee lo que escribe cada sesión en `%USERPROFILE%\.claude\oficina\sesi
 
 La ventana toma el ancho y el alto de lo que muestra (tablero, tarjeta de pregunta, equipo) y no se estira a mano; si no entra, queda en el 90 % de la pantalla y el contenido se desplaza. El tamaño va de 100 % (el original, el más chico) a 200 %, en pasos de 25 %: **Ctrl +** agranda, **Ctrl −** achica y **Ctrl 0** vuelve a 100 % con la ventana enfocada, o desde **Tamaño** en la bandeja (Agrandar, Achicar y el porcentaje actual). Todo crece junto, dibujo y texto; 100, 150 y 200 % quedan nítidos y 125 y 175 % pueden verse un poco suaves. El tamaño se recuerda, y la ventana vuelve a abrir donde estaba.
 
-En cada tarjeta, la línea de Claude dice "te hace una pregunta" solo si tiene una pregunta pendiente; si sus subagentes siguen trabajando, "coordinando el equipo"; si terminó su turno, "esperando tu mensaje". Los subagentes que terminaron (o fallaron) se duermen.
+En cada tarjeta, la línea de Claude dice "te hace una pregunta" solo si tiene una pregunta pendiente; si sus subagentes siguen trabajando, "coordinando el equipo"; si terminó su turno con procesos en segundo plano corriendo, "esperando 1 proceso" (desde la v0.6, con el anillo que gira y los procesos al pasar el mouse); si no, "esperando tu mensaje". Los subagentes que terminaron (o fallaron) se duermen.
 
 Solo puede haber una Oficina abierta por máquina: abrirla otra vez muestra la que ya está (aunque esté en la bandeja o en la tira mini).
 
