@@ -83,6 +83,8 @@ Vive en la bandeja de Windows: la × esconde la ventana y el ícono (la cabeza d
 
 Debajo, plegada, la habitación de cada compañero con su sesión principal, leída cada 60 s del Issue "Presencia" con el `gh` de la máquina (`gh api user` para saber quién sos). Sin `gh` o sin sesión, esa parte muestra un aviso de una línea y el resto sigue funcionando.
 
+Desde la versión 0.5 del mod, el globo también responde: tocás una opción (o las teclas 1–4 con el foco en el globo), marcás varias y "Enviar (n)", o escribís en "Otra respuesta". Solo se envía lo que tocás: no hay opción por defecto ni tiempo que elija solo, y si no tocás nada la pregunta sigue esperando en Claude como siempre. El widget deja la respuesta en `%USERPROFILE%\.claude\oficina\respuestas\<id>.json`; la sesión la valida (preguntas y opciones que existen) y se la entrega al modelo. Si a los 5 s la sesión no la tomó (respondiste antes en Claude, o el mod no está actualizado), el globo pide responder en Claude. Con una sesión que todavía corre una versión anterior del mod, el globo queda de solo lectura.
+
 Requisitos: Node, Rust (`rustup`, con MSVC) y WebView2 (viene con Windows 11).
 
 ```

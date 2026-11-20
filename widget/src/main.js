@@ -5,9 +5,10 @@
 import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, escapar } from './logica.js'
 import { companeros } from './equipo.js'
 import { iconoBandeja, textoInsignia } from './bandeja.js'
+import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
   prepararProyecto, firmaTerrario, terrario, lista, globo, avisoOtroProyecto, vacio, cabeza, CLAUDE,
-  carasMini, companero, firmaCompanero,
+  carasMini, companero, firmaCompanero, quienPregunta,
 } from './escena.js'
 
 const INTERVALO_MS = 1500
@@ -15,6 +16,16 @@ const INTERVALO_EQUIPO_MS = 60000
 const tauri = window.__TAURI__
 const $ = s => document.querySelector(s)
 const invocar = (comando, args) => tauri.core.invoke(comando, args)
+
+/** Una línea en ~/.claude/oficina/widget.log (diagnóstico). Nunca rompe nada. */
+function registrar(linea) {
+  if (!tauri?.core) return
+  invocar('registrar', { linea: String(linea) }).catch(() => {})
+}
+
+// Errores del frontend que de otro modo se pierden en silencio (los manejadores son async)
+window.addEventListener('error', e => registrar(`error: ${e.message} @ ${String(e.filename).split('/').pop()}:${e.lineno}`))
+window.addEventListener('unhandledrejection', e => registrar(`error: promesa rechazada: ${e.reason?.message ?? e.reason}`))
 
 const st = {
   sesiones: [],
@@ -41,6 +52,25 @@ const st = {
   /** Compañeros con la habitación desplegada, por usuario. */
   abiertos: new Set(),
   bandeja: null,
+  // ---- globo que responde (#4). Solo lo que el usuario toca se envía; nada se elige solo.
+  /** Respuestas ya elegidas de cada llamada (por id de pregunta), mientras faltan otras. */
+  borradores: {},
+  /** Opciones marcadas en la pregunta activa de selección múltiple. */
+  seleccion: new Set(),
+  /** Ítem (clave) en el que se marcó la selección múltiple. */
+  seleccionDe: null,
+  /** Tras pasar a la pregunta siguiente de una llamada, los clics se ignoran hasta acá (doble clic). */
+  bloqueoHasta: 0,
+  otra: false,
+  textoOtra: '',
+  plegado: false,
+  /** Envíos en curso o que no se tomaron, por id de pregunta. */
+  envios: {},
+  /** Preguntas que la sesión ya tomó: no se vuelven a mostrar aunque la publicación tarde. */
+  respondidas: new Set(),
+  /** Mensaje de "Listo, le respondiste…" mientras el globo se achica. */
+  hecho: null,
+  saliendo: false,
 }
 
 /** Pone el HTML solo si cambió su firma (por defecto, el propio HTML). */
@@ -143,12 +173,29 @@ function pintar() {
     st.direccion = 0
   }
 
-  const pend = preguntasPendientes(proyecto)
+  const pend = pendientesVisibles(proyecto)
   if (st.activa >= pend.length) st.activa = 0
-  const firmaGlobo = JSON.stringify([proyecto.repo, st.activa, pend.map(q => [q.clave, q.quien, q.item]), Math.floor(ahora / 60000)])
+  const ui = {
+    borradores: st.borradores, seleccion: st.seleccion, seleccionDe: st.seleccionDe, otra: st.otra, textoOtra: st.textoOtra,
+    envios: st.envios, plegado: st.plegado, hecho: st.hecho, saliendo: st.saliendo,
+  }
+  const firmaGlobo = JSON.stringify([
+    proyecto.repo, st.activa, pend.map(q => [q.clave, q.quien, q.item, q.responde]), Math.floor(ahora / 60000),
+    st.borradores, [...st.seleccion], st.otra, st.envios, st.plegado, st.hecho?.mensaje, st.saliendo,
+  ])
   const claves = pend.map(q => q.clave).join(',')
   const nuevo = st.firmas.clavesGlobo !== claves
-  if (poner('#w-globo', globo(pend, { activa: st.activa, pos: st.pos, nuevo, ahoraMs: ahora }), firmaGlobo)) st.firmas.clavesGlobo = claves
+  const visible = pend[st.activa]
+  const huellaGlobo = visible ? `${visible.clave}|${visible.responde}` : ''
+  if (visible && st.ultimoGloboLog !== huellaGlobo) {
+    st.ultimoGloboLog = huellaGlobo
+    registrar(`globo pregunta=${visible.pregunta?.id} item=${visible.indice} modo=${visible.responde ? 'interactivo' : 'solo-lectura'} sesion=${visible.sesion} items=${visible.pregunta?.items?.length ?? 1}`)
+  }
+  const escribiendo = document.activeElement?.id === 'g-otra-in'
+  if (poner('#w-globo', globo(pend, { activa: st.activa, pos: st.pos, nuevo, ahoraMs: ahora, ui }), firmaGlobo)) {
+    st.firmas.clavesGlobo = claves
+    if (escribiendo) enfocarOtra()
+  }
 
   poner('#lista', lista(proyecto, preparadas, ahora))
 }
@@ -190,10 +237,128 @@ async function leer() {
     st.error = null
     st.actualizado = new Date()
     await avisarNuevas()
+    await seguirEnvios()
   } catch (e) {
     st.error = `No se pudieron leer las sesiones: ${e}`
   }
   pintar()
+}
+
+// ------------------------------------------------------------------ responder desde el globo
+
+/** Preguntas del proyecto que se muestran: sin las que la sesión ya tomó. */
+function pendientesVisibles(proyecto) {
+  return preguntasPendientes(proyecto).filter(q => !st.respondidas.has(q.pregunta.id))
+}
+
+function reiniciarInteraccion() {
+  st.seleccion = new Set()
+  st.seleccionDe = null
+  st.otra = false
+  st.textoOtra = ''
+}
+
+/** `{ pregunta, item }` de un elemento dibujado con `data-pregunta` y `data-item`. */
+function destinoDe(el) {
+  if (!el?.dataset?.pregunta || el.dataset.item === undefined) return null
+  return { pregunta: el.dataset.pregunta, item: Number(el.dataset.item) }
+}
+
+/** La pregunta a la que apunta el botón tocado, solo si es la del globo que se ve y sigue pendiente. */
+function objetivo(boton) {
+  const proyecto = st.proyectos.find(p => p.repo === st.repo)
+  const pend = proyecto ? pendientesVisibles(proyecto) : []
+  const destino = destinoDe(boton), mostrado = destinoDe($('[data-globo]'))
+  const motivo = motivoRechazo(pend, destino, mostrado)
+  if (motivo) registrar(lineaClic({ pregunta: destino?.pregunta, item: destino?.item, decision: 'rechazado', motivo }))
+  return objetivoDelClic(pend, destino, mostrado)
+}
+
+function enfocarOtra() {
+  const campo = $('#g-otra-in')
+  if (!campo) return
+  campo.focus()
+  campo.setSelectionRange(campo.value.length, campo.value.length)
+}
+
+/**
+ * Lo que el usuario tocó en el globo. Si con eso la llamada tiene todas sus respuestas, se
+ * envía; si no, pasa a la pregunta que falta. Una llamada ya enviada no se vuelve a enviar.
+ */
+async function elegir(q, eleccion) {
+  if (!q) return
+  const id = q.pregunta.id
+  const r = registrarEleccion({ borradores: st.borradores, envios: st.envios, bloqueoHasta: st.bloqueoHasta }, q, eleccion, Date.now())
+  if (r.accion === 'nada') {
+    registrar(lineaClic({ pregunta: id, item: q.indice, decision: 'rechazado', motivo: r.motivo }))
+    return
+  }
+  registrar(lineaClic({ pregunta: id, item: q.indice, decision: r.accion, etiqueta: r.respuesta.valor, libre: r.respuesta.libre }))
+  st.borradores = r.estado.borradores
+  st.bloqueoHasta = r.estado.bloqueoHasta ?? st.bloqueoHasta
+  reiniciarInteraccion()
+  if (r.accion === 'avanzar') {
+    const k = pendientesVisibles(st.proyectos.find(p => p.repo === st.repo)).findIndex(x => x.pregunta.id === id && x.indice === r.falta)
+    if (k >= 0) st.activa = k
+    pintar()
+    return
+  }
+  const { cuerpo, borrador } = r
+  if (!cuerpo) return
+  const quien = quienPregunta(q)
+  st.envios[id] = {
+    estado: 'enviando', desde: Date.now(), texto: textoRespondido(q.pregunta, borrador),
+    quien: quien.nombre, pj: quien.pj, color: quien.color, mascota: q.agente ?? 'c-' + q.sesion,
+  }
+  pintar()
+  try {
+    await invocar('responder', { id, answers: cuerpo.answers, libres: cuerpo.libres })
+    registrar(`responder ${id} -> ok`)
+  } catch (err) {
+    registrar(`responder ${id} -> error: ${err}`)
+    st.envios[id] = { ...st.envios[id], estado: 'enClaude' }
+    pintar()
+  }
+}
+
+/** El globo festeja, se achica y se va. Solo cambia lo que se ve: no responde nada. */
+function mostrarHecho(hecho) {
+  st.hecho = hecho
+  st.saliendo = false
+  pintar()
+  setTimeout(() => { st.saliendo = true; pintar() }, 1600)
+  setTimeout(() => { st.hecho = null; st.saliendo = false; pintar() }, 1950)
+}
+
+/**
+ * Sigue cada respuesta enviada: listo cuando la sesión la tomó; si a los 5 s sigue sin tomarla
+ * (ganó el diálogo o el mod no corre), se pide responder en Claude y se borra el archivo.
+ */
+async function seguirEnvios() {
+  const vivas = new Set(st.sesiones.flatMap(s => (s.preguntas ?? []).map(p => p.id)))
+  for (const id of st.respondidas) if (!vivas.has(id)) st.respondidas.delete(id)
+  for (const [id, envio] of Object.entries(st.envios)) {
+    if (envio.estado !== 'enviando') {
+      if (!vivas.has(id)) delete st.envios[id]
+      continue
+    }
+    const archivo = await invocar('estado_respuesta', { id }).catch(() => 'ausente')
+    const estado = estadoEnvio({ archivo, sigue: vivas.has(id), ms: Date.now() - envio.desde })
+    if (estado === 'esperando') continue
+    registrar(`envio ${id} -> ${estado} (archivo=${archivo})`)
+    invocar('borrar_respuesta', { id }).catch(() => {})
+    delete st.borradores[id]
+    if (estado === 'listo') {
+      delete st.envios[id]
+      st.respondidas.add(id)
+      mostrarHecho({ ...envio, listo: true, mensaje: `Listo, le respondiste a ${envio.quien}: ${envio.texto}` })
+    } else if (estado === 'yaRespondida') {
+      delete st.envios[id]
+      mostrarHecho({ ...envio, listo: false, mensaje: 'Ya se respondió en Claude.' })
+    } else {
+      st.envios[id] = { ...envio, estado }
+    }
+  }
 }
 
 async function leerEquipo() {
@@ -269,8 +434,46 @@ document.addEventListener('click', async e => {
     if (p) { st.repo = p.repo; st.activa = 0; st.direccion = 1; pintar() }
   } else if (a === 'tab') {
     st.activa = +b.dataset.i
+    reiniciarInteraccion()
     pintar()
     $(`[data-accion="tab"][data-i="${st.activa}"]`)?.focus()
+  } else if (a === 'op') {
+    // El destino sale del botón tocado, nunca de la pestaña activa
+    const q = objetivo(b)
+    const k = +b.dataset.i
+    if (!q) return
+    if (q.item.multiple) {
+      if (st.seleccionDe !== q.clave) { st.seleccion = new Set(); st.seleccionDe = q.clave }
+      const antes = st.seleccion
+      st.seleccion = alternarSeleccion(st.seleccion, k, Date.now(), st.bloqueoHasta)
+      registrar(lineaClic({
+        pregunta: q.pregunta.id, item: q.indice,
+        decision: st.seleccion === antes ? 'rechazado' : st.seleccion.has(k) ? 'marcar' : 'desmarcar',
+        motivo: st.seleccion === antes ? 'pausa-tras-avanzar' : undefined,
+        etiqueta: st.seleccion === antes ? undefined : q.item.opciones?.[k]?.etiqueta,
+      }))
+      pintar()
+      $(`[data-accion="op"][data-i="${k}"]`)?.focus()
+    } else {
+      await elegir(q, { opcion: k })
+    }
+  } else if (a === 'enviar-multi') {
+    const q = objetivo(b)
+    if (q && st.seleccionDe === q.clave) await elegir(q, { opciones: [...st.seleccion] })
+  } else if (a === 'otra') {
+    st.otra = true
+    pintar()
+    enfocarOtra()
+  } else if (a === 'enviar-otra') {
+    await elegir(objetivo(b), { texto: $('#g-otra-in')?.value ?? '' })
+  } else if (a === 'tarde') {
+    st.plegado = true
+    pintar()
+    $('[data-accion="ver"]')?.focus()
+  } else if (a === 'ver') {
+    st.plegado = false
+    st.firmas.clavesGlobo = null
+    pintar()
   } else if (a === 'pin') {
     const nuevo = !st.arriba
     try {
@@ -295,7 +498,22 @@ document.addEventListener('toggle', e => {
   else st.abiertos.delete(d.dataset.usuario)
 }, true)
 
+// El texto de "Otra respuesta" se guarda mientras se escribe, así un redibujo no lo borra
+document.addEventListener('input', e => {
+  if (e.target.id === 'g-otra-in') st.textoOtra = e.target.value
+})
+
 document.addEventListener('keydown', e => {
+  // Teclas del globo (boceto): 1–9 eligen con el foco en el globo, Enter envía el texto, Esc pliega
+  if (e.target.id === 'g-otra-in' && e.key === 'Enter') { e.preventDefault(); $('[data-accion="enviar-otra"]')?.click(); return }
+  if (e.target.closest?.('[data-globo]') && e.target.tagName !== 'INPUT') {
+    const k = Number(e.key)
+    if (Number.isInteger(k) && k >= 1) {
+      const boton = $(`[data-accion="op"][data-i="${k - 1}"]`)
+      if (boton) { e.preventDefault(); boton.click(); return }
+    }
+    if (e.key === 'Escape') { st.plegado = true; pintar(); $('[data-accion="ver"]')?.focus(); return }
+  }
   if (st.mini || e.target.closest?.('input, textarea, summary')) return
   if (e.key === 'ArrowLeft') { e.preventDefault(); moverProyecto(-1) }
   if (e.key === 'ArrowRight') { e.preventDefault(); moverProyecto(1) }

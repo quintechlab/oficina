@@ -1,6 +1,6 @@
 // Funciones puras del mod "oficina": sin acceso al motor, fáciles de probar.
 
-import type { Ci, ComentarioPresencia, ItemPregunta, Miembro, Pregunta, Presencia, Subagente, Tarea } from '../types'
+import type { Ci, ComentarioPresencia, ItemPregunta, Miembro, Pregunta, Presencia, RespuestaWidget, Subagente, Tarea } from '../types'
 
 /** Horas máximas por talle, según el acuerdo (S: hasta medio día; M: hasta 2 días). */
 export const HORAS_POR_TALLE: Record<'S' | 'M', number> = { S: 4, M: 16 }
@@ -448,4 +448,127 @@ export function resumen(lista: Miembro[], yo: string | null, ahoraMs: number): s
 
 export function tareaVacia(numero: number, url: string): Tarea {
   return { numero, titulo: '', talle: null, abierta: true, url, horasRegistradas: null, estadoTablero: null }
+}
+
+// ------------------------------------------------------------------ responder desde el widget (v0.5)
+
+/**
+ * ¿`valor` son etiquetas de `etiquetas` unidas por ", ", sin repetir? Una etiqueta puede llevar
+ * coma ("Tests, con fixtures"), así que se prueba partir el texto de todas las formas posibles.
+ */
+function sonEtiquetas(valor: string, etiquetas: readonly string[], usadas: ReadonlySet<string> = new Set()): boolean {
+  for (const e of etiquetas) {
+    if (usadas.has(e) || !valor.startsWith(e)) continue
+    const resto = valor.slice(e.length)
+    if (resto === '') return true
+    if (resto.startsWith(', ') && sonEtiquetas(resto.slice(2), etiquetas, new Set([...usadas, e]))) return true
+  }
+  return false
+}
+
+/**
+ * Valida el archivo que dejó el widget antes de entregarle algo al modelo. Solo vale si responde
+ * todas las preguntas de esta llamada, con opciones que existen (o texto libre marcado en
+ * `libres`), y si se tocó después de que se hizo la pregunta. Cualquier otra cosa se ignora.
+ */
+export function validarRespuesta(datos: unknown, pregunta: Pregunta): { answers: Record<string, string> } | { error: string } {
+  if (!datos || typeof datos !== 'object') return { error: 'no es un objeto' }
+  const d = datos as Partial<RespuestaWidget>
+  if (d.v !== 1 || d.origen !== 'widget') return { error: 'formato desconocido' }
+  if (typeof d.tocadoEn !== 'string' || !(Date.parse(d.tocadoEn) >= Date.parse(pregunta.desde))) return { error: 'anterior a la pregunta' }
+  if (!d.answers || typeof d.answers !== 'object') return { error: 'sin respuestas' }
+  const libres = new Set(Array.isArray(d.libres) ? d.libres.filter(l => typeof l === 'string') : [])
+  const textos = new Set(pregunta.items.map(i => i.pregunta))
+  for (const clave of Object.keys(d.answers)) {
+    if (!textos.has(clave)) return { error: `pregunta desconocida: ${clave}` }
+  }
+  const answers: Record<string, string> = {}
+  for (const item of pregunta.items) {
+    const valor = (d.answers as Record<string, unknown>)[item.pregunta]
+    if (typeof valor !== 'string') return { error: `falta responder: ${item.pregunta}` }
+    const etiquetas = item.opciones.map(o => o.etiqueta)
+    const valido = libres.has(item.pregunta)
+      ? valor.trim() !== ''
+      : item.multiple ? sonEtiquetas(valor, etiquetas) : etiquetas.includes(valor)
+    if (!valido) return { error: `opción desconocida para: ${item.pregunta}` }
+    answers[item.pregunta] = valor
+  }
+  return { answers }
+}
+
+/** Lo que necesita la vigilancia del archivo de respuesta; el motor lo da en register.tsx. */
+export type Vigilancia = {
+  /** Texto del archivo, o null si no existe. */
+  leer: () => Promise<string | null>
+  /** Espera entre lecturas; termina antes si se aborta. */
+  esperar: (ms: number, senal: AbortSignal) => Promise<void>
+  /** Se aborta cuando el diálogo de Claude respondió. */
+  senal: AbortSignal
+  /** Un archivo inválido se ignora y se avisa una sola vez por contenido. */
+  ignorado?: (motivo: string) => void
+}
+
+export const MS_ENTRE_LECTURAS = 500
+
+/**
+ * Lee el archivo de respuesta del widget cada medio segundo hasta encontrar uno válido o hasta
+ * que el diálogo responda. Sin archivo válido devuelve null: nunca elige una opción por su cuenta.
+ */
+export async function vigilarRespuesta(pregunta: Pregunta, v: Vigilancia): Promise<Record<string, string> | null> {
+  let visto: string | null = null
+  while (!v.senal.aborted) {
+    const texto = await v.leer().catch(() => null)
+    if (v.senal.aborted) return null
+    if (texto !== null && texto !== visto) {
+      visto = texto
+      let datos: unknown = null
+      try {
+        datos = JSON.parse(texto)
+      } catch {
+        datos = null
+      }
+      const r = validarRespuesta(datos, pregunta)
+      if ('answers' in r) return r.answers
+      v.ignorado?.(r.error)
+    }
+    await v.esperar(MS_ENTRE_LECTURAS, v.senal)
+  }
+  return null
+}
+
+/**
+ * Corre el diálogo de Claude contra la respuesta del widget. Gana el widget solo si trae una
+ * respuesta válida antes; si no, o si la vigilancia falla, se espera al diálogo como siempre.
+ */
+export async function carreraConDialogo<T>(
+  dialogo: Promise<T>,
+  vigilar: (senal: AbortSignal) => Promise<Record<string, string> | null>,
+): Promise<{ de: 'dialogo'; resultado: T } | { de: 'widget'; answers: Record<string, string> }> {
+  const corte = new AbortController()
+  const terminado = dialogo.then(
+    () => corte.abort(),
+    () => corte.abort(),
+  )
+  const answers = await Promise.race([terminado.then(() => null), vigilar(corte.signal).catch(() => null)])
+  if (answers) return { de: 'widget', answers }
+  corte.abort()
+  return { de: 'dialogo', resultado: await dialogo }
+}
+
+
+/**
+ * Lo que devuelve el hook cuando ganó el widget. Marcar el archivo como usado no puede fallar
+ * hacia afuera: si algo tira ahí, el `.catch` del hook abriría un segundo diálogo.
+ */
+export async function resultadoDelWidget(
+  questions: unknown,
+  answers: Record<string, string>,
+  marcar: () => Promise<void>,
+): Promise<{ result: { questions: unknown; answers: Record<string, string> } }> {
+  try {
+    await marcar()
+  } catch {
+    // El widget ve el archivo sin marcar y lo borra; la respuesta igual llega al modelo
+  }
+  return { result: { questions, answers } }
 }

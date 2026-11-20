@@ -31,6 +31,8 @@ export type Presencia = {
   agentes?: Subagente[]
   /** Preguntas de AskUserQuestion que esperan respuesta. Desde la v0.4. */
   preguntas?: Pregunta[]
+  /** Esta sesión acepta respuestas del widget de escritorio (archivo en ~/.claude/oficina/respuestas). Desde la v0.5. */
+  puedeResponder?: boolean
 }
 
 /** Un subagente lanzado por una sesión. */
@@ -57,6 +59,21 @@ export type ItemPregunta = {
   encabezado: string
   multiple: boolean
   opciones: OpcionPregunta[]
+}
+
+/**
+ * Respuesta que deja el widget en ~/.claude/oficina/respuestas/<id de la pregunta>.json.
+ * `answers` va por texto de pregunta: una etiqueta, varias separadas por ", " (selección múltiple)
+ * o el texto libre de "Otra respuesta", que se marca en `libres`.
+ */
+export type RespuestaWidget = {
+  v: 1
+  origen: 'widget'
+  /** Cuándo se tocó la opción (ISO). */
+  tocadoEn: string
+  answers: Record<string, string>
+  /** Preguntas respondidas con texto libre. */
+  libres?: string[]
 }
 
 /** Una llamada a AskUserQuestion pendiente (puede traer varias preguntas). */

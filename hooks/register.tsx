@@ -10,6 +10,9 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 import type { ComentarioPresencia, Info, Miembro, Pr, Pregunta, Presencia, Subagente, Tarea } from '../types'
 import {
   actividadDesdeHerramienta,
+  carreraConDialogo,
+  resultadoDelWidget,
+  vigilarRespuesta,
   nombreSubagente,
   podarSubagentes,
   preguntaDesdeEntrada,
@@ -195,6 +198,8 @@ async function publicar($: EngineInterface, forzar = false, ausente?: boolean): 
     actividad,
     agentes: podarSubagentes([...subagentes.values()], ahoraMs),
     preguntas: [...preguntas.values()],
+    // Desde la v0.5 el widget puede responder las preguntas de esta sesión
+    puedeResponder: true,
   }
   await escribirEstadoLocal($, p)
   // Sin cambios de fondo desde la última vez: no gastar llamadas (el latido igual publica cada 5 min)
@@ -211,6 +216,22 @@ async function publicar($: EngineInterface, forzar = false, ausente?: boolean): 
 async function carpetaLocal($: EngineInterface): Promise<string | null> {
   const casa = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME'))
   return casa ? `${casa.replace(/\\/g, '/')}/.claude/oficina/sesiones` : null
+}
+
+/** Archivo donde el widget deja la respuesta a una pregunta (`respuestas/<id de la pregunta>.json`). */
+async function rutaRespuesta($: EngineInterface, id: string): Promise<string | null> {
+  const carpeta = await carpetaLocal($)
+  if (!carpeta || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) return null
+  return `${carpeta.replace(/\/sesiones$/, '')}/respuestas/${id}.json`
+}
+
+/** Espera `ms` con el reloj del motor; termina antes si se aborta. */
+function esperarCortable($: EngineInterface, ms: number, senal: AbortSignal): Promise<void> {
+  return new Promise(resolver => {
+    if (senal.aborted) return resolver()
+    const t = $.clock.after(ms, () => resolver())
+    senal.addEventListener('abort', () => { t.cancel(); resolver() }, { once: true })
+  })
 }
 
 /** Escribe el estado de esta sesión en un archivo propio; el widget lee la carpeta entera. */
@@ -548,7 +569,26 @@ export const register: Register = (on, options) => {
       publicarPronto($)
     }
     try {
-      return await next(e)
+      if (!pregunta) return await next(e)
+      // El diálogo de Claude y el globo del widget compiten: vale lo que el usuario toque primero.
+      // Sin una respuesta válida del widget, se espera al diálogo como siempre.
+      const ruta = await rutaRespuesta($, pregunta.id)
+      if (!ruta) return await next(e)
+      const r = await carreraConDialogo(next(e), senal =>
+        vigilarRespuesta(pregunta, {
+          leer: () => $.fs.read(ruta).then(t => String(t)).catch(() => null),
+          esperar: (ms, s) => esperarCortable($, ms, s),
+          senal,
+          ignorado: motivo => $.ui.log(`oficina: respuesta del widget ignorada (${motivo})`, { to: 'debug' }),
+        }),
+      )
+      if (r.de === 'dialogo') return r.resultado
+      // Ganó el widget: desde acá nada puede tirar hacia el .catch del hook (abriría otro diálogo).
+      // El archivo queda marcado como usado (el motor no borra archivos); el widget lo limpia.
+      return await resultadoDelWidget(entrada.questions, r.answers, async () => {
+        const ahora = new Date(await $.clock.now()).toISOString()
+        await $.fs.write(ruta, JSON.stringify({ v: 1, consumida: true, tocadoEn: ahora }))
+      })
     } finally {
       if (pregunta) {
         preguntas.delete(pregunta.id)

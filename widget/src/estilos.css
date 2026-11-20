@@ -131,3 +131,22 @@ body.mini .titulo:not(.tira), body.mini .cuerpo-w { display: none }
 
 /* "Pausar animaciones" del menú de la bandeja */
 body.pausa svg *, body.pausa .pend, body.pausa .globo { animation-play-state: paused !important }
+
+/* globo que responde (boceto: opciones como botones, varias, otra respuesta, listo) */
+button.op { cursor: pointer; font: inherit; transition: transform .12s, box-shadow .12s, background .12s }
+button.op:hover { transform: translate(-1px, -1px); box-shadow: 2px 2px 0 var(--tinta) }
+button.op:active { transform: translate(1px, 1px); box-shadow: none }
+.op[aria-pressed="true"] { background: #DDF2D2 }
+.op[aria-pressed="true"] .n { background: var(--tinta); color: #DDF2D2 }
+.g-link { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; color: var(--tinta); cursor: pointer; font: 600 12.5px var(--ui); text-decoration: underline; text-underline-offset: 3px }
+.g-btn { min-height: 40px; padding: 0 14px; border-radius: 8px; border: 2px solid var(--tinta); background: var(--tinta); color: var(--papel); font: 700 13px var(--ui); cursor: pointer }
+.g-btn:disabled { opacity: .35; cursor: not-allowed }
+.g-btn.sec { background: transparent; color: var(--tinta) }
+.g-otra { display: grid; grid-template-columns: 1fr auto; gap: 6px; margin-top: 6px }
+.g-otra label { grid-column: 1 / -1; font: 600 11px var(--mono); color: var(--papel2) }
+.g-otra input { min-height: 40px; border: 1.5px solid var(--tinta); border-radius: 8px; padding: 0 10px; font: 13px var(--ui); color: var(--tinta); background: #fff; min-width: 0 }
+.g-env { display: flex; align-items: center; gap: 8px; font: 700 14px var(--ui); padding: 6px 0; overflow-wrap: anywhere }
+.g-env svg { width: 30px; height: 22px; flex: none }
+.globo.sale { animation: sale .35s ease-in both }
+@keyframes sale { to { opacity: 0; transform: scale(.4) translateY(30px) } }
+@media (prefers-reduced-motion: reduce) { .globo.sale { animation: none } button.op { transition: none } }

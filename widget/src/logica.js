@@ -131,7 +131,7 @@ export function preguntasPendientes(proyecto) {
     for (const p of s.preguntas ?? []) {
       const ag = p.agente ? (s.agentes ?? []).find(a => a.id === p.agente) : null
       const quien = p.agente ? (ag?.nombre ?? 'Un subagente') : 'Claude'
-      ;(p.items ?? []).forEach((item, i) => pend.push({ clave: `${p.id}#${i}`, sesion: s.sesion, tarea: s.tarea, agente: p.agente ?? null, quien, desde: p.desde, item }))
+      ;(p.items ?? []).forEach((item, i) => pend.push({ clave: `${p.id}#${i}`, sesion: s.sesion, tarea: s.tarea, agente: p.agente ?? null, quien, desde: p.desde, item, indice: i, pregunta: p, responde: s.puedeResponder === true }))
     }
   }
   return pend

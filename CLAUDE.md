@@ -9,6 +9,10 @@ Mod de Claude Code "oficina": panel de presencia del equipo Quintech Studio. Lee
 - Desde la v0.4 cada entrada de sesión puede traer `actividad` (qué hace ahora, según su última herramienta), `agentes` (subagentes en curso o terminados hace menos de 30 min) y `preguntas` (llamadas a `AskUserQuestion` pendientes). Son opcionales: la v0.3 los ignora y la v0.4 lee bien lo que publica la v0.3. Un subagente sin "Nombre — tarea" en su descripción recibe un nombre inventado estable a partir de su id (`NOMBRES_INVENTADOS`).
 - Estado local en vivo para el widget de escritorio: cada sesión escribe `%USERPROFILE%/.claude/oficina/sesiones/<id de sesión>.json` (la misma `Presencia`, más `cerrada`). Al cerrarse la sesión queda `{ sesion, cerrada: true }`.
 - Widget de escritorio: `widget/` (Tauri 2). `src-tauri/src/sesiones.rs` lee y filtra esos archivos (comando `leer_sesiones`); el frontend es HTML/CSS/JS sin framework en `widget/src` (`logica.js` puro con tests en `widget/test`, `mascotas.js` y `escena.js` con el dibujo del boceto aprobado, `main.js` la ventana). `equipo.rs` corre `gh` sin consola y `equipo.js` interpreta los comentarios igual que `extraerComentario` del mod; `bandeja.js` dibuja el ícono de la bandeja en RGBA. La CSP es estricta: `style-src` lleva `unsafe-inline` (los SVG traen su `<style>` y `style=`) y `dangerousDisableAssetCspModification: ["style-src"]`, porque si Tauri agrega un nonce a `style-src` el navegador ignora `unsafe-inline` y las mascotas quedan sin animación.
+- Responder desde el widget (v0.5): el hook de `tool.call` de `AskUserQuestion` corre el diálogo de Claude (`next(e)`) contra el archivo `~/.claude/oficina/respuestas/<tool_use_id>.json` que escribe el widget (`carreraConDialogo` y `vigilarRespuesta` en `logica.ts`, lectura cada 500 ms). Gana el widget solo con un archivo válido (`validarRespuesta`): todas las preguntas de la llamada, etiquetas existentes o texto libre marcado en `libres`, tocado después de la pregunta. Entonces devuelve `{ result: { questions, answers } }` y deja el archivo como `{ consumida: true }` (el motor no tiene `fs` para borrar; lo borra el widget). La sesión publica `puedeResponder: true`; sin eso el globo es de solo lectura.
+- Regla del usuario para responder: el widget nunca decide por él. Solo un clic envía; sin opción por defecto, sin tiempo que elija. Hay tests que lo fijan en `hooks/oficina.test.tsx` y `widget/test/responder.test.js`.
+- Modelo de amenaza aceptado: cualquier proceso que corra con el mismo usuario de Windows puede responder una pregunta pendiente escribiendo un archivo válido en `respuestas/` (la misma confianza que la propia máquina).
+- `$.tool.call` con `answers` lo rechaza el motor ("that is $.ui.ask"): no usarlo para responder.
 - Integrantes: Quintana = `nicoequintana`, Campos = `NCsolucionesdigitales` (ambos owners de la organización `quintechlab`).
 - Archivos: `hooks/register.tsx` (hooks y panel), `hooks/logica.ts` (funciones puras), `hooks/oficina.test.tsx` (tests), `types/index.d.ts` (contrato de datos y estado).
 
@@ -44,6 +48,7 @@ Mod de Claude Code "oficina": panel de presencia del equipo Quintech Studio. Lee
 - Probar desde un repositorio con rama `feat/N-slug` para ver tarea y talle reales.
 - Auto-actualización diaria del mod (correr los dos comandos de update al arrancar, una vez por día, y avisar con toast): propuesta, sin decidir.
 - Campo "Estimado" en el tablero si se quiere un "cuánto falta" de verdad.
+- Sin verificar: qué hace el diálogo de Claude cuando el widget responde primero (no se intenta cerrarlo).
 - El playbook del equipo todavía nombra la organización como `QuintechLabs`; la real es `quintechlab`.
 
 ## Reglas

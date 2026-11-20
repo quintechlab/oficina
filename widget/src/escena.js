@@ -156,37 +156,85 @@ export function lista(proyecto, preparadas, ahoraMs) {
 }
 
 /** Datos de quien pregunta: nombre, personaje y en qué sesión. */
-function quienPregunta(q) {
+export function quienPregunta(q) {
   const pj = q.agente ? personajeDeNombre(q.quien) : CLAUDE
   return { ...pj, nombre: q.quien, ses: q.tarea ? `#${q.tarea}` : 'sin tarea' }
 }
 
 /**
- * Globo de pregunta, variante de solo lectura (responder desde el widget es la tarea #4).
- * `activa`: índice de la pestaña elegida; `pos`: dónde quedó cada mascota, para la cola.
+ * Globo de pregunta (boceto aprobado). Interactivo si la sesión acepta respuestas del widget
+ * (`q.responde`); si no, la variante de solo lectura. `ui`: estado de la interacción
+ * (selección múltiple, "Otra respuesta", borrador de la llamada y envío en curso).
+ * `pos`: dónde quedó cada mascota, para la cola.
  */
-export function globo(pendientes, { activa = 0, pos = {}, nuevo = false, ahoraMs }) {
+export function globo(pendientes, { activa = 0, pos = {}, nuevo = false, ahoraMs, ui = {} }) {
+  if (ui.hecho) return globoHecho(ui.hecho, pos, ui.saliendo)
   if (!pendientes.length) return ''
   const i = Math.min(activa, pendientes.length - 1), q = pendientes[i], qn = quienPregunta(q)
+  if (ui.plegado) {
+    return `<button type="button" class="plegado" data-accion="ver"><b>!</b> ${pendientes.length === 1 ? `${escapar(qn.nombre)} te pregunta algo` : `${pendientes.length} preguntas esperan`} · ver</button>`
+  }
   const idMascota = q.agente ?? 'c-' + q.sesion
   const cola = Math.max(14, Math.min(330, (pos[idMascota]?.x ?? 40) - 6))
-  let h = `<div class="globo${nuevo ? ' entra' : ''}" style="--cola:${cola}px" role="dialog" aria-labelledby="g-p">`
+  const borrador = ui.borradores?.[q.pregunta?.id] ?? {}
+  const envio = ui.envios?.[q.pregunta?.id]
+  let h = `<div class="globo${nuevo ? ' entra' : ''}" style="--cola:${cola}px" role="dialog" aria-labelledby="g-p" data-globo${q.responde ? ` data-pregunta="${escapar(q.pregunta?.id ?? '')}" data-item="${q.indice}"` : ''}>`
   if (pendientes.length > 1) {
     h += `<div class="g-tabs" role="tablist" aria-label="Preguntas pendientes">${pendientes.map((x, k) => {
       const xq = quienPregunta(x)
-      return `<button type="button" class="g-tab" role="tab" aria-selected="${k === i}" data-accion="tab" data-i="${k}"><span class="punto" style="background:${xq.color}"></span>${escapar(xq.nombre)}${x.item.encabezado ? ` · ${escapar(x.item.encabezado)}` : ''} <span aria-hidden="true">!</span></button>`
+      const hecha = !!ui.borradores?.[x.pregunta?.id]?.[x.item.pregunta]
+      return `<button type="button" class="g-tab" role="tab" aria-selected="${k === i}" data-accion="tab" data-i="${k}"><span class="punto" style="background:${xq.color}"></span>${escapar(xq.nombre)}${x.item.encabezado ? ` · ${escapar(x.item.encabezado)}` : ''} <span aria-hidden="true">${hecha ? '✓' : '!'}</span></button>`
     }).join('')}</div>`
   }
   h += `<div class="g-cab">${cabeza('teEspera', qn.color, qn.pj, escapar(qn.nombre))}<span class="punto" style="background:${qn.color}"></span><span><b>${escapar(qn.nombre)}</b> te pregunta · ${escapar(qn.ses)} · hace ${escapar(tiempoRelativo(q.desde, ahoraMs))}</span></div>`
   h += `<p class="g-preg" id="g-p">${escapar(q.item.pregunta)}</p>`
+  const total = q.pregunta?.items?.length ?? 1
   if (q.item.multiple) h += `<p class="g-modo">Se pueden elegir varias</p>`
-  h += `<ul class="g-ops">${(q.item.opciones ?? []).map((o, k) => {
+  if (q.responde && total > 1 && !envio) h += `<p class="g-modo">Pregunta ${q.indice + 1} de ${total}: se envían juntas</p>`
+
+  const lectura = !q.responde || (envio && envio.estado !== 'enviando')
+  const enviando = envio?.estado === 'enviando'
+  if (lectura || enviando) {
+    h += `<ul class="g-ops">${(q.item.opciones ?? []).map((o, k) => {
+      const e = etiquetaOpcion(o.etiqueta)
+      return `<li class="op ro${e.recomendada ? ' rec' : ''}${q.item.multiple ? ' multi' : ''}"><span class="n">${k + 1}</span><b>${escapar(e.texto)}${e.recomendada ? '<span class="chip">Recomendada</span>' : ''}</b><small>${escapar(o.descripcion)}</small></li>`
+    }).join('')}</ul>`
+    let nota = 'Responder en Claude: la sesión espera tu respuesta en su ventana.'
+    if (enviando) nota = `Enviando tu respuesta a ${qn.nombre}…`
+    else if (envio?.estado === 'enClaude') nota = 'Respondé en Claude: la sesión no tomó la respuesta del widget.'
+    else if (envio?.estado === 'yaRespondida') nota = 'Ya se respondió en Claude.'
+    h += `<div class="g-pie"><span class="g-nota" role="status">${escapar(nota)}</span></div>`
+    return h + `</div>`
+  }
+
+  // La selección vale solo para el ítem en el que se marcó
+  const sel = ui.seleccionDe === q.clave ? (ui.seleccion ?? new Set()) : new Set()
+  // Cada botón lleva su pregunta y su ítem tal como se dibujaron: el clic no depende de la pestaña activa
+  const destino = ` data-pregunta="${escapar(q.pregunta?.id ?? '')}" data-item="${q.indice}"`
+  const multi = q.item.multiple
+  h += `<div class="g-ops">${(q.item.opciones ?? []).map((o, k) => {
     const e = etiquetaOpcion(o.etiqueta)
-    return `<li class="op ro${e.recomendada ? ' rec' : ''}${q.item.multiple ? ' multi' : ''}"><span class="n">${k + 1}</span><b>${escapar(e.texto)}${e.recomendada ? '<span class="chip">Recomendada</span>' : ''}</b><small>${escapar(o.descripcion)}</small></li>`
-  }).join('')}</ul>`
-  // TODO(#4): responder desde el globo (opciones como botones, "Otra respuesta", "Más tarde").
-  h += `<div class="g-pie"><span class="g-nota">Responder en Claude: la sesión espera tu respuesta en su ventana.</span></div>`
+    const marcada = multi && sel.has(k)
+    return `<button type="button" class="op${multi ? ' multi' : ''}${e.recomendada ? ' rec' : ''}" data-accion="op" data-i="${k}"${destino}${multi ? ` aria-pressed="${marcada}"` : ''}><span class="n">${marcada ? '✓' : k + 1}</span><b>${escapar(e.texto)}${e.recomendada ? '<span class="chip">Recomendada</span>' : ''}</b><small>${escapar(o.descripcion)}</small></button>`
+  }).join('')}</div>`
+  if (ui.otra) h += `<div class="g-otra"><label for="g-otra-in">Tu respuesta</label><input id="g-otra-in" type="text" autocomplete="off" value="${escapar(ui.textoOtra ?? '')}"><button type="button" class="g-btn" data-accion="enviar-otra"${destino}>${ultimo(q, borrador) ? 'Enviar' : 'Seguir'}</button></div>`
+  const accion = multi
+    ? `<button type="button" class="g-btn" data-accion="enviar-multi"${destino}${sel.size ? '' : ' disabled'}>${ultimo(q, borrador) ? 'Enviar' : 'Seguir'}${sel.size ? ` (${sel.size})` : ''}</button>`
+    : `<button type="button" class="g-btn sec" data-accion="tarde">Más tarde</button>`
+  h += `<div class="g-pie"><span><button type="button" class="g-link" data-accion="otra">Otra respuesta</button></span>${accion}</div>`
   return h + `</div>`
+}
+
+/** ¿Es el único ítem de la llamada que falta responder? Entonces el próximo clic envía. */
+function ultimo(q, borrador) {
+  const items = q.pregunta?.items ?? [q.item]
+  return items.every(it => it.pregunta === q.item.pregunta || borrador[it.pregunta])
+}
+
+/** "Listo, le respondiste a …": el globo festeja y se achica. */
+function globoHecho(hecho, pos, saliendo) {
+  const cola = Math.max(14, Math.min(330, (pos[hecho.mascota]?.x ?? 40) - 6))
+  return `<div class="globo entra${saliendo ? ' sale' : ''}" style="--cola:${cola}px" role="status"><div class="g-env">${cabeza(hecho.listo ? 'saluda' : 'esperando', hecho.color, hecho.pj, '')} ${escapar(hecho.mensaje)}</div></div>`
 }
 
 /** Aviso plegado cuando la pregunta está en otro proyecto. */

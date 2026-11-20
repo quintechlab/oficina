@@ -1,4 +1,6 @@
+mod diagnostico;
 mod equipo;
+mod respuestas;
 mod sesiones;
 
 use std::sync::Mutex;
@@ -176,6 +178,36 @@ fn poner_bandeja(app: AppHandle, rgba: Vec<u8>, ancho: u32, alto: u32, texto: St
     bandeja.set_tooltip(Some(texto)).map_err(|e| e.to_string())
 }
 
+fn carpeta_de_respuestas() -> Result<std::path::PathBuf, String> {
+    respuestas::carpeta_respuestas().ok_or_else(|| String::from("no se conoce la carpeta del usuario"))
+}
+
+/// Deja la respuesta que el usuario tocó en el globo para la sesión que pregunta. Solo se llama
+/// desde un clic: el widget nunca responde por su cuenta.
+#[tauri::command]
+fn responder(id: String, answers: serde_json::Map<String, serde_json::Value>, libres: Vec<String>) -> Result<(), String> {
+    respuestas::escribir_respuesta(&carpeta_de_respuestas()?, &id, &answers, &libres, chrono::Utc::now())
+}
+
+/// `pendiente`, `consumida` o `ausente`: si la sesión tomó la respuesta enviada.
+#[tauri::command]
+fn estado_respuesta(id: String) -> Result<&'static str, String> {
+    respuestas::estado_respuesta(&carpeta_de_respuestas()?, &id)
+}
+
+#[tauri::command]
+fn borrar_respuesta(id: String) -> Result<(), String> {
+    respuestas::borrar_respuesta(&carpeta_de_respuestas()?, &id)
+}
+
+/// Una línea en el log de diagnóstico (clics del globo, envíos y errores del frontend).
+#[tauri::command]
+fn registrar(linea: String) {
+    if let Some(ruta) = diagnostico::ruta_log() {
+        let _ = diagnostico::agregar_linea(&ruta, &linea, chrono::Utc::now(), diagnostico::TOPE_BYTES);
+    }
+}
+
 /// Notificación de Windows con una pregunta nueva.
 #[tauri::command]
 fn avisar(app: AppHandle, titulo: String, cuerpo: String) -> Result<(), String> {
@@ -274,7 +306,11 @@ pub fn run() {
             modo_mini,
             esconder,
             poner_bandeja,
-            avisar
+            avisar,
+            responder,
+            estado_respuesta,
+            borrar_respuesta,
+            registrar
         ])
         .run(tauri::generate_context!())
         .expect("no se pudo iniciar el widget de la oficina");

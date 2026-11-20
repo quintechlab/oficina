@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import type { ComentarioPresencia, Miembro, Presencia } from '../types'
+import type { ComentarioPresencia, Miembro, Pregunta, Presencia } from '../types'
 import {
   archivosDesdeStatus,
   archivosEnComun,
@@ -26,6 +26,10 @@ import {
   restante,
   talleDesdeCuerpo,
   tareaDesdeRama,
+  validarRespuesta,
+  vigilarRespuesta,
+  carreraConDialogo,
+  resultadoDelWidget,
 } from './logica'
 
 const PANE = {
@@ -376,4 +380,106 @@ test('con un valor guardado por otra versión el panel no rompe', async ($, on) 
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect((await ui.find({ type: 'Text', text: /GitHub:/ }))?.text).toContain('sin gh')
   await ui.unmount()
+})
+
+// ------------------------------------------------------------------ responder desde el widget (v0.5)
+
+const PREGUNTA: Pregunta = {
+  id: 'toolu_1',
+  agente: null,
+  desde: '2026-11-12T16:59:00.000Z',
+  items: [
+    { pregunta: '¿Qué boceto?', encabezado: 'Boceto', multiple: false, opciones: [{ etiqueta: 'Terrario (Recomendada)', descripcion: '' }, { etiqueta: 'Vitrina', descripcion: '' }] },
+    { pregunta: '¿Qué incluyo?', encabezado: 'Alcance', multiple: true, opciones: [{ etiqueta: 'Tests, con fixtures', descripcion: '' }, { etiqueta: 'Docs', descripcion: '' }, { etiqueta: 'CI', descripcion: '' }] },
+  ],
+}
+const archivo = (extra: Record<string, unknown>) => ({ v: 1, origen: 'widget', tocadoEn: AHORA, ...extra })
+
+test('respuesta del widget: una opción y varias (aunque una etiqueta lleve coma) se aceptan', async () => {
+  const r = validarRespuesta(archivo({ answers: { '¿Qué boceto?': 'Terrario (Recomendada)', '¿Qué incluyo?': 'Tests, con fixtures, CI' } }), PREGUNTA)
+  expect(r).toEqual({ answers: { '¿Qué boceto?': 'Terrario (Recomendada)', '¿Qué incluyo?': 'Tests, con fixtures, CI' } })
+})
+
+test('respuesta del widget: una etiqueta o una pregunta desconocidas se rechazan', async () => {
+  const otra = validarRespuesta(archivo({ answers: { '¿Qué boceto?': 'Vitrina grande', '¿Qué incluyo?': 'CI' } }), PREGUNTA)
+  expect('error' in otra).toBe(true)
+  const ajena = validarRespuesta(archivo({ answers: { '¿Qué boceto?': 'Vitrina', '¿Qué incluyo?': 'CI', '¿Borro todo?': 'Sí' } }), PREGUNTA)
+  expect('error' in ajena).toBe(true)
+  // Repetir una opción en la selección múltiple tampoco vale
+  expect('error' in validarRespuesta(archivo({ answers: { '¿Qué boceto?': 'Vitrina', '¿Qué incluyo?': 'CI, CI' } }), PREGUNTA)).toBe(true)
+})
+
+test('respuesta del widget: el texto libre vale solo si viene marcado y no está vacío', async () => {
+  const libre = { '¿Qué boceto?': 'Uno mezclado', '¿Qué incluyo?': 'Docs' }
+  expect(validarRespuesta(archivo({ answers: libre, libres: ['¿Qué boceto?'] }), PREGUNTA)).toEqual({ answers: libre })
+  expect('error' in validarRespuesta(archivo({ answers: libre }), PREGUNTA)).toBe(true)
+  expect('error' in validarRespuesta(archivo({ answers: { ...libre, '¿Qué boceto?': '   ' }, libres: ['¿Qué boceto?'] }), PREGUNTA)).toBe(true)
+})
+
+test('respuesta del widget: incompleta, vieja, mal formada o vacía no se acepta', async () => {
+  expect('error' in validarRespuesta(archivo({ answers: { '¿Qué boceto?': 'Vitrina' } }), PREGUNTA)).toBe(true)
+  expect('error' in validarRespuesta(archivo({ tocadoEn: '2026-11-12T16:58:00.000Z', answers: { '¿Qué boceto?': 'Vitrina', '¿Qué incluyo?': 'CI' } }), PREGUNTA)).toBe(true)
+  expect('error' in validarRespuesta(archivo({ answers: {} }), PREGUNTA)).toBe(true)
+  expect('error' in validarRespuesta({ v: 1, consumida: true }, PREGUNTA)).toBe(true)
+  expect('error' in validarRespuesta(null, PREGUNTA)).toBe(true)
+  expect('error' in validarRespuesta('texto', PREGUNTA)).toBe(true)
+})
+
+/** Un reloj de mentira: cada espera resuelve enseguida, o al abortar. */
+const esperaInmediata = (_ms: number, senal: AbortSignal) => (senal.aborted ? Promise.resolve() : Promise.resolve())
+
+test('vigilar: sin archivo sigue esperando hasta que el diálogo responde; nunca elige solo', async () => {
+  const corte = new AbortController()
+  let lecturas = 0
+  const vigilancia = vigilarRespuesta(PREGUNTA, {
+    leer: async () => {
+      lecturas++
+      if (lecturas === 50) corte.abort() // el diálogo de Claude respondió
+      return null
+    },
+    esperar: esperaInmediata,
+    senal: corte.signal,
+  })
+  expect(await vigilancia).toBe(null)
+  expect(lecturas).toBe(50)
+})
+
+test('vigilar: un archivo inválido se ignora una vez y se sigue esperando; uno válido gana', async () => {
+  const corte = new AbortController()
+  const ignorados: string[] = []
+  const contenidos = ['{roto', JSON.stringify(archivo({ answers: { '¿Qué boceto?': 'Otra cosa', '¿Qué incluyo?': 'CI' } })), JSON.stringify(archivo({ answers: { '¿Qué boceto?': 'Vitrina', '¿Qué incluyo?': 'Docs, CI' } }))]
+  let i = 0
+  const r = await vigilarRespuesta(PREGUNTA, {
+    leer: async () => contenidos[Math.min(Math.floor(i++ / 3), 2)] ?? null,
+    esperar: esperaInmediata,
+    senal: corte.signal,
+    ignorado: motivo => ignorados.push(motivo),
+  })
+  expect(r).toEqual({ '¿Qué boceto?': 'Vitrina', '¿Qué incluyo?': 'Docs, CI' })
+  // Cada contenido inválido se registra una sola vez aunque se lea varias
+  expect(ignorados.length).toBe(2)
+})
+
+test('carrera: si el diálogo responde primero, gana el diálogo y la vigilancia se corta', async () => {
+  let cortada = false
+  const r = await carreraConDialogo(Promise.resolve('respuesta del diálogo'), senal =>
+    new Promise(resolver => senal.addEventListener('abort', () => { cortada = true; resolver(null) })))
+  expect(r).toEqual({ de: 'dialogo', resultado: 'respuesta del diálogo' })
+  expect(cortada).toBe(true)
+})
+
+test('carrera: si el widget trae una respuesta válida primero, gana el widget', async () => {
+  const dialogo = new Promise<string>(() => undefined) // el diálogo sigue abierto
+  const r = await carreraConDialogo(dialogo, async () => ({ '¿Qué boceto?': 'Vitrina' }))
+  expect(r).toEqual({ de: 'widget', answers: { '¿Qué boceto?': 'Vitrina' } })
+})
+
+test('carrera: si la vigilancia falla, se espera al diálogo como siempre', async () => {
+  const r = await carreraConDialogo(Promise.resolve('del diálogo'), async () => { throw new Error('mod roto') })
+  expect(r).toEqual({ de: 'dialogo', resultado: 'del diálogo' })
+})
+
+test('si algo falla después de que ganó el widget, igual se entrega su respuesta (no se abre otro diálogo)', async () => {
+  const r = await resultadoDelWidget(['q'], { '¿Qué boceto?': 'Vitrina' }, async () => { throw new Error('reloj roto') })
+  expect(r).toEqual({ result: { questions: ['q'], answers: { '¿Qué boceto?': 'Vitrina' } } })
 })
