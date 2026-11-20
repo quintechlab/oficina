@@ -364,6 +364,128 @@ body.mini #marco { display: none }
 .resumen b { display: block; font: 800 13.5px/1.25 var(--f); color: var(--crema) }
 .pend { flex: none; margin-right: var(--e-1); padding: 5px var(--e-4); border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro); font: 600 11px/1 var(--m); white-space: nowrap }
 
+/* ------------------------------------------------------------------ muesca acoplable (secciones 6.4, 7 y 9)
+   Acoplada, la ventana es la muesca (cerrada) o el panel pegado al borde (abierta). muesca.js
+   calcula los rectángulos y main.js ubica la muesca (--mx, --my) y el tablero (--tx, --ty, --tw,
+   --th) en px CSS. Fuera de la muesca no hay márgenes: los píxeles transparentes toman clics. */
+#muesca, #luz, #pildora, #aviso-iman { display: none }
+body.acoplada { display: block; padding: 0 }
+body.acoplada #tira { display: none }
+body.acoplada [data-accion="mini"] { display: none }
+
+/* El panel abierto: el tablero entero, sin borde ni radio contra el borde de la pantalla (7.4) */
+body.acoplada #marco {
+  position: fixed; left: var(--tx, 0); top: var(--ty, 0); width: var(--tw, auto); height: var(--th, auto); max-height: none;
+  box-shadow: none; animation: none; z-index: 0;
+}
+body.acoplada[data-borde="arriba"] #marco { border-top: 0; border-radius: 0 0 var(--r-panel) var(--r-panel) }
+body.acoplada[data-borde="abajo"] #marco { border-bottom: 0; border-radius: var(--r-panel) var(--r-panel) 0 0 }
+body.acoplada[data-borde="derecha"] #marco { border-right: 0; border-radius: var(--r-panel) 0 0 var(--r-panel) }
+body.acoplada[data-borde="izquierda"] #marco { border-left: 0; border-radius: 0 var(--r-panel) var(--r-panel) 0 }
+/* Cerrada, el tablero sigue medible (tamano.js) pero no se ve, no toma clics y no anima */
+body.acoplada:not(.abierta) #marco { visibility: hidden; pointer-events: none }
+body.acoplada:not(.abierta) #marco *, body.acoplada:not(.abierta) #marco *::before, body.acoplada:not(.abierta) #marco *::after { animation-play-state: paused !important }
+
+/* Hombros del panel abierto, a los lados del tablero contra el borde (7.4) */
+body.acoplada.desplegada::before, body.acoplada.desplegada::after { content: ""; position: fixed; width: var(--r-hombro); height: var(--r-hombro); z-index: 0 }
+body.acoplada.desplegada[data-borde="arriba"]::before { left: calc(var(--tx) - var(--r-hombro)); top: 0; background: radial-gradient(circle at 0 100%, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.desplegada[data-borde="arriba"]::after { left: calc(var(--tx) + var(--tw)); top: 0; background: radial-gradient(circle at 100% 100%, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.desplegada[data-borde="abajo"]::before { left: calc(var(--tx) - var(--r-hombro)); bottom: 0; background: radial-gradient(circle at 0 0, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.desplegada[data-borde="abajo"]::after { left: calc(var(--tx) + var(--tw)); bottom: 0; background: radial-gradient(circle at 100% 0, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.desplegada[data-borde="derecha"]::before { right: 0; top: calc(var(--ty) - var(--r-hombro)); background: radial-gradient(circle at 0 0, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.desplegada[data-borde="derecha"]::after { right: 0; top: calc(var(--ty) + var(--th)); background: radial-gradient(circle at 0 100%, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.desplegada[data-borde="izquierda"]::before { left: 0; top: calc(var(--ty) - var(--r-hombro)); background: radial-gradient(circle at 100% 0, transparent 15.5px, var(--negro) 16px) }
+body.acoplada.desplegada[data-borde="izquierda"]::after { left: 0; top: calc(var(--ty) + var(--th)); background: radial-gradient(circle at 100% 100%, transparent 15.5px, var(--negro) 16px) }
+
+/* La muesca (7.1): negra, pegada al borde, esquinas de 22 hacia el centro y hombros de 16.
+   Va por encima del panel recortado (z-index 1, 7.4): si no, el panel tapa al Avi, el punto y el chip */
+body.acoplada:not(.pildora) #muesca {
+  position: fixed; left: var(--mx, 0); top: var(--my, 0); z-index: 1;
+  display: flex; align-items: center; gap: var(--e-4); margin: 0; border: 0; background: var(--negro); color: var(--crema);
+  white-space: nowrap; cursor: pointer; box-shadow: var(--sombra-muesca); transition: transform var(--d-elevar) var(--ease);
+}
+body.acoplada.muesca-oculta #muesca { visibility: hidden }
+#muesca:focus-visible { outline: 2px solid var(--ambar); outline-offset: -4px }
+#muesca::before, #muesca::after { content: ""; position: absolute; width: var(--r-hombro); height: var(--r-hombro) }
+body[data-borde="arriba"] #muesca { border-radius: 0 0 var(--r-muesca) var(--r-muesca); padding: 0 14px 6px 12px; --gy: 6px }
+body[data-borde="arriba"] #muesca::before { left: -16px; top: 0; background: radial-gradient(circle at 0 100%, transparent 15.5px, var(--negro) 16px) }
+body[data-borde="arriba"] #muesca::after { right: -16px; top: 0; background: radial-gradient(circle at 100% 100%, transparent 15.5px, var(--negro) 16px) }
+body[data-borde="abajo"] #muesca { border-radius: var(--r-muesca) var(--r-muesca) 0 0; padding: 6px 14px 2px 12px; --gy: -6px }
+body[data-borde="abajo"] #muesca::before { left: -16px; bottom: 0; background: radial-gradient(circle at 0 0, transparent 15.5px, var(--negro) 16px) }
+body[data-borde="abajo"] #muesca::after { right: -16px; bottom: 0; background: radial-gradient(circle at 100% 0, transparent 15.5px, var(--negro) 16px) }
+body[data-borde="derecha"] #muesca { flex-direction: column; border-radius: var(--r-muesca) 0 0 var(--r-muesca); padding: 10px 6px 12px 8px; --gx: -6px }
+body[data-borde="derecha"] #muesca::before { right: 0; top: -16px; background: radial-gradient(circle at 0 0, transparent 15.5px, var(--negro) 16px) }
+body[data-borde="derecha"] #muesca::after { right: 0; bottom: -16px; background: radial-gradient(circle at 0 100%, transparent 15.5px, var(--negro) 16px) }
+body[data-borde="izquierda"] #muesca { flex-direction: column; border-radius: 0 var(--r-muesca) var(--r-muesca) 0; padding: 10px 8px 12px 6px; --gx: 6px }
+body[data-borde="izquierda"] #muesca::before { left: 0; top: -16px; background: radial-gradient(circle at 100% 0, transparent 15.5px, var(--negro) 16px) }
+body[data-borde="izquierda"] #muesca::after { left: 0; bottom: -16px; background: radial-gradient(circle at 100% 100%, transparent 15.5px, var(--negro) 16px) }
+/* A los costados el Avi sigue derecho y el texto corre en vertical */
+body[data-borde="derecha"] #muesca .chip, body[data-borde="izquierda"] #muesca .chip { writing-mode: vertical-rl; padding: var(--e-4) 5px }
+/* Con el mouse encima, 2 px hacia el centro (7.1) */
+body[data-borde="arriba"] #muesca:hover { transform: translateY(2px) }
+body[data-borde="abajo"] #muesca:hover { transform: translateY(-2px) }
+body[data-borde="derecha"] #muesca:hover { transform: translateX(-2px) }
+body[data-borde="izquierda"] #muesca:hover { transform: translateX(2px) }
+#muesca > * { pointer-events: none }
+/* El Avi que asoma: antena, cabeza y ojos; el resto queda detrás del borde de la muesca */
+.asoma { position: relative; width: 40px; height: 34px; flex: none; overflow: hidden }
+.asoma .avi { position: absolute; left: -2px; top: -1px }
+.pt-ambar { --c: var(--ambar) }
+.pt-crema { --c: var(--crema) }
+.pt-tenue { --c: var(--tenue) }
+/* Entre golpes nada titila: el Avi queda quieto en "te espera", con su "!" (6.4) */
+body:not(.pausa) #muesca .avi .e-teEspera .cuerpo, body:not(.pausa) #muesca .avi .e-teEspera .burbuja { animation: none }
+
+/* Luz de pregunta (7.1): franja ámbar de 3 px sobre el borde, fija a .75, con las puntas apagadas */
+body.acoplada.pregunta:not(.abierta):not(.pildora) #luz {
+  display: block; position: fixed; left: var(--lx, 0); top: var(--ly, 0); width: var(--lw, 0); height: var(--lh, 0); z-index: 2;
+  background: var(--ambar); filter: blur(6px); opacity: .75; pointer-events: none;
+  -webkit-mask: linear-gradient(var(--luz-dir, 90deg), transparent, #000 18%, #000 82%, transparent);
+  mask: linear-gradient(var(--luz-dir, 90deg), transparent, #000 18%, #000 82%, transparent);
+}
+body[data-borde="derecha"] #luz, body[data-borde="izquierda"] #luz { --luz-dir: 180deg }
+
+/* Píldora al arrastrar la muesca lejos de los bordes (7.3): el estilo de la tira mini */
+body.acoplada.pildora #pildora {
+  display: flex; align-items: center; gap: var(--e-4); position: fixed; inset: 0; padding: 0 var(--e-5) 0 var(--e-4);
+  background: var(--negro); border-radius: var(--r-pildora); cursor: grabbing; user-select: none; white-space: nowrap;
+}
+#pildora b { flex: 1; min-width: 0; font: 800 13.5px/1.25 var(--f); overflow: hidden; text-overflow: ellipsis }
+body.arrastrando, body.arrastrando * { cursor: grabbing !important }
+
+/* Imán al arrastrar el tablero flotante (6.4): ámbar interior de 3 px del lado que mira al borde,
+   4 px hacia el borde, y la píldora "Soltá para acoplar · arriba" */
+#marco { transition: box-shadow var(--d-presion) ease, transform var(--d-presion) ease }
+body[data-iman="arriba"] #marco { box-shadow: inset 0 3px 0 var(--ambar), var(--sombra-ventana); transform: translateY(-4px) }
+body[data-iman="abajo"] #marco { box-shadow: inset 0 -3px 0 var(--ambar), var(--sombra-ventana); transform: translateY(4px) }
+body[data-iman="derecha"] #marco { box-shadow: inset -3px 0 0 var(--ambar), var(--sombra-ventana); transform: translateX(4px) }
+body[data-iman="izquierda"] #marco { box-shadow: inset 3px 0 0 var(--ambar), var(--sombra-ventana); transform: translateX(-4px) }
+body[data-iman] #aviso-iman {
+  display: block; position: fixed; z-index: 3; padding: var(--e-2) var(--e-5); border-radius: var(--r-pildora);
+  background: var(--ambar); color: var(--negro); font: var(--t-mono-s); font-stretch: 75%; white-space: nowrap; pointer-events: none;
+}
+body[data-iman="arriba"] #aviso-iman { top: var(--e-6); left: 50%; transform: translateX(-50%) }
+body[data-iman="abajo"] #aviso-iman { bottom: calc(var(--margen-sombra) + var(--e-6)); left: 50%; transform: translateX(-50%) }
+body[data-iman="derecha"] #aviso-iman { right: var(--e-6); top: 50%; transform: translateY(-50%) }
+body[data-iman="izquierda"] #aviso-iman { left: var(--e-6); top: 50%; transform: translateY(-50%) }
+
+/* Golpe de la pregunta (6.4), 1100 ms: la muesca se corre 6 px hacia el centro y vuelve, el Avi
+   salta una vez, la luz sube a 1 y el chip late. Sin movimiento o en pausa, no hay golpe */
+@media (prefers-reduced-motion: no-preference) {
+  body.golpe:not(.pausa) #muesca { animation: golpe 520ms var(--rebote) 1 }
+  body.golpe:not(.pausa) #muesca .avi .e-teEspera .cuerpo { animation: salto var(--d-golpe) var(--ease) 1 }
+  body.golpe:not(.pausa) #luz { animation: golpe-luz var(--d-golpe) ease-in-out 1 }
+  body.golpe:not(.pausa) #muesca .chip-preg { animation: latido var(--d-golpe) ease-in-out 1 }
+  body.abriendo:not(.pausa) .rv { animation-delay: calc(var(--i, 0) * 40ms + 200ms) }
+}
+@keyframes golpe { 50% { transform: translate(var(--gx, 0px), var(--gy, 0px)) } }
+@keyframes golpe-luz { 0%, 100% { opacity: .75 } 40% { opacity: 1 } }
+@keyframes latido { 0%, 100% { transform: scale(1) } 30% { transform: scale(1.18) } 60% { transform: scale(.96) } }
+@media (prefers-reduced-motion: reduce) {
+  #muesca, #marco { transition: none }
+}
+body.pausa #muesca, body.pausa #marco { transition: none }
+
 /* ------------------------------------------------------------------ entrada escalonada y cambio de proyecto (6.1 y 6.2)
    tableroMotion.js pone las clases y el índice (--i) y las saca al terminar */
 @media (prefers-reduced-motion: no-preference) {

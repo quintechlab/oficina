@@ -18,6 +18,14 @@
 //                 comando, leyendo, pensando, esperándote, inactiva); "elenco" coordina a los cinco
 //                 subagentes (escribiendo, leyendo, listo y falló recién, dormido; 4 fichas y "+1")
 //   ?pausa        arranca con "Pausar animaciones" marcado, como desde la bandeja
+//   ?acople=arriba&lugar=0.5  arranca acoplada (arriba, derecha, abajo o izquierda), como si estuviera guardado
+//   ?estado=reposo|trabajando  sin pregunta pendiente: todos esperan, o una sesión coordina (sin ?estado, catalogo pregunta)
+//   ?sinderecha   el borde derecho toca a otro monitor: no acopla
+// Muesca (F4): dev/vista.html es el escritorio (la ventana del navegador menos una barra de tareas de
+// 40 px) y carga dev/ventana.html en un iframe que hace de ventana de Tauri: ajustar_ventana y
+// mover_ventana mueven y redimensionan ese iframe. El menú de la bandeja se imita con
+// window.__bandeja('oficina://acoplar', 'derecha') desde la consola del iframe. Lo guardado con
+// guardar_acople queda en window.__acople.
 // La ventana pedida por ajustar_ventana queda en window.__ventana y en la consola (info).
 // Hay una hoja con todos los Avis en todas las poses en dev/avis.html.
 ;(() => {
@@ -149,16 +157,44 @@
     }],
   }
 
+  // ?estado: sin pregunta pendiente; en reposo, además, sin subagentes trabajando
+  if (url.get('estado') === 'reposo' || url.get('estado') === 'trabajando') {
+    for (const s of SESIONES) s.preguntas = []
+    if (url.get('estado') === 'reposo') {
+      for (const s of SESIONES) { s.agentes = s.agentes.filter(a => a.estado !== 'trabajando'); s.actividad = 'esperándote' }
+    }
+  }
+
   let paso = PASOS.includes(Number(url.get('zoom'))) ? Number(url.get('zoom')) : 100
   const ventana = { x: 40, y: 40, ancho: 400, alto: 620 }
   window.__ventana = { ...ventana }
+  /** El iframe que hace de ventana (dev/vista.html); abierta sola, no hay. */
+  const marco = window.frameElement
+  if (marco) document.documentElement.classList.add('en-iframe')
+  const BARRA = 40
+  const area = () => marco
+    ? { x: 0, y: 0, ancho: parent.innerWidth, alto: parent.innerHeight - BARRA }
+    : { x: 0, y: 0, ancho: 1920, alto: 1040 }
+  const libres = { arriba: true, derecha: !url.has('sinderecha'), abajo: true, izquierda: true }
+  /** Mueve y redimensiona el iframe como Tauri a la ventana. */
+  const aplicar = () => {
+    window.__ventana = { ...ventana }
+    if (!marco) return
+    Object.assign(marco.style, { left: `${ventana.x}px`, top: `${ventana.y}px`, width: `${ventana.ancho}px`, height: `${ventana.alto}px` })
+  }
+  aplicar()
+  let acople = ['arriba', 'derecha', 'abajo', 'izquierda'].includes(url.get('acople'))
+    ? { borde: url.get('acople'), lugar: url.has('lugar') ? Number(url.get('lugar')) : 0.5 }
+    : null
+  window.__acople = acople
+  let previo = null
   const oyentes = {}
   let lecturas = 0
 
   const comandos = {
     registrar: ({ linea }) => console.debug('[widget.log]', linea),
     poner_bandeja: ({ texto }) => { document.title = texto },
-    estado_menu: () => ({ arriba: true, avisar: true, pausa: url.has('pausa'), tamano: paso }),
+    estado_menu: () => ({ arriba: true, avisar: true, pausa: url.has('pausa'), tamano: paso, acople }),
     leer_sesiones: () => {
       lecturas++
       if (url.has('cargando')) return new Promise(() => {})
@@ -167,11 +203,17 @@
       return url.has('vacio') ? [] : sinTomadas()
     },
     leer_equipo: () => url.has('sinequipo') ? { comentarios: [], yo: 'nicoequintana', error: 'gh: no autenticado (falso)' } : EQUIPO,
-    geometria: () => ({ ...ventana, area: { x: 0, y: 0, ancho: 1920, alto: 1040 } }),
+    geometria: () => ({ ...ventana, area: area(), libres }),
     ajustar_ventana: ({ ancho, alto, x, y }) => {
       Object.assign(ventana, { ancho, alto, x, y })
-      window.__ventana = { ...ventana }
-      console.info(`[ventana] ${ancho} × ${alto}`)
+      aplicar()
+      console.info(`[ventana] ${ancho} × ${alto} en ${x}, ${y}`)
+    },
+    mover_ventana: ({ x, y }) => { Object.assign(ventana, { x, y }); aplicar() },
+    guardar_acople: ({ borde, lugar }) => {
+      acople = borde ? { borde, lugar } : null
+      window.__acople = acople
+      console.info('[acople]', JSON.stringify(acople))
     },
     cambiar_tamano: ({ direccion }) => {
       const k = PASOS.indexOf(paso)
@@ -179,7 +221,17 @@
       for (const f of oyentes['oficina://tamano'] ?? []) f({ payload: paso })
     },
     fijar_arriba: () => null,
-    modo_mini: ({ mini, ancho, alto }) => { if (mini) console.info(`[ventana] tira ${ancho} × ${alto}`) },
+    modo_mini: ({ mini, ancho, alto }) => {
+      if (mini) {
+        previo ??= { ancho: ventana.ancho, alto: ventana.alto }
+        Object.assign(ventana, { ancho: ancho ?? 400, alto: alto ?? 56 })
+        console.info(`[ventana] tira ${ancho} × ${alto}`)
+      } else if (previo) {
+        Object.assign(ventana, previo)
+        previo = null
+      }
+      aplicar()
+    },
     esconder: () => console.info('[ventana] escondida en la bandeja'),
     avisar: () => null,
     // Responder: según ?envio, la sesión toma la respuesta, la pregunta se va sola o el comando falla
@@ -192,6 +244,9 @@
     estado_respuesta: ({ id }) => (url.get('envio') === 'listo' && tomadas.has(id) ? 'consumida' : 'pendiente'),
     borrar_respuesta: () => null,
   }
+
+  /** Imita un evento del menú de la bandeja, p. ej. __bandeja('oficina://acoplar', 'derecha'). */
+  window.__bandeja = (nombre, payload) => { for (const f of oyentes[nombre] ?? []) f({ payload }) }
 
   window.__TAURI__ = {
     core: {

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- La ventana del widget en la vista de desarrollo: la carga dev/vista.html en un iframe que hace
+     de ventana de Tauri. Abierta sola, el escritorio de fondo es esta misma página (como antes). -->
+<base href="../src/">
+<title>Oficina · ventana de desarrollo</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="estilos.css">
+<link rel="stylesheet" href="avis.css">
+<style>
+  /* Abierta sola, un escritorio de fondo para ver la transparencia; adentro del iframe, transparente */
+  html:not(.en-iframe) { background: linear-gradient(135deg, #3B4A5C, #6B7E8F) !important; min-height: 100% }
+</style>
+<script src="../dev/falso.js"></script>
+<script type="module" src="../dev/vista.js"></script>
+</head>
+<body></body>
+</html>

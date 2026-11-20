@@ -17,7 +17,7 @@
       <!-- El tamaño natural de este bloque decide el de la ventana (tamano.js) -->
       <div id="contenido">
         <aside class="lado">
-          <div class="marca" data-tauri-drag-region title="Arrastrá para mover">
+          <div class="marca" data-arrastre title="Arrastrá para mover o acoplar a un borde">
             <span id="marca-avi"></span>
             <span class="marca-t"><b class="marca-n">Oficina</b><span class="estado" id="marca-estado"></span></span>
           </div>
@@ -33,7 +33,7 @@
         </aside>
         <main class="principal">
           <header class="cab">
-            <div class="cab-t" data-tauri-drag-region title="Arrastrá para mover">
+            <div class="cab-t" data-arrastre title="Arrastrá para mover o acoplar a un borde">
               <h1 id="titulo"></h1>
               <p id="subtitulo"></p>
             </div>
@@ -61,6 +61,12 @@
       </div>
     </div>
   </div>
+  <!-- Muesca acoplada (sección 7): el único control mientras está cerrada. El panel es #marco -->
+  <button type="button" id="muesca" aria-expanded="false" aria-controls="marco" aria-label="Oficina. Abrir"></button>
+  <div id="luz" aria-hidden="true"></div>
+  <!-- Píldora al arrastrar la muesca lejos de los bordes, y aviso del imán al arrastrar el tablero (7.3) -->
+  <div id="pildora" aria-hidden="true"></div>
+  <p id="aviso-iman" aria-hidden="true"></p>
   <!-- Anuncia una sola vez cada pregunta que llega (dirección 8); nunca mueve el foco -->
   <p class="oculto" id="anuncio" aria-live="polite"></p>
   <!-- Tira mini (400 × 56): caras, resumen, preguntas, expandir y cerrar -->

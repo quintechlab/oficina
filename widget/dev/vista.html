@@ -4,18 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <!-- Vista de desarrollo del widget (no entra en la app: frontendDist es ../src).
-     Servir widget/ con un servidor http y abrir dev/vista.html; parámetros en falso.js. -->
-<base href="../src/">
+     Servir widget/ con un servidor http y abrir dev/vista.html; parámetros en falso.js.
+     Esta página es el escritorio: el área de trabajo es la ventana del navegador menos una barra de
+     tareas de 40 px, y el iframe #ventana hace de ventana de Tauri (falso.js la mueve y la
+     redimensiona con geometria, ajustar_ventana y mover_ventana). -->
 <title>Oficina · vista de desarrollo</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="estilos.css">
-<link rel="stylesheet" href="avis.css">
 <style>
-  /* Un escritorio de fondo para ver la transparencia de la ventana y su sombra */
-  html { background: linear-gradient(135deg, #3B4A5C, #6B7E8F) !important; min-height: 100% }
+  html, body { margin: 0; height: 100%; overflow: hidden }
+  /* Un escritorio de fondo para ver la transparencia de la ventana */
+  body { background: linear-gradient(135deg, #3B4A5C, #6B7E8F) }
+  #barra { position: fixed; left: 0; right: 0; bottom: 0; height: 40px; background: #1B1F26; color: #8A8478; font: 11px/40px monospace; padding-left: 12px }
+  #ventana { position: fixed; left: 40px; top: 40px; width: 400px; height: 620px; border: 0; background: transparent; color-scheme: normal }
 </style>
-<script src="../dev/falso.js"></script>
-<script type="module" src="../dev/vista.js"></script>
 </head>
-<body></body>
+<body>
+  <iframe id="ventana" title="Oficina" allowtransparency="true"></iframe>
+  <div id="barra">barra de tareas (fuera del área de trabajo)</div>
+  <script>
+    document.getElementById('ventana').src = 'ventana.html' + location.search
+  </script>
+</body>
 </html>

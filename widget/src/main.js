@@ -15,6 +15,11 @@ import {
 import { globo, avisoOtroProyecto, quienPregunta, anuncioPregunta } from './pregunta.js'
 import { defsAvis } from './avis.js'
 import { entrada, cambioProyecto } from './tableroMotion.js'
+import {
+  esHorizontal, bordeCercano, lugarDe, lugarAjustado, rectMuesca, rectPanel, rectLuz, recorte, relativo, cajaArrastre,
+  posicionFlotante, dentroDe, estadoMuesca, contenidoMuesca, contenidoPildora, ESTADO_INICIAL, siguiente, tocaGolpe, PILDORA,
+} from './muesca.js'
+import * as movimientoMuesca from './muescaMotion.js'
 
 const INTERVALO_MS = 1500
 const INTERVALO_EQUIPO_MS = 60000
@@ -79,6 +84,26 @@ const st = {
   /** Mensaje de "Listo, le respondiste…" mientras el globo se achica. */
   hecho: null,
   saliendo: false,
+  // ---- muesca acoplable (dirección, sección 7)
+  /** Borde y lugar de la muesca acoplada (7.5); `null`: flota. */
+  acople: null,
+  /** Abrir y cerrar la muesca: estado de `siguiente` (muesca.js). */
+  muesca: ESTADO_INICIAL,
+  /** Lo que se ve: el panel abierto (true) o la muesca. Va detrás de `muesca.abierta` mientras anima. */
+  vista: false,
+  /** Abriendo o cerrando: el ajuste de la ventana al contenido espera (9.2). */
+  animando: false,
+  /** Arrastre propio en curso (9.3). */
+  arrastre: null,
+  /** Golpe de la pregunta: claves ya vistas y hora del último (6.4). */
+  golpe: { vistas: new Set(), ultimo: null },
+  /** Rectángulo de la ventana acoplada (px de pantalla) y última posición flotante. */
+  ventana: null,
+  ultimaFlotante: null,
+  /** Puntero en px de pantalla, para saber si quedó sobre la muesca al cerrarse. */
+  puntero: null,
+  /** Foco que hay que dar cuando termine la animación: 'proyecto' o 'muesca'. */
+  focoPendiente: null,
 }
 
 /** Pone el HTML solo si cambió su firma (por defecto, el propio HTML). */
@@ -147,6 +172,37 @@ function pintarEquipo(ahora) {
   poner('#equipo', html.join(''), firma)
 }
 
+/**
+ * La muesca (7.1): el Avi que asoma, el punto y el chip, su nombre accesible y la luz de
+ * pregunta. Acoplada, revisa si toca el golpe (6.4).
+ */
+function pintarMuesca(ahora) {
+  const e = estadoMuesca(st.proyectos, ahora)
+  const firma = `${e.animo}|${e.punto}|${e.chip}`
+  poner('#muesca', contenidoMuesca(e), firma)
+  poner('#pildora', contenidoPildora(e), firma)
+  const boton = $('#muesca')
+  if (boton.getAttribute('aria-label') !== e.nombre) boton.setAttribute('aria-label', e.nombre)
+  document.body.classList.toggle('pregunta', e.pregunta)
+  if (st.acople) revisarGolpe(ahora)
+}
+
+/**
+ * Golpe al llegar una pregunta y cada 90 s mientras siga y la muesca esté cerrada. Solo llama la
+ * atención: nunca abre la muesca, no mueve el foco ni responde (sección 11).
+ */
+function revisarGolpe(ahora) {
+  if (st.arrastre || st.animando) return
+  const claves = st.proyectos.flatMap(p => pendientesVisibles(p).map(q => q.clave))
+  const nueva = claves.some(c => !st.golpe.vistas.has(c))
+  st.golpe.vistas = new Set(claves)
+  if (!claves.length) { st.golpe.ultimo = null; return }
+  if (tocaGolpe({ pendientes: claves.length, nueva, abierta: st.muesca.abierta || st.vista, ultimo: st.golpe.ultimo, ahora })) {
+    st.golpe.ultimo = ahora
+    movimientoMuesca.golpe()
+  }
+}
+
 function pintar() {
   const ahora = Date.now()
   const totalPend = st.proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
@@ -157,6 +213,7 @@ function pintar() {
   pintarTira(ahora)
   pintarPie()
   pintarEquipo(ahora)
+  pintarMuesca(ahora)
 
   if (!st.proyectos.length) {
     // Antes de la primera lectura: "Buscando sesiones…"; después, el vacío
@@ -212,8 +269,9 @@ function pintar() {
     if (escribiendo) enfocarOtra()
   }
 
-  // La primera vez que se ve el tablero desde que se mostró la ventana, entra escalonado (6.1)
-  if (!st.revelado && !st.fuera && !st.mini) {
+  // La primera vez que se ve el tablero desde que se mostró la ventana, entra escalonado (6.1).
+  // Acoplada y cerrada no se ve: entra al abrir la muesca
+  if (!st.revelado && !st.fuera && !st.mini && !(st.acople && !st.vista)) {
     st.revelado = true
     entrada()
   }
@@ -435,7 +493,24 @@ function moverProyecto(dir) {
 
 function ponerArriba(valor) {
   st.arriba = valor
-  $('[data-accion="pin"]').setAttribute('aria-pressed', String(valor))
+  pintarControles()
+}
+
+/**
+ * Controles del encabezado según el modo: flotando, el alfiler es "Siempre arriba" y la × esconde
+ * en la bandeja; acoplada, el alfiler es "Mantener abierta" y la × pliega a la muesca.
+ */
+function pintarControles() {
+  const pin = $('#marco [data-accion="pin"]')
+  const cerrar = $('#marco [data-accion="cerrar"]')
+  const textoPin = st.acople ? (st.muesca.fija ? 'Soltar: se pliega sola' : 'Mantener abierta') : 'Siempre arriba'
+  pin.setAttribute('aria-pressed', String(st.acople ? st.muesca.fija : st.arriba))
+  pin.setAttribute('aria-label', textoPin)
+  pin.title = textoPin
+  const textoCerrar = st.acople ? 'Plegar a la muesca' : 'Cerrar a la bandeja'
+  cerrar.setAttribute('aria-label', textoCerrar)
+  cerrar.title = textoCerrar
+  $('#muesca').setAttribute('aria-expanded', String(!!st.acople && st.muesca.abierta))
 }
 
 function ponerPausa(valor) {
@@ -444,7 +519,8 @@ function ponerPausa(valor) {
 }
 
 async function ponerMini(mini) {
-  if (st.mini === mini) return
+  // La tira mini es solo de la ventana flotante
+  if (st.mini === mini || (mini && st.acople)) return
   try {
     if (mini) {
       st.mini = true
@@ -517,6 +593,11 @@ document.addEventListener('click', async e => {
     st.plegado = false
     st.firmas.clavesGlobo = null
     pintar()
+  } else if (a === 'pin' && st.acople) {
+    // Acoplada, el alfiler mantiene abierto el panel
+    evento({ tipo: 'fijar' })
+  } else if (a === 'cerrar' && st.acople && b.closest('#marco')) {
+    evento({ tipo: 'cerrar' })
   } else if (a === 'pin') {
     const nuevo = !st.arriba
     try {
@@ -557,6 +638,8 @@ document.addEventListener('keydown', e => {
     }
     if (e.key === 'Escape') { st.plegado = true; pintar(); $('[data-accion="ver"]')?.focus(); return }
   }
+  // Fuera de la pregunta, Esc cierra la muesca aunque esté fijada y devuelve el foco a la muesca (7.2)
+  if (e.key === 'Escape' && st.acople && st.muesca.abierta) { e.preventDefault(); evento({ tipo: 'esc' }); return }
   if (st.mini || e.target.closest?.('input, textarea, summary')) return
   // ↑ ↓ mueven el foco entre los proyectos de la barra (no cambian de proyecto)
   const fila = e.target.closest?.('#proyectos [data-proy]')
@@ -617,9 +700,11 @@ function programarAjuste() {
 }
 
 async function ajustarVentana() {
-  if (st.mini || !tauri?.core) return
+  // Mientras la muesca abre, cierra o se arrastra, el tamaño ya está fijado (9.2)
+  if (st.mini || !tauri?.core || st.animando || st.arrastre) return
   try {
     const g = await invocar('geometria')
+    if (st.acople) { await colocarAcoplada(g); return }
     const deseado = tamanoDeseado(medirContenido(), g.area)
     if (!debeAjustar({ ancho: g.ancho, alto: g.alto }, deseado)) return
     const pos = posicionEnPantalla({ x: g.x, y: g.y }, deseado, g.area)
@@ -632,8 +717,386 @@ async function ajustarVentana() {
 // Escondida o minimizada (si el WebView lo informa): pausa al instante, sin esperar la lectura
 document.addEventListener('visibilitychange', () => ponerFuera(document.hidden))
 
-// El contenido cambia (otro proyecto, globo, compañero desplegado, tamaño elegido): la ventana lo sigue
-new ResizeObserver(() => programarAjuste()).observe($('#contenido'))
+// El contenido cambia (otro proyecto, globo, compañero desplegado, tamaño elegido): la ventana lo
+// sigue. Acoplada, también el chip de la muesca ("4" o "1 ?")
+const observador = new ResizeObserver(() => programarAjuste())
+observador.observe($('#contenido'))
+observador.observe($('#muesca'))
+
+// ------------------------------------------------------------------ muesca acoplable (sección 7)
+
+const zoom = () => zoomDe(st.tamano)
+const MUESCA_DE_REFERENCIA = { largo: 120, grosor: 40 }
+
+/** Tamaño de la muesca en px de pantalla: `largo` a lo largo del borde y `grosor` hacia el centro. */
+function tamMuesca() {
+  const m = $('#muesca')
+  const ancho = m.offsetWidth * zoom(), alto = m.offsetHeight * zoom()
+  if (!ancho || !alto) return MUESCA_DE_REFERENCIA
+  return esHorizontal(st.acople.borde) ? { largo: ancho, grosor: alto } : { largo: alto, grosor: ancho }
+}
+
+/** Largo del área de trabajo a lo largo de un borde. */
+const largoDe = (borde, area) => esHorizontal(borde) ? area.ancho : area.alto
+
+/**
+ * Ubica adentro de la ventana (`ventana`, px de pantalla) la muesca, su luz y, abierta, el
+ * tablero (`p.tablero`), en px CSS.
+ */
+function colocar(ventana, m, p) {
+  const z = zoom(), cuerpo = document.body.style
+  const poner = (prefijo, r) => {
+    const c = relativo(r, ventana, z)
+    cuerpo.setProperty(`--${prefijo}x`, `${c.x}px`)
+    cuerpo.setProperty(`--${prefijo}y`, `${c.y}px`)
+    if (prefijo !== 'm') { cuerpo.setProperty(`--${prefijo}w`, `${c.ancho}px`); cuerpo.setProperty(`--${prefijo}h`, `${c.alto}px`) }
+  }
+  poner('m', m.caja)
+  poner('l', rectLuz(m, st.acople.borde, z))
+  if (p) poner('t', p.tablero)
+  st.ventana = { x: ventana.x, y: ventana.y, ancho: ventana.ancho, alto: ventana.alto }
+}
+
+/** Ajuste acoplado: la muesca cerrada o el panel abierto, en su borde y su lugar. */
+async function colocarAcoplada(g) {
+  const z = zoom(), tm = tamMuesca()
+  const m = rectMuesca(st.acople, tm, g.area, z)
+  const p = st.vista ? rectPanel(st.acople, medirContenido(), tm, g.area, z) : null
+  const ventana = p ?? m
+  colocar(ventana, m, p)
+  if (debeAjustar(g, ventana) || Math.abs(g.x - ventana.x) > 1 || Math.abs(g.y - ventana.y) > 1) {
+    await invocar('ajustar_ventana', { ancho: ventana.ancho, alto: ventana.alto, x: ventana.x, y: ventana.y })
+  }
+}
+
+/** Clases y estilos del modo: acoplada a un borde o flotante. Empieza cerrada. */
+function aplicarModo() {
+  const cuerpo = document.body
+  cuerpo.classList.toggle('acoplada', !!st.acople)
+  if (st.acople) cuerpo.dataset.borde = st.acople.borde
+  else delete cuerpo.dataset.borde
+  cuerpo.classList.remove('abierta', 'desplegada', 'abriendo', 'muesca-oculta', 'pildora')
+  $('#marco').style.clipPath = ''
+  for (const v of ['tx', 'ty', 'tw', 'th', 'mx', 'my', 'lx', 'ly', 'lw', 'lh']) cuerpo.style.removeProperty(`--${v}`)
+  st.vista = false
+  st.ventana = null
+  pintarControles()
+}
+
+let relojMuesca = null
+
+/**
+ * Un evento de la muesca (`siguiente`, muesca.js): programa la espera que pida, anima si cambia
+ * abierta o cerrada y deja el foco donde corresponde.
+ */
+function evento(ev) {
+  const antes = st.muesca
+  const e = siguiente(antes, ev)
+  st.muesca = e
+  if (e.espera !== antes.espera) {
+    clearTimeout(relojMuesca)
+    if (e.espera) {
+      const { que, ms } = e.espera
+      relojMuesca = setTimeout(() => evento({ tipo: 'tiempo', que }), ms)
+    }
+  }
+  if (e.foco) st.focoPendiente = e.foco
+  pintarControles()
+  if (e.efecto) sincronizar()
+  else aplicarFoco()
+}
+
+function aplicarFoco() {
+  if (st.animando || !st.focoPendiente) return
+  const foco = st.focoPendiente
+  st.focoPendiente = null
+  if (foco === 'muesca') $('#muesca').focus()
+  else ($('#proyectos .pj.activo') ?? $('#proyectos [data-proy]') ?? $('#marco [data-accion="pin"]'))?.focus()
+}
+
+/** Lleva lo que se ve (`st.vista`) a lo pedido (`st.muesca.abierta`), una animación por vez. */
+async function sincronizar() {
+  if (st.animando || !st.acople) return
+  st.animando = true
+  try {
+    while (st.acople && !st.arrastre && st.muesca.abierta !== st.vista) {
+      if (st.muesca.abierta) await animarApertura()
+      else await animarCierre()
+    }
+  } catch (e) {
+    registrar(`muesca: ${e}`)
+  } finally {
+    st.animando = false
+  }
+  aplicarFoco()
+  programarAjuste()
+}
+
+/** Rectángulos de la muesca y del panel, y el recorte entre los dos, con el área de ahora. */
+async function medidasAcople() {
+  const g = await invocar('geometria')
+  const z = zoom(), tm = tamMuesca()
+  const m = rectMuesca(st.acople, tm, g.area, z)
+  const p = rectPanel(st.acople, medirContenido(), tm, g.area, z)
+  return { m, p, rc: recorte(m.caja, p.tablero, st.acople.borde, z) }
+}
+
+/** Abrir (6.4 y 9.2): la ventana toma el tamaño del panel, después el recorte crece desde la muesca. */
+async function animarApertura() {
+  const { m, p, rc } = await medidasAcople()
+  const marco = $('#marco')
+  marco.style.clipPath = rc.desde
+  // Primero se ubica adentro y después crece la ventana: un cuadro de desfase oculta la muesca en
+  // vez de mostrarla corrida
+  colocar(p, m, p)
+  await invocar('ajustar_ventana', { ancho: p.ancho, alto: p.alto, x: p.x, y: p.y })
+  st.vista = true
+  document.body.classList.add('abierta', 'abriendo')
+  st.revelado = true
+  entrada()
+  await movimientoMuesca.abrir(marco, rc.desde, rc.hasta)
+  marco.style.clipPath = ''
+  document.body.classList.add('desplegada')
+  setTimeout(() => document.body.classList.remove('abriendo'), 1600)
+}
+
+/** Cerrar (6.4 y 9.2): el recorte vuelve a la muesca y recién después la ventana se achica. */
+async function animarCierre() {
+  const { m, rc } = await medidasAcople()
+  document.body.classList.remove('desplegada', 'abriendo')
+  const soltar = await movimientoMuesca.cerrar($('#marco'), $('#contenido'), rc.desde, rc.hasta)
+  document.body.classList.remove('abierta')
+  st.vista = false
+  soltar()
+  await invocar('ajustar_ventana', { ancho: m.ancho, alto: m.alto, x: m.x, y: m.y })
+  colocar(m, m, null)
+  // Recién visto: el próximo golpe, dentro de 90 s si la pregunta sigue
+  if (st.golpe.vistas.size) st.golpe.ultimo = Date.now()
+  // Si el mouse ya no está sobre la muesca, el hover vuelve a abrir (7.2)
+  if (!dentroDe(st.puntero, m)) st.muesca = siguiente(st.muesca, { tipo: 'sale' })
+}
+
+/**
+ * Acopla a `borde` o deja flotando (`null`): desde la bandeja ("Acoplar a"), al soltar el tablero
+ * junto a un borde o al soltar la muesca lejos de todos. Guarda el acople (7.5).
+ */
+async function acoplarA(borde, { lugar, puntero, plegar } = {}) {
+  if (!tauri?.core || st.arrastre) return
+  if (st.mini) await ponerMini(false)
+  clearTimeout(relojMuesca)
+  try {
+    const g = await invocar('geometria')
+    if (borde) {
+      if (!st.acople) st.ultimaFlotante = { x: g.x, y: g.y }
+      let soltar = () => {}
+      if (plegar && !st.acople) soltar = await movimientoMuesca.plegar($('#marco'), pliegueHacia(borde))
+      const centro = { x: g.x + g.ancho / 2, y: g.y + g.alto / 2 }
+      const l = lugar ?? (st.acople ? st.acople.lugar : lugarDe(borde, centro, g.area))
+      st.acople = { borde, lugar: l }
+      st.muesca = { ...ESTADO_INICIAL, armado: false }
+      aplicarModo()
+      soltar()
+      pintar()
+      st.acople.lugar = lugarAjustado(l, tamMuesca().largo, largoDe(borde, g.area), zoom())
+      await invocar('guardar_acople', { borde, lugar: st.acople.lugar })
+      await colocarAcoplada(await invocar('geometria'))
+    } else {
+      st.acople = null
+      st.muesca = ESTADO_INICIAL
+      aplicarModo()
+      await invocar('guardar_acople', { borde: null, lugar: null })
+      const g2 = await invocar('geometria')
+      const tam = tamanoDeseado(medirContenido(), g2.area)
+      const pos = puntero ? posicionFlotante(puntero, tam, g2.area) : posicionEnPantalla(st.ultimaFlotante ?? { x: g2.x, y: g2.y }, tam, g2.area)
+      await invocar('ajustar_ventana', { ...tam, ...pos })
+      st.revelado = false
+      pintar()
+    }
+  } catch (e) {
+    st.error = `No se pudo acoplar: ${e}`
+    pintarPie()
+  }
+}
+
+/** Recorte final del tablero flotante al plegarse hacia `borde`: una muesca en el medio de ese lado. */
+function pliegueHacia(borde) {
+  const marco = $('#marco')
+  const w = marco.offsetWidth, h = marco.offsetHeight
+  const { largo, grosor } = MUESCA_DE_REFERENCIA
+  const lados = esHorizontal(borde) ? (w - largo) / 2 : (h - largo) / 2
+  const fondo = (esHorizontal(borde) ? h : w) - grosor
+  const inset = {
+    arriba: [0, lados, fondo, lados], abajo: [fondo, lados, 0, lados],
+    derecha: [lados, 0, lados, fondo], izquierda: [lados, fondo, lados, 0],
+  }[borde]
+  return `inset(${inset.map(v => `${Math.max(0, v)}px`).join(' ')} round 22px)`
+}
+
+// ---- mouse y teclado sobre la muesca (7.2)
+
+const muescaEl = $('#muesca')
+let justoArrastro = false
+muescaEl.addEventListener('pointerenter', e => {
+  // `st.ventana`: la muesca ya está en su borde (al arrancar, la ventana todavía tiene otro tamaño)
+  if (e.pointerType === 'mouse' && st.acople && st.ventana && !st.muesca.abierta && !st.arrastre) evento({ tipo: 'entra' })
+})
+muescaEl.addEventListener('pointerleave', () => {
+  if (st.acople && !st.muesca.abierta && !st.arrastre) evento({ tipo: 'sale' })
+})
+// Abierta, cuenta toda la ventana (el panel)
+document.documentElement.addEventListener('pointerenter', e => {
+  if (e.pointerType === 'mouse' && st.acople && st.muesca.abierta && !st.arrastre) evento({ tipo: 'entra' })
+})
+document.documentElement.addEventListener('pointerleave', () => {
+  if (st.acople && st.muesca.abierta && !st.arrastre) evento({ tipo: 'sale' })
+})
+// Clic, Enter o Espacio: abre y lleva el foco al proyecto activo
+muescaEl.addEventListener('click', () => {
+  if (justoArrastro || !st.acople) return
+  evento({ tipo: 'clic' })
+})
+
+// ---- arrastre propio e imán (7.3 y 9.3)
+
+const UMBRAL_ARRASTRE = 4
+
+/** Pide mover o redimensionar la ventana; si hay un pedido en vuelo, gana el último. */
+let destinoVentana = null, enviandoVentana = null
+function pedirVentana(r) {
+  destinoVentana = r
+  if (!enviandoVentana) enviandoVentana = enviarVentana()
+}
+async function enviarVentana() {
+  while (destinoVentana) {
+    const r = destinoVentana
+    destinoVentana = null
+    try {
+      if (r.ancho) await invocar('ajustar_ventana', { ancho: r.ancho, alto: r.alto, x: r.x, y: r.y })
+      else await invocar('mover_ventana', { x: r.x, y: r.y })
+    } catch (e) { registrar(`arrastre: ${e}`) }
+  }
+  enviandoVentana = null
+}
+
+document.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || st.mini || st.arrastre || !tauri?.core) return
+  const asa = e.target.closest?.('#muesca, [data-arrastre]')
+  if (!asa) return
+  // Acoplada (cerrada o abierta) se arrastra la muesca; flotando, el tablero
+  const a = { origen: st.acople ? 'muesca' : 'tablero', id: e.pointerId, x0: e.screenX, y0: e.screenY, dx: 0, dy: 0, agarre: { x: e.clientX, y: e.clientY }, activo: false }
+  st.arrastre = a
+  invocar('geometria', { puntero: true }).then(g => {
+    a.inicio = { x: g.x, y: g.y, ancho: g.ancho, alto: g.alto }
+    a.area = g.area
+    a.libres = g.libres
+  }).catch(() => { if (st.arrastre === a) st.arrastre = null })
+})
+
+document.addEventListener('pointermove', e => {
+  if (st.ventana) st.puntero = { x: st.ventana.x + e.clientX, y: st.ventana.y + e.clientY }
+  const a = st.arrastre
+  if (!a || e.pointerId !== a.id) return
+  a.dx = e.screenX - a.x0
+  a.dy = e.screenY - a.y0
+  if (!a.activo) {
+    if (Math.hypot(a.dx, a.dy) <= UMBRAL_ARRASTRE || !a.inicio) return
+    empezarArrastre(a, e)
+  }
+  if (!a.cuadro) a.cuadro = requestAnimationFrame(() => { a.cuadro = 0; moverArrastre(a) })
+})
+
+function empezarArrastre(a, e) {
+  a.activo = true
+  document.body.setPointerCapture?.(e.pointerId)
+  document.body.classList.add('arrastrando')
+  clearTimeout(relojMuesca)
+  if (a.origen === 'muesca') {
+    // Abierta, se pliega al instante: lo que se arrastra es la muesca
+    st.muesca = { ...ESTADO_INICIAL, armado: false }
+    st.vista = false
+    document.body.classList.remove('abierta', 'desplegada', 'abriendo', 'muesca-oculta')
+    $('#marco').style.clipPath = ''
+    pintarControles()
+    a.tam = { ancho: PILDORA.ancho * zoom(), alto: PILDORA.alto * zoom() }
+  }
+}
+
+function moverArrastre(a) {
+  const puntero = { x: a.inicio.x + a.agarre.x + a.dx, y: a.inicio.y + a.agarre.y + a.dy }
+  a.puntero = puntero
+  // Otro monitor bajo el puntero: su área y sus bordes (9.4)
+  if (!dentroDe(puntero, a.area) && !a.pidiendo) {
+    a.pidiendo = true
+    invocar('geometria', { puntero: true }).then(g => { a.area = g.area; a.libres = g.libres }).catch(() => {}).finally(() => { a.pidiendo = false })
+  }
+  if (a.origen === 'muesca') {
+    const caja = cajaArrastre(puntero, null, a.tam)
+    a.borde = bordeCercano(caja, a.area, a.libres)
+    if (a.borde) {
+      // Cerca de un borde: la muesca se pega a él y se desliza a lo largo
+      if (st.acople.borde !== a.borde) {
+        st.acople = { borde: a.borde, lugar: 0.5 }
+        document.body.dataset.borde = a.borde
+      }
+      document.body.classList.remove('pildora')
+      const tm = tamMuesca()
+      const centro = { x: caja.x + caja.ancho / 2, y: caja.y + caja.alto / 2 }
+      st.acople.lugar = lugarAjustado(lugarDe(a.borde, centro, a.area), tm.largo, largoDe(a.borde, a.area), zoom())
+      const m = rectMuesca(st.acople, tm, a.area, zoom())
+      colocar(m, m, null)
+      pedirVentana(m)
+    } else {
+      // Lejos de todo borde: la píldora flotante sigue al puntero
+      document.body.classList.add('pildora')
+      st.ventana = { x: Math.round(caja.x), y: Math.round(caja.y), ancho: Math.round(caja.ancho), alto: Math.round(caja.alto) }
+      pedirVentana(st.ventana)
+    }
+  } else {
+    const caja = cajaArrastre(puntero, a.agarre, a.inicio)
+    a.caja = caja
+    a.borde = bordeCercano(caja, a.area, a.libres)
+    if (a.borde) {
+      document.body.dataset.iman = a.borde
+      $('#aviso-iman').textContent = `Soltá para acoplar · ${a.borde}`
+    } else {
+      delete document.body.dataset.iman
+    }
+    pedirVentana({ x: Math.round(caja.x), y: Math.round(caja.y) })
+  }
+}
+
+async function soltarArrastre(e) {
+  const a = st.arrastre
+  if (!a || e.pointerId !== a.id) return
+  if (a.cuadro) { cancelAnimationFrame(a.cuadro); a.cuadro = 0; if (a.activo) moverArrastre(a) }
+  st.arrastre = null
+  document.body.classList.remove('arrastrando')
+  if (!a.activo) return
+  // El clic que sigue al soltar no abre la muesca
+  justoArrastro = true
+  setTimeout(() => { justoArrastro = false }, 0)
+  await enviandoVentana
+  if (a.origen === 'muesca') {
+    document.body.classList.remove('pildora')
+    if (a.borde) {
+      await invocar('guardar_acople', { borde: st.acople.borde, lugar: st.acople.lugar }).catch(err => registrar(`acople: ${err}`))
+      programarAjuste()
+    } else {
+      await acoplarA(null, { puntero: a.puntero })
+    }
+  } else {
+    delete document.body.dataset.iman
+    if (a.borde) {
+      const centro = { x: a.caja.x + a.caja.ancho / 2, y: a.caja.y + a.caja.alto / 2 }
+      await acoplarA(a.borde, { lugar: lugarDe(a.borde, centro, a.area), plegar: true })
+    } else {
+      // Flotando: la posición la guarda window-state al salir, como siempre
+      st.ultimaFlotante = { x: Math.round(a.caja.x), y: Math.round(a.caja.y) }
+    }
+  }
+}
+document.addEventListener('pointerup', soltarArrastre)
+document.addEventListener('pointercancel', soltarArrastre)
 
 async function iniciar() {
   // Las definiciones de los Avis (piel, luz de piso y desenfoque), una vez por documento (5.1)
@@ -644,6 +1107,11 @@ async function iniciar() {
       if (typeof m.arriba === 'boolean') ponerArriba(m.arriba)
       if (typeof m.avisar === 'boolean') st.avisar = m.avisar
       if (typeof m.pausa === 'boolean') ponerPausa(m.pausa)
+      // Acoplada al cerrar la última vez: vuelve como muesca, en el monitor de la última posición (7.5)
+      if (typeof m.acople?.borde === 'string') {
+        st.acople = { borde: m.acople.borde, lugar: Number(m.acople.lugar) }
+        aplicarModo()
+      }
       await aplicarTamano(typeof m.tamano === 'number' ? m.tamano : PASO_POR_DEFECTO)
     } catch { await aplicarTamano(PASO_POR_DEFECTO) }
     const escuchar = tauri.event.listen
@@ -653,6 +1121,10 @@ async function iniciar() {
     escuchar('oficina://tamano', ev => aplicarTamano(Number(ev.payload)))
     // Se abrió Oficina otra vez estando en la tira mini: volver a la ventana completa
     escuchar('oficina://expandir', () => ponerMini(false))
+    // "Acoplar a" de la bandeja (7.3): un borde o Flotante (null)
+    escuchar('oficina://acoplar', ev => acoplarA(typeof ev.payload === 'string' ? ev.payload : null))
+    // "Mostrar oficina", la notificación o abrir Oficina otra vez: acoplada, abre el panel
+    escuchar('oficina://abrir', () => { if (st.acople) evento({ tipo: 'clic' }) })
   } else {
     await aplicarTamano(PASO_POR_DEFECTO)
   }
