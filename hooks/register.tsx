@@ -33,7 +33,8 @@ import {
   iniciales,
   mapaNombres,
   ordenar,
-  repoDesdeRemoto,
+  esRepoLocal,
+  proyectoDesdeRepo,
   resumen,
   talleDesdeCuerpo,
   tareaDesdeRama,
@@ -115,7 +116,7 @@ async function leerLocal($: EngineInterface): Promise<Local> {
   const cwd = await $.session.cwd()
   const sr = await $.session.repo()
   if (!sr) return { repo: null, rama: null, archivos: [] }
-  const repo = repoDesdeRemoto(sr.remote)
+  const repo = proyectoDesdeRepo(sr.root, sr.remote)
   const rama = (await git($, ['branch', '--show-current'], cwd)).trim() || null
   let archivos: string[] = []
   for (const base of ['origin/main', 'main', 'origin/master', 'master']) {
@@ -361,9 +362,11 @@ async function refrescar($: EngineInterface): Promise<void> {
       const presencia: Presencia = { ...elegida.presencia, nombre }
       const otras = elegida.otras.map(o => ({ ...o, nombre }))
       const sesiones = elegida.todas.map(s => ({ ...s, nombre }))
-      const tarea = presencia.repo && presencia.tarea ? await leerTarea($, presencia.repo, presencia.tarea, ahoraMs) : null
-      const prs = presencia.repo ? await leerPrs($, presencia.repo, presencia.usuario) : []
-      const ultimoCommit = presencia.repo ? await leerUltimoCommit($, presencia.repo, presencia.usuario) : null
+      // Un repo sin remoto de GitHub no tiene Issues, PRs ni commits que consultar allá
+      const enGithub = presencia.repo && !esRepoLocal(presencia.repo) ? presencia.repo : null
+      const tarea = enGithub && presencia.tarea ? await leerTarea($, enGithub, presencia.tarea, ahoraMs) : null
+      const prs = enGithub ? await leerPrs($, enGithub, presencia.usuario) : []
+      const ultimoCommit = enGithub ? await leerUltimoCommit($, enGithub, presencia.usuario) : null
       lista.push({ presencia, otras, sesiones, tarea, prs, ultimoCommit, esYo: !!quien && presencia.usuario.toLowerCase() === quien.login.toLowerCase() })
     }
     const ordenada = ordenar(lista)

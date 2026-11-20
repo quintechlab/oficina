@@ -31,6 +31,26 @@ export function repoDesdeRemoto(url: string | null): string | null {
   return m ? `${m[1]}/${m[2]}` : null
 }
 
+/** Prefijo de los proyectos que no tienen remoto en GitHub: se reconocen por su carpeta. */
+const PREFIJO_LOCAL = 'local/'
+
+/**
+ * El proyecto de un repositorio: owner/repo si el remoto es de GitHub; si no (sin remoto, o en
+ * otro servidor), "local/<carpeta del repo>", para que el widget lo agrupe aparte en lugar de
+ * mezclarlo con lo que está fuera de un repositorio.
+ */
+export function proyectoDesdeRepo(raiz: string, remoto: string | null): string | null {
+  const deGithub = repoDesdeRemoto(remoto)
+  if (deGithub) return deGithub
+  const carpeta = raiz.replace(/[\\/]+$/, '').split(/[\\/]/).pop()
+  return carpeta ? `${PREFIJO_LOCAL}${carpeta}` : null
+}
+
+/** Un proyecto sin remoto en GitHub: no tiene Issues ni PRs que consultar. */
+export function esRepoLocal(repo: string | null): boolean {
+  return !!repo && repo.startsWith(PREFIJO_LOCAL)
+}
+
 /** Pasadas estas horas sin publicar, una sesión se descarta: quedó colgada (máquina apagada, sesión cerrada a la fuerza). */
 export const HORAS_SESION_VIEJA = 12
 

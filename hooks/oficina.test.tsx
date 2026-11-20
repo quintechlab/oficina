@@ -9,6 +9,8 @@ import {
   diferencias,
   elegirPrincipal,
   envolverComentario,
+  esRepoLocal,
+  proyectoDesdeRepo,
   estadoVisible,
   extraerComentario,
   formatoDuracion,
@@ -87,6 +89,16 @@ test('la tarea se detecta de la rama tipo/<n>-slug', async () => {
   expect(tareaDesdeRama('42-sin-tipo')).toBe(42)
   expect(tareaDesdeRama('main')).toBe(null)
   expect(tareaDesdeRama(null)).toBe(null)
+})
+
+test('un repo sin remoto de GitHub se reconoce por el nombre de su carpeta', async () => {
+  expect(proyectoDesdeRepo('C:\\Users\\Nico\\Desktop\\catalogo', 'git@github.com:quintechlab/catalogo.git')).toBe('quintechlab/catalogo')
+  expect(proyectoDesdeRepo('C:\\Users\\Nico\\OneDrive\\Desktop\\Proyecto Inmobiliaria', null)).toBe('local/Proyecto Inmobiliaria')
+  expect(proyectoDesdeRepo('/home/nico/mis-gastos/', 'https://gitlab.com/nico/mis-gastos.git')).toBe('local/mis-gastos')
+  expect(proyectoDesdeRepo('', null)).toBe(null)
+  expect(esRepoLocal('local/Proyecto Inmobiliaria')).toBe(true)
+  expect(esRepoLocal('quintechlab/catalogo')).toBe(false)
+  expect(esRepoLocal(null)).toBe(false)
 })
 
 test('el talle se lee del cuerpo del Issue del formulario', async () => {
