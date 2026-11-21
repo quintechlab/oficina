@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Boceto · La muesca con el Avi adentro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Martian+Mono:wdth,wght@75..112.5,400..600&display=swap" rel="stylesheet">
+<style>
+/* Boceto (modo boceto) de la muesca cerrada con el Avi de Claude como protagonista.
+   Tokens de estilos.css, trazado del Avi de docs/diseno/bocetos/marca-avi.html (avis.js).
+   Troko (muesca-troko.png) es solo referencia de comportamiento: una mascota que asoma, mira y reacciona.
+   Forma, personaje, paleta, radios y hombros son los de Avis (estilo-avis-ux.md). No es código de producción. */
+:root{
+  --negro:#000;--s1:#0C0C0E;--s2:#141417;--s3:#1D1D21;--linea:#25252A;--linea-hover:#36363C;
+  --crema:#F3EBD8;--crema2:#BDB5A4;--tenue:#8A8478;--ambar:#F2B632;--ambar-osc:#1D1707;--pico:#E9A13B;
+  --f:"Manrope","Segoe UI Variable",sans-serif;--m:"Martian Mono","Cascadia Mono",monospace;
+  --ease:cubic-bezier(.16,1,.3,1);--rebote:cubic-bezier(.34,1.56,.64,1);
+  --r-muesca:22px;--r-hombro:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#050506}
+body{color:var(--crema);font:500 14px/1.55 var(--f);-webkit-font-smoothing:antialiased;min-height:100vh;padding-bottom:64px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.mono{font-family:var(--m);font-stretch:75%}
+
+/* ---------- cabecera ---------- */
+header{max-width:1360px;margin:0 auto;padding:44px 24px 24px;display:grid;gap:14px}
+.kicker{font:500 10.5px/1 var(--m);font-stretch:75%;letter-spacing:.14em;text-transform:uppercase;color:var(--ambar)}
+h1{font:800 clamp(30px,4.4vw,52px)/1 var(--f);letter-spacing:-.035em;max-width:16ch}
+h1 em{font-style:normal;color:var(--ambar)}
+.bajada{max-width:70ch;color:var(--crema2)}
+.bajada b{color:var(--crema)}
+
+/* ---------- controles ---------- */
+.controles{position:sticky;top:0;z-index:20;background:rgba(5,5,6,.9);backdrop-filter:blur(10px);border-block:1px solid var(--linea)}
+.controles-in{max-width:1360px;margin:0 auto;padding:12px 24px;display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center}
+.grupo{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.grupo>span{font:500 10px/1 var(--m);font-stretch:75%;letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+.seg{display:flex;background:var(--s2);border:1px solid var(--linea);border-radius:999px;padding:3px;flex-wrap:wrap}
+.seg button{min-height:32px;padding:0 12px;border-radius:999px;font:600 12.5px/1 var(--f);color:var(--crema2);transition:background .2s,color .2s}
+.seg button:hover{color:var(--crema)}
+.seg button[aria-pressed="true"]{background:var(--crema);color:var(--negro)}
+.chk{display:flex;align-items:center;gap:7px;min-height:32px;font:600 12.5px/1 var(--f);color:var(--crema2);cursor:pointer}
+.chk input{accent-color:var(--ambar);width:16px;height:16px}
+
+/* ---------- opciones ---------- */
+.opciones{max-width:1360px;margin:28px auto 0;padding:0 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:28px}
+.opcion{display:grid;gap:16px;align-content:start}
+.opcion h2{display:flex;align-items:baseline;gap:10px;font:800 24px/1 var(--f);letter-spacing:-.02em}
+.opcion h2 .letra{font:500 11px/1 var(--m);font-stretch:75%;color:var(--tenue);letter-spacing:.1em}
+.opcion h2 .reco{margin-left:auto;font:600 10px/1 var(--m);font-stretch:75%;letter-spacing:.08em;text-transform:uppercase;color:var(--negro);background:var(--ambar);padding:5px 8px;border-radius:999px}
+.que{color:var(--crema2);font-size:13.5px}
+.que b{color:var(--crema)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12.5px;line-height:1.45;border-top:1px solid var(--linea);padding-top:12px}
+dt{font:500 10px/1.5 var(--m);font-stretch:75%;letter-spacing:.08em;text-transform:uppercase;color:var(--tenue);padding-top:2px}
+dd{color:var(--crema2)}
+dd b{color:var(--crema);font-weight:700}
+.medida{font:500 10.5px/1.4 var(--m);font-stretch:75%;color:var(--tenue)}
+.pie{font:500 10.5px/1.5 var(--m);font-stretch:75%;color:var(--tenue);min-height:16px}
+.juego{justify-self:start;min-height:36px;padding:0 14px;border:1px solid var(--linea-hover);border-radius:999px;font:600 12.5px/1 var(--f);color:var(--crema);transition:border-color .2s,background .2s}
+.juego:hover{border-color:var(--ambar);background:var(--ambar-osc)}
+.juego[disabled]{opacity:.45;cursor:default;border-color:var(--linea);background:none}
+
+/* ---------- la pantalla simulada ---------- */
+.pantalla{position:relative;height:260px;border-radius:16px;overflow:hidden;isolation:isolate;
+  background:
+    radial-gradient(55% 75% at 18% 112%,rgba(233,161,59,.38),transparent 62%),
+    radial-gradient(38% 70% at 86% 104%,rgba(242,182,50,.22),transparent 60%),
+    radial-gradient(30% 40% at 60% 30%,rgba(242,182,50,.05),transparent 70%),
+    linear-gradient(180deg,#0E0C0A,#17120B);
+  box-shadow:inset 0 0 0 1px var(--linea)}
+.pantalla .apps{position:absolute;inset:0;pointer-events:none}
+.pantalla .apps i{position:absolute;border-radius:10px;border:1px solid rgba(243,235,216,.06);background:rgba(243,235,216,.025)}
+.pantalla .apps i:nth-child(1){left:9%;top:30%;width:46%;height:46%}
+.pantalla .apps i:nth-child(2){left:44%;top:46%;width:44%;height:40%}
+
+/* ancla: el lugar de la muesca contra el borde (main.js pone --mx/--my en el widget) */
+.ancla{position:absolute;z-index:2}
+[data-borde="arriba"] .ancla{left:50%;top:0;transform:translateX(-50%)}
+[data-borde="abajo"] .ancla{left:50%;bottom:0;transform:translateX(-50%)}
+[data-borde="derecha"] .ancla{right:0;top:50%;transform:translateY(-50%)}
+[data-borde="izquierda"] .ancla{left:0;top:50%;transform:translateY(-50%)}
+.ancla.atras{z-index:1}
+
+/* la forma negra con hombros cóncavos de 16 y esquinas de 22 hacia el centro (igual que estilos.css) */
+.forma{position:relative;display:block;background:var(--negro);width:var(--w);height:var(--h)}
+[data-borde="derecha"] .forma,[data-borde="izquierda"] .forma{width:var(--sw);height:var(--sh)}
+.forma::before,.forma::after{content:"";position:absolute;width:var(--r-hombro);height:var(--r-hombro);pointer-events:none}
+[data-borde="arriba"] .forma{border-radius:0 0 var(--r-muesca) var(--r-muesca);transform-origin:50% 0}
+[data-borde="arriba"] .forma::before{left:-16px;top:0;background:radial-gradient(circle at 0 100%,transparent 15.5px,#000 16px)}
+[data-borde="arriba"] .forma::after{right:-16px;top:0;background:radial-gradient(circle at 100% 100%,transparent 15.5px,#000 16px)}
+[data-borde="abajo"] .forma{border-radius:var(--r-muesca) var(--r-muesca) 0 0;transform-origin:50% 100%}
+[data-borde="abajo"] .forma::before{left:-16px;bottom:0;background:radial-gradient(circle at 0 0,transparent 15.5px,#000 16px)}
+[data-borde="abajo"] .forma::after{right:-16px;bottom:0;background:radial-gradient(circle at 100% 0,transparent 15.5px,#000 16px)}
+[data-borde="derecha"] .forma{border-radius:var(--r-muesca) 0 0 var(--r-muesca);transform-origin:100% 50%}
+[data-borde="derecha"] .forma::before{right:0;top:-16px;background:radial-gradient(circle at 0 0,transparent 15.5px,#000 16px)}
+[data-borde="derecha"] .forma::after{right:0;bottom:-16px;background:radial-gradient(circle at 0 100%,transparent 15.5px,#000 16px)}
+[data-borde="izquierda"] .forma{border-radius:0 var(--r-muesca) var(--r-muesca) 0;transform-origin:0 50%}
+[data-borde="izquierda"] .forma::before{left:0;top:-16px;background:radial-gradient(circle at 100% 0,transparent 15.5px,#000 16px)}
+[data-borde="izquierda"] .forma::after{left:0;bottom:-16px;background:radial-gradient(circle at 100% 100%,transparent 15.5px,#000 16px)}
+
+.muesca{cursor:pointer;color:var(--crema);box-shadow:0 10px 24px -14px rgba(0,0,0,.9);transition:transform 240ms var(--ease)}
+.muesca:focus-visible{outline:2px solid var(--ambar);outline-offset:-4px}
+.muesca>*{pointer-events:none}
+.muesca:hover,.hov .muesca{transform:scale(1.05)}
+.muesca.golpe{animation:golpe 480ms var(--ease)}
+@keyframes golpe{0%{transform:scale(1)}28%{transform:scale(1.1)}55%{transform:scale(.97)}78%{transform:scale(1.025)}100%{transform:scale(1)}}
+.interior{position:absolute;inset:0}
+/* zona interactiva: solo el rectángulo de la muesca, nunca los hombros */
+.zona .muesca::selection{background:none}
+.zona .ancla:not(.atras) .muesca{outline:1.5px dashed var(--ambar);outline-offset:3px}
+.zona .ancla:not(.atras)::after{content:"zona interactiva";position:absolute;white-space:nowrap;font:500 9.5px/1 var(--m);font-stretch:75%;color:var(--ambar);pointer-events:none}
+.zona[data-borde="arriba"] .ancla:not(.atras)::after{left:50%;top:calc(100% + 12px);transform:translateX(-50%)}
+.zona[data-borde="abajo"] .ancla:not(.atras)::after{left:50%;bottom:calc(100% + 12px);transform:translateX(-50%)}
+.zona[data-borde="derecha"] .ancla:not(.atras)::after{right:calc(100% + 10px);top:50%;transform:translateY(-50%)}
+.zona[data-borde="izquierda"] .ancla:not(.atras)::after{left:calc(100% + 10px);top:50%;transform:translateY(-50%)}
+
+/* luz de pregunta: franja ámbar sobre el borde, fija a .75 con las puntas apagadas (7.1) */
+.luz{position:absolute;display:none;background:var(--ambar);filter:blur(6px);opacity:.75;pointer-events:none;
+  -webkit-mask:linear-gradient(var(--ld,90deg),transparent,#000 18%,#000 82%,transparent);mask:linear-gradient(var(--ld,90deg),transparent,#000 18%,#000 82%,transparent)}
+[data-borde="arriba"] .luz{left:-28px;right:-28px;top:-2px;height:6px}
+[data-borde="abajo"] .luz{left:-28px;right:-28px;bottom:-2px;height:6px}
+[data-borde="derecha"] .luz{top:-28px;bottom:-28px;right:-2px;width:6px;--ld:180deg}
+[data-borde="izquierda"] .luz{top:-28px;bottom:-28px;left:-2px;width:6px;--ld:180deg}
+[data-estado="pregunta"] .luz,[data-estado="golpe"] .luz{display:block}
+
+/* globo "!" y chip de cantidad */
+.excl{position:absolute;display:none;place-items:center;width:17px;height:17px;border-radius:50%;background:var(--ambar);color:var(--negro);font:800 11.5px/1 var(--f);box-shadow:0 0 0 2px #000}
+[data-estado="pregunta"] .excl,[data-estado="golpe"] .excl{display:grid;animation:pop 360ms var(--rebote) both}
+.muesca.golpe .excl{animation:pop 420ms var(--rebote) both}
+@keyframes pop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* ---------- el Avi (trazado de avis.js) ---------- */
+.avi{display:block;overflow:visible}
+.avi *{transform-box:view-box}
+.avi .piel{fill:url(#gPiel)}
+.avi .sombreado{fill:#B9A780;opacity:.34}
+.avi .brillo{fill:url(#gBrillo)}
+.avi .pata{fill:#D6C8A6}
+.avi .ojo{fill:#1B1712}
+.avi .luzojo{fill:#fff}
+.avi .trazo{stroke:#1B1712;stroke-width:2.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.avi .pico{fill:var(--pico)}
+.avi .pico-i{fill:#DD9433}
+.avi .boca{fill:#3A1C10;display:none}
+.avi .halo{fill:var(--ambar);opacity:.22;transform-origin:60px 14px}
+.avi .bulbo{fill:var(--ambar)}
+.avi .piso{fill:var(--ambar);opacity:.06}
+.avi .cuerpo{transform-origin:60px 102px;animation:respira 3.8s ease-in-out infinite}
+@keyframes respira{0%,100%{transform:scale(1,1)}50%{transform:scale(1.014,1.034)}}
+.avi .inclina{transform-origin:60px 102px}
+.avi .parpado{transform-origin:60px 70px;transition:transform 70ms ease}
+.avi .e-fe{display:none}
+.avi.feliz .e-fe{display:inline}
+.avi.feliz .e-ab{display:none}
+.avi.ocupado .parpado{transform:scaleY(.74)}
+.avi.parpa .parpado{transform:scaleY(.08)}
+.avi.ocupado .halo{animation:late 1.6s ease-in-out infinite}
+@keyframes late{0%,100%{transform:scale(.8);opacity:.12}50%{transform:scale(1.35);opacity:.42}}
+.avi .mano-d{opacity:0;transform:translate(96px,70px) rotate(-12deg)}
+.avi .mano-d ellipse{fill:#F1E8D4;stroke:#D9CCAD;stroke-width:1.4}
+.avi .tecla{animation:tecla .26s ease-in-out infinite alternate}
+.avi .tecla.t2{animation-delay:.13s}
+@keyframes tecla{to{transform:translateY(-2.6px)}}
+.avi.canta .boca{display:inline}
+.avi.canta .pico{display:none}
+.avi.canta .actua{transform-origin:60px 104px;animation:balanceo .52s ease-in-out infinite alternate}
+@keyframes balanceo{from{transform:rotate(-6deg)}to{transform:rotate(6deg)}}
+
+/* ---------- A · Asoma ---------- */
+.vA{--w:150px;--h:54px;--sw:62px;--sh:140px}
+/* recorte de 52 × 54: solo corta abajo (el alféizar); arriba deja 4 px para que la antena no se corte al subir */
+.vA .asoma{position:absolute;width:52px;height:54px;left:50%;margin-left:-26px;bottom:0;overflow:hidden}
+.vA[data-borde="derecha"] .asoma,.vA[data-borde="izquierda"] .asoma{bottom:auto;top:40px}
+.vA .sube{position:absolute;left:-7px;top:4px;width:66px;height:66px;transition:transform 280ms var(--ease)}
+.vA .sube .avi{width:66px;height:66px}
+.vA .muesca:hover .sube,.vA.hov .sube{transform:translateY(-6px)}
+.vA[data-estado="pregunta"] .sube{transform:translateY(-3px)}
+.vA .muesca.golpe .sube{animation:saltoA 480ms var(--ease)}
+@keyframes saltoA{0%{transform:translateY(-3px)}30%{transform:translateY(-11px)}60%{transform:translateY(-1px)}100%{transform:translateY(-3px)}}
+.vA .sube.cucu{animation:cucu 1900ms var(--ease) both}
+@keyframes cucu{0%{transform:translateY(0)}16%{transform:translateY(34px)}52%{transform:translateY(34px)}66%{transform:translateY(-8px)}80%{transform:translateY(-2px)}100%{transform:translateY(0)}}
+/* las manos se agarran del alféizar */
+.vA .mano{position:absolute;bottom:-4px;width:12px;height:10px;border-radius:50%;background:#F1E8D4;box-shadow:inset 0 -2.5px 0 #D6C8A6;opacity:0;transform:translateY(7px);transition:transform 260ms var(--rebote),opacity 160ms}
+.vA .mano.i{left:3px}.vA .mano.d{right:3px}
+.vA .muesca:hover .mano,.vA.hov .mano,.vA[data-estado="pregunta"] .mano,.vA[data-estado="golpe"] .mano,.vA .asoma.manos .mano{opacity:1;transform:translateY(0)}
+/* trabajando: su trabajo le ilumina la cara desde abajo */
+.vA .asoma::after{content:"";position:absolute;left:0;right:0;bottom:0;height:70%;background:radial-gradient(60% 100% at 50% 100%,rgba(242,182,50,.38),transparent 72%);opacity:0;transition:opacity .4s;mix-blend-mode:screen}
+.vA[data-estado="trabajando"] .asoma::after{opacity:1;animation:resplandor 2.6s ease-in-out infinite}
+@keyframes resplandor{0%,100%{opacity:.55}50%{opacity:1}}
+.vA .alfeizar{display:none;position:absolute;left:50%;width:38px;margin-left:-19px;height:1.5px;border-radius:1px;background:rgba(243,235,216,.16);top:94px}
+.vA[data-borde="derecha"] .alfeizar,.vA[data-borde="izquierda"] .alfeizar{display:block}
+.vA .excl{left:calc(50% + 24px);top:8px}
+.vA[data-borde="abajo"] .excl{top:9px}
+.vA[data-borde="derecha"] .excl,.vA[data-borde="izquierda"] .excl{left:50%;top:14px;margin-left:-8.5px}
+.vA .cuenta{position:absolute;right:calc(50% + 33px);bottom:15px;padding:3px 7px;border-radius:999px;background:var(--s3);color:var(--crema);font:500 10px/1 var(--m);font-stretch:75%;opacity:0;transform:translateX(10px) scale(.8);transition:opacity 160ms,transform 280ms var(--rebote)}
+.vA[data-borde="abajo"] .cuenta{bottom:11px}
+.vA[data-borde="derecha"] .cuenta,.vA[data-borde="izquierda"] .cuenta{right:auto;left:50%;bottom:12px;margin-left:-13px;transform:translateY(-8px) scale(.8)}
+.vA .muesca:hover .cuenta,.vA.hov .cuenta{opacity:1;transform:none}
+
+/* ---------- B · Mirilla ---------- */
+.vB{--w:100px;--h:54px;--sw:58px;--sh:100px}
+.vB .lente{position:absolute;left:50%;top:50%;width:36px;height:36px;margin:-18px 0 0 -18px;border-radius:50%;overflow:hidden;background:#EFE6D2;transition:transform 280ms var(--ease)}
+.vB .lente::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(60% 50% at 30% 22%,rgba(255,255,255,.45),transparent 60%),radial-gradient(90% 90% at 50% 50%,transparent 62%,rgba(40,28,10,.45));pointer-events:none}
+.vB .lente .avi{width:100%;height:100%}
+.vB .anillo{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;transform:rotate(-90deg);overflow:visible;transition:transform 280ms var(--ease)}
+.vB .anillo circle{fill:none;stroke-width:2.4;stroke-linecap:round;stroke:#4A463F;transition:stroke .3s}
+.vB .anillo .yo{stroke:var(--crema2)}
+.vB .anillo .am{stroke:var(--ambar)}
+.vB .anillo .late{animation:tramo 1.6s ease-in-out infinite}
+@keyframes tramo{0%,100%{opacity:.5}50%{opacity:1}}
+.vB .muesca:hover .lente,.vB.hov .lente{transform:scale(1.1)}
+.vB .muesca:hover .anillo,.vB.hov .anillo{transform:rotate(-90deg) scale(1.1)}
+.vB .muesca.golpe .lente{animation:rebote 480ms var(--rebote)}
+@keyframes rebote{0%{transform:scale(1)}30%{transform:scale(1.22)}100%{transform:scale(1)}}
+.vB .excl{left:calc(50% + 10px);top:calc(50% - 25px);width:15px;height:15px;font-size:10.5px}
+
+/* ---------- C · Inquilino ---------- */
+.vC{--w:164px;--h:64px;--sw:70px;--sh:150px}
+.vC .interior{overflow:visible}
+.vC .habitante{position:absolute;width:56px;height:56px;left:50%;margin-left:-28px;bottom:3px}
+.vC[data-borde="derecha"] .habitante,.vC[data-borde="izquierda"] .habitante{bottom:auto;top:62px}
+.vC .habitante .avi{width:56px;height:56px}
+.vC .muesca:hover .mano-d,.vC.hov .mano-d{opacity:1;animation:ola .9s ease-in-out infinite}
+.vC[data-estado="pregunta"] .mano-d,.vC[data-estado="golpe"] .mano-d{opacity:1;transform:translate(94px,58px) rotate(-18deg)}
+@keyframes ola{0%,100%{transform:translate(96px,66px) rotate(-26deg)}50%{transform:translate(96px,66px) rotate(14deg)}}
+.vC .muesca.golpe .actua{animation:saltoC 480ms var(--ease)}
+@keyframes saltoC{0%{transform:translateY(0)}30%{transform:translateY(-14px)}62%{transform:translateY(1px)}100%{transform:translateY(0)}}
+.vC .sesiones{position:absolute;display:flex;align-items:center;gap:5px;right:calc(50% + 34px);bottom:19px}
+.vC .sesiones i{width:5px;height:5px;border-radius:50%;background:#5A554C}
+.vC .sesiones i.am{background:var(--ambar);box-shadow:0 0 6px rgba(242,182,50,.8)}
+.vC .sesiones b{font:500 9px/1 var(--m);font-stretch:75%;color:var(--tenue)}
+.vC[data-borde="derecha"] .sesiones,.vC[data-borde="izquierda"] .sesiones{right:auto;left:50%;bottom:auto;top:16px;transform:translateX(-50%)}
+.vC .excl{left:calc(50% + 24px);top:8px}
+.vC[data-borde="abajo"] .excl{top:10px}
+.vC[data-borde="derecha"] .excl,.vC[data-borde="izquierda"] .excl{left:50%;top:30px;margin-left:-8.5px}
+.nota{position:absolute;z-index:3;pointer-events:none;font:700 15px/1 var(--f);color:var(--ambar);text-shadow:0 0 8px rgba(242,182,50,.5)}
+
+/* ---------- apertura: el recorte nace de la muesca ---------- */
+.vA,.vB,.vC{--pw:300px;--ph:172px;--psw:214px;--psh:220px}
+.recorte{animation:abre 420ms var(--ease) both paused;animation-delay:-16ms}
+[data-borde="derecha"] .recorte,[data-borde="izquierda"] .recorte{animation-name:abreV}
+@keyframes abre{from{width:var(--w);height:var(--h)}to{width:var(--pw);height:var(--ph)}}
+@keyframes abreV{from{width:var(--sw);height:var(--sh)}to{width:var(--psw);height:var(--psh)}}
+[data-estado="apertura"] .muesca{animation:funde 90ms linear both paused;animation-delay:-16ms}
+@keyframes funde{to{opacity:0;visibility:hidden}}
+[data-estado="apertura"] .sube,[data-estado="apertura"] .habitante{animation:hunde 200ms cubic-bezier(.5,0,.75,0) both paused;animation-delay:-16ms}
+@keyframes hunde{to{transform:translateY(60%);opacity:.2}}
+[data-estado="apertura"] .lente{animation:cierra 200ms cubic-bezier(.5,0,.75,0) both paused;animation-delay:-16ms}
+@keyframes cierra{to{transform:scale(.4);opacity:0}}
+.corre .recorte,.corre .muesca,.corre .sube,.corre .habitante,.corre .lente{animation-play-state:running!important;animation-delay:0s!important}
+
+/* ---------- quieto: pausa y movimiento reducido (mira al frente, nada se mueve solo) ---------- */
+body.quieto .avi *,body.quieto .muesca,body.quieto .muesca *,body.quieto .asoma::after{animation:none!important}
+body.quieto .avi .parpado{transition:none}
+body.quieto .vC .mano-d{animation:none!important}
+body.quieto .corre .recorte{animation:abre 1ms both!important}
+body.quieto .corre[data-borde="derecha"] .recorte,body.quieto .corre[data-borde="izquierda"] .recorte{animation:abreV 1ms both!important}
+
+@media (max-width:520px){
+  header{padding:28px 16px 18px}
+  .controles{position:static}
+  .controles-in{padding:10px 16px;gap:10px 14px}
+  .opciones{padding:0 16px;gap:40px}
+  .seg button{padding:0 10px}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <radialGradient id="gPiel" cx="36%" cy="28%" r="78%"><stop offset="0" stop-color="#FFFCF4"/><stop offset=".42" stop-color="#F5EDDC"/><stop offset=".8" stop-color="#E1D4B6"/><stop offset="1" stop-color="#CBBB97"/></radialGradient>
+    <radialGradient id="gBrillo" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset=".55" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  </defs>
+</svg>
+
+<header>
+  <p class="kicker">Boceto · muesca acoplada cerrada · 3 opciones</p>
+  <h1>La muesca, con el <em>Avi</em> adentro</h1>
+  <p class="bajada">Pedido: <b>"el notch lo quiero más parecido al de Troko… que me siga y esté animado"</b>. De la referencia se toma solo el comportamiento (una mascota que asoma, te mira y reacciona); la forma, el personaje, la paleta y los hombros son los de Avis: el Avi de Claude de la marca B en la muesca de siempre. <b>Mové el mouse por la página</b>: en el widget la posición global del cursor llega de Rust. El seguimiento no necesita la zona interactiva.</p>
+</header>
+
+<nav class="controles" aria-label="Controles del boceto">
+  <div class="controles-in">
+    <div class="grupo"><span id="lb-borde">Borde</span>
+      <div class="seg" role="group" aria-labelledby="lb-borde" data-control="borde">
+        <button aria-pressed="true" data-v="arriba">Arriba</button><button aria-pressed="false" data-v="abajo">Abajo</button><button aria-pressed="false" data-v="izquierda">Izquierda</button><button aria-pressed="false" data-v="derecha">Derecha</button>
+      </div>
+    </div>
+    <div class="grupo"><span id="lb-estado">Estado</span>
+      <div class="seg" role="group" aria-labelledby="lb-estado" data-control="estado">
+        <button aria-pressed="true" data-v="reposo">Reposo</button><button aria-pressed="false" data-v="trabajando">Trabajando</button><button aria-pressed="false" data-v="pregunta">Pregunta</button><button aria-pressed="false" data-v="golpe">Golpe</button><button aria-pressed="false" data-v="hover">Hover</button><button aria-pressed="false" data-v="apertura">Apertura</button>
+      </div>
+    </div>
+    <div class="grupo"><span id="lb-ses">Sesiones</span>
+      <div class="seg" role="group" aria-labelledby="lb-ses" data-control="sesiones">
+        <button aria-pressed="false" data-v="1">1</button><button aria-pressed="true" data-v="3">3</button><button aria-pressed="false" data-v="6">6</button>
+      </div>
+    </div>
+    <label class="chk"><input type="checkbox" id="c-zona"> Zona interactiva</label>
+    <label class="chk"><input type="checkbox" id="c-pausa"> Pausa / movimiento reducido</label>
+  </div>
+</nav>
+
+<main class="opciones">
+  <section class="opcion" aria-labelledby="t-a">
+    <h2 id="t-a"><span class="letra">A</span>Asoma <span class="reco">Recomendada</span></h2>
+    <div class="pantalla vA" data-var="A"></div>
+    <p class="pie" data-pie></p>
+    <p class="que">El Avi asoma por el borde interior <b>como por un alféizar</b>: antena, cara y mejillas a 66 px (hoy 40). Te sigue con la mirada y, con el mouse encima, <b>sube y se agarra del borde con las dos manos</b>. Todo lo demás lo dice el cuerpo; la cantidad aparece solo en el hover.</p>
+    <dl>
+      <dt>Trabaja</dt><dd><b>Deja de mirarte</b>: baja la vista, su trabajo le ilumina la cara desde abajo y la antena late.</dd>
+      <dt>Pregunta</dt><dd>Se agarra del borde, <b>globo "!"</b> y la luz del borde. Golpe: saltito del Avi con la muesca.</dd>
+      <dt>Sesiones</dt><dd>Chip "3" que sale de atrás del Avi en el hover.</dd>
+      <dt>Juega</dt><dd>Uno solo, <b>"cucú"</b>: se esconde y vuelve a asomar contento (cada 60–150 s, el reloj de marca.js).</dd>
+    </dl>
+    <p class="medida">Muesca 150 × 54 · costados 62 × 140 · Avi 66 px, recortado a 48</p>
+    <button class="juego" data-juego="A">Jugar · cucú</button>
+  </section>
+
+  <section class="opcion" aria-labelledby="t-b">
+    <h2 id="t-b"><span class="letra">B</span>Mirilla</h2>
+    <div class="pantalla vB" data-var="B"></div>
+    <p class="pie" data-pie></p>
+    <p class="que">Una mirilla redonda con <b>la cara del Avi en primer plano</b>: los ojos llenan la escena y el seguimiento se lee a un metro. <b>El anillo es el tablero</b>: un tramo por sesión, ámbar las que trabajan. La muesca más chica de las tres.</p>
+    <dl>
+      <dt>Trabaja</dt><dd>Los ojos recorren de lado a lado (lee); su tramo del anillo late ámbar.</dd>
+      <dt>Pregunta</dt><dd><b>Anillo entero ámbar</b>, insignia "!" y la luz del borde. Golpe: la mirilla rebota.</dd>
+      <dt>Sesiones</dt><dd>Tramos del anillo: 3 sesiones, 3 tramos; el tuyo, crema.</dd>
+      <dt>Juega</dt><dd>No: mira y parpadea. Un primer plano no tiene lugar para el cuerpo.</dd>
+    </dl>
+    <p class="medida">Muesca 100 × 54 · costados 58 × 100 · mirilla 36 px, anillo 48</p>
+    <button class="juego" disabled>Solo mira</button>
+  </section>
+
+  <section class="opcion" aria-labelledby="t-c">
+    <h2 id="t-c"><span class="letra">C</span>Inquilino</h2>
+    <div class="pantalla vC" data-var="C"></div>
+    <p class="pie" data-pie></p>
+    <p class="que">El Avi <b>entero vive en la muesca</b>, parado en el borde a 56 px, como en su escenario de la marca. Dice el estado con las poses de la marca y las otras sesiones son puntitos a su lado. <b>El que más juega</b>: canta y las notas se escapan a la pantalla.</p>
+    <dl>
+      <dt>Trabaja</dt><dd>Teclea en su compu (pose "escribiendo"); no te mira.</dd>
+      <dt>Pregunta</dt><dd>Levanta la mano junto al <b>"!"</b>, luz del borde. Golpe: salta.</dd>
+      <dt>Sesiones</dt><dd>Un punto por cada otra sesión, ámbar si trabaja; "+n" desde la quinta.</dd>
+      <dt>Juega</dt><dd>Canta (notas que salen de la muesca). Hover: te saluda con la mano.</dd>
+    </dl>
+    <p class="medida">Muesca 164 × 64 · costados 70 × 150 · Avi 56 px entero</p>
+    <button class="juego" data-juego="C">Jugar · canta</button>
+  </section>
+</main>
+
+<script>
+// ---------- estado del boceto ----------
+const E = { borde: 'arriba', estado: 'reposo', sesiones: 3, zona: false, quieto: false }
+const reduce = matchMedia('(prefers-reduced-motion: reduce)')
+if (reduce.matches) E.quieto = true
+document.getElementById('c-pausa').checked = E.quieto
+
+// ---------- el Avi (trazado de la marca B) ----------
+const AMB = '#F2B632'
+const LAPTOP = `<g class="laptop"><rect x="35" y="80" width="50" height="21" rx="4.5" fill="#1C1C21" stroke="#34343B" stroke-width="1.2"/><circle cx="60" cy="90.5" r="2.8" fill="${AMB}"/><rect x="28" y="100" width="64" height="5" rx="2.5" fill="#2A2A31"/><ellipse class="tecla" cx="43" cy="81" rx="5.5" ry="3.8" fill="#EFE6D2"/><ellipse class="tecla t2" cx="77" cy="81" rx="5.5" ry="3.8" fill="#EFE6D2"/></g>`
+function avi(o = {}) {
+  return `<svg class="avi" viewBox="${o.vb || '0 0 120 120'}" aria-hidden="true" focusable="false">`
+    + (o.suelo ? '<ellipse class="piso" cx="60" cy="105" rx="44" ry="8"/><ellipse cx="60" cy="104.5" rx="27" ry="3.6" fill="#000" opacity=".6"/>' : '')
+    + '<g class="actua"><g class="inclina"><g class="cuerpo">'
+    + '<g class="antena"><path d="M60 38V19" stroke="#CDBE9C" stroke-width="3.2" stroke-linecap="round"/><circle class="halo" cx="60" cy="14" r="9.5"/><circle class="bulbo" cx="60" cy="14" r="5.4"/><circle cx="58.2" cy="12.3" r="1.7" fill="#fff" opacity=".85"/></g>'
+    + '<ellipse class="pata" cx="47" cy="101" rx="8.5" ry="4.4"/><ellipse class="pata" cx="73" cy="101" rx="8.5" ry="4.4"/>'
+    + '<path class="piel" d="M60 34C84 34 97 52 97 74C97 92 81 102 60 102C39 102 23 92 23 74C23 52 36 34 60 34Z"/>'
+    + '<path class="sombreado" d="M25 80C30 95 90 95 95 80C92 99 28 99 25 80Z"/>'
+    + '<ellipse class="brillo" cx="43" cy="49" rx="12" ry="6.4" transform="rotate(-30 43 49)"/>'
+    + `<ellipse cx="37" cy="81" rx="6.8" ry="3.5" fill="${AMB}" opacity=".36"/><ellipse cx="83" cy="81" rx="6.8" ry="3.5" fill="${AMB}" opacity=".36"/>`
+    + '<g class="mirada"><g class="parpado"><g class="e-ab"><ellipse class="ojo" cx="49" cy="70" rx="4.5" ry="5.8"/><ellipse class="ojo" cx="71" cy="70" rx="4.5" ry="5.8"/><circle class="luzojo" cx="50.7" cy="67.6" r="1.5"/><circle class="luzojo" cx="72.7" cy="67.6" r="1.5"/></g><path class="trazo e-fe" d="M44.5 72Q49 65.5 53.5 72M66.5 72Q71 65.5 75.5 72"/></g></g>'
+    + '<ellipse class="boca" cx="60" cy="82" rx="3.6" ry="4.2"/><path class="pico pico-i" d="M56.4 79.2Q60 81.2 63.6 79.2Q60 85.5 56.4 79.2Z"/><path class="pico pico-s" d="M56 78.5Q60 76.8 64 78.5Q60 80.8 56 78.5Z"/>'
+    + '</g>'
+    + (o.mano ? '<g class="mano-d"><ellipse rx="6.6" ry="8"/></g>' : '')
+    + '</g></g>'
+    + (o.laptop ? LAPTOP : '')
+    + '</svg>'
+}
+
+// ---------- otras sesiones de la demo: la 2.ª trabaja, la 3.ª espera, etc. ----------
+const otras = n => Array.from({ length: Math.max(0, n - 1) }, (_, i) => i % 2 === 0)
+
+function anillo(n, estado) {
+  const r = 21, C = 2 * Math.PI * r
+  if (estado === 'pregunta' || estado === 'golpe') return `<circle class="am" cx="24" cy="24" r="${r}"/>`
+  if (n === 1) return `<circle class="yo ${estado === 'trabajando' ? 'am late' : ''}" cx="24" cy="24" r="${r}"/>`
+  const gap = 7, dash = C / n - gap, tr = otras(n)
+  return Array.from({ length: n }, (_, i) => {
+    const cls = i === 0 ? (estado === 'trabajando' ? 'yo am late' : 'yo') : (tr[i - 1] ? 'am' : '')
+    return `<circle class="${cls}" cx="24" cy="24" r="${r}" stroke-dasharray="${dash} ${C - dash}" stroke-dashoffset="${-(i * C / n + gap / 2)}"/>`
+  }).join('')
+}
+
+function puntos(n) {
+  const tr = otras(n), vis = tr.slice(0, 3)
+  return vis.map(t => `<i class="${t ? 'am' : ''}"></i>`).join('') + (tr.length > 3 ? `<b>+${tr.length - 3}</b>` : '')
+}
+
+const ANIMO = { reposo: 'te mira', trabajando: 'trabajando', pregunta: 'te hace una pregunta', golpe: 'te hace una pregunta', hover: 'te mira', apertura: 'abriendo' }
+function etiqueta() {
+  return `Abrir la oficina. Claude ${ANIMO[E.estado]}. ${E.sesiones} ${E.sesiones === 1 ? 'sesión' : 'sesiones'}.`
+}
+
+function interior(v) {
+  const est = E.estado
+  if (v === 'A') return `<span class="cuenta">${E.sesiones}</span><span class="alfeizar"></span>`
+    + `<span class="asoma"><span class="sube">${avi()}</span><i class="mano i"></i><i class="mano d"></i></span><span class="excl">!</span>`
+  if (v === 'B') return `<span class="lente">${avi({ vb: '32 44 56 56' })}</span><svg class="anillo" viewBox="0 0 48 48" aria-hidden="true">${anillo(E.sesiones, est)}</svg><span class="excl">!</span>`
+  return `<span class="sesiones">${puntos(E.sesiones)}</span><span class="habitante">${avi({ suelo: true, mano: true, laptop: est === 'trabajando' })}</span><span class="excl">!</span>`
+}
+
+const PIE = {
+  reposo: 'Reposo: respira, parpadea, te sigue con la mirada; 5 s sin mover el mouse y curiosea.',
+  trabajando: 'Trabajando: no sigue al puntero (siguePuntero de marca.js) — si te mira, está libre.',
+  pregunta: 'Pregunta pendiente: te sigue, "!" y luz del borde fija; entre golpes nada titila.',
+  golpe: 'Golpe de pregunta (se repite cada 2,6 s en el boceto): muesca 1,1 desde el borde + gesto del Avi.',
+  hover: 'Hover: crece 5 % desde el borde, sin despegarse (150 → 157,5: 3,75 px por lado, dentro de la zona de reposo + 4 px).',
+  apertura: 'Cuadro 1 de la apertura (16 ms de 420): el recorte nace de la muesca con sus hombros y el Avi se mete.',
+}
+
+// ---------- dibujar ----------
+let avis = []
+function aplicar() {
+  document.body.classList.toggle('quieto', E.quieto)
+  avis = []
+  document.querySelectorAll('.pantalla').forEach(p => {
+    const v = p.dataset.var
+    p.dataset.borde = E.borde
+    p.dataset.estado = E.estado
+    p.classList.toggle('hov', E.estado === 'hover')
+    p.classList.toggle('zona', E.zona)
+    p.classList.remove('corre')
+    p.innerHTML = '<div class="apps"><i></i><i></i></div>'
+      + (E.estado === 'apertura' ? '<div class="ancla atras"><div class="forma recorte"></div></div>' : '')
+      + `<div class="ancla"><i class="luz"></i><button class="muesca forma" aria-label="${etiqueta()}"><span class="interior">${interior(v)}</span></button></div>`
+    const pie = p.parentElement.querySelector('[data-pie]')
+    pie.innerHTML = PIE[E.estado] + (E.estado === 'apertura' ? ' <button class="juego" data-reproducir style="margin-left:6px;min-height:28px">▶ reproducir</button>' : '')
+    p.querySelectorAll('svg.avi').forEach(svg => {
+      const o = { v, svg, p, mirada: svg.querySelector('.mirada'), inclina: svg.querySelector('.inclina'), x: 0, y: 0 }
+      if (E.estado === 'trabajando') svg.classList.add('ocupado')
+      avis.push(o)
+      parpadear(o)
+    })
+    p.querySelector('.muesca').addEventListener('click', () => golpe(p))
+  })
+}
+
+function golpe(p) {
+  const m = p.querySelector('.muesca')
+  if (!m || E.quieto) return
+  m.classList.remove('golpe'); void m.offsetWidth; m.classList.add('golpe')
+}
+setInterval(() => { if (E.estado === 'golpe') document.querySelectorAll('.pantalla').forEach(golpe) }, 2600)
+
+// parpadeo: 2,6–6 s al azar, 140 ms; nunca en pausa
+function parpadear(o) {
+  setTimeout(() => {
+    if (!o.svg.isConnected) return
+    if (!E.quieto) { o.svg.classList.add('parpa'); setTimeout(() => o.svg.classList.remove('parpa'), 140) }
+    parpadear(o)
+  }, 2600 + Math.random() * 3400)
+}
+
+// ---------- la mirada (mirarPuntero y curiosear de marca.js) ----------
+const P = { x: innerWidth / 2, y: innerHeight * .7, mov: performance.now() }
+addEventListener('pointermove', e => { P.x = e.clientX; P.y = e.clientY; P.mov = performance.now() })
+const sat = (d, r) => d / (Math.abs(d) + r)
+function curiosear(t) {
+  const k = t % 7000
+  return k < 1400 ? { x: -.75, y: .05 } : k < 2800 ? { x: .7, y: -.2 } : k < 4000 ? { x: 0, y: -.55 } : { x: 0, y: 0 }
+}
+function cuadro(now) {
+  for (const o of avis) {
+    let tx = 0, ty = 0, s = .12
+    if (E.quieto) s = 1
+    else if (E.estado === 'trabajando') {
+      if (o.v === 'B') { tx = Math.sin(now / 700) * .6; ty = .35 } else { tx = .3; ty = .7 }
+      s = .08
+    } else if (E.estado !== 'apertura') {
+      const r = o.svg.getBoundingClientRect()
+      tx = sat(P.x - (r.left + r.width / 2), 170); ty = sat(P.y - (r.top + r.height * .55), 140)
+      if (now - P.mov > 5000) { ({ x: tx, y: ty } = curiosear(now - P.mov - 5000)); s = .05 }
+    }
+    o.x += (tx - o.x) * s; o.y += (ty - o.y) * s
+    const k = o.v === 'B' ? 1.25 : 1
+    o.mirada.style.transform = `translate(${o.x * 5.5 * k}px,${o.y * 4.5 * k}px)`
+    o.inclina.style.transform = o.v === 'B' ? '' : `rotate(${o.x * 5}deg)`
+  }
+  requestAnimationFrame(cuadro)
+}
+requestAnimationFrame(cuadro)
+
+// ---------- juegos ----------
+function cucu(p) {
+  const s = p.querySelector('.sube'), svg = s.querySelector('.avi'), a = p.querySelector('.asoma')
+  s.classList.remove('cucu'); void s.offsetWidth; s.classList.add('cucu')
+  setTimeout(() => { svg.classList.add('feliz'); a.classList.add('manos') }, 1150)
+  setTimeout(() => { svg.classList.remove('feliz'); a.classList.remove('manos'); s.classList.remove('cucu') }, 2600)
+}
+function canta(p) {
+  const svg = p.querySelector('.habitante .avi'), hab = p.querySelector('.habitante')
+  svg.classList.add('canta', 'feliz')
+  const n = { arriba: [0, 1], abajo: [0, -1], derecha: [-1, 0], izquierda: [1, 0] }[E.borde]
+  for (let k = 0; k < 6; k++) setTimeout(() => {
+    if (!hab.isConnected) return
+    const pr = p.getBoundingClientRect(), hr = hab.getBoundingClientRect()
+    const el = document.createElement('span')
+    el.className = 'nota'; el.textContent = k % 3 === 2 ? '♫' : '♪'
+    el.style.left = (hr.left - pr.left + hr.width / 2 - 5) + 'px'
+    el.style.top = (hr.top - pr.top + hr.height / 2 - 8) + 'px'
+    p.appendChild(el)
+    const lat = (k % 2 ? 1 : -1) * (14 + Math.random() * 18), d = 70 + Math.random() * 30
+    el.animate([
+      { transform: 'translate(0,0) scale(.6)', opacity: 0 },
+      { transform: `translate(${n[0] * 24 + (n[1] ? lat * .4 : 0)}px,${n[1] * 24 + (n[0] ? lat * .4 : 0)}px) scale(1)`, opacity: 1, offset: .25 },
+      { transform: `translate(${n[0] * d + (n[1] ? lat : 0)}px,${n[1] * d + (n[0] ? lat : 0)}px) scale(.9) rotate(${lat}deg)`, opacity: 0 },
+    ], { duration: 1500, easing: 'cubic-bezier(.16,1,.3,1)' }).onfinish = () => el.remove()
+  }, 200 + k * 520)
+  setTimeout(() => svg.classList.remove('canta', 'feliz'), 3600)
+}
+document.addEventListener('click', e => {
+  const j = e.target.closest('[data-juego]')
+  if (j && !E.quieto && ['reposo', 'hover'].includes(E.estado)) {
+    const p = j.closest('.opcion').querySelector('.pantalla')
+    j.dataset.juego === 'A' ? cucu(p) : canta(p)
+  }
+  const r = e.target.closest('[data-reproducir]')
+  if (r) {
+    const p = r.closest('.opcion').querySelector('.pantalla')
+    p.classList.remove('corre'); void p.offsetWidth; p.classList.add('corre')
+  }
+})
+
+// ---------- controles ----------
+document.querySelectorAll('[data-control]').forEach(g => g.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return
+  g.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)))
+  const c = g.dataset.control
+  E[c] = c === 'sesiones' ? Number(b.dataset.v) : b.dataset.v
+  aplicar()
+}))
+document.getElementById('c-zona').addEventListener('change', e => { E.zona = e.target.checked; aplicar() })
+document.getElementById('c-pausa').addEventListener('change', e => { E.quieto = e.target.checked; aplicar() })
+reduce.addEventListener('change', () => { E.quieto = reduce.matches; document.getElementById('c-pausa').checked = E.quieto; aplicar() })
+aplicar()
+</script>
+</body>
+</html>

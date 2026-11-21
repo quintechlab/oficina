@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avis · panel con más protagonismo para los Avis (boceto)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Martian+Mono:wdth,wght@75..112.5,400..600&display=swap" rel="stylesheet">
+<style>
+/* Tokens: los de widget/src/estilos.css, sin cambios */
+:root {
+  --negro: #000; --s1: #0C0C0E; --s2: #141417; --s3: #1D1D21;
+  --linea: #25252A; --linea-hover: #36363C;
+  --crema: #F3EBD8; --crema2: #BDB5A4; --tenue: #8A8478;
+  --ambar: #F2B632; --ambar-osc: #1D1707; --pico: #E9A13B;
+  --violeta: #A58BFF; --celeste: #7FB3FF; --verde: #8FD694; --rosa: #E78FB3; --rojo: #FF7A6B;
+  --f: "Manrope", "Segoe UI Variable", sans-serif;
+  --m: "Martian Mono", "Cascadia Mono", monospace;
+  --ease: cubic-bezier(.16, 1, .3, 1); --rebote: cubic-bezier(.34, 1.56, .64, 1);
+}
+* { box-sizing: border-box; margin: 0 }
+body { background: #000; color: var(--crema); font: 500 14px/1.5 var(--f); padding: 0 10px 80px;
+  background-image: radial-gradient(900px 420px at 12% -8%, rgba(242,182,50,.10), transparent 70%); }
+.pagina { max-width: 1408px; margin: 0 auto }
+
+/* Cabecera de la página */
+.portada { display: flex; align-items: center; gap: 18px; padding: 36px 0 10px; flex-wrap: wrap }
+.portada .marca { display: flex; align-items: center; gap: 10px }
+.portada h1 { font: 800 44px/1 var(--f); letter-spacing: -.02em }
+.portada .bajada { flex: 1 1 360px; color: var(--crema2); font-size: 14px; max-width: 640px }
+.portada .bajada b { color: var(--crema) }
+.pausar { font: 500 11px/1 var(--m); color: var(--crema); background: var(--s2); border: 1px solid var(--linea);
+  border-radius: 999px; padding: 0 16px; min-height: 44px; cursor: pointer; transition: border-color .2s }
+.pausar:hover { border-color: var(--linea-hover) } .pausar:focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px }
+.aviso { font: 400 11px/1.6 var(--m); color: var(--tenue); padding: 6px 0 4px; max-width: 900px }
+
+/* Una opción */
+.opcion { padding: 44px 0 8px; border-top: 1px solid var(--linea); margin-top: 32px }
+.opcion header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 18px }
+.opcion .num { font: 600 13px/1 var(--m); color: var(--ambar) }
+.opcion h2 { font: 800 28px/1.1 var(--f); letter-spacing: -.01em }
+.opcion header p { color: var(--crema2); font-size: 14px; flex-basis: 100% }
+.fila { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap }
+.caso { display: flex; flex-direction: column; gap: 8px }
+.caso > span { font: 500 10px/1 var(--m); color: var(--tenue); letter-spacing: .04em; text-transform: uppercase; display: flex; justify-content: space-between }
+.caso > span em { font-style: normal; color: var(--crema2) }
+.caso > span em.justo { color: var(--ambar) }
+.nota { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px }
+.nota div { background: var(--s1); border: 1px solid var(--linea); border-radius: 14px; padding: 14px 16px; font-size: 13px; color: var(--crema2) }
+.nota b { display: block; font: 500 10px/1 var(--m); color: var(--ambar); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px }
+
+/* El marco: la columna principal del panel de hoy (460 × 640) */
+.marco { width: 460px; height: 640px; background: #000; border: 1px solid var(--linea); border-radius: 26px; overflow: hidden; position: relative; transition: border-color .35s var(--ease), transform .35s var(--ease) }
+.marco:hover { border-color: var(--linea-hover); transform: translateY(-2px) }
+/* Como en el widget: 5 a la izquierda y 15 a la derecha (6 de relleno más el canal de 10 de la barra de scroll, menos el borde): la tarjeta mide 438 y su interior 408 */
+.col { padding: 18px 15px 0 5px }
+.cab { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px }
+.proy { font: 800 21px/1.1 var(--f) }
+.sub { font: 500 12.5px/1.45 var(--f); color: var(--crema2); margin-top: 4px }
+.iconos { display: flex; gap: 14px; color: var(--crema2); padding-top: 4px }
+
+/* Chips de conteo (opción 1) */
+.chips { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap }
+.chip { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 11px; border-radius: 999px; background: var(--s1); border: 1px solid var(--linea); font: 500 10px/1 var(--m); color: var(--crema2) }
+.chip i { width: 7px; height: 7px; border-radius: 50% }
+.chip b { font: 800 12.5px/1 var(--f); color: var(--crema) }
+
+/* Cuadros de conteo, como hoy (opción 2) */
+.cuadros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px }
+.cuadro { height: 78px; background: var(--s1); border: 1px solid var(--linea); border-radius: 14px; padding: 12px; display: grid; grid-template-columns: 22px 1fr; column-gap: 10px; align-content: center }
+.cuadro i { width: 22px; height: 22px; border-radius: 7px; grid-row: span 2 }
+.cuadro b { font: 800 22px/1 var(--f) } .cuadro b small { font-size: 14px; color: var(--crema2); margin: 0 2px }
+.cuadro span { font: 500 12px/1.3 var(--f); color: var(--crema2); margin-top: 4px }
+
+/* Tarjeta de sesión con escenario (opciones 1 y 2) */
+.tarjeta { background: var(--s1); border: 1px solid var(--linea); border-radius: 18px; padding: 12px 14px 4px; margin-bottom: 12px }
+.meta { display: flex; align-items: center; gap: 8px }
+.tag { font: 500 10px/1 var(--m); background: var(--s3); color: var(--crema2); padding: 5px 7px; border-radius: 6px }
+.rama { font: 800 14.5px/1.3 var(--f) }
+.lleva { margin-left: auto; font: 400 10.5px/1 var(--m); color: var(--tenue) }
+.linea { display: flex; align-items: center; gap: 6px; font: 700 12.5px/1.3 var(--f); color: var(--ambar); margin-top: 5px }
+.linea.cel { color: var(--celeste) }
+.punto { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px rgba(242,182,50,.18) }
+.esc { position: relative; height: 146px; margin: 0 -2px }
+.piso { position: absolute; left: -12px; right: -12px; top: 92px; height: 18px;
+  background: radial-gradient(120px 10px at 52px 6px, rgba(242,182,50,.20), transparent 70%), linear-gradient(90deg, transparent, #1E1E23 12%, #1E1E23 88%, transparent) 0 6px / 100% 1px no-repeat }
+.esc .avi, .sala .avi { position: absolute }
+.rot { position: absolute; text-align: center; display: flex; flex-direction: column; gap: 1px }
+.rot b { font: 800 12px/1.25 var(--f); color: var(--ambar) }
+.rot span { font: 500 11px/1.25 var(--f); color: var(--crema2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 3px }
+.rot em, .placa em { font: 500 9.5px/1.3 var(--m); font-style: normal }
+.va { color: var(--ambar) } .ok { color: var(--verde) }
+.rot b.n { font-size: 15px; color: var(--crema) }
+.mas { position: absolute; height: 52px; border-radius: 13px }
+.hilos { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none }
+.hilos path { fill: none; stroke: var(--ambar); stroke-width: 1.4; stroke-dasharray: 2 5; stroke-linecap: round; opacity: .55 }
+/* Punto que viaja por el hilo: CSS offset-path (no SMIL), así lo frenan las mismas reglas de pausa que a los Avis */
+.hilo-pt { position: absolute; left: 0; top: 0; width: 5px; height: 5px; border-radius: 50%; background: var(--ambar); offset-rotate: 0deg; opacity: 0; pointer-events: none }
+.mas-btn { position: absolute; inset: -6px -2px -44px; border-radius: 13px; border: 1px dashed var(--linea-hover); background: rgba(255,255,255,.015) }
+
+/* Sala (opción 3) */
+.sala { position: relative; width: 424px; height: 300px; border-radius: 16px; overflow: hidden; border: 1px solid var(--linea) }
+.sala .fondo { position: absolute; inset: 0; width: 100%; height: 100% }
+.mesa { position: absolute; height: 30px; border-radius: 6px 6px 4px 4px; background: linear-gradient(#2E2E35 0 7px, #18181C 7px); border: 1px solid #26262C; box-shadow: 0 14px 16px -10px #000; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px }
+.mesa.grande { background: linear-gradient(#34343C 0 8px, #1B1B20 8px) }
+.placa { font: 500 9px/1 var(--m); color: var(--crema2); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap }
+.placa i { width: 6px; height: 6px; border-radius: 50% }
+.placa b { font: 700 10px/1 var(--f); color: var(--crema) }
+.placa em { max-width: 64px; overflow: hidden; text-overflow: ellipsis }
+.respaldo { position: absolute; height: 34px; border-radius: 14px 14px 6px 6px; background: linear-gradient(#24242A, #1A1A1F); border: 1px solid #2A2A31 }
+.asiento { position: absolute; height: 22px; border-radius: 8px 8px 6px 6px; background: linear-gradient(#2B2B32 0 6px, #1C1C21 6px); border: 1px solid #2E2E35; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 3px; box-shadow: 0 12px 14px -10px #000 }
+.pizarra { position: absolute; width: 150px; padding: 8px 10px; background: #0B0B0D; border: 2px solid #2A2A31; border-radius: 6px; font: 500 9.5px/1.7 var(--m); color: var(--crema2) }
+.pizarra i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: 1px }
+.pizarra b { color: var(--crema); font-weight: 600 }
+.puerta-mas { position: absolute; right: 12px; top: 64px; font: 600 10px/1 var(--m); color: #000; background: var(--ambar); padding: 5px 6px; border-radius: 6px }
+.lista { list-style: none; padding: 10px 0 0; display: flex; flex-direction: column }
+.lista li { display: grid; grid-template-columns: 22px auto 1fr auto; align-items: center; gap: 8px; height: 28px; border-bottom: 1px solid #141417; font-size: 12px }
+.lista li.sub { padding-left: 16px }
+.lista li .avi { position: static }
+.lista b { font: 800 12.5px/1 var(--f) } .lista li.sub b { color: var(--ambar); font-weight: 700 }
+.lista span { color: var(--crema2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.lista em { font: 500 9.5px/1 var(--m); font-style: normal }
+
+/* Los Avis: copia de widget/src/avis.css */
+.avi { display: inline-block; width: var(--t, 64px); height: var(--t, 64px); flex: none; vertical-align: middle }
+.avi svg { width: 100%; height: 100%; overflow: visible; display: block }
+.avi .piel { fill: url(#gPiel) } .avi .sombreado { fill: #B9A780; opacity: .34 }
+.avi .brillo { fill: #fff; opacity: .72; filter: url(#fBlur) } .avi .pata { fill: #D6C8A6 }
+.avi .suelo { fill: url(#gSuelo) } .avi .contacto { fill: #000; opacity: .55 }
+.avi .ojo { fill: #1B1712 } .avi .luz { fill: #fff }
+.avi .trazo { stroke: #1B1712; stroke-width: 2.8; fill: none; stroke-linecap: round; stroke-linejoin: round }
+.avi .pico { fill: var(--pico) }
+.avi .cuerpo, .avi .ojos, .avi .mirada, .avi .mano, .avi .burbuja, .avi .chispa, .avi .bulbo, .avi .halo, .avi .onda { transform-box: fill-box }
+.avi .cuerpo { transform-origin: 50% 100% } .avi .ojos { transform-origin: 50% 50% }
+.avi .e-escribiendo .mirada { transform: translateY(2.5px) }
+.avi .e-durmiendo .cuerpo { opacity: .86 }
+.avi .z { font: 800 13px var(--f); fill: var(--tenue) }
+.avi .onda { fill: none; stroke-width: 2; transform-origin: 50% 50%; opacity: .5 }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .avi .cuerpo { animation: respira 3.4s ease-in-out infinite var(--d, 0s) }
+  body:not(.pausa) .avi .ojos { animation: parpadea 4.8s infinite var(--d, 0s) }
+  body:not(.pausa) .avi .e-escribiendo .cuerpo { animation: teclea .34s ease-in-out infinite alternate }
+  body:not(.pausa) .avi .e-escribiendo .mano { animation: tecla .2s ease-in-out infinite alternate }
+  body:not(.pausa) .avi .e-escribiendo .mano.m2 { animation-delay: .1s }
+  body:not(.pausa) .avi .e-escribiendo .logo { animation: titila 1.6s ease-in-out infinite }
+  body:not(.pausa) .avi .e-leyendo .mirada { animation: mira 3.2s ease-in-out infinite var(--d, 0s) }
+  body:not(.pausa) .avi .e-pensando .p { animation: idea 2.4s ease-in-out infinite; opacity: 0 }
+  body:not(.pausa) .avi .e-pensando .p2 { animation-delay: .3s } body:not(.pausa) .avi .e-pensando .p3 { animation-delay: .6s }
+  body:not(.pausa) .avi .e-coordinando .onda { animation: onda 2.2s ease-out infinite }
+  body:not(.pausa) .avi .e-coordinando .onda.o2 { animation-delay: 1.1s }
+  body:not(.pausa) .avi .e-coordinando .bulbo, body:not(.pausa) .avi .e-coordinando .halo { animation: pulso 1.1s ease-in-out infinite alternate; transform-origin: 50% 50% }
+  body:not(.pausa) .avi .e-durmiendo .cuerpo { animation: duerme 5.6s ease-in-out infinite var(--d, 0s) }
+  body:not(.pausa) .avi .e-durmiendo .ojos { animation: none }
+  body:not(.pausa) .avi .z { animation: zeta 3.6s ease-in-out infinite; opacity: 0 }
+  body:not(.pausa) .avi .z2 { animation-delay: 1.2s } body:not(.pausa) .avi .z3 { animation-delay: 2.4s }
+  body:not(.pausa) .avi .e-listo .cuerpo { animation: festeja 1s var(--rebote) infinite }
+  body:not(.pausa) .hilo-pt { animation: viaja 1.8s cubic-bezier(.45, 0, .55, 1) infinite; animation-delay: calc(var(--k, 0) * 600ms) }
+  body:not(.pausa) .avi .e-listo .chispa { animation: chispa 1s ease-out infinite; transform-origin: 50% 50% }
+  /* Entrada de la página: los marcos suben escalonados (620 ms, 65 ms entre uno y otro) */
+  .marco { animation: entra .62s var(--ease) both; animation-delay: calc(var(--i, 0) * 65ms) }
+  body:not(.pausa) .copete { animation: respira 3.4s ease-in-out infinite }
+}
+@keyframes viaja { 0% { offset-distance: 0%; opacity: 0 } 12%, 85% { opacity: 1 } 100% { offset-distance: 100%; opacity: 0 } }
+@keyframes entra { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
+@keyframes respira { 0%, 100% { transform: scale(1, 1) } 50% { transform: scale(1.03, .965) } }
+@keyframes duerme { 0%, 100% { transform: scale(1, 1) } 50% { transform: scale(1.045, .95) } }
+@keyframes parpadea { 0%, 91%, 97%, 100% { transform: scaleY(1) } 94% { transform: scaleY(.08) } }
+@keyframes teclea { from { transform: translateY(0) } to { transform: translateY(1.5px) scale(1.01, .99) } }
+@keyframes tecla { from { transform: translateY(0) } to { transform: translateY(-3px) } }
+@keyframes titila { 0%, 100% { opacity: 1 } 50% { opacity: .45 } }
+@keyframes mira { 0%, 100% { transform: translateX(-3px) translateY(2px) } 50% { transform: translateX(3px) translateY(2px) } }
+@keyframes idea { 0% { opacity: 0; transform: translateY(4px) } 30%, 70% { opacity: 1; transform: none } 100% { opacity: 0; transform: translateY(-3px) } }
+@keyframes onda { from { transform: scale(.5); opacity: .9 } to { transform: scale(1.9); opacity: 0 } }
+@keyframes pulso { from { transform: scale(1) } to { transform: scale(1.18) } }
+@keyframes zeta { 0% { opacity: 0; transform: translate(0, 4px) } 25% { opacity: 1 } 100% { opacity: 0; transform: translate(9px, -16px) } }
+@keyframes festeja { 0%, 100% { transform: translateY(0) scale(1, 1) } 20% { transform: scale(1.08, .9) } 50% { transform: translateY(-10px) scale(.95, 1.06) } 75% { transform: scale(1.04, .96) } }
+@keyframes chispa { 0% { transform: scale(0); opacity: 1 } 60% { transform: scale(1.1); opacity: 1 } 100% { transform: scale(.6); opacity: 0 } }
+
+/* Hasta 1440: los tres casos en fila. Debajo, se apilan; en celular el marco se escala al 74 % */
+
+@media (max-width: 1000px) { .nota { grid-template-columns: 1fr } }
+@media (max-width: 520px) {
+  .fila { flex-direction: column; align-items: center }
+  .marco { zoom: .74 }
+  .caso { width: 341px }
+  .portada h1 { font-size: 36px }
+  .opcion h2 { font-size: 23px }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <radialGradient id="gPiel" cx="36%" cy="28%" r="78%"><stop offset="0" stop-color="#FFFCF4"/><stop offset=".42" stop-color="#F5EDDC"/><stop offset=".8" stop-color="#E1D4B6"/><stop offset="1" stop-color="#CBBB97"/></radialGradient>
+  <radialGradient id="gSuelo" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#F2B632" stop-opacity=".22"/><stop offset="1" stop-color="#F2B632" stop-opacity="0"/></radialGradient>
+  <filter id="fBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.7"/></filter>
+  <linearGradient id="gPared" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#18181C"/><stop offset="1" stop-color="#111114"/></linearGradient>
+  <linearGradient id="gPiso" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0F0F12"/><stop offset="1" stop-color="#070708"/></linearGradient>
+  <linearGradient id="gLuz" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F2B632" stop-opacity=".17"/><stop offset="1" stop-color="#F2B632" stop-opacity="0"/></linearGradient>
+</defs></svg>
+
+<main class="pagina">
+  <div class="portada">
+    <div class="marca"><span id="marca"></span><h1>Avis</h1></div>
+    <p class="bajada"><b>Panel: más protagonismo para los Avis.</b> Tres caminos para la columna principal, cada uno con los tres casos que pediste. Animado: respiran, trabajan y duermen.</p>
+    <button class="pausar" type="button" aria-pressed="false" id="pausar">Pausar animaciones</button>
+  </div>
+  <p class="aviso">Marco = columna principal de hoy: 460 × 640 px (--ancho-principal y --alto-tablero; 188 + 460 = los ~650 del panel). La barra lateral no cambia: su cabecera con la marca va en el boceto marca-avi. Cada caso mide su alto real abajo a la derecha. Nombres y tareas de los subagentes: datos de ejemplo.</p>
+  <div id="opciones"></div>
+</main>
+
+<script>
+/* ---------- Los Avis: port literal de widget/src/avis.js (svgAvi) ---------- */
+const ATRAS = {
+  antena: c => `<path d="M60 38V19" stroke="#CDBE9C" stroke-width="3.2" stroke-linecap="round"/><circle class="halo" cx="60" cy="14" r="9.5" fill="${c}" opacity=".22"/><circle class="bulbo" cx="60" cy="14" r="5.4" fill="${c}"/><circle cx="58.2" cy="12.3" r="1.7" fill="#fff" opacity=".85"/>`,
+  gata: c => `<path d="M30 58L33 25L56 39Z" fill="url(#gPiel)"/><path d="M90 58L87 25L64 39Z" fill="url(#gPiel)"/><path d="M35.5 45L37 31.5L47.5 39Z" fill="${c}" opacity=".9"/><path d="M84.5 45L83 31.5L72.5 39Z" fill="${c}" opacity=".9"/>`,
+  raton: c => `<circle cx="32" cy="41" r="14" fill="url(#gPiel)"/><circle cx="88" cy="41" r="14" fill="url(#gPiel)"/><circle cx="30.5" cy="39.5" r="7.5" fill="${c}" opacity=".8"/><circle cx="89.5" cy="39.5" r="7.5" fill="${c}" opacity=".8"/>`,
+  brote: c => `<path d="M60 37Q57 26 61 18" stroke="#78B078" stroke-width="2.8" fill="none" stroke-linecap="round"/><path d="M61 20Q70 8 81 15Q72 25 61 20Z" fill="${c}"/><path d="M59.5 26Q50 16 41 22Q50 31 59.5 26Z" fill="${c}" opacity=".75"/>`,
+  mono: c => `<circle cx="22" cy="70" r="10.5" fill="url(#gPiel)"/><circle cx="98" cy="70" r="10.5" fill="url(#gPiel)"/><circle cx="21" cy="70" r="5.2" fill="${c}" opacity=".75"/><circle cx="99" cy="70" r="5.2" fill="${c}" opacity=".75"/>`,
+  cuernos: c => `<path d="M40 45Q31 31 39 21Q43 33 52 38Z" fill="${c}"/><path d="M80 45Q89 31 81 21Q77 33 68 38Z" fill="${c}"/>`,
+  copete: c => `<g class="copete"><path d="M56 38Q50 24 60 18Q56 28 64 36Z" fill="${c}"/><path d="M62 37Q64 26 74 25Q67 30 67 38Z" fill="${c}" opacity=".85"/></g>`,
+}
+const FRENTE = { mono: c => `<path d="M49 40Q57 24 71 34Q62 31 58 41Q55 36 49 40Z" fill="${c}"/>` }
+const OJOS = {
+  base: `<ellipse class="ojo" cx="49" cy="70" rx="4.5" ry="5.8"/><ellipse class="ojo" cx="71" cy="70" rx="4.5" ry="5.8"/><circle class="luz" cx="50.7" cy="67.6" r="1.5"/><circle class="luz" cx="72.7" cy="67.6" r="1.5"/>`,
+  cerrados: `<path class="trazo" d="M44.5 71Q49 75 53.5 71M66.5 71Q71 75 75.5 71"/>`,
+  feliz: `<path class="trazo" d="M44.5 72.5Q49 65.5 53.5 72.5M66.5 72.5Q71 65.5 75.5 72.5"/>`,
+}
+const ojosDe = p => p === 'durmiendo' ? OJOS.cerrados : p === 'listo' ? OJOS.feliz : OJOS.base
+function efectos(p, c) {
+  switch (p) {
+    case 'escribiendo': return `<ellipse cx="60" cy="79" rx="24" ry="8" fill="${c}" opacity=".14"/><rect x="35" y="80" width="50" height="21" rx="4.5" fill="#1C1C21" stroke="#34343B" stroke-width="1.2"/><circle class="logo" cx="60" cy="90.5" r="2.8" fill="${c}"/><rect x="28" y="100" width="64" height="5" rx="2.5" fill="#2A2A31"/><ellipse class="mano" cx="43" cy="81" rx="5.5" ry="3.8" fill="#EFE6D2"/><ellipse class="mano m2" cx="77" cy="81" rx="5.5" ry="3.8" fill="#EFE6D2"/>`
+    case 'leyendo': return `<path d="M60 84Q50 79 39 83V100Q50 96 60 101Z" fill="#A58BFF"/><path d="M60 84Q70 79 81 83V100Q70 96 60 101Z" fill="#8C70F0"/><path d="M44 88Q50 86 56 88M44 92Q50 90 56 92M64 88Q70 86 76 88" stroke="#E9E2FF" stroke-width="1.3" fill="none" opacity=".7"/><ellipse cx="44" cy="84" rx="5" ry="3.6" fill="#EFE6D2"/><ellipse cx="76" cy="84" rx="5" ry="3.6" fill="#EFE6D2"/>`
+    case 'pensando': return `<circle class="p" cx="88" cy="36" r="3" fill="#F3EBD8"/><circle class="p p2" cx="96" cy="25" r="4.2" fill="#F3EBD8"/><circle class="p p3" cx="106" cy="12" r="5.6" fill="#F3EBD8"/>`
+    case 'coordinando': return `<circle class="onda" cx="60" cy="14" r="11" stroke="${c}"/><circle class="onda o2" cx="60" cy="14" r="11" stroke="${c}"/>`
+    case 'durmiendo': return `<text class="z" x="86" y="44">z</text><text class="z z2" x="94" y="32" font-size="15">z</text><text class="z z3" x="103" y="18" style="font-size:18px">Z</text>`
+    default: return ''
+  }
+}
+function svgAvi({ pj, color: c }, p) {
+  return `<svg viewBox="0 0 120 120" class="e-${p}" aria-hidden="true" focusable="false"><ellipse class="suelo" cx="60" cy="104" rx="42" ry="9"/><ellipse class="contacto" cx="60" cy="104" rx="26" ry="3.6"/><g class="cuerpo">${ATRAS[pj]?.(c) ?? ''}<ellipse class="pata" cx="47" cy="101" rx="8.5" ry="4.4"/><ellipse class="pata" cx="73" cy="101" rx="8.5" ry="4.4"/><path class="piel" d="M60 34C84 34 97 52 97 74C97 92 81 102 60 102C39 102 23 92 23 74C23 52 36 34 60 34Z"/><path class="sombreado" d="M25 80C30 95 90 95 95 80C92 99 28 99 25 80Z"/><ellipse class="brillo" cx="43" cy="49" rx="11" ry="5.6" transform="rotate(-30 43 49)"/><ellipse cx="37" cy="81" rx="6.8" ry="3.5" fill="${c}" opacity=".36"/><ellipse cx="83" cy="81" rx="6.8" ry="3.5" fill="${c}" opacity=".36"/><g class="mirada"><g class="ojos">${ojosDe(p)}</g></g><path class="pico" d="M56 78.5Q60 85.5 64 78.5Q60 76.8 56 78.5Z"/>${FRENTE[pj]?.(c) ?? ''}</g>${efectos(p, c)}</svg>`
+}
+/* Personajes del ejemplo (en el widget los da personajeDeNombre) */
+const PJ = {
+  Claude: { pj: 'antena', color: '#F2B632' }, Base: { pj: 'copete', color: '#F2B632' },
+  Delfina: { pj: 'mono', color: '#E78FB3' }, Mateo: { pj: 'raton', color: '#7FB3FF' },
+  'Lía': { pj: 'gata', color: '#A58BFF' }, Bruno: { pj: 'brote', color: '#8FD694' }, 'Tomás': { pj: 'cuernos', color: '#FF7A6B' },
+}
+let n = 0
+const avi = (nombre, pose, t, x, y) => `<span class="avi" style="--t:${t}px;--d:-${((n++ * .83) % 3.3).toFixed(2)}s;${x != null ? `left:${x}px;top:${y}px` : ''}" aria-hidden="true">${svgAvi(PJ[nombre], pose)}</span>`
+const pie = t => Math.round(t * .867) // de la caja del Avi a sus pies (y 104 de 120)
+/* El hilo: trazo punteado fijo en el SVG y un punto HTML que lo recorre (se juntan en `pts`) */
+let pts = ''
+const hilo = (bx, by, tx, ty, k) => {
+  const d = `M${bx} ${by} Q${(bx + tx) / 2} ${Math.min(by, ty) - 24} ${tx} ${ty}`
+  pts += `<i class="hilo-pt" style="offset-path:path('${d}');--k:${k}" aria-hidden="true"></i>`
+  return `<path d="${d}"/>`
+}
+
+/* ---------- Datos de los tres casos ---------- */
+const CASOS = [
+  { nombre: 'A · 1 sesión, 2 subagentes', sesiones: [
+    { tarea: 'sin tarea', rama: 'main', lleva: '18 h 43 min', pose: 'coordinando', linea: 'ahora · coordinando el equipo', subs: [
+      { n: 'Delfina', t: 'dirección marca B', pose: 'escribiendo', est: 'escribe 5m' },
+      { n: 'Mateo', t: 'boceto Avi grande', pose: 'durmiendo', est: 'listo 8m', ok: true }] }] },
+  { nombre: 'B · 1 sesión, 5 subagentes', sesiones: [
+    { tarea: '#14 · M', rama: 'feat/14-panel', lleva: '2 h 10 min', pose: 'coordinando', linea: 'ahora · coordinando el equipo', subs: [
+      { n: 'Delfina', t: 'boceto panel Avis', pose: 'escribiendo', est: 'escribe 3m' },
+      { n: 'Mateo', t: 'mapea tablero.js', pose: 'leyendo', est: 'lee 1m' },
+      { n: 'Lía', t: 'revisa contraste', pose: 'escribiendo', est: 'escribe 2m' },
+      { n: 'Bruno', t: 'tests de muesca', pose: 'durmiendo', est: 'listo 4m', ok: true },
+      { n: 'Tomás', t: 'captura a 375', pose: 'durmiendo', est: 'listo 9m', ok: true }] }] },
+  { nombre: 'C · 2 sesiones, mismo proyecto', sesiones: [
+    { tarea: 'sin tarea', rama: 'main', lleva: '18 h 43 min', pose: 'coordinando', linea: 'ahora · coordinando el equipo', subs: [
+      { n: 'Delfina', t: 'dirección marca B', pose: 'escribiendo', est: 'escribe 5m' }] },
+    { tarea: '#12 · S', rama: 'feat/12-tablero', lleva: '41 min', pose: 'escribiendo', linea: 'ahora · editando tablero.js', subs: [
+      { n: 'Mateo', t: 'lee avis.css', pose: 'leyendo', est: 'lee 2m' }] }] },
+]
+const trabajando = c => c.sesiones.flatMap(s => s.subs).filter(u => !u.ok).length
+const terminados = c => c.sesiones.flatMap(s => s.subs).filter(u => u.ok).length
+const plural = (k, a, b) => `${k} ${k === 1 ? a : b}`
+const iconos = `<div class="iconos" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 1.5h4M5.5 1.5v4L3.5 8h7l-2-2.5v-4M7 8v4.5"/></svg><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg></div>`
+const cabecera = c => `<div class="cab"><div><p class="proy">oficina</p><p class="sub">${plural(c.sesiones.length, 'sesión', 'sesiones')} · ${plural(trabajando(c), 'subagente trabajando', 'subagentes trabajando')}</p></div>${iconos}</div>`
+const reloj = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#A58BFF" stroke-width="1.5"><circle cx="6" cy="6" r="4.8"/><path d="M6 3.4V6l1.8 1.2" stroke-linecap="round"/></svg>`
+const chips = c => `<div class="chips"><span class="chip"><i style="background:var(--ambar)"></i><b>${trabajando(c)}</b>trabajando</span><span class="chip"><i style="background:var(--verde)"></i><b>${terminados(c)}</b>${terminados(c) === 1 ? 'terminado' : 'terminados'}</span><span class="chip">${reloj}<b>18 h 43 m</b>lleva</span></div>`
+const cuadros = c => `<div class="cuadros"><div class="cuadro"><i style="background:var(--ambar)"></i><b>${trabajando(c)}</b><span>trabajando</span></div><div class="cuadro"><i style="background:var(--verde)"></i><b>${terminados(c)}</b><span>terminados</span></div><div class="cuadro"><i style="background:var(--violeta)"></i><b>18<small>h</small>43</b><span>lleva la sesión</span></div></div>`
+
+/* ---------- Opciones 1 y 2: tarjeta con escenario ---------- */
+function escenario(s) {
+  const F = 98, cS = 96, cL = 2, cT = F - pie(cS), X0 = 110, sS = 58
+  const subs = [...s.subs].sort((a, b) => !!a.ok - !!b.ok)
+  const vis = subs.length > 4 ? subs.slice(0, 3) : subs, resto = subs.length > 4 ? subs.slice(3) : []
+  const SW = Math.min(112, Math.floor(298 / (vis.length + (resto.length ? 1 : 0))))
+  let h = `<div class="piso"></div>` + avi('Claude', s.pose, cS, cL, cT), hs = ''
+  pts = ''
+  vis.forEach((u, k) => {
+    const x = X0 + k * SW, L = x + (SW - sS) / 2, T = F - pie(sS)
+    h += avi(u.n, u.pose, sS, L, T)
+    h += `<div class="rot" style="left:${x}px;top:${F + 3}px;width:${SW}px" title="${u.n} · ${u.t}"><b>${u.n}</b><span>${u.t}</span><em class="${u.ok ? 'ok' : 'va'}">${u.est}</em></div>`
+    if (!u.ok && s.pose === 'coordinando') hs += hilo(cL + cS / 2, cT + Math.round(cS * 14 / 120), L + sS / 2, T + Math.round(sS * .26), k)
+  })
+  if (resto.length) {
+    const x = X0 + 3 * SW
+    h += `<div class="mas" style="left:${x}px;top:${F - 46}px;width:${SW}px"><span class="mas-btn"></span>`
+      + resto.map((u, k) => avi(u.n, u.pose, 36, 4 + k * 24, k % 2 ? 8 : 2)).join('') + `</div>`
+    h += `<div class="rot" style="left:${x}px;top:${F + 3}px;width:${SW}px"><b class="n">+${resto.length}</b><span>${resto.every(u => u.ok) ? 'terminados' : 'más'}</span></div>`
+  }
+  return `<div class="esc">${h}${hs ? `<svg class="hilos" aria-hidden="true">${hs}</svg>${pts}` : ''}</div>`
+}
+const tarjeta = s => `<article class="tarjeta"><div class="meta"><span class="tag">${s.tarea}</span><b class="rama">${s.rama}</b><span class="lleva">${s.lleva}</span></div><p class="linea${s.pose === 'escribiendo' ? '' : ''}"><i class="punto"></i>${s.linea}</p>${escenario(s)}</article>`
+const opcion1 = c => `<div class="col">${cabecera(c)}${chips(c)}${c.sesiones.map(tarjeta).join('')}</div>`
+const opcion2 = c => `<div class="col">${cabecera(c)}${cuadros(c)}${c.sesiones.map(tarjeta).join('')}</div>`
+
+/* ---------- Opción 3: la sala ---------- */
+function fondoSala(claudes) {
+  let s = `<svg class="fondo" viewBox="0 0 424 300" aria-hidden="true"><rect width="424" height="122" fill="url(#gPared)"/>`
+  for (let i = 0; i < 10; i++) s += `<line x1="${i * 44 + 22}" y1="0" x2="${i * 44 + 22}" y2="118" stroke="#1D1D22"/>`
+  s += `<rect y="122" width="424" height="178" fill="url(#gPiso)"/>`
+  for (let i = -5; i <= 5; i++) s += `<line x1="${212 + i * 46}" y1="122" x2="${212 + i * 120}" y2="300" stroke="#141418"/>`
+  s += `<rect y="117" width="424" height="5" fill="#202026"/>`
+  s += `<rect x="372" y="34" width="40" height="84" rx="3" fill="#0C0C0F" stroke="#26262C"/><circle cx="404" cy="78" r="2" fill="#3A3A42"/>`
+  s += `<rect x="14" y="98" width="16" height="20" rx="3" fill="#2A2A31"/><path d="M22 98Q18 80 10 74Q20 76 22 92Q24 72 34 66Q28 82 23 98Z" fill="#78B078" opacity=".85"/>`
+  for (const k of claudes) s += `<path d="M${k.cx - 70} ${k.f + 8}L${k.cx - 11} 26H${k.cx + 11}L${k.cx + 70} ${k.f + 8}Z" fill="url(#gLuz)"/><ellipse cx="${k.cx}" cy="${k.f + 6}" rx="74" ry="12" fill="#F2B632" opacity=".06"/><line x1="${k.cx}" y1="0" x2="${k.cx}" y2="16" stroke="#2C2C33" stroke-width="1.5"/><path d="M${k.cx - 14} 27Q${k.cx} 8 ${k.cx + 14} 27Z" fill="#F2B632"/>`
+  return s + `</svg>`
+}
+const mesa = (cx, f, S, w, placa, grande) => `<div class="mesa${grande ? ' grande' : ''}" style="left:${cx - w / 2}px;top:${f - Math.round(S * .07)}px;width:${w}px">${placa}</div>`
+const placa = (nombre, color, extra = '') => `<span class="placa"><i style="background:${color}"></i><b>${nombre}</b>${extra}</span>`
+function sala(c) {
+  const una = c.sesiones.length === 1
+  const claudes = una ? [{ cx: 212, f: 172, S: 96 }] : [{ cx: 106, f: 172, S: 86 }, { cx: 318, f: 172, S: 86 }]
+  const puestos = una
+    ? [{ cx: 64, f: 180, S: 62 }, { cx: 360, f: 180, S: 62 }, { cx: 132, f: 266, S: 78 }, { cx: 286, f: 266, S: 78 }]
+    : null
+  let atras = '', frente = '', hs = '', k = 0, sillon = []
+  pts = ''
+  c.sesiones.forEach((s, i) => {
+    const C = claudes[i], cT = C.f - pie(C.S)
+    atras += avi('Claude', s.pose, C.S, C.cx - C.S / 2, cT) + mesa(C.cx, C.f, C.S, una ? 120 : 104, placa('Claude', 'var(--ambar)', `<em style="color:var(--tenue)">${s.rama}</em>`), true)
+    const activos = s.subs.filter(u => !u.ok)
+    sillon.push(...s.subs.filter(u => u.ok))
+    activos.forEach((u, j) => {
+      const P = una ? puestos[[2, 3, 0, 1][j]] : { cx: C.cx, f: 266, S: 76 }
+      if (!P) return
+      const T = P.f - pie(P.S), html = avi(u.n, u.pose, P.S, P.cx - P.S / 2, T) + mesa(P.cx, P.f, P.S, P.S + 30, placa(u.n, 'var(--ambar)'))
+      if (P.f < 200) atras += html; else frente += html
+      if (s.pose === 'coordinando') hs += hilo(C.cx, cT + Math.round(C.S * 14 / 120), P.cx, T + Math.round(P.S * .26), k++)
+    })
+  })
+  let sofa = ''
+  if (sillon.length) {
+    const x = 346, f = 266
+    sofa = `<div class="respaldo" style="left:${x}px;top:${f - 40}px;width:72px"></div>`
+      + sillon.map((u, j) => avi(u.n, 'durmiendo', 36, x + 2 + j * 24, f - 18 - pie(36) + (j % 2) * 2)).join('')
+      + `<div class="asiento" style="left:${x - 3}px;top:${f - 18}px;width:76px">${placa(`${sillon.length} ${sillon.length === 1 ? 'listo' : 'listos'}`, 'var(--verde)')}</div>`
+  }
+  const piz = `<div class="pizarra" style="left:${una ? 40 : 137}px;top:12px"><div><i style="background:var(--ambar)"></i><b>${trabajando(c)}</b> trabajando</div><div><i style="background:var(--verde)"></i><b>${terminados(c)}</b> terminados</div><div><i style="background:var(--violeta)"></i><b>18 h 43 m</b> lleva</div></div>`
+  return `<div class="sala">${fondoSala(claudes)}${piz}${atras}${frente}${sofa}${hs ? `<svg class="hilos" viewBox="0 0 424 300" aria-hidden="true">${hs}</svg>${pts}` : ''}</div>`
+}
+function lista(c) {
+  let h = '<ul class="lista">'
+  c.sesiones.forEach(s => {
+    h += `<li>${avi('Claude', s.pose, 20)}<b>Claude</b><span>${s.rama} · ${s.linea.replace('ahora · ', '')}</span><em style="color:var(--tenue)">${s.lleva}</em></li>`
+    s.subs.forEach(u => h += `<li class="sub">${avi(u.n, u.pose, 20)}<b>${u.n}</b><span>${u.t}</span><em class="${u.ok ? 'ok' : 'va'}">${u.est}</em></li>`)
+  })
+  return h + '</ul>'
+}
+const opcion3 = c => `<div class="col">${cabecera(c)}${sala(c)}${lista(c)}</div>`
+
+/* ---------- Página ---------- */
+const OPCIONES = [
+  { num: '01', nombre: 'Escenario + chips', bajada: 'Claude grande sobre un escenario, su equipo de cuerpo entero alrededor y los conteos en una fila de chips.', fn: opcion1,
+    nota: ['Claude pasa de 56 a 96 px; los subagentes dejan la ficha y son Avis de 58 px parados en el mismo piso, con texto mínimo debajo. Hilos punteados salen de la antena hacia los que trabajan. Los tres cuadros pasan a chips de 26 px.',
+      'Libera unos 37 px frente a los cuadros de hoy (63 px medidos en el widget contra 26 de los chips): 2 sesiones entran con aire (ver la medida de cada caso). Cada tarjeta con escenario mide 205 px.',
+      'Hasta 4 subagentes por fila; del 5.º en adelante quedan 3 + “+n” (los terminados, apilados dormidos). La tarea se corta en una línea y el estado se abrevia (“escribe 5m”): el texto completo va en title y en el nombre accesible. La cifra grande de los cuadros se pierde.'] },
+  { num: '02', nombre: 'Solo escenario', bajada: 'El mismo escenario en la tarjeta; los cuadros de conteo quedan como hoy.', fn: opcion2,
+    nota: ['Igual que la 1 en la tarjeta (Claude 96 px, equipo de cuerpo entero, hilos). Arriba siguen los tres cuadros de 78 px.',
+      'Con 2 sesiones roza el tope de 640: no queda lugar para una tercera sin desplazar la columna.',
+      'Los cuadros compiten con los Avis por la primera mirada; el mismo límite de 4 por fila y “+n”. Es el cambio de menor riesgo para quien ya conoce el panel.'] },
+  { num: '03', nombre: 'Sala', bajada: 'Cada proyecto es una salita: Claude al centro bajo su lámpara, el equipo en sus escritorios, los terminados duermen en el sillón.', fn: opcion3,
+    nota: ['La tarjeta se vuelve un lugar: escritorios para los que trabajan, sillón para los terminados, pizarra en la pared con los conteos. El texto completo baja a una lista compacta, una fila por Avi.',
+      'Sala fija de 300 px + 28 px por fila de la lista: 1 sesión con 5 subagentes usa unos 595 px. Con 2 sesiones la sala se parte en dos islas y los Avis se achican.',
+      'Es la que más dibujo y lógica pide (4 escritorios; con más de 4 trabajando, “+n” en la puerta). El texto queda lejos de su Avi; hay más SVG animados a la vez en la ventana acoplada. Riesgo de que lea como juego y no como tablero.'] },
+]
+let indice = 0
+document.getElementById('marca').innerHTML = avi('Base', 'esperando', 56)
+document.getElementById('opciones').innerHTML = OPCIONES.map(o => `<section class="opcion" aria-labelledby="op${o.num}"><header><span class="num">${o.num}</span><h2 id="op${o.num}">${o.nombre}</h2><p>${o.bajada}</p></header><div class="fila">${CASOS.map(c => `<div class="caso"><span>${c.nombre}<em data-alto></em></span><div class="marco" style="--i:${indice++}" role="img" aria-label="Opción ${o.num}, caso ${c.nombre}">${o.fn(c)}</div></div>`).join('')}</div><div class="nota"><div><b>Qué cambia</b>${o.nota[0]}</div><div><b>Alto</b>${o.nota[1]}</div><div><b>Riesgos</b>${o.nota[2]}</div></div></section>`).join('')
+
+/* Alto real de cada caso, en px del panel (independiente del zoom en celular) */
+function medir() {
+  document.querySelectorAll('.caso').forEach(c => {
+    const marco = c.querySelector('.marco'), col = marco.firstElementChild
+    const ultimo = col.lastElementChild
+    const alto = Math.round((ultimo.getBoundingClientRect().bottom - marco.getBoundingClientRect().top) / marco.getBoundingClientRect().height * 640) + 18
+    const em = c.querySelector('[data-alto]')
+    em.textContent = `usa ${alto} / 640`
+    em.classList.toggle('justo', alto > 600)
+  })
+}
+document.fonts.ready.then(() => setTimeout(medir, 700))
+
+/* Pausar: body.pausa congela los bucles CSS y apaga los puntos de los hilos */
+document.getElementById('pausar').addEventListener('click', e => {
+  const p = document.body.classList.toggle('pausa')
+  e.currentTarget.setAttribute('aria-pressed', p)
+  e.currentTarget.textContent = p ? 'Reanudar animaciones' : 'Pausar animaciones'
+})
+</script>
+</body>
+</html>

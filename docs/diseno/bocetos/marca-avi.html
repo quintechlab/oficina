@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oficina · Marca B, Escenario: el Avi juega — boceto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Martian+Mono:wdth,wght@75..112.5,400..600&display=swap" rel="stylesheet">
+<style>
+/* Boceto de la opción B elegida. Tokens de estilos.css (3.1 a 3.6). Trazados de widget/src/avis.js.
+   Dirección: docs/diseno/marca-avi-ux.md. No es código de producción. */
+:root{
+  --negro:#000;--s1:#0C0C0E;--s2:#141417;--s3:#1D1D21;--linea:#25252A;--linea-hover:#36363C;
+  --crema:#F3EBD8;--crema2:#BDB5A4;--tenue:#8A8478;--ambar:#F2B632;--ambar-osc:#1D1707;--pico:#E9A13B;
+  --f:"Manrope","Segoe UI Variable",sans-serif;--m:"Martian Mono","Cascadia Mono",monospace;
+  --t-display:800 21px/1.1 var(--f);--t-titulo:800 14.5px/1.3 var(--f);--t-cuerpo-f:700 13px/1.3 var(--f);
+  --t-cuerpo:500 12.5px/1.45 var(--f);--t-chico:500 11.5px/1.4 var(--f);
+  --t-mono:400 10.5px/1.5 var(--m);--t-mono-s:500 10px/1.3 var(--m);--t-rotulo:500 10px/1 var(--m);
+  --r-ventana:26px;--r-tarjeta:18px;--r-fila:11px;--r-icono:7px;--r-pildora:999px;
+  --sombra-ventana:0 16px 32px -16px rgba(0,0,0,.8);
+  --ease:cubic-bezier(.16,1,.3,1);--rebote:cubic-bezier(.34,1.56,.64,1);--d-color:200ms;--d-entrada:620ms;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#050506}
+body{color:var(--crema);font:var(--t-cuerpo);-webkit-font-smoothing:antialiased;min-height:100vh}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.kicker,.mono{font-family:var(--m);font-stretch:75%}
+.kicker{font-size:10px;font-weight:500;line-height:1;letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+
+.pagina{max-width:1320px;margin:0 auto;padding:48px 32px 96px}
+.top{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;padding-bottom:28px;border-bottom:1px solid var(--linea)}
+h1{font:800 clamp(34px,5vw,56px)/1 var(--f);letter-spacing:-.04em;margin-top:10px}
+h1 em{font-style:normal;color:var(--ambar)}
+.bajada{max-width:62ch;color:var(--crema2);margin-top:12px}
+.sello{display:grid;gap:6px;padding:14px 18px;border:1px solid color-mix(in srgb,var(--ambar) 40%,transparent);background:var(--ambar-osc);border-radius:var(--r-tarjeta)}
+.sello b{font:800 28px/1 var(--f);color:var(--ambar);letter-spacing:-.04em}
+.sello span{font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--crema2)}
+
+/* controles */
+.controles{display:flex;flex-wrap:wrap;gap:12px 28px;padding:18px 0;border-bottom:1px solid var(--linea);position:sticky;top:0;background:rgba(5,5,6,.92);backdrop-filter:blur(8px);z-index:5}
+.grupo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;max-width:100%}
+.grupo>span{font:var(--t-rotulo);font-family:var(--m);font-stretch:75%;letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+.seg{display:flex;flex-wrap:wrap;max-width:100%;background:var(--s2);border-radius:22px;padding:3px}
+.seg button,.tg{min-height:44px;padding:0 14px;border-radius:var(--r-pildora);color:var(--crema2);font:600 12px/1 var(--f);white-space:nowrap;transition:background var(--d-color),color var(--d-color)}
+.seg button{min-height:38px}
+.seg button[aria-pressed=true]{background:var(--ambar);color:var(--negro)}
+.seg button:hover:not([aria-pressed=true]){color:var(--crema)}
+.tg{display:inline-flex;align-items:center;gap:8px;background:var(--s2)}
+.tg::before{content:"";width:14px;height:14px;border-radius:4px;border:1.5px solid var(--tenue)}
+.tg[aria-pressed=true]{color:var(--crema)}
+.tg[aria-pressed=true]::before{background:var(--ambar);border-color:var(--ambar);box-shadow:inset 0 0 0 2.5px var(--s2)}
+
+/* escenario + repertorio */
+.principal{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:40px;margin-top:36px;align-items:start}
+.escenario{display:flex;flex-direction:column;gap:14px}
+.escena{position:relative;display:grid;place-items:center;padding:36px 12px;overflow:auto;min-height:480px;border-radius:var(--r-tarjeta);border:1px solid var(--linea);
+  background:radial-gradient(90% 70% at 30% 0%,#17140E 0%,#070708 62%),#070708}
+.jugar{display:flex;flex-wrap:wrap;gap:8px}
+.jugar button{min-height:44px;padding:0 16px 0 12px;display:inline-flex;align-items:center;gap:8px;border-radius:var(--r-pildora);background:var(--s2);color:var(--crema);font:700 12.5px/1 var(--f);border:1px solid var(--linea);transition:background var(--d-color),border-color var(--d-color),transform 140ms}
+.jugar button::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ambar)}
+.jugar button:hover{border-color:var(--linea-hover);background:var(--s3)}
+.jugar button:active{transform:scale(.97)}
+.jugar button[aria-disabled=true]{opacity:.38;cursor:not-allowed}
+.jugar button[aria-disabled=true]:active{transform:none}
+.jugar button.activo{background:var(--ambar-osc);border-color:color-mix(in srgb,var(--ambar) 50%,transparent);color:var(--ambar)}
+.acto{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:12px 16px;background:var(--s1);border:1px solid var(--linea);border-radius:var(--r-fila)}
+.acto b{font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--ambar);white-space:nowrap}
+.acto span{font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--tenue);white-space:nowrap}
+.barra{height:4px;border-radius:2px;background:var(--s3);overflow:hidden}
+.barra i{display:block;height:100%;background:var(--ambar);transform-origin:0 50%;transform:scaleX(0)}
+.auto-estado{font:var(--t-chico);color:var(--crema2);min-height:2.8em}
+.auto-estado em{font-style:normal;color:var(--ambar)}
+
+.rep{list-style:none;display:grid;gap:12px;counter-reset:n}
+.carta{position:relative;display:grid;grid-template-columns:auto 1fr auto;column-gap:14px;row-gap:6px;padding:16px 18px;border:1px solid var(--linea);border-radius:var(--r-tarjeta);background:var(--s1);transition:border-color 300ms,background 300ms}
+.carta.activo{border-color:color-mix(in srgb,var(--ambar) 55%,transparent);background:linear-gradient(180deg,var(--ambar-osc),var(--s1) 70%)}
+.carta .n{grid-row:span 3;font:800 26px/1 var(--f);color:var(--ambar);letter-spacing:-.04em;opacity:.9;font-variant-numeric:tabular-nums}
+.carta h3{font:var(--t-titulo);font-size:16px}
+.carta .dur{font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--tenue);white-space:nowrap;align-self:center}
+.carta p{grid-column:2 / 4;color:var(--crema2);font:var(--t-chico)}
+.carta p.por{color:var(--tenue)}
+.carta p.por b{color:var(--crema2);font-weight:700}
+.cinta .m:nth-child(even){padding-top:21px}
+.cinta{grid-column:2 / 4;position:relative;height:36px;margin-top:4px;border-top:1px solid var(--linea-hover);overflow:hidden}
+.cinta .m{position:absolute;top:0;left:var(--x);height:100%;padding:8px 0 0 5px;border-left:1px solid var(--linea-hover);font:500 9.5px/1 var(--m);font-stretch:75%;color:var(--tenue);white-space:nowrap}
+.cinta .m::before{content:"";position:absolute;left:-3px;top:-3px;width:5px;height:5px;border-radius:50%;background:var(--linea-hover)}
+.carta.activo .cinta .m::before{background:var(--ambar)}
+.cabezal{position:absolute;inset:0;transform:translateX(calc(var(--p,0) * 100%));pointer-events:none;opacity:0}
+.cabezal::before{content:"";position:absolute;left:0;top:-1px;bottom:0;width:2px;background:var(--ambar);box-shadow:0 0 8px var(--ambar)}
+.carta.activo .cabezal{opacity:1}
+
+/* ventana del widget, 1:1 al 100 % */
+.ventana{position:relative;width:240px;height:392px;overflow:hidden;background:var(--negro);flex:none;
+  border:1px solid rgba(255,255,255,.07);border-right:0;border-bottom:0;border-radius:var(--r-ventana) 0 0 0;box-shadow:var(--sombra-ventana)}
+.ventana::after{content:"";position:absolute;inset:auto 0 0 0;height:64px;background:linear-gradient(transparent,#000);pointer-events:none}
+.ventana .velo{position:absolute;inset:0;z-index:3;display:none;place-items:center;background:rgba(5,5,6,.86);font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--tenue);text-align:center;padding:24px}
+.ventana.escondida .velo{display:grid}
+.lado{position:absolute;left:16px;top:16px;width:188px;display:flex;flex-direction:column;gap:14px}
+.asoma{position:absolute;left:220px;top:16px;width:200px;font:var(--t-display);letter-spacing:-.03em;white-space:nowrap}
+.asoma i{display:block;font:var(--t-mono);font-style:normal;color:var(--tenue);margin-top:4px}
+.asoma::after{content:"";display:block;margin-top:14px;height:120px;border-radius:var(--r-tarjeta);background:var(--s1);border:1px solid var(--linea)}
+.proyectos{display:flex;flex-direction:column;gap:2px}
+.pj{display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 8px;border-radius:var(--r-fila);color:var(--crema2);font:var(--t-cuerpo-f)}
+.pj.activo{background:var(--ambar-osc);color:var(--ambar)}
+.pj-ic{width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:var(--r-icono);background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c);font:500 10px/1 var(--m)}
+.pj-n{flex:1;min-width:0}
+.chip{flex:none;padding:3px 6px;border-radius:var(--r-pildora);background:var(--s3);color:var(--crema2);font:500 10px/1 var(--m)}
+.pj.activo .chip{background:color-mix(in srgb,var(--ambar) 22%,var(--ambar-osc));color:var(--ambar)}
+
+/* la marca B */
+.marca{cursor:grab;user-select:none;display:flex;flex-direction:column;align-items:center;text-align:center;padding:6px 4px 4px;position:relative}
+.marca>*{pointer-events:none}
+.marca::before{content:"";position:absolute;left:50%;top:8px;width:150px;height:120px;transform:translateX(-50%);background:radial-gradient(50% 50% at 50% 62%,rgba(242,182,50,.13),transparent 70%);pointer-events:none}
+.marca-n{display:block;font:var(--t-display);letter-spacing:-.03em;margin-top:6px}
+.estado{display:flex;align-items:center;gap:6px;margin-top:7px;padding:4px 10px 4px 8px;background:var(--s2);border-radius:var(--r-pildora);font:var(--t-mono);font-style:italic;color:var(--crema2);white-space:nowrap}
+.pt{display:inline-block;width:7px;height:7px;flex:none;border-radius:50%;background:var(--ambar);box-shadow:0 0 0 3px color-mix(in srgb,var(--ambar) 20%,transparent)}
+
+/* el Avi */
+.avi{position:relative;display:inline-block;width:112px;height:112px;flex:none;contain:layout}
+.avi svg{width:100%;height:100%;overflow:visible;display:block}
+.avi .piel{fill:url(#gPiel)}
+.avi .sombreado{fill:#B9A780;opacity:.34}
+.avi .brillo{fill:url(#gBrillo)}
+.avi .pata{fill:#D6C8A6}
+.avi .suelo{fill:url(#gSuelo)}
+.avi .contacto{fill:#000;opacity:.55}
+.avi .ojo{fill:#1B1712}
+.avi .luz{fill:#fff}
+.avi .trazo{stroke:#1B1712;stroke-width:2.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.avi .pico{fill:var(--pico)}
+.avi .pico-i{fill:#DD9433}
+.avi .boca{fill:#3A1C10}
+.avi .mano ellipse{fill:#EFE6D2}
+.avi .z{font:800 12px var(--f);fill:var(--tenue)}
+.avi .cuerpo,.avi .ojos,.avi .halo,.avi .burbuja{transform-box:fill-box}
+.avi .cuerpo{transform-origin:50% 100%}
+.avi .ojos,.avi .halo{transform-origin:50% 50%}
+.avi .e-fe,.avi .e-ce,.avi .zs{display:none}
+.avi .o-fe .e-ab,.avi .o-ce .e-ab{display:none}
+.avi .o-fe .e-fe,.avi .o-ce .e-ce,.avi .siesta .zs{display:inline}
+
+body:not(.quieto) .avi .cuerpo{animation:respira 3.4s ease-in-out infinite -1.1s}
+body:not(.quieto) .avi .ojos{animation:parpadea 4.8s infinite -1.1s}
+body:not(.quieto) .avi .o-fe .ojos,body:not(.quieto) .avi .o-ce .ojos{animation:none}
+body:not(.quieto) .avi .halo{animation:halo 2.8s ease-in-out infinite}
+body:not(.quieto) .avi .e-teEspera .cuerpo{animation:salto 2s var(--ease) infinite}
+body:not(.quieto) .avi .e-teEspera .burbuja{animation:salto 2s var(--ease) infinite .08s;transform-origin:30% 100%}
+body:not(.quieto) .avi .e-escribiendo .cuerpo{animation:teclea .34s ease-in-out infinite alternate}
+body:not(.quieto) .avi .e-escribiendo .tecla{animation:tecla .2s ease-in-out infinite alternate;transform-box:fill-box}
+body:not(.quieto) .avi .e-escribiendo .tecla.m2{animation-delay:.1s}
+body:not(.quieto) .avi .e-durmiendo .cuerpo,body:not(.quieto) .avi .siesta .cuerpo{animation:duerme 5.6s ease-in-out infinite}
+body:not(.quieto) .avi .e-durmiendo .ojos{animation:none}
+body:not(.quieto) .avi .z{animation:zeta 3.6s ease-in-out infinite;opacity:0}
+body:not(.quieto) .avi .z2{animation-delay:1.2s}
+body:not(.quieto) .avi .z3{animation-delay:2.4s}
+body:not(.quieto) .avi.te-vio .ojos{animation:doble .5s ease-in-out}
+body:not(.quieto) .avi svg{animation:entra var(--d-entrada) var(--rebote) both}
+
+@keyframes respira{0%,100%{transform:scale(1,1)}50%{transform:scale(1.03,.965)}}
+@keyframes duerme{0%,100%{transform:scale(1,1)}50%{transform:scale(1.045,.95)}}
+@keyframes parpadea{0%,91%,97%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}}
+@keyframes doble{0%,40%,100%{transform:scaleY(1)}20%,60%{transform:scaleY(.08)}80%{transform:scaleY(1)}}
+@keyframes halo{0%,100%{opacity:.18;transform:scale(1)}50%{opacity:.38;transform:scale(1.22)}}
+@keyframes salto{0%,55%,100%{transform:translateY(0) scale(1,1)}62%{transform:translateY(0) scale(1.06,.92)}72%{transform:translateY(-9px) scale(.97,1.04)}84%{transform:translateY(0) scale(1.04,.96)}}
+@keyframes teclea{from{transform:translateY(0)}to{transform:translateY(1.5px) scale(1.01,.99)}}
+@keyframes tecla{from{transform:translateY(0)}to{transform:translateY(-3px)}}
+@keyframes zeta{0%{opacity:0;transform:translate(0,4px)}25%{opacity:1}100%{opacity:0;transform:translate(9px,-16px)}}
+@keyframes entra{from{opacity:0;transform:translateY(10px) scale(.8)}}
+
+/* reglas */
+.reglas{margin-top:56px;padding-top:28px;border-top:1px solid var(--linea)}
+.reglas h2{font:var(--t-display);font-size:24px;letter-spacing:-.03em;margin-top:8px}
+.tabla{display:grid;grid-template-columns:minmax(150px,240px) 1fr;margin-top:18px;border:1px solid var(--linea);border-radius:var(--r-tarjeta);overflow:hidden}
+.tabla>div{padding:12px 16px;border-top:1px solid var(--linea)}
+.tabla>div:nth-child(-n+2){border-top:0}
+.tabla>div:nth-child(odd){background:var(--s1);font:var(--t-mono-s);font-family:var(--m);font-stretch:75%;color:var(--crema)}
+.tabla>div:nth-child(even){color:var(--crema2)}
+.tabla em{font-style:normal;color:var(--ambar)}
+
+@media (min-width:1101px){.escenario{position:sticky;top:104px}}
+@media (max-width:1100px){.principal{grid-template-columns:1fr}}
+@media (max-width:720px){
+  .pagina{padding:32px 16px 72px}
+  .top{grid-template-columns:1fr}
+  .tabla{grid-template-columns:1fr}
+  .tabla>div:nth-child(even){border-top:0}
+  .controles{position:static}
+  .escena{min-height:440px;padding:24px 8px}
+  .carta{padding:14px;column-gap:10px}
+  .cinta .m{font-size:0;padding:0}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <radialGradient id="gPiel" cx="36%" cy="28%" r="78%"><stop offset="0" stop-color="#FFFCF4"/><stop offset=".42" stop-color="#F5EDDC"/><stop offset=".8" stop-color="#E1D4B6"/><stop offset="1" stop-color="#CBBB97"/></radialGradient>
+  <radialGradient id="gSuelo" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#F2B632" stop-opacity=".22"/><stop offset="1" stop-color="#F2B632" stop-opacity="0"/></radialGradient>
+  <radialGradient id="gBrillo" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset=".55" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  <radialGradient id="gBola" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#FFD873"/><stop offset=".6" stop-color="#F2B632"/><stop offset="1" stop-color="#C98A12"/></radialGradient>
+</defs></svg>
+
+<div class="pagina">
+  <header class="top">
+    <div>
+      <span class="kicker">Oficina · boceto · barra lateral · opción B elegida</span>
+      <h1>La marca <em>juega</em></h1>
+      <p class="bajada">El Avi de Claude, de 112 sobre su luz, respira, parpadea y te sigue con la mirada. Cuando no pasa nada (Claude esperando, vos sin tocar la ventana) juega solo: una pelota, una canción, un saludo, un estirón y, si pasa mucho rato, una siesta. Mové el mouse adentro del recorte para interrumpirlo.</p>
+    </div>
+    <div class="sello"><span class="kicker">Elegida</span><b>B · Escenario</b><span>Avi 112 · marca 182 alto · 188 ancho</span></div>
+  </header>
+
+  <div class="controles" role="group" aria-label="Simulación">
+    <div class="grupo"><span>Ventana</span>
+      <div class="seg" data-ctl="modo"><button type="button" aria-pressed="true" data-v="acoplada">Acoplada</button><button type="button" aria-pressed="false" data-v="flotante">Flotante</button></div>
+    </div>
+    <div class="grupo"><span>Ánimo de Claude</span>
+      <div class="seg" data-ctl="pose"><button type="button" aria-pressed="true" data-v="esperando">Esperando</button><button type="button" aria-pressed="false" data-v="teEspera">Te espera</button><button type="button" aria-pressed="false" data-v="escribiendo">Escribiendo</button><button type="button" aria-pressed="false" data-v="durmiendo">Durmiendo</button></div>
+    </div>
+    <div class="grupo"><span>Zoom</span>
+      <div class="seg" data-ctl="zoom"><button type="button" aria-pressed="true" data-v="1">100 %</button><button type="button" aria-pressed="false" data-v="1.5">150 %</button><button type="button" aria-pressed="false" data-v="2">200 %</button></div>
+    </div>
+    <div class="grupo">
+      <button type="button" class="tg" data-tg="auto" aria-pressed="true">Automático</button>
+      <button type="button" class="tg" data-tg="escondida" aria-pressed="false">Ventana escondida</button>
+      <button type="button" class="tg" data-tg="rm" aria-pressed="false">Movimiento reducido</button>
+      <button type="button" class="tg" data-tg="pausa" aria-pressed="false">Pausar animaciones</button>
+    </div>
+  </div>
+
+  <main class="principal">
+    <section class="escenario" aria-label="Escenario">
+      <div class="escena">
+        <div class="ventana" data-ventana>
+          <div class="lado">
+            <div class="marca"><span class="avi" id="avi"></span><b class="marca-n">Oficina</b><span class="estado"><i class="pt" aria-hidden="true"></i>2 sesiones abiertas</span></div>
+            <nav class="proyectos" aria-label="Proyectos"></nav>
+          </div>
+          <div class="asoma" aria-hidden="true">fuera de un<i>1 sesión</i></div>
+          <div class="velo">Ventana escondida o panel cerrado: nada corre, ni la mirada ni los juegos.</div>
+        </div>
+      </div>
+      <div class="jugar" role="group" aria-label="Forzar un juego">
+        <button type="button" data-jugar="pelota">Pelota</button>
+        <button type="button" data-jugar="canta">Canta</button>
+        <button type="button" data-jugar="llama">Te llama</button>
+        <button type="button" data-jugar="estira">Se estira</button>
+        <button type="button" data-jugar="siesta">Siesta</button>
+      </div>
+      <div class="acto" aria-hidden="true"><b id="acto-n">en reposo</b><div class="barra"><i id="acto-b"></i></div><span id="acto-t">—</span></div>
+      <p class="auto-estado" id="auto-estado"></p>
+    </section>
+
+    <section aria-labelledby="t-rep">
+      <span class="kicker">Repertorio de reposo · tiempos medidos en el boceto</span>
+      <h2 id="t-rep" class="oculto" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)">Repertorio de reposo</h2>
+      <ol class="rep" id="rep" style="margin-top:14px"></ol>
+    </section>
+  </main>
+
+  <section class="reglas" aria-labelledby="t-reglas">
+    <span class="kicker">Propuesta · cuándo juega</span>
+    <h2 id="t-reglas">Una mascota que no molesta</h2>
+    <div class="tabla">
+      <div>Arranca</div><div>Ventana visible (flotante, o acoplada con el panel abierto), ánimo de la marca <em>esperando</em> (ninguna pregunta, nadie trabajando) y <em>40 s</em> sin puntero dentro de la ventana. En el boceto todos los tiempos van divididos por 7.</div>
+      <div>Cada cuánto</div><div>Entre juegos, <em>60 a 150 s</em> al azar. Nunca dos iguales seguidos. "Te llama" nunca es el primero y sale a lo sumo una vez cada 15 min.</div>
+      <div>Sorteo</div><div>Pelota 4 · Canta 3 · Se estira 2 · Te llama 1 (pesos).</div>
+      <div>Siesta</div><div>A los <em>8 min</em> de quietud se duerme y queda dormido hasta que vuelvas. No es el ánimo "durmiendo": la píldora sigue diciendo las sesiones abiertas.</div>
+      <div>Lo interrumpe</div><div>Puntero que entra o se mueve en la ventana, clic o arrastre: el juego se suelta en <em>280 ms</em> y te mira con un doble parpadeo. De la siesta despierta de un respingo. Pregunta o trabajo de Claude: manda la pose al instante.</div>
+      <div>No corre</div><div>Panel acoplado cerrado, ventana escondida o minimizada, prefers-reduced-motion, "Pausar animaciones". Sin bucles cuando no se ve: el planificador duerme y no hay cuadros.</div>
+      <div>Nunca</div><div>Sonido, cambiar el texto del estado o el aria-label, avisar por Windows o la bandeja, salir de los 188 px de la marca o tapar los proyectos.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+// Boceto, no es código de producción.
+const C = '#F2B632'
+const ESCALA = 7 // los tiempos del widget, divididos por 7 para verlo en el boceto
+const T = { primero: 40000, entreMin: 60000, entreMax: 150000, siesta: 480000, llamaCada: 900000, salida: 280 }
+const PESOS = { pelota: 4, canta: 3, estira: 2, llama: 1 }
+const POS = { modo: 'acoplada', pose: 'esperando' }
+const SIGUEN = ['esperando', 'teEspera']
+const ANIMO = { esperando: 'esperando', teEspera: 'esperándote', escribiendo: 'escribiendo en la notebook', durmiendo: 'durmiendo' }
+
+// ---------- curvas y pistas ----------
+const E = {
+  l: t => t, o: t => 1 - (1 - t) ** 3, i: t => t ** 3,
+  io: t => t < .5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2,
+  b: t => 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2,
+  s: t => t >= 1 ? 1 : 0,
+}
+function valor(k, t) {
+  if (t <= k[0][0]) return k[0][1]
+  for (let n = 1; n < k.length; n++) {
+    const [t1, v1, e = 'io'] = k[n]
+    if (t <= t1) { const [t0, v0] = k[n - 1]; return v0 + (v1 - v0) * E[e](t1 === t0 ? 1 : (t - t0) / (t1 - t0)) }
+  }
+  return k[k.length - 1][1]
+}
+const D = { x: 0, y: 0, sx: 1, sy: 1, r: 0, ant: 0, luz: 0, gx: 0, gy: 0, gw: 0, gb: 0, ojos: 0, par: 1, boca: 0,
+  moI: 0, mIx: 0, mIy: 0, mIr: 0, moD: 0, mDx: 0, mDy: 0, mDr: 0, globo: 0, bx: 0, by: 97, bs: 1, bo: 0, br: 0 }
+
+// ---------- el repertorio ----------
+const ACTOS = {
+  pelota: () => ({ id: 'pelota', dur: 6600, pistas: {
+    bo: [[0, 0], [120, 1, 'l'], [5800, 1], [6300, 0, 'o']],
+    bx: [[0, -22], [480, -22, 'l'], [1000, 14, 'l'], [1180, 38, 'l'], [1650, 92, 'l'], [2080, 128, 'l'], [2400, 121, 'l'], [2700, 115, 'l'], [2860, 112, 'l'], [3000, 110, 'l'], [3700, 90, 'o'], [5500, 90], [6300, 146, 'i']],
+    by: [[0, -6], [480, 97, 'i'], [1000, 18, 'o'], [1180, 26, 'i'], [1650, 6, 'o'], [2080, 97, 'i'], [2400, 66, 'o'], [2700, 97, 'i'], [2860, 88, 'o'], [3000, 97, 'i']],
+    bs: [[0, 1], [470, 1], [480, .68, 'l'], [560, 1.06, 'o'], [640, 1, 'o'], [1170, 1], [1180, .8, 'l'], [1260, 1, 'o'], [2070, 1], [2080, .72, 'l'], [2160, 1.05, 'o'], [2240, 1, 'o'], [2690, 1], [2700, .84, 'l'], [2780, 1, 'o']],
+    br: [[0, 0], [480, 0], [1180, 120, 'l'], [2080, 320, 'l'], [3000, 420, 'l'], [3700, 256, 'o'], [5500, 256], [6300, 714, 'i']],
+    gb: [[0, 0], [200, 1, 'o'], [6200, 1], [6600, 0, 'io']],
+    y: [[0, 0], [1000, 0], [1180, -14, 'o'], [1380, 0, 'i'], [4300, 0], [4480, -6, 'o'], [4640, 0, 'i'], [4820, -6, 'o'], [4980, 0, 'i']],
+    sx: [[0, 1], [780, 1], [1000, 1.08, 'o'], [1100, .94, 'o'], [1300, 1], [1380, 1.07, 'l'], [1620, 1, 'b'], [4290, 1], [4300, 1.05, 'l'], [4420, .97, 'o'], [4640, 1.05, 'i'], [4760, .97, 'o'], [4980, 1.04, 'i'], [5200, 1, 'b']],
+    sy: [[0, 1], [780, 1], [1000, .88, 'o'], [1100, 1.08, 'o'], [1300, 1], [1380, .9, 'l'], [1620, 1, 'b'], [4290, 1], [4300, .94, 'l'], [4420, 1.04, 'o'], [4640, .94, 'i'], [4760, 1.04, 'o'], [4980, .95, 'i'], [5200, 1, 'b']],
+    r: [[0, 0], [480, -4], [900, 0], [1650, 4], [2600, 6], [3700, 3], [4200, 0], [5600, 0], [6100, 5], [6600, 0]],
+    ant: [[0, 0], [1170, 0], [1260, -22, 'o'], [1400, 16], [1540, -10], [1680, 6], [1820, -3], [1960, 0]],
+    ojos: [[0, 0], [4260, 1, 's'], [5320, 0, 's']],
+    boca: [[0, 0], [4250, 0], [4400, .6, 'o'], [5200, .6], [5400, 0]],
+    moI: [[0, 0], [4150, 0], [4320, 1, 'b'], [5250, 1], [5450, 0, 'o']], mIx: [[0, 0], [4150, 0], [4320, -4, 'b']], mIy: [[0, 0], [4150, 0], [4320, -26, 'b']],
+    moD: [[0, 0], [4150, 0], [4320, 1, 'b'], [5250, 1], [5450, 0, 'o']], mDx: [[0, 0], [4150, 0], [4320, 4, 'b']], mDy: [[0, 0], [4150, 0], [4320, -26, 'b']],
+    par: [[0, 1], [5320, 1], [5400, .1, 'o'], [5500, 1, 'o']],
+  }, marcas: [[0, 'cae'], [1000, 'se agacha'], [1180, 'cabezazo'], [2080, 'rebota'], [3700, 'la mira'], [4300, 'festeja'], [5600, 'la suelta']] }),
+
+  canta: () => {
+    const B = 520, t0 = 400, n = 8, fin = t0 + n * B
+    const r = [[0, 0]], sy = [[0, 1], [300, 1.04, 'o']], sx = [[0, 1], [300, .97, 'o']], boca = [[0, 0]], luz = [[0, 0]], ev = []
+    for (let k = 0; k < n; k++) {
+      const t = t0 + k * B
+      r.push([t + 60, k % 2 ? 6 : -6])
+      sy.push([t, .95, 'o'], [t + 200, 1.02, 'o'])
+      sx.push([t, 1.04, 'o'], [t + 200, .99, 'o'])
+      boca.push([t + 70, 1, 'o'], [t + 400, .2])
+      luz.push([t + 40, .7, 'o'], [t + 420, 0])
+      ev.push([t + 80, () => nota(k % 2 ? 1 : -1, k % 3 === 2, false)])
+    }
+    r.push([fin, 0], [6200, 0]); sy.push([fin, 1.08, 'b'], [5300, 1.06], [5600, 1]); sx.push([fin, .95, 'b'], [5300, .96], [5600, 1])
+    boca.push([fin + 60, 1, 'o'], [5300, 1], [5500, 0]); luz.push([fin, 1, 'o'], [5300, .8], [5700, 0])
+    ev.push([fin + 60, () => nota(0, true, true)])
+    const up = v => [[0, 0], [fin - 120, 0], [fin + 60, v, 'b']]
+    return { id: 'canta', dur: 6200, eventos: ev, pistas: { r, sy, sx, boca, luz,
+      y: [[0, 0], [300, -2, 'o'], [400, 0], [fin - 100, 0], [fin, -5, 'b'], [5300, -5], [5600, 0]],
+      ojos: [[0, 0], [300, 1, 's'], [5440, 0, 's']], par: [[0, 1], [5440, 1], [5520, .1, 'o'], [5640, 1, 'o']],
+      gw: [[0, 0], [300, 1]], gy: [[0, -.3]],
+      moI: [[0, 0], [fin - 120, 0], [fin + 60, 1, 'b'], [5300, 1], [5560, 0, 'o']], mIx: up(-7), mIy: up(-20),
+      moD: [[0, 0], [fin - 120, 0], [fin + 60, 1, 'b'], [5300, 1], [5560, 0, 'o']], mDx: up(7), mDy: up(-20),
+    }, marcas: [[0, 'toma aire'], [400, '8 compases · 520 ms'], [fin, 'nota final'], [5440, 'parpadea']] }
+  },
+
+  llama: () => ({ id: 'llama', dur: 4600, pistas: {
+    sy: [[0, 1], [220, .88, 'o'], [420, 1.1, 'o'], [600, 1, 'i'], [610, .9, 'l'], [700, .92], [880, 1.08, 'o'], [1040, 1, 'i'], [1050, .92, 'l'], [1300, 1, 'b']],
+    sx: [[0, 1], [220, 1.08, 'o'], [420, .93, 'o'], [600, 1, 'i'], [610, 1.07, 'l'], [700, 1.05], [880, .95, 'o'], [1040, 1, 'i'], [1050, 1.06, 'l'], [1300, 1, 'b']],
+    y: [[0, 0], [220, 0], [420, -16, 'o'], [600, 0, 'i'], [700, 0], [880, -11, 'o'], [1040, 0, 'i']],
+    gx: [[0, 0]], gy: [[0, -.15]], gw: [[0, 0], [200, 1, 'o'], [3700, 1], [4300, 0]],
+    globo: [[0, 0], [300, 0], [560, 1, 'b'], [3500, 1], [3800, 0, 'i']],
+    boca: [[0, 0], [320, 0], [460, .75, 'o'], [700, .15], [860, .6, 'o'], [1150, 0]],
+    luz: [[0, 0], [300, 1, 'o'], [600, 0], [860, 1, 'o'], [1200, 0]],
+    moD: [[0, 0], [180, 0], [420, 1, 'b'], [3500, 1], [3800, 0, 'o']], mDx: [[0, 0], [180, 0], [420, 5, 'b']], mDy: [[0, 0], [180, 0], [420, -28, 'b']],
+    mDr: [[0, 0], [1200, 0], [1350, -28], [1550, 18], [1750, -28], [1950, 18], [2150, -28], [2350, 18], [2550, 0]],
+    r: [[0, 0], [2600, 0], [2950, 8, 'b'], [3600, 8], [4100, 0]],
+    ant: [[0, 0], [400, 0], [600, -10, 'o'], [760, 8], [900, -4], [1040, 0], [1100, 0], [1250, -8, 'o'], [1400, 5], [1550, 0]],
+    par: [[0, 1], [3000, 1], [3080, .1, 'o'], [3200, 1, 'o']],
+  }, marcas: [[0, 'se agacha'], [220, 'salta ×2'], [560, '"¡ey!"'], [1200, 'saluda ×3'], [2950, 'ladea'], [3800, 'se va']] }),
+
+  estira: () => ({ id: 'estira', dur: 4400, pistas: {
+    sy: [[0, 1], [900, 1.14], [2000, 1.15], [2350, .9, 'i'], [2800, 1, 'b']],
+    sx: [[0, 1], [900, .9], [2000, .89], [2350, 1.08, 'i'], [2800, 1, 'b']],
+    y: [[0, 0], [900, -3], [2000, -3], [2350, 0, 'i']],
+    ojos: [[0, 0], [350, 2, 's'], [2570, 0, 's']],
+    boca: [[0, 0], [900, 0], [1350, 1, 'o'], [1900, .95], [2300, 0]],
+    moI: [[0, 0], [150, 0], [500, 1, 'o'], [2250, 1], [2550, 0, 'o']], mIx: [[0, 0], [150, 0], [900, 14]], mIy: [[0, 0], [150, 0], [900, -58], [2000, -60], [2400, -20, 'i']], mIr: [[0, 0], [900, -30]],
+    moD: [[0, 0], [150, 0], [500, 1, 'o'], [2250, 1], [2550, 0, 'o']], mDx: [[0, 0], [150, 0], [900, -14]], mDy: [[0, 0], [150, 0], [900, -58], [2000, -60], [2400, -20, 'i']], mDr: [[0, 0], [900, 30]],
+    r: [[0, 0], [1000, 0], [1100, 1.5], [1200, -1.5], [1300, 1.5], [1400, -1.5], [1500, 1], [1600, 0], [2900, 0], [3050, -5], [3200, 5], [3350, -3], [3500, 2], [3650, 0]],
+    ant: [[0, 0], [2350, 0], [2450, 12, 'o'], [2600, -8], [2750, 4], [2900, 0], [3050, -10], [3200, 10], [3350, -6], [3500, 3], [3650, 0]],
+    par: [[0, 1], [3700, 1], [3780, .1, 'o'], [3880, 1, 'o']],
+    gy: [[0, 0], [300, -.5], [2400, -.5], [2900, 0]], gw: [[0, 0], [300, 1], [3900, 1], [4400, 0]],
+  }, marcas: [[0, 'se estira'], [900, 'bosteza'], [2100, 'suelta'], [2900, 'se sacude'], [3700, 'parpadea']] }),
+
+  siesta: () => ({ id: 'siesta', dur: 3400, lazo: true, pistas: {
+    par: [[0, 1], [600, .45], [900, 1, 'o'], [1600, .35], [1760, .85, 'o'], [2400, .3], [2700, .25]],
+    ojos: [[0, 0], [2700, 2, 's']],
+    y: [[0, 0], [600, 2], [900, 0, 'o'], [1600, 3], [1760, 0, 'o'], [2400, 3], [3000, 2]],
+    r: [[0, 0], [2400, 0], [3200, 7]], sy: [[0, 1], [2700, 1], [3200, .97]], sx: [[0, 1], [2700, 1], [3200, 1.02]],
+    luz: [[0, 0], [2700, 0], [3300, -1]], gy: [[0, 0], [600, .4]], gw: [[0, 0], [300, 1]],
+  }, eventos: [[3200, () => A.svg.classList.add('siesta')]],
+  marcas: [[0, 'cabecea ×2'], [2700, 'se duerme'], [3200, '"z" hasta que vuelvas']] }),
+
+  despierta: () => ({ id: 'despierta', dur: 1000, pistas: {
+    ojos: [[0, 2], [60, 0, 's']], par: [[0, .25], [60, 1.28, 's'], [500, 1.28], [700, 1, 'o'], [800, .1, 'o'], [900, 1, 'o']],
+    y: [[0, 2], [160, -10, 'o'], [340, 0, 'i']], r: [[0, 7], [200, -3, 'o'], [500, 0, 'b']],
+    sy: [[0, .97], [160, 1.1, 'o'], [340, .9, 'i'], [600, 1, 'b']], sx: [[0, 1.02], [160, .93, 'o'], [340, 1.07, 'i'], [600, 1, 'b']],
+    luz: [[0, -1], [200, .8, 'o'], [700, 0]], ant: [[0, 0], [200, -14, 'o'], [380, 10], [520, -5], [660, 0]],
+  } }),
+}
+const NOMBRES = { pelota: 'pelota', canta: 'canta', llama: 'te llama', estira: 'se estira', siesta: 'siesta', despierta: 'despierta', salida: 'suelta el juego' }
+
+// ---------- el Avi ----------
+function ojosAb(pose) {
+  if (pose === 'durmiendo') return '<path class="trazo" d="M44.5 71Q49 75 53.5 71M66.5 71Q71 75 75.5 71"/>'
+  return '<ellipse class="ojo" cx="49" cy="70" rx="4.5" ry="5.8"/><ellipse class="ojo" cx="71" cy="70" rx="4.5" ry="5.8"/><circle class="luz" cx="50.7" cy="67.6" r="1.5"/><circle class="luz" cx="72.7" cy="67.6" r="1.5"/>'
+}
+function efectos(pose) {
+  if (pose === 'teEspera') return '<g class="burbuja"><path d="M86 6h18a9 9 0 0 1 9 9v6a9 9 0 0 1-9 9h-9l-7 7v-7a9 9 0 0 1-8-9v-6a9 9 0 0 1 9-9z" fill="#F2B632"/><text x="95" y="25.5" text-anchor="middle" font-family="Manrope,sans-serif" font-weight="800" font-size="17" fill="#000">!</text></g>'
+  if (pose === 'escribiendo') return `<ellipse cx="60" cy="79" rx="24" ry="8" fill="${C}" opacity=".14"/><rect x="35" y="80" width="50" height="21" rx="4.5" fill="#1C1C21" stroke="#34343B" stroke-width="1.2"/><circle cx="60" cy="90.5" r="2.8" fill="${C}"/><rect x="28" y="100" width="64" height="5" rx="2.5" fill="#2A2A31"/><ellipse class="tecla" cx="43" cy="81" rx="5.5" ry="3.8" fill="#EFE6D2"/><ellipse class="tecla m2" cx="77" cy="81" rx="5.5" ry="3.8" fill="#EFE6D2"/>`
+  if (pose === 'durmiendo') return '<text class="z" x="86" y="44">z</text><text class="z z2" x="94" y="32" font-size="15">z</text><text class="z z3" x="103" y="18" style="font-size:18px">Z</text>'
+  return ''
+}
+// La mano de "saluda" (avis.js): palma 6,6 × 8, pulgar que la une al cuerpo y pliegue
+const mano = '<ellipse rx="6.6" ry="8"/><ellipse cx="-5.4" cy="4.5" rx="2.6" ry="3.6" transform="rotate(-35 -5.4 4.5)"/><path d="M-3 -5.5q3-1.6 6 0" stroke="#D9CCAD" stroke-width="1.4" fill="none" stroke-linecap="round"/>'
+// Capas: suelo · actua (cuerpo que juega) > inclina (mirada) > cuerpo (respira) · efectos · notas · globo · pelota
+function svg(pose) {
+  return `<svg viewBox="0 0 120 120" class="e-${pose}" aria-hidden="true" focusable="false">`
+    + '<ellipse class="suelo" cx="60" cy="104" rx="42" ry="9"/><ellipse class="contacto" cx="60" cy="104" rx="26" ry="3.6"/>'
+    + '<ellipse class="b-sombra" cx="0" cy="104" rx="6.5" ry="1.8" fill="#000" opacity="0"/>'
+    + '<g class="actua"><g class="inclina"><g class="cuerpo">'
+    + `<g class="antena"><path d="M60 38V19" stroke="#CDBE9C" stroke-width="3.2" stroke-linecap="round"/><g class="foco"><circle class="halo" cx="60" cy="14" r="9.5" fill="${C}" opacity=".22"/></g><g class="bulbo"><circle cx="60" cy="14" r="5.4" fill="${C}"/><circle cx="58.2" cy="12.3" r="1.7" fill="#fff" opacity=".85"/></g></g>`
+    + '<ellipse class="pata" cx="47" cy="101" rx="8.5" ry="4.4"/><ellipse class="pata" cx="73" cy="101" rx="8.5" ry="4.4"/>'
+    + '<path class="piel" d="M60 34C84 34 97 52 97 74C97 92 81 102 60 102C39 102 23 92 23 74C23 52 36 34 60 34Z"/>'
+    + '<path class="sombreado" d="M25 80C30 95 90 95 95 80C92 99 28 99 25 80Z"/>'
+    + '<g class="c-brillo"><ellipse class="brillo" cx="43" cy="49" rx="12" ry="6.4" transform="rotate(-30 43 49)"/></g>'
+    + `<g class="c-mejillas"><ellipse cx="37" cy="81" rx="6.8" ry="3.5" fill="${C}" opacity=".36"/><ellipse cx="83" cy="81" rx="6.8" ry="3.5" fill="${C}" opacity=".36"/></g>`
+    + `<g class="mirada"><g class="parpado"><g class="ojos"><g class="e-ab">${ojosAb(pose)}</g>`
+    + '<path class="trazo e-fe" d="M44.5 72Q49 65.5 53.5 72M66.5 72Q71 65.5 75.5 72"/><path class="trazo e-ce" d="M44.5 70Q49 74.5 53.5 70M66.5 70Q71 74.5 75.5 70"/></g></g></g>'
+    + '<g class="c-pico"><ellipse class="boca" cx="60" cy="81.5" rx="3.4" ry="3.6"/><path class="pico pico-i" d="M56.4 79.2Q60 81.2 63.6 79.2Q60 85.5 56.4 79.2Z"/><path class="pico pico-s" d="M56 78.5Q60 76.8 64 78.5Q60 80.8 56 78.5Z"/></g>'
+    + '</g>'
+    + `<g class="mano m-i" opacity="0">${mano}</g><g class="mano m-d" opacity="0"><g transform="scale(-1 1)">${mano}</g></g>`
+    + '<g class="zs"><text class="z" x="88" y="50">z</text><text class="z z2" x="95" y="40" style="font-size:14px">z</text></g>'
+    + '</g></g>' + efectos(pose)
+    + '<g class="notas"></g>'
+    + '<g class="globo" opacity="0"><rect x="-20" y="-13" width="40" height="22" rx="11" fill="#F3EBD8"/><path d="M-12 7L-19 17L-4 8Z" fill="#F3EBD8"/><text x="0" y="2.6" text-anchor="middle" font-family="Manrope,sans-serif" font-weight="800" font-size="12" fill="#000">¡ey!</text></g>'
+    + `<g class="bola" opacity="0"><g class="bola-r"><circle r="7" fill="url(#gBola)"/><path d="M-6.4 -2.6Q0 1.8 6.4 -2.6M-2.4 -6.6Q1.6 0 -2.4 6.6" stroke="#1D1707" stroke-opacity=".45" stroke-width="1.1" fill="none"/></g><circle cx="-2.6" cy="-3" r="1.6" fill="#fff" opacity=".7"/></g>`
+    + '</svg>'
+}
+
+const A = { el: document.getElementById('avi'), ventana: document.querySelector('[data-ventana]'), x: 0, y: 0, dentro: false, salio: 0, dirX: 0, dirY: 0, ojos: -1 }
+function dibujar() {
+  A.el.innerHTML = svg(POS.pose)
+  A.el.setAttribute('role', 'img')
+  A.el.setAttribute('aria-label', `Claude, ${ANIMO[POS.pose]}`)
+  A.svg = A.el.querySelector('svg')
+  A.g = Object.fromEntries(['actua', 'inclina', 'antena', 'foco', 'bulbo', 'mirada', 'parpado', 'c-pico', 'pico-s', 'pico-i', 'boca', 'c-mejillas', 'c-brillo', 'm-i', 'm-d', 'globo', 'bola', 'bola-r', 'b-sombra', 'contacto', 'notas'].map(k => [k, A.svg.querySelector('.' + k)]))
+  A.ojos = -1
+}
+
+const PJ = [['o', 'oficina', '1', '#8FD694', false], ['·', 'fuera de un repositorio', '1', '#F2B632', true], ['b', 'brasa-noble', '2', '#A58BFF', false], ['c', 'catalogo', '1', '#7FB3FF', false]]
+document.querySelector('.proyectos').innerHTML = PJ.map(([i, t, c, col, act]) => `<div class="pj${act ? ' activo' : ''}"><span class="pj-ic" style="--c:${col}">${i}</span><span class="pj-n">${t}</span><span class="chip">${c}</span></div>`).join('')
+
+// ---------- notas musicales (fuego y olvido, solo transform y opacity) ----------
+const CORCHEA = '<ellipse rx="3.6" ry="2.7" transform="rotate(-20)"/><rect x="2.4" y="-15" width="1.6" height="14.5" rx=".8"/><path d="M3.2 -15q5.4 2 4.8 7.6q-1.4-3.6-4.8-3.8z"/>'
+const DOBLE = '<ellipse rx="3.4" ry="2.6" transform="rotate(-20)"/><ellipse cx="9" cy="-2" rx="3.4" ry="2.6" transform="rotate(-20 9 -2)"/><rect x="2.3" y="-15" width="1.5" height="14" rx=".75"/><rect x="11.3" y="-17" width="1.5" height="14" rx=".75"/><path d="M2.3 -15L12.8 -17V-13.6L2.3 -11.6Z"/>'
+function nota(dir, doble, grande) {
+  const ns = 'http://www.w3.org/2000/svg', g = document.createElementNS(ns, 'g')
+  g.innerHTML = doble ? DOBLE : CORCHEA
+  g.setAttribute('fill', grande || dir < 0 ? C : '#F3EBD8')
+  A.g.notas.appendChild(g)
+  const x0 = 60 + dir * 6, y0 = 76, s = grande ? 1.25 : .85, rot = dir * 12
+  const a = g.animate([
+    { transform: `translate(${x0}px,${y0}px) rotate(0deg) scale(${s * .4})`, opacity: 0 },
+    { transform: `translate(${x0 + dir * 12}px,${y0 - 18}px) rotate(${-rot}deg) scale(${s})`, opacity: 1, offset: .25 },
+    { transform: `translate(${x0 + dir * 20 + 4}px,${y0 - 36}px) rotate(${rot}deg) scale(${s})`, opacity: .9, offset: .6 },
+    { transform: `translate(${x0 + dir * 30}px,${y0 - 60}px) rotate(${-rot}deg) scale(${s * .9})`, opacity: 0 },
+  ], { duration: grande ? 2000 : 1700, easing: 'cubic-bezier(.2,.6,.3,1)' })
+  a.onfinish = () => g.remove()
+}
+function apagarNotas(rapido) {
+  if (!A.g?.notas) return
+  for (const g of [...A.g.notas.children]) {
+    if (rapido) { g.remove(); continue }
+    g.getAnimations().forEach(a => a.pause())
+    g.animate([{ opacity: getComputedStyle(g).opacity }, { opacity: 0 }], { duration: 200, fill: 'forwards' }).onfinish = () => g.remove()
+  }
+}
+
+// ---------- motor del boceto (en el widget: timelines de anime.js en marcaMotion.js) ----------
+let acto = null, V = { ...D }
+const f = n => (+n).toFixed(2)
+function iniciar(id) {
+  const def = ACTOS[id]()
+  if (id !== 'despierta') A.svg.classList.remove('siesta')
+  acto = { def, t0: performance.now(), ev: 0 }
+  if (id !== 'siesta' && id !== 'despierta' && id !== 'salida') { plan.ultimo = id; plan.juegos++; if (id === 'llama') plan.ultimaLlamada = performance.now() }
+  marcarUI()
+}
+function interrumpir() {
+  if (!acto || acto.def.id === 'salida' || acto.def.id === 'despierta') return
+  if (acto.def.id === 'siesta') { A.svg.classList.remove('siesta'); acto = null; iniciar('despierta'); return }
+  const desde = { ...V }, pistas = {}
+  for (const k in D) pistas[k] = [[0, desde[k]], [T.salida, D[k], 'o']]
+  pistas.ojos = [[0, 0]]; pistas.bo = [[0, desde.bo], [180, 0, 'o']]; pistas.globo = [[0, desde.globo], [180, 0, 'o']]
+  apagarNotas(false)
+  acto = { def: { id: 'salida', dur: T.salida, pistas }, t0: performance.now(), ev: 0 }
+  teVio(); marcarUI()
+}
+function cancelar() { acto = null; V = { ...D }; apagarNotas(true); A.svg?.classList.remove('siesta'); marcarUI() }
+function teVio() { A.el.classList.remove('te-vio'); void A.el.offsetWidth; A.el.classList.add('te-vio') }
+A.el.addEventListener('animationend', () => A.el.classList.remove('te-vio'))
+
+function paso(now) {
+  if (!acto) { V = { ...D }; return }
+  const d = acto.def, t = Math.min(now - acto.t0, d.dur)
+  const v = { ...D }
+  for (const k in d.pistas) v[k] = valor(d.pistas[k], t)
+  V = v
+  const ev = d.eventos || []
+  while (acto.ev < ev.length && ev[acto.ev][0] <= t) ev[acto.ev++][1]()
+  if (now - acto.t0 >= d.dur && !d.lazo) {
+    const fue = d.id
+    acto = null; V = { ...D }
+    if (fue !== 'salida') reprogramar(now, false)
+    marcarUI()
+  }
+}
+
+function aplicar(v) {
+  const g = A.g
+  g.actua.setAttribute('transform', `translate(${f(v.x)} ${f(v.y)}) rotate(${f(v.r)} 60 104) translate(60 104) scale(${f(v.sx)} ${f(v.sy)}) translate(-60 -104)`)
+  const alto = Math.min(Math.max(-v.y, 0), 24) / 24
+  g.contacto.setAttribute('transform', `translate(60 104) scale(${f(1 - alto * .45)} 1) translate(-60 -104)`)
+  g.contacto.setAttribute('opacity', f(.55 * (1 - alto * .6)))
+  g.antena.setAttribute('transform', `rotate(${f(v.ant)} 60 38)`)
+  g.foco.setAttribute('transform', `translate(60 14) scale(${f(1 + Math.max(v.luz, 0) * .4)}) translate(-60 -14)`)
+  g.bulbo.setAttribute('opacity', f(1 - Math.max(-v.luz, 0) * .55))
+  g.parpado.setAttribute('transform', `translate(0 70) scale(1 ${f(v.par)}) translate(0 -70)`)
+  const o = Math.round(v.ojos)
+  if (o !== A.ojos) { A.svg.classList.toggle('o-fe', o === 1); A.svg.classList.toggle('o-ce', o === 2); A.ojos = o }
+  g['pico-s'].setAttribute('transform', `translate(0 ${f(-v.boca * 1.6)})`)
+  g['pico-i'].setAttribute('transform', `translate(0 ${f(v.boca * 3.2)})`)
+  g.boca.setAttribute('transform', `translate(60 80.5) scale(1 ${f(v.boca)}) translate(-60 -80.5)`)
+  g['m-i'].setAttribute('transform', `translate(${f(19 + v.mIx)} ${f(82 + v.mIy)}) rotate(${f(v.mIr)}) scale(${f(.4 + .6 * v.moI)})`); g['m-i'].setAttribute('opacity', f(v.moI))
+  g['m-d'].setAttribute('transform', `translate(${f(101 + v.mDx)} ${f(82 + v.mDy)}) rotate(${f(v.mDr)}) scale(${f(.4 + .6 * v.moD)})`); g['m-d'].setAttribute('opacity', f(v.moD))
+  g.globo.setAttribute('transform', `translate(104 10) translate(-15 14) scale(${f(v.globo)}) translate(15 -14)`); g.globo.setAttribute('opacity', f(Math.min(1, v.globo * 1.6)))
+  g.bola.setAttribute('transform', `translate(${f(v.bx)} ${f(v.by + 7)}) scale(${f(2 - v.bs)} ${f(v.bs)}) translate(0 -7)`); g.bola.setAttribute('opacity', f(v.bo))
+  g['bola-r'].setAttribute('transform', `rotate(${f(v.br)})`)
+  const h = Math.min(Math.max(97 - v.by, 0), 80) / 80
+  g['b-sombra'].setAttribute('cx', f(v.bx)); g['b-sombra'].setAttribute('rx', f(6.5 * (1 - h * .6))); g['b-sombra'].setAttribute('opacity', f(v.bo * (.5 - h * .38)))
+}
+
+// ---------- planificador (en el widget: un setTimeout, no un bucle) ----------
+const plan = { auto: true, quietoDesde: performance.now(), proximo: 0, ultimo: null, ultimaLlamada: -Infinity, juegos: 0 }
+const azar = (a, b) => a + Math.random() * (b - a)
+function reprogramar(now, primero) { plan.proximo = now + (primero ? T.primero : azar(T.entreMin, T.entreMax)) / ESCALA }
+function sortear(now) {
+  const c = Object.entries(PESOS).filter(([id]) => id !== plan.ultimo && !(id === 'llama' && (plan.juegos === 0 || now - plan.ultimaLlamada < T.llamaCada / ESCALA)))
+  let r = Math.random() * c.reduce((s, [, p]) => s + p, 0)
+  for (const [id, p] of c) if ((r -= p) <= 0) return id
+  return c[0][0]
+}
+const tg = n => document.querySelector(`[data-tg=${n}]`).getAttribute('aria-pressed') === 'true'
+const rmReal = matchMedia('(prefers-reduced-motion: reduce)')
+const quieto = () => document.body.classList.contains('quieto')
+const escondida = () => tg('escondida')
+const puedeJugar = () => !quieto() && !escondida() && POS.pose === 'esperando'
+
+// ---------- puntero ----------
+let px = null, py = null, ultimo = performance.now()
+function dentroVentana(x, y) { const w = A.ventana.getBoundingClientRect(); return x >= w.left && x <= w.right && y >= w.top && y <= w.bottom }
+function actividad(now) { plan.quietoDesde = now; reprogramar(now, true); interrumpir() }
+addEventListener('pointermove', e => { px = e.clientX; py = e.clientY; ultimo = performance.now(); if (dentroVentana(px, py)) actividad(ultimo) }, { passive: true })
+addEventListener('pointerdown', e => { if (dentroVentana(e.clientX, e.clientY)) actividad(performance.now()) })
+document.documentElement.addEventListener('pointerleave', () => { px = py = null })
+
+const sat = (d, r) => d / (Math.abs(d) + r)
+const lim = n => Math.max(-1, Math.min(1, n))
+const lerp = (a, b, t) => a + (b - a) * t
+function curiosear(t) { const k = t % 7000; return k < 1400 ? [-.75, .05] : k < 2800 ? [.7, -.2] : k < 4000 ? [0, -.55] : [0, 0] }
+
+function cuadro(now) {
+  // planificador
+  if (plan.auto && puedeJugar() && !acto) {
+    if (now - plan.quietoDesde > T.siesta / ESCALA) iniciar('siesta')
+    else if (now >= plan.proximo) iniciar(sortear(now))
+  }
+  paso(now)
+  // mirada
+  let tx = 0, ty = 0, suave = .1
+  const r = A.el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height * .55
+  const dentro = px !== null && dentroVentana(px, py)
+  if (dentro && !A.dentro && !quieto() && !acto) teVio()
+  if (!dentro && A.dentro) { A.salio = now; if (px !== null) { const dx = px - cx, dy = py - cy, n = Math.hypot(dx, dy) || 1; A.dirX = dx / n * .9; A.dirY = dy / n * .9 } }
+  A.dentro = dentro
+  if (!quieto() && !escondida() && SIGUEN.includes(POS.pose)) {
+    const global = px !== null && (dentro || POS.modo === 'acoplada')
+    if (global) { tx = sat(px - cx, 170); ty = sat(py - cy, 140) }
+    else if (now - A.salio < 1500) { tx = A.dirX; ty = A.dirY }
+    else suave = .06
+    if (!acto && now - ultimo > 5000 && (global || now - A.salio > 1500)) { [tx, ty] = curiosear(now - ultimo - 5000); suave = .05 }
+    if (acto) {
+      tx = lerp(tx, V.gx, V.gw); ty = lerp(ty, V.gy, V.gw)
+      if (V.gb > 0) { tx = lerp(tx, lim((V.bx - 60) / 40), V.gb); ty = lerp(ty, lim((V.by - 66) / 34), V.gb); suave = .24 }
+    }
+  }
+  if (quieto() || escondida()) { A.x = tx; A.y = ty } else { A.x += (tx - A.x) * suave; A.y += (ty - A.y) * suave }
+  const x = A.x, y = A.y, g = A.g
+  g.mirada.setAttribute('transform', POS.pose === 'escribiendo' ? 'translate(0 2.5)' : `translate(${f(x * 4.5)} ${f(y * 3.2)})`)
+  g['c-pico'].setAttribute('transform', `translate(${f(x * 2.7)} ${f(y * 1.9)})`)
+  g['c-mejillas'].setAttribute('transform', `translate(${f(x * 1.6)} ${f(y * 1.1)})`)
+  g['c-brillo'].setAttribute('transform', `translate(${f(-x * 1.5)} ${f(-y)})`)
+  g.inclina.setAttribute('transform', `rotate(${f(x * 3)} 60 104)`)
+  aplicar(V)
+  progreso(now)
+  requestAnimationFrame(cuadro)
+}
+
+// ---------- interfaz del boceto ----------
+const REP = [
+  ['pelota', 'Pelota', '6,6 s', 'Una pelota ámbar cae desde arriba. La sigue con los ojos, se agacha, salta y la cabecea: la antena queda vibrando. Rebota contra el borde, vuelve rodando hasta su pata y él festeja con las manos arriba. Después la deja ir.', '<b>Por qué:</b> juega solo, como un perro con su pelota. No te pide nada; es lo más frecuente.'],
+  ['canta', 'Canta', '6,2 s', 'Toma aire, cierra los ojos contentos y se balancea a 115 bpm (520 ms por compás). En cada tiempo abre el pico y sale una corchea; el foco de la antena late con el compás. Cierra con una nota larga y las manos en alto.', '<b>Por qué:</b> se lee como contento de estar acá. Sin sonido: la música se ve.'],
+  ['llama', 'Te llama', '4,6 s', 'Se agacha, salta dos veces, te mira de frente y aparece un globito crema "¡ey!". Saluda tres veces con la mano, ladea la cabeza esperando y el globito se va.', '<b>Por qué:</b> te busca, como una mascota. Crema y no ámbar, y nunca dura: no es una pregunta de Claude.'],
+  ['estira', 'Se estira', '4,4 s', 'Se estira hacia arriba con las manos sobre la cabeza y un bostezo largo; suelta de golpe, se sacude (la antena llega tarde) y parpadea.', '<b>Por qué:</b> marca el paso del tiempo sin pedir nada; el squash más grande del repertorio.'],
+  ['siesta', 'Siesta', 'a los 8 min', 'Le pesan los párpados: cabecea dos veces, se inclina y se duerme con una "z" chica y el foco bajo. Cuando volvés, despierta de un respingo: ojos grandes, salto y doble parpadeo.', '<b>Por qué:</b> la recompensa de volver. Queda dormido hasta que lo despiertes.'],
+]
+document.getElementById('rep').innerHTML = REP.map(([id, n, d, p, por], k) => {
+  const def = ACTOS[id](), dur = def.dur
+  const marcas = def.marcas.map(([t, l]) => `<span class="m" style="--x:${(t / dur * 100).toFixed(1)}%">${l}</span>`).join('')
+  return `<li class="carta" data-acto="${id}"><span class="n">0${k + 1}</span><h3>${n}</h3><span class="dur">${d}</span><p>${p}</p><p class="por">${por}</p><div class="cinta" aria-hidden="true">${marcas}<span class="cabezal"></span></div></li>`
+}).join('')
+const cartas = Object.fromEntries([...document.querySelectorAll('.carta')].map(c => [c.dataset.acto, c]))
+const botones = [...document.querySelectorAll('[data-jugar]')]
+let mostrado = ''
+function marcarUI() {
+  const id = acto?.def.id
+  const vis = id === 'despierta' ? 'siesta' : id
+  for (const k in cartas) cartas[k].classList.toggle('activo', k === vis)
+  botones.forEach(b => b.classList.toggle('activo', b.dataset.jugar === vis))
+  const ok = puedeJugar()
+  botones.forEach(b => b.setAttribute('aria-disabled', String(!ok)))
+}
+function progreso(now) {
+  const n = document.getElementById('acto-n'), b = document.getElementById('acto-b'), t = document.getElementById('acto-t')
+  if (acto) {
+    const d = acto.def, e = Math.min(now - acto.t0, d.dur), p = e / d.dur
+    n.textContent = NOMBRES[d.id]
+    b.style.transform = `scaleX(${p.toFixed(3)})`
+    t.textContent = d.lazo && p >= 1 ? 'dormido' : `${(e / 1000).toFixed(1)} / ${(d.dur / 1000).toFixed(1)} s`
+    const c = cartas[d.id === 'despierta' ? 'siesta' : d.id]
+    if (c) c.style.setProperty('--p', d.id === 'despierta' ? 1 : p.toFixed(3))
+  } else { n.textContent = 'en reposo'; b.style.transform = 'scaleX(0)'; t.textContent = '—' }
+  let s
+  if (quieto()) s = 'Movimiento reducido o pausa: quieto, mirando al frente. No juega.'
+  else if (escondida()) s = 'Ventana escondida: no hay cuadros ni planificador. Al volver, la cuenta empieza de cero.'
+  else if (POS.pose !== 'esperando') s = `Claude está "${ANIMO[POS.pose]}": manda la pose de ánimo. No juega.`
+  else if (acto?.def.id === 'siesta') s = 'Duerme. Mové el mouse dentro de la ventana para despertarlo.'
+  else if (acto) s = 'Jugando. Mové el mouse dentro de la ventana para interrumpirlo.'
+  else if (!plan.auto) s = 'Automático apagado: forzá un juego con los botones.'
+  else {
+    const prox = Math.max(0, Math.ceil((plan.proximo - now) / 1000)), sie = Math.max(0, Math.ceil((plan.quietoDesde + T.siesta / ESCALA - now) / 1000))
+    s = `<em>Automático</em> (tiempos ÷ ${ESCALA}) · próximo juego en ${prox} s · siesta en ${sie} s si no tocás la ventana.`
+  }
+  if (s !== mostrado) { document.getElementById('auto-estado').innerHTML = s; mostrado = s }
+}
+
+function sincronizarQuieto() {
+  const q = rmReal.matches || tg('rm') || tg('pausa')
+  document.body.classList.toggle('quieto', q)
+  if (q) cancelar()
+  marcarUI()
+}
+rmReal.addEventListener('change', sincronizarQuieto)
+document.querySelectorAll('[data-ctl]').forEach(seg => seg.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return
+  seg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)))
+  const k = seg.dataset.ctl
+  if (k === 'zoom') { A.ventana.style.zoom = b.dataset.v; return }
+  POS[k] = b.dataset.v
+  if (k === 'pose') { cancelar(); dibujar(); marcarUI() }
+}))
+document.querySelectorAll('[data-tg]').forEach(b => b.addEventListener('click', () => {
+  b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'))
+  const k = b.dataset.tg, now = performance.now()
+  if (k === 'auto') { plan.auto = tg('auto'); reprogramar(now, true) }
+  if (k === 'escondida') { A.ventana.classList.toggle('escondida', escondida()); cancelar(); plan.quietoDesde = now; reprogramar(now, true) }
+  sincronizarQuieto()
+}))
+botones.forEach(b => b.addEventListener('click', () => {
+  if (b.getAttribute('aria-disabled') === 'true') return
+  apagarNotas(true); iniciar(b.dataset.jugar)
+}))
+
+sincronizarQuieto(); dibujar(); reprogramar(performance.now(), true); marcarUI(); requestAnimationFrame(cuadro)
+</script>
+</body>
+</html>
