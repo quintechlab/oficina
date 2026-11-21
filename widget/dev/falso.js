@@ -66,6 +66,25 @@
 // Cada paso que corre avisa como Rust (oficina://primeros-pasos) y, si termina bien, cambia la
 // máquina falsa. El ítem de la bandeja se imita con window.__bandeja('oficina://primeros-pasos-abrir');
 // su texto queda en window.__menuPasos.
+// Resumen con IA (#11, docs/diseno/resumen-ia-ux.md): el backend falso de estado_resumen,
+// descargar_modelo, cancelar_resumen y pedir_resumen, con el evento oficina://resumen. Se toca el Avi
+// de la marca para abrir el globo. Sin ?resumen, el modelo no está (apagado).
+//   ?resumen=apagado     sin modelo: "Descargar 2,6 GB"
+//   ?resumen=parcial     una descarga cancelada antes: "Seguir descargando · 1,1 de 2,6 GB"
+//   ?resumen=descargando Rust ya está bajando el modelo (se recargó la ventana): el globo abre en la descarga
+//   ?resumen=preparando  modelo bajado y motor apagado: el primer pedido prepara (primera vez)
+//   ?resumen=pensando    modelo listo: el pedido piensa 20 s (para mirarlo)
+//   ?resumen=listo       modelo y motor listos: el resumen sale enseguida
+//   ?resumen=sinmodelo   el modelo está roto o no se encuentra: "Descargar de nuevo"
+//   ?resumen=fallo       el primer pedido falla (el motor se cierra); el segundo sale bien
+//   &rapido=1            descarga en ~3 s y preparación en 2,5 s (sin esto, ~10 s y 8 s)
+//   &acel=cpu            el motor corre solo con CPU ("~11 s solo con CPU")
+//   &rzfalla=descarga|vacio  la descarga se corta a la mitad, o el modelo devuelve texto vacío
+//   &inyecta             el texto del modelo trae HTML (tiene que verse escapado)
+//   &largo               el texto del modelo es largo (desborda: se desplaza y se funde abajo)
+// Desde la consola del iframe: window.__borrarModelo() imita "Borrar el modelo" de la bandeja (el
+// evento { tipo: 'estado', modelo: 'falta' }); window.__resumen('fallo', { motivo: 'cerrado' }) emite
+// cualquier evento. Lo último pedido queda en window.__datosResumen.
 ;(() => {
   const url = new URLSearchParams(location.search)
   // ?muesca: atajos de los estados de la muesca A
@@ -389,7 +408,117 @@
     }
   }
 
+  // ---- resumen con IA: el modelo falso, la descarga, la preparación y los pedidos
+  const rz = url.get('resumen') ?? 'apagado'
+  const GB = 1024 ** 3
+  const TOTAL_RZ = Math.round(2.6 * GB)
+  const rapido = url.has('rapido')
+  const conModelo = ['preparando', 'pensando', 'listo', 'fallo'].includes(rz)
+  const modeloRz = {
+    modelo: rz === 'sinmodelo' ? 'roto' : rz === 'descargando' ? 'bajando' : conModelo ? 'listo' : 'falta',
+    bajado: rz === 'parcial' ? Math.round(1.1 * GB) : rz === 'descargando' ? Math.round(0.4 * GB) : conModelo ? TOTAL_RZ : 0,
+    total: TOTAL_RZ,
+    motor: ['pensando', 'listo', 'fallo'].includes(rz) ? 'listo' : 'apagado',
+    primeraVez: !['pensando', 'listo', 'fallo'].includes(rz),
+    aceleracion: url.get('acel') === 'cpu' ? 'cpu' : 'gpu',
+  }
+  let relojesRz = []
+  let fallaRz = rz === 'fallo'
+  let fallaDescarga = url.get('rzfalla') === 'descarga'
+  const emitirRz = (tipo, datos = {}) => emitir('oficina://resumen', { tipo, ...datos })
+  const luegoRz = (ms, f) => relojesRz.push(setTimeout(f, ms))
+  const pararRz = () => { relojesRz.forEach(clearTimeout); relojesRz = [] }
+  /** Un texto verosímil a partir de los datos que recibió (nunca de lo que no se le pasó). */
+  const textoFalso = datos => {
+    const pr = datos?.proyectos ?? []
+    const n = pr.reduce((k, p) => k + p.sesiones.length, 0)
+    const frases = [`Tenés ${n} ${n === 1 ? 'sesión abierta' : 'sesiones abiertas'}.`]
+    for (const p of pr) {
+      for (const s of p.sesiones) {
+        const trabajan = s.subagentes.filter(a => a.estado === 'trabajando')
+        if (s.preguntas.length) frases.push(`En ${p.nombre} te espera una pregunta sobre ${s.preguntas[0].encabezado.toLowerCase()}.`)
+        else if (trabajan.length) frases.push(`En ${p.nombre} Claude coordina a ${trabajan.length} subagentes: ${trabajan.map(a => a.nombre).join(', ')}.`)
+        else if (s.procesos.length) frases.push(`${p.nombre} espera ${s.procesos.length} procesos en segundo plano.`)
+        else frases.push(`${p.nombre} espera tu próximo mensaje.`)
+      }
+    }
+    if (url.has('largo')) frases.push(...frases.slice(1), 'Nada más por ahora: el resto sigue igual que hace un rato y no hay errores a la vista.')
+    if (url.has('inyecta')) frases.push('<img src=x onerror="alert(1)"> <b>negrita</b> & más.')
+    return frases.join(' ')
+  }
+  const bajar = () => {
+    const paso = TOTAL_RZ / (rapido ? 12 : 40)
+    const tic = () => {
+      modeloRz.bajado = Math.min(TOTAL_RZ, modeloRz.bajado + paso)
+      if (fallaDescarga && modeloRz.bajado >= TOTAL_RZ / 2) {
+        fallaDescarga = false
+        modeloRz.modelo = 'falta'
+        return emitirRz('fallo', { motivo: 'descarga', detalle: 'HTTP 503 al bajar el modelo (falso)' })
+      }
+      if (modeloRz.bajado >= TOTAL_RZ) {
+        modeloRz.modelo = 'listo'
+        return emitirRz('bajado', { total: TOTAL_RZ })
+      }
+      emitirRz('progreso', { bajado: Math.round(modeloRz.bajado), total: TOTAL_RZ })
+      luegoRz(250, tic)
+    }
+    luegoRz(250, tic)
+  }
+  if (rz === 'descargando') bajar()
+  const responderPedido = pedido => {
+    luegoRz(rz === 'pensando' ? 20000 : rapido ? 1200 : 3000, () => {
+      if (fallaRz) {
+        fallaRz = false
+        return emitirRz('fallo', { pedido, motivo: 'cerrado', detalle: 'llama-server · código de salida 3221225477' })
+      }
+      const texto = url.get('rzfalla') === 'vacio' ? '   ' : textoFalso(window.__datosResumen)
+      emitirRz('listo', { pedido, texto, ms: modeloRz.aceleracion === 'cpu' ? 10800 : 3100, aceleracion: modeloRz.aceleracion })
+    })
+  }
+  const comandosResumen = {
+    estado_resumen: () => ({ ...modeloRz, bajado: Math.round(modeloRz.bajado) }),
+    descargar_modelo: () => {
+      if (modeloRz.modelo === 'bajando') throw new Error('ya se está bajando (falso)')
+      modeloRz.modelo = 'bajando'
+      console.info('[resumen] descargar_modelo')
+      bajar()
+    },
+    cancelar_resumen: () => {
+      pararRz()
+      if (modeloRz.modelo === 'bajando') modeloRz.modelo = 'falta'
+      console.info('[resumen] cancelar_resumen')
+      emitirRz('cancelado', {})
+    },
+    pedir_resumen: ({ pedido, datos }) => {
+      if (modeloRz.modelo !== 'listo') throw new Error('no hay modelo (falso)')
+      // Un pedido nuevo cancela el anterior
+      pararRz()
+      window.__datosResumen = datos
+      console.info('[resumen] pedir_resumen', pedido, JSON.stringify(datos))
+      if (modeloRz.motor !== 'listo') {
+        luegoRz(100, () => emitirRz('preparando', { pedido, primeraVez: modeloRz.primeraVez }))
+        luegoRz(rapido ? 2500 : 8000, () => {
+          modeloRz.motor = 'listo'
+          modeloRz.primeraVez = false
+          emitirRz('pensando', { pedido })
+          responderPedido(pedido)
+        })
+      } else {
+        luegoRz(60, () => emitirRz('pensando', { pedido }))
+        responderPedido(pedido)
+      }
+    },
+  }
+  /** "Borrar el modelo" de la bandeja (lo hace el backend): avisa que no hay modelo. */
+  window.__borrarModelo = () => {
+    pararRz()
+    Object.assign(modeloRz, { modelo: 'falta', bajado: 0, motor: 'apagado', primeraVez: true })
+    emitirRz('estado', comandosResumen.estado_resumen())
+  }
+  window.__resumen = emitirRz
+
   const comandos = {
+    ...comandosResumen,
     registrar: ({ linea }) => console.debug('[widget.log]', linea),
     revisar_primeros_pasos: () => new Promise(r => setTimeout(() => r(revisionFalsa()), url.has('pplento') ? 2000 : 600)),
     menu_primeros_pasos: ({ faltan }) => { window.__menuPasos = faltan == null || faltan === 0 ? 'Primeros pasos…' : faltan === 1 ? 'Primeros pasos (falta 1)…' : `Primeros pasos (faltan ${faltan})…`; console.info('[bandeja]', window.__menuPasos) },

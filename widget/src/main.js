@@ -3,7 +3,7 @@
 // la bandeja y los avisos. Cada parte se redibuja solo si cambió lo que muestra, para no cortar
 // las animaciones.
 
-import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, escapar, reposoPermitido } from './logica.js'
+import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, escapar, reposoPermitido, superaUmbral } from './logica.js'
 import { companeros } from './equipo.js'
 import { iconoBandeja, textoInsignia } from './bandeja.js'
 import {
@@ -13,11 +13,11 @@ import {
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
   prepararProyecto, firmaEscenas, sesiones, carasMini, companero, firmaCompanero,
-  barraProyectos, animoMarca, estadoMarca, figuraVacio, conteos, chips, lineaEncabezado,
+  barraProyectos, animoMarca, estadoMarca, figuraVacio, conteos, chips, lineaEncabezado, colorProyecto,
 } from './tablero.js'
 import { globo, avisoOtroProyecto, quienPregunta, anuncioPregunta } from './pregunta.js'
 import { defsAvis } from './avis.js'
-import { entrada, cambioProyecto } from './tableroMotion.js'
+import { entrada, cambioProyecto, hayMovimiento } from './tableroMotion.js'
 import { entradaEscenas, idsDeEscena, novedades, marcarNuevos, vigilarEscenas } from './escenaMotion.js'
 import { montarMarca } from './marcaMotion.js'
 import {
@@ -32,6 +32,11 @@ import {
 } from './primerosPasos.js'
 import { esqueleto, rotulo, pestanas, indicePestana, escena as escenaPasos, pie as piePasos, avisoAsistente } from './primerosPasosVista.js'
 import * as movimientoPasos from './primerosPasosMotion.js'
+import {
+  resumenInicial, transicion as transicionResumen, datosResumen, contenidoResumen, anuncioResumen, vozAvi, colaResumen, cifrasDescarga,
+  duracionContando, contarPalabras, animoTexto, EVENTOS_BACKEND, ESPERA_PENSANDO_MS,
+} from './resumen.js'
+import * as movimientoResumen from './resumenMotion.js'
 
 const INTERVALO_MS = 1500
 const INTERVALO_EQUIPO_MS = 60000
@@ -165,6 +170,13 @@ const st = {
     fijaAntes: false,
     fijaTocada: false,
   },
+  // ---- "¿En qué anda Claude?" (docs/diseno/resumen-ia-ux.md): cada descarga y cada resumen, solo con un clic
+  /** El globo del resumen (3.3): lo maneja `transicion` (resumen.js). */
+  resumen: resumenInicial(),
+  /** El usuario abrió el globo: el foco va a su primer `data-foco` al dibujarse (10). */
+  resumenFoco: false,
+  /** El globo se está cerrando (200 ms): todavía se ve. */
+  resumenSaliendo: false,
 }
 
 /** Pone el HTML solo si cambió su firma (por defecto, el propio HTML). */
@@ -329,6 +341,8 @@ const muescaAvi = montarMarca($('#muesca-avi'), { escala: Number(window.__escala
  */
 function verAvis() {
   marca.visible(!st.fuera && !st.mini && (!st.acople || st.vista), !!st.acople)
+  // El globo del resumen no se anima mientras no se ve (resumen-ia-ux.md 9.2): lo que corría termina de una
+  if (!resumenALaVista()) movimientoResumen.terminar()
   muescaAvi.visible(!!st.acople && !st.vista && !st.fuera && !st.mini && !document.body.classList.contains('pildora') && !st.arrastre?.activo, true)
   enviarZona()
 }
@@ -342,7 +356,7 @@ function pintar() {
   })
   retenerPanel(pp, forma)
   const totalPend = st.proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
-  marca.animo(animoMarca(st.proyectos, ahora), reposoPermitido(st.proyectos, ahora))
+  pintarMarca(ahora)
   verAvis()
   texto('#marca-estado', estadoMarca(st.proyectos.reduce((n, p) => n + p.sesiones.length, 0)))
   pintarBandeja(totalPend)
@@ -419,6 +433,10 @@ function pintar() {
     st.firmas.clavesGlobo = claves
     if (escribiendo) enfocarOtra()
   }
+  // El globo del resumen va debajo de la pregunta (resumen-ia-ux.md 3.2). Sin rearmado: si cambió
+  // algo desde el pedido, solo lo avisa ("Cambió algo"); nunca pide solo
+  st.resumen = transicionResumen(st.resumen, { tipo: 'datos' }, { ahoraMs: ahora, datos: datosResumen(st.proyectos, ahora) }).resumen
+  pintarResumen()
   pintarAsistente(pp, forma)
 
   // La primera vez que se ve el tablero desde que se mostró la ventana, entra escalonado (6.1).
@@ -733,6 +751,11 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('[data-accion]')
   if (!b) return
   const a = b.dataset.accion
+  if (a.startsWith('rz-')) {
+    // El globo del resumen: cada botón hace solo lo suyo (resumen-ia-ux.md 6.1)
+    await accionResumen(a, b)
+    return
+  }
   if (a.startsWith('pp-')) {
     // Primeros pasos: un botón deshabilitado (aria-disabled, 5.3) ignora el clic
     if (b.getAttribute('aria-disabled') !== 'true') await accionPasos(a, b)
@@ -823,6 +846,14 @@ document.addEventListener('input', e => {
 })
 
 document.addEventListener('keydown', e => {
+  // Esc con el foco en el globo del resumen o en el Avi y el globo abierto: lo cierra y el foco vuelve
+  // al Avi (resumen-ia-ux.md 10). Va antes que el Esc de la pregunta y el de la muesca
+  if (e.key === 'Escape' && st.resumen.estado !== 'cerrado' && e.target.closest?.('#resumen, #marca-boton')) {
+    e.preventDefault()
+    despacharResumen({ tipo: 'cerrar' })
+    marcaBoton.focus()
+    return
+  }
   // Teclas del globo (boceto): 1–9 eligen con el foco en el globo, Enter envía el texto, Esc pliega
   if (e.target.id === 'g-otra-in' && e.key === 'Enter') { e.preventDefault(); $('[data-accion="enviar-otra"]')?.click(); return }
   if (e.target.closest?.('[data-globo]') && e.target.tagName !== 'INPUT') {
@@ -836,7 +867,7 @@ document.addEventListener('keydown', e => {
   if (teclaPasos(e)) return
   // Fuera de la pregunta, Esc cierra la muesca aunque esté fijada y devuelve el foco a la muesca (7.2)
   if (e.key === 'Escape' && st.acople && st.muesca.abierta) { e.preventDefault(); evento({ tipo: 'esc' }); return }
-  if (st.mini || e.target.closest?.('input, textarea, summary, #pp')) return
+  if (st.mini || e.target.closest?.('input, textarea, summary, #pp, #resumen')) return
   // ↑ ↓ mueven el foco entre los proyectos de la barra (no cambian de proyecto)
   const fila = e.target.closest?.('#proyectos [data-proy]')
   if (fila && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
@@ -1331,9 +1362,7 @@ muescaEl.addEventListener('click', () => {
   evento({ tipo: 'clic' })
 })
 
-// ---- arrastre propio e imán (7.3 y 9.3)
-
-const UMBRAL_ARRASTRE = 4
+// ---- arrastre propio e imán (7.3 y 9.3). El umbral (UMBRAL_ARRASTRE, 4 px) vive en logica.js
 
 /**
  * Pide llevar la ventana a otra área (al pasar a otro monitor arrastrando); si hay un pedido en
@@ -1387,7 +1416,7 @@ document.addEventListener('pointermove', e => {
   a.dx = e.screenX - a.x0
   a.dy = e.screenY - a.y0
   if (!a.activo) {
-    if (Math.hypot(a.dx, a.dy) <= UMBRAL_ARRASTRE || !a.listo) return
+    if (!superaUmbral(a.dx, a.dy) || !a.listo) return
     empezarArrastre(a, e)
   }
   if (!a.cuadro) a.cuadro = requestAnimationFrame(() => { a.cuadro = 0; moverArrastre(a) })
@@ -1823,6 +1852,244 @@ function retenerPanel(modelo, forma) {
   }
 }
 
+// ------------------------------------------------------------------ "¿En qué anda Claude?" (docs/diseno/resumen-ia-ux.md)
+// Reglas de oro (1): un clic, nunca solo (la descarga y cada resumen arrancan con un clic; nada se
+// pide, se descarga ni se rearma por tiempo o por cambios); el modelo solo resume (este bloque no
+// toca responder.js ni respuestas/); nunca tapa una pregunta (la tarjeta va antes que el globo).
+
+const marcaBoton = $('#marca-boton')
+/** Dónde se apretó el Avi (px de pantalla): si se movió más que el umbral, no es un clic (3.1). */
+let toqueMarca = null
+let relojPensando = null, pensandoDe = null, relojHabla = null, relojCopiado = null
+
+/** ¿El globo se ve? Flotando, o acoplada con el panel abierto; ni escondida ni en la tira. */
+function resumenALaVista() {
+  return !st.fuera && !st.mini && (!st.acople || st.vista)
+}
+
+/** La voz y el ánimo del Avi de la marca (6.2 y 6.3): con el globo abierto, la voz manda y no juega. */
+function pintarMarca(ahora = Date.now()) {
+  const animo = animoMarca(st.proyectos, ahora)
+  const r = st.resumen
+  marca.voz(vozAvi(r.estado, r.hablando, animo), { hablando: r.hablando })
+  marca.animo(animo, reposoPermitido(st.proyectos, ahora) && r.estado === 'cerrado')
+  texto('#marca-animo', animoTexto(animo))
+}
+
+/** Un aviso en `#anuncio-resumen` (6.4): se vacía antes, así el mismo texto se vuelve a oír. */
+function anunciarResumen(mensaje) {
+  const el = $('#anuncio-resumen')
+  if (!mensaje || !el) return
+  el.textContent = ''
+  setTimeout(() => { el.textContent = mensaje }, 60)
+}
+
+/** Lo de abajo del globo (#pp, conteos, sesiones): se acomoda con FLIP (9.1). */
+function hermanosResumen() {
+  const lista = []
+  for (let el = $('#resumen').nextElementSibling; el; el = el.nextElementSibling) lista.push(el)
+  return lista
+}
+
+/** Una llamada del plan de `transicion` al backend; si falla, el globo lo dice (nunca reintenta solo). */
+function llamarResumen({ comando, args }) {
+  if (!tauri?.core) return
+  invocar(comando, args).catch(e => {
+    registrar(`resumen ${comando}: ${e}`)
+    if (comando === 'descargar_modelo') despacharResumen({ tipo: 'fallo', motivo: 'descarga', detalle: String(e) })
+    else if (comando === 'pedir_resumen') despacharResumen({ tipo: 'fallo', pedido: args.pedido, motivo: 'otro', detalle: String(e) })
+  })
+}
+
+/** 60 s pensando sin respuesta: falló por tiempo (6.1). Corre aunque el globo esté cerrado: es trabajo, no movimiento. */
+function vigilarPensando() {
+  const r = st.resumen
+  const de = r.trabajo === 'pensando' ? r.pedido : null
+  if (de === pensandoDe) return
+  clearTimeout(relojPensando)
+  pensandoDe = de
+  if (de != null) relojPensando = setTimeout(() => despacharResumen({ tipo: 'vencio', pedido: de }), ESPERA_PENSANDO_MS)
+}
+
+/**
+ * Pasa un evento por `transicion` (resumen.js), hace las llamadas del plan, avisa al lector de
+ * pantalla y vuelve a dibujar el globo y la voz del Avi.
+ */
+function despacharResumen(evento) {
+  const antes = st.resumen
+  const { resumen, llamadas } = transicionResumen(antes, evento, { ahoraMs: Date.now(), datos: datosResumen(st.proyectos, Date.now()) })
+  if (resumen === antes && !llamadas.length) return
+  st.resumen = resumen
+  if (resumen.hablando && !antes.hablando) {
+    // "contando" dura la cascada de palabras; sin movimiento o sin verse, directo a "feliz"
+    if (!hayMovimiento() || !resumenALaVista()) st.resumen = { ...st.resumen, hablando: false }
+    else {
+      clearTimeout(relojHabla)
+      relojHabla = setTimeout(() => despacharResumen({ tipo: 'callado' }), duracionContando(contarPalabras(resumen.texto)))
+    }
+  }
+  for (const l of llamadas) llamarResumen(l)
+  vigilarPensando()
+  const r = st.resumen
+  if (r.estado !== antes.estado) anunciarResumen(anuncioResumen(r.estado, { texto: r.texto, primeraVez: r.primeraVez }))
+  else if (r.estado === 'cerrado' && r.sinVer && r.resultado === 'listo' && !(antes.sinVer && antes.resultado === 'listo')) {
+    anunciarResumen(anuncioResumen('listo', { abierto: false }))
+  }
+  pintarMarca()
+  pintarResumen()
+}
+
+/** Un evento `oficina://resumen` del backend: solo los `tipo` del contrato (8.2); nunca una acción del usuario. */
+function alEventoResumen(payload) {
+  if (!payload || typeof payload !== 'object' || !EVENTOS_BACKEND.includes(payload.tipo)) return
+  despacharResumen(payload)
+}
+
+/** `estado_resumen` (8.1): al arrancar y al tocar el Avi con el globo cerrado. Solo lee. */
+async function leerEstadoResumen() {
+  if (!tauri?.core) return
+  try {
+    const e = await invocar('estado_resumen')
+    if (e && typeof e === 'object') despacharResumen({ ...e, tipo: 'estado' })
+  } catch (err) { registrar(`resumen estado: ${err}`) }
+}
+
+/** Tocar el Avi (clic sin arrastrar, Enter o Espacio): abre el globo o, abierto, lo cierra (nunca cancela). */
+async function tocarMarca() {
+  if (st.resumen.estado !== 'cerrado') { despacharResumen({ tipo: 'cerrar' }); return }
+  if (!st.resumen.trabajo) await leerEstadoResumen()
+  st.resumenFoco = true
+  despacharResumen({ tipo: 'abrir' })
+}
+
+marcaBoton.addEventListener('pointerdown', e => { toqueMarca = { x: e.screenX, y: e.screenY } })
+marcaBoton.addEventListener('click', e => {
+  const toque = toqueMarca
+  toqueMarca = null
+  // Después de un arrastre real, el clic que sigue se descarta; con el mouse, es clic hasta 4 px (3.1)
+  if (justoArrastro) return
+  if (e.detail > 0 && toque && superaUmbral(e.screenX - toque.x, e.screenY - toque.y)) return
+  tocarMarca()
+})
+
+/** Los botones del globo (`data-accion="rz-…"`). Cada uno hace solo lo suyo. */
+async function accionResumen(a, b) {
+  switch (a) {
+    case 'rz-cerrar': case 'rz-ahora-no': despacharResumen({ tipo: 'cerrar' }); break
+    case 'rz-descargar': despacharResumen({ tipo: 'descargar' }); break
+    case 'rz-cancelar': despacharResumen({ tipo: 'cancelar' }); break
+    case 'rz-pedir': despacharResumen({ tipo: 'pedir' }); break
+    case 'rz-reintentar': despacharResumen({ tipo: 'reintentar' }); break
+    case 'rz-copiar': await copiarResumen(b); break
+  }
+}
+
+/** "Copiar": el texto plano limpio, sin etiquetas; el botón dice "Copiado" 1,6 s sin redibujar. */
+async function copiarResumen(b) {
+  try {
+    await navigator.clipboard.writeText(st.resumen.texto ?? '')
+  } catch (e) {
+    registrar(`copiar resumen: ${e}`)
+    return
+  }
+  anunciarResumen('Resumen copiado.')
+  const rotuloCopiar = b.querySelector('[data-copiar]')
+  if (!rotuloCopiar) return
+  rotuloCopiar.textContent = 'Copiado'
+  clearTimeout(relojCopiado)
+  relojCopiado = setTimeout(() => { if (rotuloCopiar.isConnected) rotuloCopiar.textContent = 'Copiar' }, 1600)
+}
+
+/** Se cierra hacia la cola; después se quita y lo de abajo sube con FLIP. El foco, si estaba adentro, vuelve al Avi. */
+async function cerrarGlobo(el) {
+  st.resumenSaliendo = true
+  const quieto = !!st.transicion || !!st.arrastre?.activo || !resumenALaVista()
+  await movimientoResumen.cierra(el.querySelector('.rz-globo'), { quieto })
+  st.resumenSaliendo = false
+  // Se volvió a abrir mientras se cerraba: pintarResumen ya lo redibujó
+  if (st.resumen.estado !== 'cerrado') return
+  const devolver = el.contains(document.activeElement)
+  const alto = el.offsetHeight
+  el.innerHTML = ''
+  st.firmas['#resumen'] = null
+  movimientoResumen.flip(hermanosResumen(), alto, { quieto })
+  if (devolver) marcaBoton.focus({ preventScroll: true })
+}
+
+/**
+ * Dibuja el globo (3.2 y 7): se redibuja solo si cambió su contenido (la firma, sin el progreso, la
+ * cola ni el aviso "Cambió algo", que se reescriben en su lugar), así una lectura de 1,5 s no se
+ * lleva la selección ni el foco. Al abrirse, el foco va a su primer `data-foco` y la columna se
+ * desplaza lo justo para mostrarlo; al cambiar de estado con el foco adentro, el foco lo sigue.
+ */
+function pintarResumen() {
+  const r = st.resumen
+  const el = $('#resumen')
+  marcaBoton.setAttribute('aria-expanded', String(r.estado !== 'cerrado'))
+  if (r.estado === 'cerrado') {
+    st.resumenFoco = false
+    if (el.childElementCount && !st.resumenSaliendo) cerrarGlobo(el)
+    return
+  }
+  // Se volvió a abrir mientras se cerraba: el globo se redibuja entero
+  if (st.resumenSaliendo) st.firmas['#resumen'] = null
+  const cola = colaResumen({ hayAviso: $('#otro').childElementCount > 0, hayPregunta: $('#w-globo').childElementCount > 0 })
+  const m = {
+    ...r, cola,
+    proyectos: st.proyectos.filter(p => p.repo).map(p => ({ nombre: p.nombre, color: colorProyecto(p.nombre) })),
+  }
+  const firma = contenidoResumen({ ...m, cola: true, cascada: false, cambio: false, progreso: r.estado === 'descargando' ? null : r.progreso })
+  const quieto = !!st.transicion || !!st.arrastre?.activo || !resumenALaVista()
+  if (st.firmas['#resumen'] !== firma) {
+    const nuevo = !el.childElementCount || st.resumenSaliendo
+    const enfocado = el.contains(document.activeElement)
+    movimientoResumen.terminar()
+    const altoAntes = nuevo ? 0 : el.offsetHeight
+    const cascada = r.estado === 'listo' && r.hablando
+    st.firmas['#resumen'] = firma
+    el.innerHTML = contenidoResumen({ ...m, cascada })
+    const globoEl = el.querySelector('.rz-globo')
+    const delta = altoAntes - el.offsetHeight
+    if (nuevo) {
+      movimientoResumen.nace(globoEl, { quieto })
+      movimientoResumen.flip(hermanosResumen(), delta, { quieto })
+    } else {
+      movimientoResumen.cambia(globoEl, hermanosResumen(), delta, { quieto })
+    }
+    if (cascada) movimientoResumen.palabras(globoEl, { quieto })
+    // Con desborde, el texto se puede desplazar con el teclado y se funde abajo
+    const t = el.querySelector('[data-texto]')
+    if (t && t.scrollHeight > t.clientHeight + 1) {
+      t.classList.add('desborda')
+      t.tabIndex = 0
+      t.setAttribute('aria-label', 'Texto del resumen')
+    }
+    if (st.resumenFoco || enfocado) {
+      el.querySelector('[data-foco]')?.focus({ preventScroll: true })
+      if (st.resumenFoco) el.scrollIntoView({ block: 'nearest', behavior: hayMovimiento() ? 'smooth' : 'auto' })
+      st.resumenFoco = false
+    }
+  }
+  // Lo que cambia sin redibujar: la cola, el progreso de la descarga y el aviso "Cambió algo"
+  el.querySelector('.rz-globo')?.classList.toggle('cola', cola)
+  if (r.estado === 'descargando') {
+    const c = cifrasDescarga(r.progreso)
+    const barra = el.querySelector('[data-barra]')
+    texto('#resumen [data-gb]', c.cifra)
+    texto('#resumen [data-pc]', `${c.porcentaje} %`)
+    texto('#resumen .cifra small', `de ${c.total}`)
+    if (barra) {
+      barra.style.setProperty('--p', String(c.fraccion))
+      barra.setAttribute('aria-valuenow', String(c.porcentaje))
+    }
+  }
+  const aviso = el.querySelector('[data-cambio]')
+  if (aviso && aviso.hidden === r.cambio) {
+    aviso.hidden = !r.cambio
+    if (r.cambio) movimientoResumen.entra(aviso, { quieto })
+  }
+}
+
 async function iniciar() {
   // Las definiciones de los Avis (piel, luz de piso y desenfoque), una vez por documento (5.1)
   document.body.insertAdjacentHTML('afterbegin', defsAvis())
@@ -1871,6 +2138,10 @@ async function iniciar() {
     // Primeros pasos: el ítem de la bandeja abre el asistente (3.5) y cada paso que corre avisa (9.5)
     escuchar('oficina://primeros-pasos-abrir', () => abrirAsistente({ foco: true }))
     escuchar('oficina://primeros-pasos', ev => alEventoPaso(ev.payload))
+    // El resumen (resumen-ia-ux.md 8.2): un solo evento con `tipo`; solo avanza lo que ya se pidió
+    escuchar('oficina://resumen', ev => alEventoResumen(ev.payload))
+    // Al arrancar se lee qué hay del modelo (solo lectura, sin red); nunca en el ciclo de 1,5 s
+    leerEstadoResumen()
   } else {
     // Sin Tauri (el HTML abierto solo): la ventana del navegador hace de área
     await aplicarTamano(PASO_POR_DEFECTO)

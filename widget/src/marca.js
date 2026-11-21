@@ -322,3 +322,49 @@ export function cambioMirada({ ahora, salio, ultimoMov }) {
   }
   return Math.min(...momentos)
 }
+
+// ------------------------------------------------------------------ voz del resumen (docs/diseno/resumen-ia-ux.md 6.2)
+
+/** Cambio de pose de la voz (`--d-voz`): el rebote del dibujo y el viaje de los canales. */
+export const VOZ_MS = 360
+
+/**
+ * La voz del Avi mientras el globo del resumen está abierto, como datos (igual que `ACTOS`): adónde
+ * mira (`null`: sigue al puntero, como hoy) y los canales que sostiene. "contando" además mueve el
+ * pico (marcaMotion.js) mientras salen las palabras.
+ */
+export const VOCES = Object.freeze({
+  esperando: { mira: null, canales: {} },
+  teEspera: { mira: null, canales: {} },
+  baja: { mira: { x: 0.55, y: 0.6 }, canales: {} },
+  calienta: { mira: { x: 0, y: 0 }, canales: { par: 0.9 } },
+  pensando: { mira: { x: 0.5, y: -0.75 }, canales: {} },
+  contando: { mira: { x: 0.6, y: 0.15 }, canales: {} },
+  feliz: { mira: { x: 0.6, y: 0.15 }, canales: { ojos: 1 } },
+  error: { mira: { x: 0, y: 0 }, canales: { ant: 18, luz: -1, par: 0.8 } },
+})
+
+/** Los canales de una voz (los que no nombra, en reposo); `null`, el reposo. */
+export function canalesVoz(pose) {
+  return { ...REPOSO, ...(VOCES[pose]?.canales ?? {}) }
+}
+
+/**
+ * Lleva los canales de ahora a los de una voz en 360 ms (salida cúbica) y se queda en el último
+ * cuadro (`sostiene`) hasta que cambie la voz. Los ojos cambian de una, como en `salida`.
+ */
+export function haciaVoz(desde, pose) {
+  const hacia = canalesVoz(pose)
+  const pistas = {}
+  for (const k in REPOSO) pistas[k] = [[0, desde[k]], [VOZ_MS, hacia[k], 'o']]
+  pistas.ojos = [[0, hacia.ojos]]
+  return { id: 'voz', dur: VOZ_MS, sostiene: true, pistas }
+}
+
+/**
+ * ¿Puede jugar solo? Se ve y se puede mover, está en reposo, en la pose de esperar, sin trabajo y sin
+ * voz: con el globo del resumen abierto los juegos se suspenden (6.3), aunque la voz sea "esperando".
+ */
+export function puedeJugar({ visto, quieto, reposo, pose, ocupado, voz }) {
+  return !!visto && !quieto && !!reposo && pose === 'esperando' && !ocupado && !voz
+}

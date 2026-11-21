@@ -76,7 +76,8 @@ function procesosEnEspera(s) {
   return deLinea ? (lista || deLinea) : 0
 }
 
-const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`
+/** "1 sesión", "3 sesiones": la cifra y la palabra en singular o plural. */
+export const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`
 
 /**
  * Ánimo del Avi de Claude de una sesión, por orden de prioridad:
@@ -228,6 +229,18 @@ export function preguntasNuevas(sesiones, avisadas) {
     }
   }
   return nuevas
+}
+
+/**
+ * Lo que se mueve el puntero antes de que un toque sea un arrastre (px): hasta acá es un clic. Lo usan
+ * el arrastre propio de la ventana (main.js) y el Avi de la marca, que además es un botón
+ * (docs/diseno/resumen-ia-ux.md 3.1).
+ */
+export const UMBRAL_ARRASTRE = 4
+
+/** ¿El puntero se movió más que el umbral? Entonces es un arrastre, no un clic. */
+export function superaUmbral(dx, dy) {
+  return Math.hypot(dx, dy) > UMBRAL_ARRASTRE
 }
 
 const MAX_CARAS = 4

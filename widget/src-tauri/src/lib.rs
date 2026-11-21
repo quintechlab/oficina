@@ -2,6 +2,7 @@ mod arranque;
 mod diagnostico;
 mod equipo;
 mod preferencias;
+mod modelo;
 mod primeros_pasos;
 mod respuestas;
 mod sesiones;
@@ -316,8 +317,11 @@ struct MenuBandeja {
     primeros_pasos: MenuItem<Wry>,
 }
 
-/// Orden del menú de la bandeja: "Primeros pasos" va justo debajo de "Mostrar Avis" (3.5).
-const ORDEN_BANDEJA: [&str; 10] = ["mostrar", "primeros-pasos", "arriba", "avisar", "pausa", "acoplar", "tamano", "arranque", "separador", "salir"];
+/// Orden del menú de la bandeja: "Primeros pasos" va justo debajo de "Mostrar Avis" (3.5) y
+/// "Borrar el modelo de IA…" (#11) al final, antes del separador de "Salir".
+const ORDEN_BANDEJA: [&str; 11] = ["mostrar", "primeros-pasos", "arriba", "avisar", "pausa", "acoplar", "tamano", "arranque", "borrar-modelo", "separador", "salir"];
+/// Texto del ítem que borra el modelo y el motor del resumen con IA (con confirmación nativa).
+const TEXTO_BORRAR_MODELO: &str = "Borrar el modelo de IA…";
 
 fn ventana(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(VENTANA)
@@ -521,8 +525,82 @@ fn apagar_paso() {
     }
 }
 
+/// "Borrar el modelo de IA…" de la bandeja (#11): pregunta con un cuadro de Windows (en otro hilo,
+/// así la bandeja y la ventana siguen andando) y solo con "Sí" apaga el motor, corta la descarga y
+/// borra `%LOCALAPPDATA%avis-ia`. Sin nada instalado, solo lo dice.
+fn borrar_modelo(app: &AppHandle) {
+    let app = app.clone();
+    let _ = std::thread::Builder::new().name(String::from("avis-ia-borrar")).spawn(move || {
+        let bytes = modelo::IA.peso();
+        if bytes == 0 {
+            dialogo::avisar("No hay ningún modelo de IA en esta PC.", false);
+            return;
+        }
+        if !modelo::debe_borrar(dialogo::preguntar(&modelo::texto_confirmar_borrado(bytes))) {
+            return;
+        }
+        match modelo::IA.borrar() {
+            Ok(_) => {
+                registrar(String::from("resumen: modelo de IA borrado desde la bandeja"));
+                // El globo abierto vuelve a "apagado" sin esperar a reabrirse
+                if let Ok(estado) = modelo::IA.estado() {
+                    let _ = app.emit(modelo::EVENTO, modelo::evento_estado(estado));
+                }
+            }
+            Err(e) => {
+                registrar(format!("resumen: no se pudo borrar el modelo: {e}"));
+                dialogo::avisar(&format!("No se pudo borrar el modelo de IA.
+
+{e}"), true);
+            }
+        }
+    });
+}
+
+/// Cuadros nativos de Windows (MessageBoxW), sin dependencias: arriba de todo y con "No" por defecto.
+#[cfg(windows)]
+mod dialogo {
+    #[link(name = "user32")]
+    extern "system" {
+        fn MessageBoxW(hwnd: isize, texto: *const u16, titulo: *const u16, tipo: u32) -> i32;
+    }
+    const MB_OK: u32 = 0x0;
+    const MB_YESNO: u32 = 0x4;
+    const MB_ICONERROR: u32 = 0x10;
+    const MB_ICONWARNING: u32 = 0x30;
+    const MB_ICONINFORMATION: u32 = 0x40;
+    const MB_DEFBUTTON2: u32 = 0x100;
+    const MB_SETFOREGROUND: u32 = 0x1_0000;
+    const MB_TOPMOST: u32 = 0x4_0000;
+
+    fn cuadro(texto: &str, tipo: u32) -> i32 {
+        let ancho = |s: &str| s.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
+        let (t, titulo) = (ancho(texto), ancho("Avis"));
+        // SAFETY: cadenas terminadas en cero que viven durante la llamada; sin ventana dueña
+        unsafe { MessageBoxW(0, t.as_ptr(), titulo.as_ptr(), tipo | MB_SETFOREGROUND | MB_TOPMOST) }
+    }
+
+    /// Sí o No, con "No" por defecto: un Enter de más no borra nada.
+    pub fn preguntar(texto: &str) -> i32 {
+        cuadro(texto, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2)
+    }
+
+    pub fn avisar(texto: &str, error: bool) {
+        cuadro(texto, MB_OK | if error { MB_ICONERROR } else { MB_ICONINFORMATION });
+    }
+}
+
+#[cfg(not(windows))]
+mod dialogo {
+    pub fn preguntar(_texto: &str) -> i32 {
+        0
+    }
+    pub fn avisar(_texto: &str, _error: bool) {}
+}
+
 fn salir(app: &AppHandle) {
     apagar_paso();
+    modelo::IA.apagar();
     // El hilo del sondeo termina en su próxima vuelta
     let estado = app.state::<Estado>();
     estado.apagar.store(true, Ordering::Relaxed);
@@ -632,6 +710,41 @@ fn cancelar_paso() -> bool {
 fn abrir_enlace(cual: String) -> Result<(), String> {
     let url = primeros_pasos::enlace(&cual).ok_or("enlace desconocido")?;
     primeros_pasos::abrir_en_navegador(url)
+}
+
+// ------------------------------------------------------------------ resumen con IA (#11, resumen-ia-ux.md 8)
+
+/// `{ modelo, bajado, total, motor, primeraVez, aceleracion }`: solo lee disco y procesos propios,
+/// nunca la red. Al arrancar y al tocar el Avi con el globo cerrado; nunca en el ciclo de 1,5 s.
+#[tauri::command]
+async fn estado_resumen() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(|| modelo::IA.estado()).await.map_err(|e| e.to_string())?
+}
+
+/// Solo con el clic en "Descargar": la única salida a la red, con URLs fijas. Lo que pasa llega como
+/// `oficina://resumen` (`progreso`, `bajado`, `fallo`).
+#[tauri::command]
+fn descargar_modelo(app: AppHandle) -> Result<(), String> {
+    modelo::IA.descargar(move |v| {
+        let _ = app.emit(modelo::EVENTO, v);
+    })
+}
+
+/// Solo con el clic en "Cancelar" (o a los 60 s de pensando): corta la descarga (queda para seguir),
+/// el arranque del motor o el pedido en curso.
+#[tauri::command]
+fn cancelar_resumen(app: AppHandle) {
+    modelo::IA.cancelar(&|v| {
+        let _ = app.emit(modelo::EVENTO, v);
+    });
+}
+
+/// Solo con un clic: pide un resumen de `datos` (lo que Avis ya ve). Gana el `pedido` más alto.
+#[tauri::command]
+fn pedir_resumen(app: AppHandle, pedido: u64, datos: serde_json::Value) -> Result<(), String> {
+    modelo::IA.pedir(pedido, datos, move |v| {
+        let _ = app.emit(modelo::EVENTO, v);
+    })
 }
 
 /// Fija la ventana arriba de las demás y sincroniza la marca del menú de la bandeja.
@@ -909,6 +1022,7 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
     let salir_item = MenuItem::with_id(app, "salir", "Salir", true, None::<&str>)?;
     let separador = PredefinedMenuItem::separator(app)?;
     let primeros_pasos_item = MenuItem::with_id(app, "primeros-pasos", primeros_pasos::texto_menu(None), true, None::<&str>)?;
+    let borrar_modelo_item = MenuItem::with_id(app, "borrar-modelo", TEXTO_BORRAR_MODELO, true, None::<&str>)?;
     let items: Vec<&dyn IsMenuItem<Wry>> = ORDEN_BANDEJA
         .iter()
         .map(|id| -> &dyn IsMenuItem<Wry> {
@@ -921,6 +1035,7 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
                 "acoplar" => &submenu_acople,
                 "tamano" => &submenu,
                 "arranque" => &arranque_item,
+                "borrar-modelo" => &borrar_modelo_item,
                 "separador" => &separador,
                 _ => &salir_item,
             }
@@ -940,6 +1055,7 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
             match evento.id().as_ref() {
                 "mostrar" => mostrar(app),
                 "primeros-pasos" => abrir_primeros_pasos(app),
+                "borrar-modelo" => borrar_modelo(app),
                 "arriba" => {
                     let valor = marca(|m| &m.arriba);
                     // Acoplada, la muesca queda siempre arriba; la marca vale para cuando flote
@@ -1012,7 +1128,16 @@ mod tests {
 
     #[test]
     fn primeros_pasos_va_debajo_de_mostrar_y_el_resto_del_menu_no_cambia() {
-        assert_eq!(ORDEN_BANDEJA, ["mostrar", "primeros-pasos", "arriba", "avisar", "pausa", "acoplar", "tamano", "arranque", "separador", "salir"]);
+        // "Borrar el modelo de IA…" (#11) va al final, antes del separador de "Salir"; lo demás queda igual
+        assert_eq!(
+            ORDEN_BANDEJA,
+            ["mostrar", "primeros-pasos", "arriba", "avisar", "pausa", "acoplar", "tamano", "arranque", "borrar-modelo", "separador", "salir"]
+        );
+    }
+
+    #[test]
+    fn el_item_de_borrar_el_modelo_tiene_su_texto() {
+        assert_eq!(TEXTO_BORRAR_MODELO, "Borrar el modelo de IA…");
     }
 
     #[test]
@@ -1363,7 +1488,11 @@ pub fn run() {
             menu_primeros_pasos,
             correr_paso,
             cancelar_paso,
-            abrir_enlace
+            abrir_enlace,
+            estado_resumen,
+            descargar_modelo,
+            cancelar_resumen,
+            pedir_resumen
         ])
         .build(tauri::generate_context!())
         .expect("no se pudo iniciar el widget de la oficina")
@@ -1371,6 +1500,9 @@ pub fn run() {
             // Cualquier salida de la aplicación, no solo "Salir" de la bandeja
             if let tauri::RunEvent::Exit = evento {
                 apagar_paso();
+                // El motor del resumen y la descarga no quedan corriendo (el trabajo de Windows
+                // lo mata igual si la aplicación se cae)
+                modelo::IA.apagar();
             }
         });
 }

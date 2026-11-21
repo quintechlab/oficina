@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import {
   agruparPorProyecto, nombreProyecto, animoSesion, animoSubagente, personajeDeNombre,
   tiempoRelativo, tiempoSubagente, textoActividad, preguntasPendientes, etiquetaOpcion, escapar,
-  preguntasNuevas, resumenMini, reposoPermitido, ANIMOS_DE_TRABAJO,
+  preguntasNuevas, resumenMini, reposoPermitido, ANIMOS_DE_TRABAJO, UMBRAL_ARRASTRE, superaUmbral, plural,
 } from '../src/logica.js'
 
 const AHORA = Date.parse('2026-11-19T23:50:00Z')
@@ -253,4 +253,18 @@ test('ANIMOS_DE_TRABAJO: una sola lista de lo que cuenta como trabajo, la que us
 
 test('reposoPermitido: una sesión inactiva (sin publicar hace rato) no cuenta como trabajo', () => {
   assert.equal(reposoPermitido(agruparPorProyecto([sesion({ actividad: 'editando x', actualizado: hace(30 * MIN) })]), AHORA), true)
+})
+
+test('clic contra arrastre: hasta 4 px es clic; más, arrastre (resumen-ia-ux.md 3.1, el umbral de main.js)', () => {
+  assert.equal(UMBRAL_ARRASTRE, 4)
+  assert.equal(superaUmbral(3, 2), false)
+  assert.equal(superaUmbral(4, 0), false)
+  assert.equal(superaUmbral(0, -4), false)
+  assert.equal(superaUmbral(3, 3), true)
+  assert.equal(superaUmbral(-5, 0), true)
+})
+
+test('plural: uno o varios con la cifra adelante', () => {
+  assert.equal(plural(1, 'sesión', 'sesiones'), '1 sesión')
+  assert.equal(plural(3, 'sesión', 'sesiones'), '3 sesiones')
 })

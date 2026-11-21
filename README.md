@@ -107,6 +107,10 @@ La primera vez, si falta algo, el widget muestra **Primeros pasos** en lugar del
 
 Cada paso corre solo cuando tocás su botón: abrir el asistente o "Volver a buscar" solo revisan qué hay (comandos de lectura), nada se instala solo y no hay tiempo que elija por vos. Con sesiones abiertas, un aviso del tablero ("Falta conectar GitHub · Ver →") y el ítem **Primeros pasos** de la bandeja lo vuelven a abrir; la × lo cierra sin hacer nada. El widget nunca guarda credenciales: usa la sesión de `gh`.
 
+### ¿En qué anda Claude? (IA local, opcional)
+
+Tocá el Avi grande del tablero y te cuenta, en su globo, un resumen corto de lo que pasa en tus sesiones (qué hace cada una, subagentes, procesos y preguntas pendientes). Lo arma un modelo que corre en tu PC (Qwen3-4B con llama.cpp): no se manda nada a internet. La primera vez ofrece descargarlo (unos 2,5 GB, o 3,2 GB con placa NVIDIA, a `%LOCALAPPDATA%\avis-ia`), y la descarga arranca solo con ese clic; si la cancelás, sigue desde donde quedó. Con placa NVIDIA tarda unos 3 s por resumen (la primera vez, 2 a 3 minutos de preparación); solo con el procesador, unos 11 s. El motor se apaga solo tras 10 minutos sin uso. El resumen solo informa: nunca responde una pregunta por vos. Para liberar espacio: **Borrar el modelo de IA…** en la bandeja.
+
 ### Tamaño y una sola ventana
 
 El tablero toma el ancho y el alto de lo que muestra (tablero, tarjeta de pregunta, equipo) y no se estira a mano; si no entra, queda en el 90 % de la pantalla y el contenido se desplaza. El tamaño va de 100 % (el original, el más chico) a 200 %, en pasos de 25 %: **Ctrl +** agranda, **Ctrl −** achica y **Ctrl 0** vuelve a 100 % con la ventana enfocada, o desde **Tamaño** en la bandeja (Agrandar, Achicar y el porcentaje actual). Todo crece junto, dibujo y texto; 100, 150 y 200 % quedan nítidos y 125 y 175 % pueden verse un poco suaves. El tamaño se recuerda, y el tablero vuelve a abrir donde estaba. La ventana de Avis es invisible y ocupa toda el área de trabajo: la muesca, el tablero y la tira se mueven y se transforman adentro, y fuera de ellos los clics pasan a lo que hay debajo.
