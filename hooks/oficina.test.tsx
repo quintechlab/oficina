@@ -48,7 +48,7 @@ const PANE = {
   component: 'Pane',
   requestId: 'oficina',
   props: {
-    title: 'Oficina · Quintech Studio',
+    title: 'Avis · Quintech Studio',
     isFocused: false,
     bodyColumns: 80,
     placement: 'dock',
@@ -580,4 +580,13 @@ test('carrera: si la vigilancia falla, se espera al diálogo como siempre', asyn
 test('si algo falla después de que ganó el widget, igual se entrega su respuesta (no se abre otro diálogo)', async () => {
   const r = await resultadoDelWidget(['q'], { '¿Qué boceto?': 'Vitrina' }, async () => { throw new Error('reloj roto') })
   expect(r).toEqual({ result: { questions: ['q'], answers: { '¿Qué boceto?': 'Vitrina' } } })
+})
+
+test('/avis y /oficina (el nombre anterior) responden lo mismo', async ($, on) => {
+  on('store.get', () => ({ value: undefined }))
+  const avis = await $.command.run({ command: 'avis', args: 'ayuda' } as never) as { text?: string }
+  const oficina = await $.command.run({ command: 'oficina', args: 'ayuda' } as never) as { text?: string }
+  expect(avis.text).toContain('/avis tarea 42')
+  expect(avis.text).toContain('/oficina')
+  expect(oficina.text).toBe(avis.text)
 })

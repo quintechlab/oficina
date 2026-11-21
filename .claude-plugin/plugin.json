@@ -1,7 +1,7 @@
 {
   "name": "oficina",
-  "version": "0.6.0",
-  "description": "Oficina Quintech Studio: panel que muestra en qué proyecto y tarea está cada integrante, desde cuándo y cuánto le queda, leyendo GitHub.",
+  "version": "0.7.0",
+  "description": "Avis (antes Oficina) de Quintech Studio: panel que muestra en qué proyecto y tarea está cada integrante, desde cuándo y cuánto le queda, leyendo GitHub.",
   "author": { "name": "Quintech Studio" },
   "license": "MIT",
   "icon": "./.claude-plugin/icon.png",
@@ -10,7 +10,7 @@
     "datos": {
       "type": "string",
       "title": "Repositorio de datos",
-      "description": "Repositorio privado donde se guarda la presencia (owner/repo). Se crea con /oficina init.",
+      "description": "Repositorio privado donde se guarda la presencia (owner/repo). Se crea con /avis init.",
       "default": "quintechlab/oficina-datos"
     },
     "issue": {

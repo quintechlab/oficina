@@ -1,4 +1,4 @@
-// Oficina Quintech Studio: panel de presencia del equipo sobre GitHub.
+// Avis (antes Oficina) de Quintech Studio: panel de presencia del equipo sobre GitHub.
 //
 // Cada integrante publica su presencia (repo, rama, tarea, desde cuándo) en un comentario
 // propio de un Issue de un repositorio privado, con su propio `gh` autenticado. El mod lee
@@ -50,7 +50,7 @@ import {
 } from './logica'
 
 const PANE = 'oficina'
-const TITULO = 'Oficina · Quintech Studio'
+const TITULO = 'Avis · Quintech Studio'
 
 // Paleta Quintech (docs/estilos/quintech.css)
 const AMARILLO = '#F2B632'
@@ -503,12 +503,16 @@ async function iniciar($: EngineInterface): Promise<string> {
 }
 
 const AYUDA = [
-  '/oficina            abre el panel',
-  '/oficina tarea 42   fija la tarea actual (auto: volver a detectarla por la rama)',
-  '/oficina nota texto deja una nota visible para el otro (nota - la borra)',
-  '/oficina fuera      marca que te vas; /oficina volver te marca trabajando',
-  '/oficina init       crea el repositorio privado de datos y el Issue "Presencia"',
+  '/avis            abre el panel',
+  '/avis tarea 42   fija la tarea actual (auto: volver a detectarla por la rama)',
+  '/avis nota texto deja una nota visible para el otro (nota - la borra)',
+  '/avis fuera      marca que te vas; /avis volver te marca trabajando',
+  '/avis init       crea el repositorio privado de datos y el Issue "Presencia"',
+  '/oficina …       lo mismo que /avis (el nombre anterior sigue andando)',
 ].join('\n')
+
+/** Los comandos del mod: /avis y /oficina, el nombre anterior, que hace lo mismo. */
+export const COMANDOS = ['avis', 'oficina'] as const
 
 export const register: Register = (on, options) => {
   config = {
@@ -519,18 +523,20 @@ export const register: Register = (on, options) => {
   }
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'oficina', description: 'Oficina Quintech: quién trabaja en qué', argumentHint: '[tarea N | nota texto | fuera | volver | init]' })
+    const argumentHint = '[tarea N | nota texto | fuera | volver | init]'
+    await $.command.register({ name: 'avis', description: 'Avis de Quintech: quién trabaja en qué', argumentHint })
+    await $.command.register({ name: 'oficina', description: 'Lo mismo que /avis (nombre anterior)', argumentHint })
     const resultado = await next(e)
     // Siempre, no solo si `isInteractive`: la sesión de la app de escritorio llega como SDK (false).
     void (async () => {
       const abierto = await $.ui.open({ id: PANE, title: TITULO }).catch(() => ({ isPlaced: false }))
-      if (!abierto.isPlaced) $.ui.toast('Oficina: escribí /oficina para abrir el panel', { timeoutMs: 8000 })
+      if (!abierto.isPlaced) $.ui.toast('Avis: escribí /avis para abrir el panel', { timeoutMs: 8000 })
     })()
     void arrancar($)
     return resultado
   })
 
-  on('command.run', { command: 'oficina' }, async ($, e) => {
+  for (const comando of COMANDOS) on('command.run', { command: comando }, async ($, e) => {
     const [verbo, ...resto] = e.args.trim().split(/\s+/)
     const argumento = resto.join(' ').trim()
     const ajustes = ((await $.store.get('ajustes')) as Ajustes | undefined) ?? {}
@@ -538,7 +544,7 @@ export const register: Register = (on, options) => {
       case '':
         await $.ui.open({ id: PANE, title: TITULO })
         void refrescar($)
-        return { text: 'Oficina abierta.' }
+        return { text: 'Avis abierto.' }
       case 'ayuda':
       case 'help':
         return { text: AYUDA }
@@ -551,7 +557,7 @@ export const register: Register = (on, options) => {
           return { text: 'Tarea: se detecta por la rama.' }
         }
         const n = Number(argumento.replace('#', ''))
-        if (!Number.isInteger(n) || n <= 0) return { text: 'Uso: /oficina tarea 42' }
+        if (!Number.isInteger(n) || n <= 0) return { text: 'Uso: /avis tarea 42' }
         ajustes.tareas = { ...(ajustes.tareas ?? {}), [await $.session.id()]: n }
         await $.store.set('ajustes', ajustes)
         await publicar($, true).catch(() => undefined)
@@ -567,7 +573,7 @@ export const register: Register = (on, options) => {
       case 'fuera':
         await publicar($, true, true).catch(() => undefined)
         await refrescar($)
-        return { text: 'Marcado como fuera, en todas tus sesiones, hasta /oficina volver.' }
+        return { text: 'Marcado como fuera, en todas tus sesiones, hasta /avis volver.' }
       case 'volver':
         await publicar($, true, false).catch(() => undefined)
         await refrescar($)
@@ -828,7 +834,7 @@ export const register: Register = (on, options) => {
                   {m.tarea && !m.tarea.abierta ? <Text color="merged"> cerrada</Text> : null}
                 </Text>
               ) : (
-                <Text dimColor>{SANGRIA}sin tarea · rama sin número, o /oficina tarea N</Text>
+                <Text dimColor>{SANGRIA}sin tarea · rama sin número, o /avis tarea N</Text>
               )}
               {m.tarea?.estadoTablero ? <Text dimColor>{SANGRIA}tablero: {m.tarea.estadoTablero}</Text> : null}
               {p.tareaDesde && p.inicio && fechaCorta(p.tareaDesde) !== fechaCorta(p.inicio) ? <Text dimColor>{SANGRIA}en esta tarea desde el {fechaCorta(p.tareaDesde)}</Text> : null}
@@ -877,7 +883,7 @@ export const register: Register = (on, options) => {
         </Box>
         {datos.error ? <Box marginBottom="sm"><Text color="error">GitHub: {datos.error}</Text></Box> : null}
         {lista.length === 0 && !datos.error ? <Text dimColor>Leyendo la oficina…</Text> : null}
-        {lista.length === 0 && datos.error ? <Text dimColor>¿Primera vez? Corré /oficina init (necesita gh autenticado) y revisá la opción "datos" en /config.</Text> : null}
+        {lista.length === 0 && datos.error ? <Text dimColor>¿Primera vez? Corré /avis init (necesita gh autenticado) y revisá la opción "datos" en /config.</Text> : null}
         {lista.map((m, i) => (
           <Box key={`ficha-${m.presencia.usuario}`} flexDirection="column">
             {i > 0 ? <Text>{VACIA}</Text> : null}
