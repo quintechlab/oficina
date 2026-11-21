@@ -187,6 +187,25 @@ export function preguntasPendientes(proyecto) {
   return pend
 }
 
+/**
+ * Ánimos de sesión que se dibujan como trabajo (escribe, lee, piensa, coordina o espera procesos).
+ * Una sola lista: la usan el reposo de la marca y el modo "trabajando" de la muesca (muesca-avi-ux.md 8).
+ */
+export const ANIMOS_DE_TRABAJO = new Set(['editando', 'comando', 'escribiendo', 'leyendo', 'pensando', 'coordinando', 'proceso'])
+
+/**
+ * ¿El Avi de la marca puede jugar solo? (docs/diseno/marca-avi-ux.md 7.1, regla 2): hay sesiones
+ * (si no, la marca duerme), ninguna pregunta pendiente y ninguna sesión trabajando. Una sesión que
+ * espera tu mensaje o que no publica hace rato no cuenta como trabajo. Lo demás (que se vea, que
+ * no estés en la ventana, que se pueda mover) lo decide marcaMotion.js.
+ */
+export function reposoPermitido(proyectos, ahoraMs) {
+  const sesiones = proyectos.flatMap(p => p.sesiones)
+  if (!sesiones.length) return false
+  if (proyectos.some(p => preguntasPendientes(p).length)) return false
+  return !sesiones.some(s => ANIMOS_DE_TRABAJO.has(animoSesion(s, ahoraMs)))
+}
+
 /** Separa la marca "(Recomendada)" o "(Recommended)" de la etiqueta de una opción. */
 export function etiquetaOpcion(etiqueta) {
   const re = /\s*\((recomendad[ao]|recommended)\)\s*/i

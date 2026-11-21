@@ -55,6 +55,10 @@
   --ancho-lado: 188px; --ancho-principal: 460px; --alto-tablero: 640px;
   /* Primeros pasos (bienvenida-ux.md 5): el escenario tiene alto fijo, como el tablero */
   --alto-escenario: 600px;
+  /* Panel "Escenario + chips" (panel-avis-ux.md 7): la caja del escenario de cada sesión, los chips
+     y los hilos. No es --alto-escenario (ese es de primeros pasos) */
+  --ancho-escena: 408px; --alto-esc: 146px; --alto-esc-solo: 118px; --alto-conteo: 26px;
+  --d-viaje: 1800ms; --cada-hilo: 600ms;
 
   /* 3.4 radios */
   --r-ventana: 26px; --r-panel: 26px; --r-muesca: 22px; --r-hombro: 16px; --r-tarjeta: 18px;
@@ -120,12 +124,16 @@ h1, h2, h3 { font: inherit }
 .lado > .proyectos { flex: 0 1 auto; min-height: 76px; overflow-x: hidden; overflow-y: auto }
 /* Con scroll la barra recorta lo que sale de ella: el foco va por dentro */
 .lado :focus-visible { outline-offset: -2px }
-.marca { display: flex; align-items: center; gap: var(--e-4); padding: 0 var(--e-2) var(--e-1); cursor: grab; user-select: none }
+/* Marca "Escenario" (docs/diseno/marca-avi-ux.md 5.1): columna centrada con el Avi de 112 sobre su luz
+   ámbar (un degradado, sin filtro), "Avis" y el estado en píldora. Sigue siendo la zona de arrastre */
+.marca { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 6px 4px 4px; cursor: grab; user-select: none }
+.marca::before { content: ""; position: absolute; left: 50%; top: 8px; width: 150px; height: 120px; transform: translateX(-50%); background: radial-gradient(50% 50% at 50% 62%, rgba(242, 182, 50, .13), transparent 70%); pointer-events: none }
 /* Tauri arrastra solo si el clic cae en el elemento marcado: los hijos dejan pasar el clic */
 .marca > *, .cab-t > * { pointer-events: none }
-.marca-t { min-width: 0 }
-.marca-n { display: block; font: var(--t-marca); letter-spacing: -.03em }
-.estado { display: flex; align-items: center; gap: var(--e-3); margin-top: var(--e-1); font: var(--t-mono); font-style: italic; color: var(--crema2); white-space: nowrap }
+#marca-avi { position: relative; display: block; width: 112px; height: 112px; flex: none }
+.marca-n { display: block; margin-top: 6px; font: var(--t-display); letter-spacing: -.03em }
+.estado { display: flex; align-items: center; gap: var(--e-3); font: var(--t-mono); font-style: italic; color: var(--crema2); white-space: nowrap }
+.marca .estado { margin-top: 7px; padding: 4px 10px 4px 8px; background: var(--s2); border-radius: var(--r-pildora) }
 .pt { display: inline-block; width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--c, var(--ambar)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c, var(--ambar)) 20%, transparent) }
 
 #proyectos { display: flex; flex-direction: column; gap: var(--e-1) }
@@ -212,51 +220,73 @@ h1, h2, h3 { font: inherit }
 .tb[aria-pressed="true"] { color: var(--ambar) }
 .tb svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round }
 
-/* Cuadros de conteo: en tira, el cuadrito a la izquierda de la cifra y el rótulo */
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--e-4) }
-.stats:empty { display: none }
-.stat {
-  display: grid; grid-template-columns: 20px 1fr; column-gap: var(--e-4); align-content: start;
-  min-width: 0; padding: var(--e-5) var(--e-6); background: var(--s1); border: 1px solid var(--linea); border-radius: var(--r-cuadro);
+/* Chips de conteo (panel-avis-ux.md 4): una fila de 26 que baja a una segunda si no entra, nunca se corta */
+.conteos { display: flex; flex-wrap: wrap; gap: var(--e-3) }
+.conteos:empty { display: none }
+.conteo {
+  display: inline-flex; align-items: center; gap: 7px; height: var(--alto-conteo); padding: 0 11px; white-space: nowrap;
+  border-radius: var(--r-pildora); background: var(--s1); border: 1px solid var(--linea); font: var(--t-rotulo); color: var(--crema2);
 }
-.stat > * { grid-column: 2 }
-.stat .ico { grid-column: 1; grid-row: 1 / span 3; display: block; width: 20px; height: 20px; margin-top: 1px; border-radius: 6px; background: var(--c) }
-.stat b { display: block; font: var(--t-cifra); letter-spacing: -.04em; white-space: nowrap }
-.stat small { display: block; margin-top: var(--e-1); font: var(--t-chico); color: var(--crema2) }
-.stat-error { display: block; margin-top: var(--e-1); font: var(--t-mono-s); color: var(--rojo) }
+.conteo-pt { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--c) }
+.conteo .reloj { flex: none; fill: none; stroke: var(--violeta); stroke-width: 1.5; stroke-linecap: round }
+.conteo b { font: 800 12.5px/1 var(--f); letter-spacing: -.02em; color: var(--crema) }
+/* Las unidades ("h", "m") a 10 px: a .58em de 12,5 quedarían en 7 */
+.conteo b .u { font: 700 10px/1 var(--f); letter-spacing: 0; color: var(--crema2) }
+.conteo-err { font: var(--t-rotulo); color: var(--rojo) }
+.conteo-err b { color: var(--rojo) }
 
-/* Tarjeta de sesión (4.4): al pasar el mouse solo cambia el borde, no se eleva */
-.sesiones > div { display: flex; flex-direction: column; gap: var(--e-4) }
-.ses { padding: var(--e-6) var(--e-7) var(--e-7); background: var(--s1); border: 1px solid var(--linea); border-radius: var(--r-tarjeta); transition: border-color var(--d-color) ease }
+/* Tarjeta escenario (panel-avis-ux.md 5): al pasar el mouse solo cambia el borde, no se eleva */
+.sesiones > div { display: flex; flex-direction: column; gap: var(--e-5) }
+.ses { padding: var(--e-6) var(--e-7) var(--e-2); background: var(--s1); border: 1px solid var(--linea); border-radius: var(--r-tarjeta); transition: border-color var(--d-color) ease }
 .ses:hover { border-color: var(--linea-hover) }
-.ses-top { display: flex; align-items: center; gap: var(--e-5) }
-.ses-t { flex: 1; min-width: 0; contain: inline-size }
-.ses-tit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-3) }
-.ses-tit b { min-width: 0; font: var(--t-titulo); letter-spacing: -.02em; overflow-wrap: anywhere }
+.ses-cab { display: flex; align-items: center; gap: var(--e-4); height: 20px; min-width: 0 }
+.ses-tit { display: flex; align-items: center; gap: var(--e-3); min-width: 0 }
+.ses-tit b { min-width: 0; font: var(--t-titulo); letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .ses-tit b.sin { color: var(--crema2) }
-.tag { padding: 3px var(--e-3); border-radius: var(--r-tag); background: var(--ambar); color: var(--negro); font: 600 10.5px/1 var(--m) }
+.tag { flex: none; padding: 3px var(--e-3); border-radius: var(--r-tag); background: var(--ambar); color: var(--negro); font: 600 10.5px/1 var(--m) }
 .tag.sin { background: var(--s3); color: var(--crema2) }
 .linea { display: flex; align-items: center; gap: var(--e-3); margin-top: var(--e-2); color: var(--c); font-weight: 700; font-size: 12.5px; line-height: 1.4; min-width: 0 }
 .linea, .fila-t b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-.lleva { align-self: flex-start; flex: none; font: var(--t-mono); color: var(--tenue); white-space: nowrap }
+.linea > span[data-vivo] { overflow: hidden; text-overflow: ellipsis }
+.ses > .linea { margin-top: 5px; line-height: 1.3 }
+.lleva { flex: none; margin-left: auto; font: var(--t-mono); color: var(--tenue); white-space: nowrap }
 
-/* Fichas de subagente: 4 y el "+n" entran en una fila */
-.subs { list-style: none; display: flex; flex-wrap: wrap; gap: var(--e-3); margin-top: var(--e-5) }
-.sub {
-  flex: 1 1 86px; min-width: 86px; max-width: 120px; display: flex; flex-direction: column; gap: 1px; padding: var(--e-3) var(--e-4) var(--e-4);
-  background: var(--s2); border: 1px solid transparent; border-radius: var(--r-ficha);
-  transition: background var(--d-color) ease, border-color var(--d-color) ease, transform var(--d-elevar) var(--ease);
+/* El escenario: 408 × 146 (sin subagentes, 118). Las posiciones salen de geometriaEscena (tablero.js) */
+.esc { position: relative; width: var(--ancho-escena); height: var(--alto-esc) }
+.esc.solo { height: var(--alto-esc-solo) }
+.piso {
+  position: absolute; left: -12px; right: -12px; top: 92px; height: 18px; transform-origin: 64px 50%; pointer-events: none;
+  background: radial-gradient(120px 10px at 64px 6px, rgba(242, 182, 50, .20), transparent 70%),
+    linear-gradient(90deg, transparent, #1E1E23 12%, #1E1E23 88%, transparent) 0 6px / 100% 1px no-repeat;
 }
-.sub:hover { background: var(--s3); border-color: var(--linea); transform: translateY(-3px) }
-.sub .avi { align-self: center; margin-bottom: var(--e-1); transition: opacity var(--d-color) ease }
-.sub b { font-size: 12px; font-weight: 700; line-height: 1.2; color: var(--c); overflow-wrap: anywhere }
-.sub b span { display: block; font: 400 10px/1.3 var(--m); color: var(--tenue) }
-.sub small { font-size: 11px; line-height: 1.3; color: var(--crema2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere }
-.est { margin-top: var(--e-2); font: var(--t-mono-s); color: var(--ce, var(--ambar)) }
+.esc-claude { position: absolute; line-height: 0 }
+.esc-nada { position: absolute; left: 110px; top: 80px; font: var(--t-rotulo); color: var(--tenue) }
+.elenco { list-style: none }
+/* Cada subagente: su ranura desde la altura del Avi (y 48) hasta el pie del rótulo */
+.esc .sub { position: absolute; top: 48px; height: 98px }
+.esc .fig { position: absolute; top: 0; line-height: 0; transition: transform var(--d-elevar) var(--ease) }
+.esc .fig .avi { transition: opacity var(--d-color) ease }
+.esc .sub:hover .fig { transform: translateY(-3px) }
 /* Dormido: solo el Avi se atenúa; el texto atenuado no llega a 4.5:1 */
-.sub.dorm .avi { opacity: .6 }
-.sub.dorm:hover .avi { opacity: 1 }
-.mas { width: 38px; display: grid; place-items: center; background: var(--s2); border: 1px dashed #34343A; border-radius: var(--r-ficha); color: var(--crema2); font: 600 12px/1 var(--m) }
+.esc .sub.dorm .avi { opacity: .6 }
+.esc .sub.dorm:hover .avi { opacity: 1 }
+.esc .rotulo { position: absolute; left: 0; right: 0; top: 53px; display: flex; flex-direction: column; gap: 1px; text-align: center; white-space: nowrap }
+.esc .rotulo b { overflow: hidden; text-overflow: ellipsis; font: 800 12px/1.25 var(--f); color: var(--c) }
+.esc .rotulo .tarea { overflow: hidden; text-overflow: ellipsis; padding: 0 3px; font: 500 11px/1.25 var(--f); color: var(--crema2) }
+.esc .rotulo em { overflow: hidden; text-overflow: ellipsis; font: var(--t-mono-s); font-style: normal; color: var(--ce, var(--ambar)) }
+/* La pila "+n": no es un control (sin hover ni foco); el marco punteado cubre cabecitas y rótulo */
+.esc .mas { position: absolute; top: 52px; height: 52px }
+.esc .mas::before { content: ""; position: absolute; inset: -6px -2px -44px; border: 1px dashed var(--linea-hover); border-radius: var(--r-ficha); background: rgba(255, 255, 255, .015) }
+.esc .cab-p { position: absolute; line-height: 0 }
+.esc .mas .rotulo { top: 49px }
+.esc .mas .rotulo b { font: 800 15px/1.25 var(--f); color: var(--crema) }
+.esc .mas .rotulo span { font: 500 11px/1.25 var(--f); color: var(--crema2) }
+/* Hilos de coordinación (5.3): el trazo punteado queda fijo; un punto de luz lo recorre (8.2) */
+.hilos { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none }
+.hilos path { fill: none; stroke: var(--ambar); stroke-width: 1.4; stroke-dasharray: 2 5; stroke-linecap: round; opacity: .55 }
+.hilo-pt { position: absolute; left: 0; top: 0; width: 5px; height: 5px; border-radius: 50%; background: var(--ambar); offset-rotate: 0deg; opacity: 0; pointer-events: none }
+/* Fuera de la vista (3 o más sesiones), la tarjeta queda quieta (8.5) */
+.ses.quieta *, .ses.quieta *::before, .ses.quieta *::after { animation-play-state: paused !important }
 
 /* El lugar, el dibujo y las poses de los Avis están en avis.css */
 
@@ -274,8 +304,8 @@ h1, h2, h3 { font: inherit }
 #marco.vacio .cab-t, #marco.cargando .cab-t { order: 2; text-align: center; padding: 0 var(--e-4) var(--e-8) }
 #marco.vacio h1, #marco.cargando h1 { font: 800 18px/1.3 var(--f); letter-spacing: -.02em }
 #marco.vacio .cab p, #marco.cargando .cab p { margin-top: var(--e-2); color: var(--crema2) }
-#marco.vacio #otro, #marco.vacio #w-globo, #marco.vacio .stats, #marco.vacio .sesiones,
-#marco.cargando #otro, #marco.cargando #w-globo, #marco.cargando .stats, #marco.cargando .sesiones { display: none }
+#marco.vacio #otro, #marco.vacio #w-globo, #marco.vacio .conteos, #marco.vacio .sesiones,
+#marco.cargando #otro, #marco.cargando #w-globo, #marco.cargando .conteos, #marco.cargando .sesiones { display: none }
 
 /* ------------------------------------------------------------------ aviso (4.3.2): otro proyecto o pregunta plegada */
 #otro:empty, #w-globo:empty { display: none }
@@ -390,8 +420,8 @@ button.op:active { transform: scale(.985) }
 .hecho.sale { animation: sale .35s ease-in both }
 @keyframes sale { to { opacity: 0; transform: scale(.4) translateY(30px) } }
 
-/* El texto largo no estira la ventana: el ancho lo dan las fichas, los cuadros y el mínimo */
-#otro, #w-globo, .stats, .compa-t, .fila-t, .pie-w, .lado-pie { contain: inline-size }
+/* El texto largo no estira la ventana: el ancho lo dan el escenario, los chips y el mínimo */
+#otro, #w-globo, .conteos, .ses-cab, .ses > .linea, .compa-t, .fila-t, .pie-w, .lado-pie { contain: inline-size }
 
 /* ------------------------------------------------------------------ tira mini (4.6): 400 × 56 */
 body.mini { padding: 0 }
@@ -402,6 +432,11 @@ body.mini #marco { display: none }
 }
 .tira .arrastre { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--e-5); height: 100%; padding-left: var(--e-6); cursor: grab }
 .tira .arrastre > * { pointer-events: none }
+/* Imán de la tira (arrastrada junto a un borde): borde ámbar y el aviso en lugar del resumen */
+.tira { transition: box-shadow var(--d-presion) ease }
+body.mini[data-iman] .tira { box-shadow: inset 0 0 0 2px var(--ambar) }
+body.mini[data-iman] .tira .resumen { visibility: hidden }
+body.mini[data-iman] #aviso-iman { top: 50%; bottom: auto; left: 50%; right: auto; transform: translate(-50%, -50%) }
 /* Cabecitas de 32 apiladas: −10 px y borde de 2 en --s1 */
 .caras, .cabezas-g { display: flex; flex: none; align-items: center }
 .caras { padding-left: var(--e-5) }
@@ -437,9 +472,10 @@ body.acoplada:not(.abierta) #marco { visibility: hidden; pointer-events: none }
 body.acoplada:not(.abierta) #marco *, body.acoplada:not(.abierta) #marco *::before, body.acoplada:not(.abierta) #marco *::after { animation-play-state: paused !important }
 
 /* Hombros del panel abierto, a los lados del tablero contra el borde (7.4) */
-body.acoplada.abierta::before, body.acoplada.abierta::after { content: ""; position: fixed; width: var(--r-hombro); height: var(--r-hombro); z-index: 0; opacity: 0; transition: opacity 160ms ease }
-/* Los hombros aparecen cuando el panel terminó de abrir y se van al empezar a cerrar, fundidos */
-body.acoplada.desplegada::before, body.acoplada.desplegada::after { opacity: 1 }
+/* Se ven todo el tiempo que está abierta: mientras abre y cierra, muescaMotion.js los corre junto
+   con el recorte (nacen en los hombros de la muesca y se abren con la isla), así las esquinas nunca
+   quedan sin hombro ni aparecen de golpe al final */
+body.acoplada.abierta::before, body.acoplada.abierta::after { content: ""; position: fixed; width: var(--r-hombro); height: var(--r-hombro); z-index: 0 }
 body.acoplada.abierta[data-borde="arriba"]::before { left: calc(var(--tx) - var(--r-hombro)); top: 0; background: radial-gradient(circle at 0 100%, transparent 15.5px, var(--negro) 16px) }
 body.acoplada.abierta[data-borde="arriba"]::after { left: calc(var(--tx) + var(--tw)); top: 0; background: radial-gradient(circle at 100% 100%, transparent 15.5px, var(--negro) 16px) }
 body.acoplada.abierta[data-borde="abajo"]::before { left: calc(var(--tx) - var(--r-hombro)); bottom: 0; background: radial-gradient(circle at 0 0, transparent 15.5px, var(--negro) 16px) }
@@ -449,45 +485,99 @@ body.acoplada.abierta[data-borde="derecha"]::after { right: 0; top: calc(var(--t
 body.acoplada.abierta[data-borde="izquierda"]::before { left: 0; top: calc(var(--ty) - var(--r-hombro)); background: radial-gradient(circle at 100% 0, transparent 15.5px, var(--negro) 16px) }
 body.acoplada.abierta[data-borde="izquierda"]::after { left: 0; top: calc(var(--ty) + var(--th)); background: radial-gradient(circle at 100% 100%, transparent 15.5px, var(--negro) 16px) }
 
-/* La muesca (7.1): negra, pegada al borde, esquinas de 22 hacia el centro y hombros de 16.
-   Va por encima del panel recortado (z-index 1, 7.4): si no, el panel tapa al Avi, el punto y el chip */
+/* La muesca A "Asoma" (docs/diseno/muesca-avi-ux.md): negra, pegada al borde, esquinas de 22 hacia el
+   centro y hombros de 16; caja fija de 150 × 54 (62 × 140 a los costados, --mw y --mh de TAM_MUESCA) y
+   todo lo de adentro posicionado. Va por encima del panel recortado (z-index 1, 7.4) */
 body.acoplada:not(.pildora) #muesca {
   position: fixed; left: var(--mx, 0); top: var(--my, 0); z-index: 1;
-  display: flex; align-items: center; gap: var(--e-4); margin: 0; border: 0; background: var(--negro); color: var(--crema);
-  white-space: nowrap; cursor: pointer; box-shadow: var(--sombra-muesca);
+  display: block; width: var(--mw, 150px); height: var(--mh, 54px); padding: 0; margin: 0; border: 0;
+  background: var(--negro); color: var(--crema); cursor: pointer; box-shadow: var(--sombra-muesca);
   transition: transform var(--d-elevar) var(--ease), opacity 120ms ease, visibility 0s;
 }
 /* Al abrir, la muesca se funde en el panel que crece (90 ms, desde el primer cuadro) en vez de desaparecer de golpe */
 body.acoplada.muesca-oculta #muesca { opacity: 0; visibility: hidden; transition: transform var(--d-elevar) var(--ease), opacity 90ms ease, visibility 0s linear 90ms }
 #muesca:focus-visible { outline: 2px solid var(--ambar); outline-offset: -4px }
 #muesca::before, #muesca::after { content: ""; position: absolute; width: var(--r-hombro); height: var(--r-hombro) }
-body[data-borde="arriba"] #muesca { border-radius: 0 0 var(--r-muesca) var(--r-muesca); padding: 0 14px 6px 12px; --gy: 6px }
+body[data-borde="arriba"] #muesca { border-radius: 0 0 var(--r-muesca) var(--r-muesca) }
 body[data-borde="arriba"] #muesca::before { left: -16px; top: 0; background: radial-gradient(circle at 0 100%, transparent 15.5px, var(--negro) 16px) }
 body[data-borde="arriba"] #muesca::after { right: -16px; top: 0; background: radial-gradient(circle at 100% 100%, transparent 15.5px, var(--negro) 16px) }
-body[data-borde="abajo"] #muesca { border-radius: var(--r-muesca) var(--r-muesca) 0 0; padding: 6px 14px 2px 12px; --gy: -6px }
+body[data-borde="abajo"] #muesca { border-radius: var(--r-muesca) var(--r-muesca) 0 0 }
 body[data-borde="abajo"] #muesca::before { left: -16px; bottom: 0; background: radial-gradient(circle at 0 0, transparent 15.5px, var(--negro) 16px) }
 body[data-borde="abajo"] #muesca::after { right: -16px; bottom: 0; background: radial-gradient(circle at 100% 0, transparent 15.5px, var(--negro) 16px) }
-body[data-borde="derecha"] #muesca { flex-direction: column; border-radius: var(--r-muesca) 0 0 var(--r-muesca); padding: 10px 6px 12px 8px; --gx: -6px }
+body[data-borde="derecha"] #muesca { border-radius: var(--r-muesca) 0 0 var(--r-muesca) }
 body[data-borde="derecha"] #muesca::before { right: 0; top: -16px; background: radial-gradient(circle at 0 0, transparent 15.5px, var(--negro) 16px) }
 body[data-borde="derecha"] #muesca::after { right: 0; bottom: -16px; background: radial-gradient(circle at 0 100%, transparent 15.5px, var(--negro) 16px) }
-body[data-borde="izquierda"] #muesca { flex-direction: column; border-radius: 0 var(--r-muesca) var(--r-muesca) 0; padding: 10px 8px 12px 6px; --gx: 6px }
+body[data-borde="izquierda"] #muesca { border-radius: 0 var(--r-muesca) var(--r-muesca) 0 }
 body[data-borde="izquierda"] #muesca::before { left: 0; top: -16px; background: radial-gradient(circle at 100% 0, transparent 15.5px, var(--negro) 16px) }
 body[data-borde="izquierda"] #muesca::after { left: 0; bottom: -16px; background: radial-gradient(circle at 100% 100%, transparent 15.5px, var(--negro) 16px) }
-/* A los costados el Avi sigue derecho y el texto corre en vertical */
-body[data-borde="derecha"] #muesca .chip, body[data-borde="izquierda"] #muesca .chip { writing-mode: vertical-rl; padding: var(--e-4) 5px }
-/* Con el mouse encima, 2 px hacia el centro (7.1) */
-body[data-borde="arriba"] #muesca:hover { transform: translateY(2px) }
-body[data-borde="abajo"] #muesca:hover { transform: translateY(-2px) }
-body[data-borde="derecha"] #muesca:hover { transform: translateX(-2px) }
-body[data-borde="izquierda"] #muesca:hover { transform: translateX(2px) }
+/* Con el mouse encima o con el foco, crece un poco desde el borde (7.1): el origen está sobre el borde,
+   así la muesca y sus hombros nunca se despegan de la pantalla (correrla 2 px dejaba una ranura arriba) */
+body[data-borde="arriba"] #muesca { transform-origin: 50% 0 }
+body[data-borde="abajo"] #muesca { transform-origin: 50% 100% }
+body[data-borde="derecha"] #muesca { transform-origin: 100% 50% }
+body[data-borde="izquierda"] #muesca { transform-origin: 0 50% }
+body.acoplada:not(.abierta) #muesca:hover, body.acoplada:not(.abierta) #muesca:focus-visible { transform: scale(1.05) }
 #muesca > * { pointer-events: none }
-/* El Avi que asoma: antena, cabeza y ojos; el resto queda detrás del borde de la muesca */
-.asoma { position: relative; width: 40px; height: 34px; flex: none; overflow: hidden }
-.asoma .avi { position: absolute; left: -2px; top: -1px }
-.pt-ambar { --c: var(--ambar) }
-.pt-crema { --c: var(--crema) }
-.pt-tenue { --c: var(--tenue) }
-/* Entre golpes nada titila: el Avi queda quieto en "te espera", con su "!" (6.4) */
+
+/* El recorte (muesca-avi-ux.md 5.1): 52 × 54, corta solo abajo (el alféizar o el borde de la pantalla).
+   Arriba deja 4 px para que la antena no se corte cuando el Avi sube. Todo lo del recorte va bajo
+   #muesca: la píldora de arrastre también tiene un .asoma */
+#muesca .asoma { position: absolute; left: 50%; bottom: 0; width: 52px; height: 54px; margin-left: -26px; overflow: hidden }
+body[data-borde="derecha"] #muesca .asoma, body[data-borde="izquierda"] #muesca .asoma { bottom: auto; top: 40px }
+/* El Avi de 66 que asoma: .alza lo sube y lo baja con el estado (CSS); adentro lo mueve el motor (JS) */
+#muesca .alza { position: absolute; left: -7px; top: 4px; width: 66px; height: 66px; transition: transform 280ms var(--ease) }
+#muesca .asoma .avi { position: absolute; left: 0; top: 0 }
+#muesca[data-modo="pregunta"] .alza { transform: translateY(-3px) }
+#muesca[data-modo="duerme"] .alza { transform: translateY(8px) }
+body.acoplada:not(.abierta) #muesca:hover .alza, body.acoplada:not(.abierta) #muesca:focus-visible .alza { transform: translateY(-6px) }
+/* Las manos se agarran del alféizar: hover, foco, pregunta, golpe y el final del cucú (.asoma.agarra) */
+#muesca .asir {
+  position: absolute; bottom: -4px; width: 12px; height: 10px; border-radius: 50%;
+  background: #F1E8D4; box-shadow: inset 0 -2.5px 0 #D6C8A6;
+  opacity: 0; transform: translateY(7px); transition: transform 260ms var(--rebote), opacity 160ms;
+}
+#muesca .asir.i { left: 3px }
+#muesca .asir.d { right: 3px }
+body.acoplada:not(.abierta) #muesca:hover .asir, body.acoplada:not(.abierta) #muesca:focus-visible .asir,
+#muesca[data-modo="pregunta"] .asir, body.golpe #muesca .asir, #muesca .asoma.agarra .asir { opacity: 1; transform: translateY(0) }
+/* Trabajando: su trabajo le ilumina la cara desde abajo (fija en .8 sin movimiento) */
+#muesca .asoma::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 70%; pointer-events: none;
+  background: radial-gradient(60% 100% at 50% 100%, rgba(242, 182, 50, .38), transparent 72%);
+  mix-blend-mode: screen; opacity: 0; transition: opacity .4s;
+}
+#muesca[data-modo="trabajando"] .asoma::after { opacity: .8 }
+/* A los costados, la línea del alféizar en y = 94 */
+#muesca .alfeizar { display: none; position: absolute; left: 50%; top: 94px; width: 38px; height: 1.5px; margin-left: -19px; border-radius: 1px; background: rgba(243, 235, 216, .16) }
+body[data-borde="derecha"] #muesca .alfeizar, body[data-borde="izquierda"] #muesca .alfeizar { display: block }
+/* Globo de pregunta: "!" con una, el número con varias ("2"…"9+"); ámbar con texto negro (11,5:1) */
+#muesca .excl {
+  position: absolute; display: none; place-items: center; left: calc(50% + 24px); top: 8px;
+  min-width: 17px; height: 17px; padding: 0 3px; box-sizing: border-box; border-radius: var(--r-pildora);
+  background: var(--ambar); color: var(--negro); font: 800 11.5px/1 var(--f); letter-spacing: -.03em; box-shadow: 0 0 0 2px #000;
+}
+body[data-borde="abajo"] #muesca .excl { top: 9px }
+body[data-borde="derecha"] #muesca .excl, body[data-borde="izquierda"] #muesca .excl { left: 0; right: 0; top: 14px; width: max-content; margin: 0 auto }
+#muesca[data-modo="pregunta"] .excl { display: grid }
+/* Chip de sesiones: sale de atrás del Avi solo con el mouse encima o el foco; sin sesiones no se dibuja */
+#muesca .cuenta {
+  position: absolute; right: calc(50% + 33px); bottom: 15px; padding: 3px 7px; border-radius: var(--r-pildora);
+  background: var(--s3); color: var(--crema); font: 500 10px/1 var(--m); font-stretch: 75%; white-space: nowrap;
+  opacity: 0; transform: translateX(10px) scale(.8); transition: opacity 160ms, transform 280ms var(--rebote);
+}
+#muesca .cuenta:empty { display: none }
+body[data-borde="abajo"] #muesca .cuenta { bottom: 11px }
+body[data-borde="derecha"] #muesca .cuenta, body[data-borde="izquierda"] #muesca .cuenta { right: auto; left: 50%; bottom: 12px; transform: translate(-50%, -8px) scale(.8) }
+body.acoplada:not(.abierta) #muesca:hover .cuenta, body.acoplada:not(.abierta) #muesca:focus-visible .cuenta { opacity: 1; transform: none }
+body[data-borde="derecha"].acoplada:not(.abierta) #muesca:hover .cuenta, body[data-borde="izquierda"].acoplada:not(.abierta) #muesca:hover .cuenta,
+body[data-borde="derecha"].acoplada:not(.abierta) #muesca:focus-visible .cuenta, body[data-borde="izquierda"].acoplada:not(.abierta) #muesca:focus-visible .cuenta { transform: translateX(-50%) }
+/* El Avi de la marca, recortado: sin los efectos de la pose (la burbuja la reemplaza .excl; las "z",
+   ondas y notebook no entran), párpados a .74 si trabaja y el bulbo apagado si duerme */
+#muesca .efectos { display: none }
+#muesca[data-modo="trabajando"] .parpado { transform-origin: 60px 70px; transform: scaleY(.74) }
+#muesca .halo { transform-origin: 50% 50% }
+#muesca[data-modo="duerme"] .bulbo { opacity: .45 }
+/* Entre golpes nada titila: el Avi queda quieto en "te espera" (6.4) */
 body:not(.pausa) #muesca .avi .e-teEspera .cuerpo, body:not(.pausa) #muesca .avi .e-teEspera .burbuja { animation: none }
 
 /* Luz de pregunta (7.1): franja ámbar de 3 px sobre el borde, fija a .75, con las puntas apagadas */
@@ -499,9 +589,11 @@ body.acoplada.pregunta:not(.abierta):not(.pildora) #luz {
 }
 body[data-borde="derecha"] #luz, body[data-borde="izquierda"] #luz { --luz-dir: 180deg }
 
-/* Píldora al arrastrar la muesca lejos de los bordes (7.3): el estilo de la tira mini */
+/* Píldora al arrastrar la muesca lejos de los bordes (7.3): el estilo de la tira mini. Sigue al
+   puntero adentro de la ventana quieta (--px, --py; PILDORA de muesca.js mide 184 × 48) */
 body.acoplada.pildora #pildora {
-  display: flex; align-items: center; gap: var(--e-4); position: fixed; inset: 0; padding: 0 var(--e-5) 0 var(--e-4);
+  display: flex; align-items: center; gap: var(--e-4); position: fixed; left: var(--px, 0); top: var(--py, 0); width: 184px; height: 48px;
+  box-sizing: border-box; padding: 0 var(--e-5) 0 var(--e-4); z-index: 3;
   background: var(--negro); border-radius: var(--r-pildora); cursor: grabbing; user-select: none; white-space: nowrap;
 }
 #pildora b { flex: 1; min-width: 0; font: 800 13.5px/1.25 var(--f); overflow: hidden; text-overflow: ellipsis }
@@ -529,22 +621,40 @@ body[data-iman="izquierda"] #aviso-iman { left: var(--e-6); top: 50%; transform:
 body.velada #muesca, body.velada #marco, body.velada #luz, body.velada #pildora,
 body.velada.acoplada.abierta::before, body.velada.acoplada.abierta::after { opacity: 0 !important; transition: none !important }
 
-/* Golpe de la pregunta (6.4), 1100 ms: la muesca se corre 6 px hacia el centro y vuelve, el Avi
-   salta una vez, la luz sube a 1 y el chip late. Sin movimiento o en pausa, no hay golpe */
+/* Golpe de la pregunta (6.4 y muesca-avi-ux.md 6), 480 ms: la muesca crece desde el borde
+   (transform-origin de #muesca, sin ranura con la pantalla), el Avi salta, el globo reaparece y la
+   luz sube a 1 (1100 ms). Movimiento de la muesca A: el globo, la luz de cara, el halo que late
+   trabajando y el Avi que se hunde al abrir y vuelve al cerrar. Sin movimiento o en pausa, nada de esto */
 @media (prefers-reduced-motion: no-preference) {
-  body.golpe:not(.pausa) #muesca { animation: golpe 520ms var(--rebote) 1 }
-  body.golpe:not(.pausa) #muesca .avi .e-teEspera .cuerpo { animation: salto var(--d-golpe) var(--ease) 1 }
+  body:not(.pausa) #muesca[data-modo="pregunta"] .excl { animation: popExcl 360ms var(--rebote) both }
+  body:not(.pausa) #muesca[data-modo="trabajando"] .asoma::after { opacity: 1; animation: resplandor 2.6s ease-in-out infinite }
+  body:not(.pausa) #muesca[data-modo="trabajando"] .halo { animation: late 1.6s ease-in-out infinite }
+  body.golpe:not(.pausa) #muesca { animation: golpe 480ms var(--ease) 1 }
+  body.golpe:not(.pausa) #muesca .alza { animation: saltoA 480ms var(--ease) 1 }
+  body.golpe:not(.pausa) #muesca .excl { animation: popGolpe 420ms var(--rebote) both }
   body.golpe:not(.pausa) #luz { animation: golpe-luz var(--d-golpe) ease-in-out 1 }
-  body.golpe:not(.pausa) #muesca .chip-preg { animation: latido var(--d-golpe) ease-in-out 1 }
   body.abriendo:not(.pausa) .rv { animation-delay: calc(var(--i, 0) * 40ms + 200ms) }
+  /* Al abrir el Avi se hunde detrás del alféizar; al cerrar vuelve hasta lo de su estado */
+  body.abriendo:not(.pausa) #muesca .alza { animation: hunde 200ms cubic-bezier(.5, 0, .75, 0) both }
+  body.muesca-vuelve:not(.pausa) #muesca .alza { animation: vuelve 320ms var(--rebote) both }
 }
-@keyframes golpe { 50% { transform: translate(var(--gx, 0px), var(--gy, 0px)) } }
+@keyframes golpe { 0% { transform: scale(1) } 28% { transform: scale(1.1) } 55% { transform: scale(.97) } 78% { transform: scale(1.025) } 100% { transform: scale(1) } }
+@keyframes saltoA { 0% { transform: translateY(-3px) } 30% { transform: translateY(-11px) } 60% { transform: translateY(-1px) } 100% { transform: translateY(-3px) } }
 @keyframes golpe-luz { 0%, 100% { opacity: .75 } 40% { opacity: 1 } }
-@keyframes latido { 0%, 100% { transform: scale(1) } 30% { transform: scale(1.18) } 60% { transform: scale(.96) } }
+/* Dos nombres para el mismo pop: cambiar solo la duración no reinicia una animación */
+@keyframes popExcl { from { transform: scale(.3); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+@keyframes popGolpe { from { transform: scale(.3); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+@keyframes resplandor { 0%, 100% { opacity: .55 } 50% { opacity: 1 } }
+@keyframes late { 0%, 100% { transform: scale(.8); opacity: .12 } 50% { transform: scale(1.35); opacity: .42 } }
+@keyframes hunde { to { transform: translateY(60%); opacity: .2 } }
+@keyframes vuelve { from { transform: translateY(60%); opacity: .2 } }
+/* Sin movimiento: hover, foco y pregunta muestran sus piezas al instante */
 @media (prefers-reduced-motion: reduce) {
   #muesca, #marco, body.acoplada:not(.pildora) #muesca, body.acoplada.muesca-oculta #muesca, body.acoplada.abierta::before, body.acoplada.abierta::after { transition: none }
+  #muesca .alza, #muesca .asir, #muesca .cuenta, #muesca .asoma::after { transition: none }
 }
 body.pausa #muesca, body.pausa #marco, body.pausa.acoplada:not(.pildora) #muesca, body.pausa.acoplada.muesca-oculta #muesca, body.pausa.acoplada.abierta::before, body.pausa.acoplada.abierta::after { transition: none }
+body.pausa #muesca .alza, body.pausa #muesca .asir, body.pausa #muesca .cuenta, body.pausa #muesca .asoma::after { transition: none }
 
 /* ------------------------------------------------------------------ entrada escalonada y cambio de proyecto (6.1 y 6.2)
    tableroMotion.js pone las clases y el índice (--i) y las saca al terminar */
@@ -552,15 +662,41 @@ body.pausa #muesca, body.pausa #marco, body.pausa.acoplada:not(.pildora) #muesca
   body:not(.pausa) .rv { animation: sube var(--d-entrada) var(--ease) both; animation-delay: calc(var(--i, 0) * var(--d-escalon) + 120ms) }
   body:not(.pausa) .principal.cambia { animation: cambia 240ms var(--ease) both }
   body:not(.pausa) .rv-ses { animation: sube var(--d-entrada) var(--ease) both; animation-delay: calc(var(--i, 0) * 40ms) }
+  /* La marca entra con "sube" y el Avi además con "entra" (marca-avi-ux.md 8) */
+  body:not(.pausa) .marca.rv .avi svg { animation: entra var(--d-entrada) var(--rebote) both; animation-delay: calc(var(--i, 0) * var(--d-escalon) + 120ms) }
 }
 @keyframes cambia { from { opacity: 0; transform: translateX(var(--desde, 0)) } }
+@keyframes entra { from { opacity: 0; transform: translateY(10px) scale(.8) } }
+
+/* ------------------------------------------------------------------ escenario (panel-avis-ux.md 8)
+   Los puntos de los hilos viajan con CSS (offset-path), así los frenan las mismas reglas de pausa
+   que a los Avis; con movimiento reducido o pausa no se ven. La entrada (.esc.entra, de
+   escenaMotion.js) encadena piso, Claude, elenco e hilos al retraso de su tarjeta (--base) */
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .hilo-pt { animation: viaja var(--d-viaje) cubic-bezier(.45, 0, .55, 1) infinite; animation-delay: calc(var(--k, 0) * var(--cada-hilo)) }
+  body:not(.pausa) .esc.entra .hilo-pt { animation: none }
+  body:not(.pausa) .esc.entra .piso { animation: tiende 420ms var(--ease) both; animation-delay: calc(var(--base, 0ms) + 80ms) }
+  body:not(.pausa) .esc.entra .esc-claude { animation: baja 360ms var(--rebote) both; animation-delay: calc(var(--base, 0ms) + 120ms) }
+  body:not(.pausa) .esc.entra .elenco > li { animation: brota 360ms var(--rebote) both; animation-delay: calc(var(--base, 0ms) + 200ms + var(--j, 0) * 50ms) }
+  body:not(.pausa) .esc.entra .hilos { animation: asoma 240ms ease both; animation-delay: calc(var(--base, 0ms) + var(--hilos, 0ms)) }
+  /* Un subagente nuevo (8.4): su Avi crece desde el piso y su hilo aparece después */
+  body:not(.pausa) .elenco > li.nuevo { animation: brota 360ms var(--rebote) both }
+  body:not(.pausa) .hilos path.nuevo { animation: asoma 240ms ease 480ms both }
+  body:not(.pausa) .hilo-pt.nuevo { animation-delay: calc(var(--k, 0) * var(--cada-hilo) + 720ms) }
+}
+.elenco > li { transform-origin: 50% 100% }
+@keyframes viaja { 0% { offset-distance: 0%; opacity: 0 } 12%, 85% { opacity: 1 } 100% { offset-distance: 100%; opacity: 0 } }
+@keyframes tiende { from { transform: scaleX(0) } }
+@keyframes baja { from { opacity: 0; transform: translateY(-8px) } }
+@keyframes brota { from { opacity: 0; transform: scale(.9) } }
+@keyframes asoma { from { opacity: 0 } }
 
 /* ------------------------------------------------------------------ movimiento reducido y pausa (6.5)
    Los Avis quedan quietos en su pose (avis.css) y no hay entradas */
 @media (prefers-reduced-motion: reduce) {
   #marco, .preg.entra, .hecho, .hecho.sale { animation: none }
-  .pj, .tb, .sub, .ses, .aviso, button.op, .btn, .preg-tab, .preg-otra input { transition: none }
-  .sub:hover { transform: none }
+  .pj, .tb, .esc .fig, .esc .fig .avi, .ses, .aviso, button.op, .btn, .preg-tab, .preg-otra input { transition: none }
+  .esc .sub:hover .fig { transform: none }
 }
 /* "Pausar animaciones" del menú de la bandeja: sin entradas */
 body.pausa #marco, body.pausa .preg.entra, body.pausa .hecho, body.pausa .hecho.sale { animation: none }
@@ -578,11 +714,11 @@ body.fuera *, body.fuera *::before, body.fuera *::after { animation-play-state: 
 /* 340 de marco: 338 de contenido más el borde */
 #marco.escenario #contenido { width: 338px; flex: 1 }
 #marco.escenario .lado, #marco.escenario .cab, #marco.escenario #vacio-avi, #marco.escenario #otro,
-#marco.escenario #w-globo, #marco.escenario .stats, #marco.escenario .sesiones { display: none }
+#marco.escenario #w-globo, #marco.escenario .conteos, #marco.escenario .sesiones { display: none }
 #marco.escenario .principal { width: 100%; height: 100%; padding: 0; margin: 0; overflow: hidden; scrollbar-gutter: auto }
 #marco.escenario #pp { flex: 1 1 auto; min-height: 0 }
 /* Con la hoja abierta, la hoja reemplaza a la pregunta (queda su aviso), los cuadros y las sesiones */
-#marco.con-hoja .stats, #marco.con-hoja .sesiones { display: none }
+#marco.con-hoja .conteos, #marco.con-hoja .sesiones { display: none }
 #marco.con-hoja #pp { flex: 1 0 auto; display: flex; flex-direction: column }
 #marco.con-hoja .pp.hoja { flex: 1 0 auto }
 .pp.hoja .pp-escena { flex: 1 0 auto }
@@ -757,4 +893,4 @@ body.pausa .pp-btn:active { transform: none }
 
 /* Las piezas mono son Martian Mono angosta. Va al final: el atajo `font` de cada pieza
    devuelve font-stretch a normal, así que esta regla tiene que ganar por orden. */
-.estado, .chip, .rot, .pie-w, .tag, .lleva, .est, .mas, .mas-c, .stat-error, .pj-ic, .ini, .sub b span, .compa-aviso, .resumen, .pend, .preg-modo, .preg-otra label, .preg-nota, .op .n, .recom { font-stretch: 75% }
+.estado, .chip, .rot, .pie-w, .tag, .lleva, .conteo, .conteo-err, .esc-nada, .esc .rotulo em, .mas-c, .pj-ic, .ini, .compa-aviso, .resumen, .pend, .preg-modo, .preg-otra label, .preg-nota, .op .n, .recom { font-stretch: 75% }

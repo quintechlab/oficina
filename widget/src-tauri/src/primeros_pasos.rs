@@ -573,7 +573,7 @@ pub struct Turno {
 impl Turno {
     pub fn empezar(&self, accion: Accion) -> Result<(), String> {
         if self.apagado.load(Ordering::SeqCst) {
-            return Err(String::from("la Oficina se está cerrando"));
+            return Err(String::from("Avis se está cerrando"));
         }
         let mut c = self.corriendo.lock().unwrap_or_else(PoisonError::into_inner);
         if c.is_some() {

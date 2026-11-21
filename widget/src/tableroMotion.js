@@ -5,7 +5,7 @@
 // animaciones" no hace nada: el contenido aparece al instante.
 
 /** Bloques que entran escalonados, en el orden del DOM (6.1). */
-const BLOQUES = ['.marca', '#proyectos > .pj', '.lado-pie', '.cab', '#otro > *', '#w-globo > *', '#cuadros > .stat', '#sesiones > .ses'].join(', ')
+const BLOQUES = ['.marca', '#proyectos > .pj', '.lado-pie', '.cab', '#otro > *', '#w-globo > *', '#conteos > .conteo', '#sesiones > .ses'].join(', ')
 
 const ENTRADA_MS = 620
 const ESCALON_MS = 65

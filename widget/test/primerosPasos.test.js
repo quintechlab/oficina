@@ -28,7 +28,7 @@ const accion = (paso, texto) => paso.acciones.find(a => a.texto === texto)
 
 test('los tres pasos, en orden, con su número y su nombre corto', () => {
   assert.deepEqual(PASOS.map(p => [p.id, p.n, p.nombre, p.corto]), [
-    ['claude', 1, 'Claude Code', 'Claude'], ['mod', 2, 'Mod de la Oficina', 'Mod'], ['gh', 3, 'GitHub', 'GitHub'],
+    ['claude', 1, 'Claude Code', 'Claude'], ['mod', 2, 'Mod de Avis', 'Mod'], ['gh', 3, 'GitHub', 'GitHub'],
   ])
 })
 
@@ -52,7 +52,7 @@ test('sin Claude Code: el paso 1 toca, saluda y ofrece la guía y volver a busca
   assert.equal(c.pose, 'saluda')
   assert.equal(c.chip, 'no encontrado')
   assert.equal(c.titulo, 'Primero, Claude Code')
-  assert.equal(c.texto, 'No lo encontramos en este equipo. La Oficina no puede instalarlo por vos: seguí la guía oficial y volvé acá.')
+  assert.equal(c.texto, 'No lo encontramos en este equipo. Avis no puede instalarlo por vos: seguí la guía oficial y volvé acá.')
   assert.deepEqual(c.acciones.map(a => [a.tipo, a.texto, a.accion, a.valor, !!a.externo]), [
     ['pri', 'Ver cómo instalarlo', 'abrir', 'guia-claude', true], ['sec', 'Volver a buscar', 'revisar', undefined, false],
   ])
@@ -71,7 +71,7 @@ test('el mod sin instalar: muestra los comandos que va a correr antes del clic',
   assert.equal(p.estado, 'pendiente')
   assert.equal(p.pose, 'saluda')
   assert.equal(p.chip, 'sin instalar')
-  assert.equal(p.titulo, 'Sumá la Oficina a Claude Code')
+  assert.equal(p.titulo, 'Sumá Avis a Claude Code')
   assert.deepEqual(p.extra, { tipo: 'comandos', lineas: ['claude plugin marketplace add quintechlab/oficina', 'claude plugin install oficina@quintech'] })
   assert.deepEqual(p.acciones.map(a => [a.tipo, a.texto, a.accion, a.valor]), [['pri', 'Instalar en Claude Code', 'correr', 'mod']])
   assert.equal(m.actual, 'mod')
@@ -343,11 +343,11 @@ test('aviso del tablero según el primer paso pendiente', () => {
 })
 
 test('la muesca no golpea: solo su nombre suma lo que falta', () => {
-  assert.equal(nombreMuesca('Oficina: 4 sesiones abiertas. Abrir', 1), 'Oficina: 4 sesiones abiertas. Falta 1 paso de configuración. Abrir')
-  assert.equal(nombreMuesca('Oficina: sin sesiones abiertas. Abrir', 3), 'Oficina: sin sesiones abiertas. Faltan 3 pasos de configuración. Abrir')
+  assert.equal(nombreMuesca('Avis: 4 sesiones abiertas. Abrir', 1), 'Avis: 4 sesiones abiertas. Falta 1 paso de configuración. Abrir')
+  assert.equal(nombreMuesca('Avis: sin sesiones abiertas. Abrir', 3), 'Avis: sin sesiones abiertas. Faltan 3 pasos de configuración. Abrir')
   // Sin nada pendiente (o sin revisar) el nombre de siempre
-  assert.equal(nombreMuesca('Oficina: 4 sesiones abiertas. Abrir', 0), 'Oficina: 4 sesiones abiertas. Abrir')
-  assert.equal(nombreMuesca('Oficina: 4 sesiones abiertas. Abrir', null), 'Oficina: 4 sesiones abiertas. Abrir')
+  assert.equal(nombreMuesca('Avis: 4 sesiones abiertas. Abrir', 0), 'Avis: 4 sesiones abiertas. Abrir')
+  assert.equal(nombreMuesca('Avis: 4 sesiones abiertas. Abrir', null), 'Avis: 4 sesiones abiertas. Abrir')
 })
 
 test('acoplada, el panel no se pliega solo mientras se pide el código, se muestra o se verifica', () => {
@@ -434,7 +434,7 @@ test('regla firme: ninguna acción se elige sola ni corre sin su clic (sin tempo
 test('un anuncio por cambio de estado, con los textos de la dirección', () => {
   const sin = modelo(revision({ mod: 'ausente' }))
   const instalando = modelo(revision({ mod: 'ausente' }), { ejec: alEmpezar(SIN_EJEC, 'mod') })
-  assert.equal(anuncioCambio(sin, instalando), 'Instalando el mod de la Oficina')
+  assert.equal(anuncioCambio(sin, instalando), 'Instalando el mod de Avis')
   assert.equal(anuncioCambio(instalando, instalando), '')
   const hecho = modelo(revision(), { ejec: trasRevision(alEvento(alEmpezar(SIN_EJEC, 'mod'), { accion: 'mod', paso: 'mod', estado: 'listo' }, AHORA), revision()) })
   assert.equal(anuncioCambio(instalando, hecho), 'Mod instalado')

@@ -7,7 +7,7 @@
 
 export const PASOS = [
   { id: 'claude', n: 1, nombre: 'Claude Code', corto: 'Claude' },
-  { id: 'mod', n: 2, nombre: 'Mod de la Oficina', corto: 'Mod' },
+  { id: 'mod', n: 2, nombre: 'Mod de Avis', corto: 'Mod' },
   { id: 'gh', n: 3, nombre: 'GitHub', corto: 'GitHub' },
 ]
 const ORDEN = PASOS.map(p => p.id)
@@ -57,7 +57,7 @@ function estadoClaude(r) {
   }
   return {
     estado: 'noEncontrado', pose: 'saluda', chip: 'no encontrado', titulo: 'Primero, Claude Code',
-    texto: 'No lo encontramos en este equipo. La Oficina no puede instalarlo por vos: seguí la guía oficial y volvé acá.',
+    texto: 'No lo encontramos en este equipo. Avis no puede instalarlo por vos: seguí la guía oficial y volvé acá.',
     acciones: [pri('Ver cómo instalarlo', 'abrir', 'guia-claude', { externo: true }), sec('Volver a buscar', 'revisar')],
   }
 }
@@ -65,14 +65,14 @@ function estadoClaude(r) {
 function estadoMod(r, e) {
   if (!r.claude?.encontrado) {
     return {
-      estado: 'bloqueado', pose: 'esperando', chip: 'espera el paso 1', titulo: 'Después, el mod de la Oficina',
+      estado: 'bloqueado', pose: 'esperando', chip: 'espera el paso 1', titulo: 'Después, el mod de Avis',
       texto: 'Se instala adentro de Claude Code, así que primero hace falta el paso 1.',
       acciones: [apagado('Instalar en Claude Code', 'correr', 'mod', 'Falta el paso 1: Claude Code.')],
     }
   }
   if (e && (e.fase === 'corriendo' || e.fase === 'verificando')) {
     return {
-      estado: 'trabajando', pose: 'escribiendo', chip: 'instalando', titulo: 'Instalando la Oficina en Claude Code',
+      estado: 'trabajando', pose: 'escribiendo', chip: 'instalando', titulo: 'Instalando Avis en Claude Code',
       texto: 'Tarda unos segundos. Podés dejar la ventana abierta.', extra: { tipo: 'registro', lineas: e.lineas },
     }
   }
@@ -98,7 +98,7 @@ function estadoMod(r, e) {
     }
   }
   return {
-    estado: 'pendiente', pose: 'saluda', chip: 'sin instalar', titulo: 'Sumá la Oficina a Claude Code',
+    estado: 'pendiente', pose: 'saluda', chip: 'sin instalar', titulo: 'Sumá Avis a Claude Code',
     texto: 'Agrega el catálogo quintech y el mod oficina para tu usuario. Tarda unos segundos.',
     // Lo que se acepta se dice antes (10): los comandos que van a correr
     extra: { tipo: 'comandos', lineas: m.catalogo ? [COMANDOS.instalar] : [COMANDOS.catalogo, COMANDOS.instalar] },
@@ -203,7 +203,7 @@ function estadoGh(r, e) {
   if (mb.estado === 'no-miembro') {
     return {
       estado: 'noMiembro', pose: 'fallo', chip: 'sin acceso', titulo: `Tu cuenta no es parte de ${ORGANIZACION}`,
-      texto: `Conectaste @${c.login}, pero la Oficina lee los datos del equipo desde la organización ${ORGANIZACION}.`,
+      texto: `Conectaste @${c.login}, pero Avis lee los datos del equipo desde la organización ${ORGANIZACION}.`,
       extra: {
         tipo: 'arreglo',
         pasos: [
@@ -426,7 +426,7 @@ function anuncioPaso(antes, p) {
   const de = antes.estado, a = p.estado
   if (p.id === 'claude' && a === 'hecho') return 'Claude Code encontrado'
   if (p.id === 'mod') {
-    if (a === 'trabajando') return 'Instalando el mod de la Oficina'
+    if (a === 'trabajando') return 'Instalando el mod de Avis'
     if (a === 'hecho') return 'Mod instalado'
     if (a === 'error') return `No se pudo instalar el mod: ${p.texto}`
   }

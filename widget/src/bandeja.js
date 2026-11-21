@@ -1,4 +1,4 @@
-// Ícono de Oficina (boceto docs/diseno/bocetos/iconos.html, opción B "Ficha ámbar"): ficha ámbar
+// Ícono de Avis (boceto docs/diseno/bocetos/iconos.html, opción B "Ficha ámbar"): ficha ámbar
 // redondeada con luz arriba a la izquierda, cabeza crema contorneada y foco rosa. La cuenta de
 // preguntas pendientes es una pastilla oscura con el número en ámbar. Grilla de 16×16: la bandeja
 // la dibuja a 2 px por celda (32×32) y scripts/icono.mjs la agranda para los íconos de la app.

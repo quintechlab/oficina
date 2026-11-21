@@ -33,6 +33,28 @@
 .avi .saludo { transform-origin: 30% 100%; transform: rotate(-8deg) }
 .avi .e-saluda .vaiven { opacity: 0 }
 
+/* Marca "Escenario" (docs/diseno/marca-avi-ux.md 5.3): el Avi de 112 con las capas que mueve
+   marcaMotion.js por atributo. La mirada va en view-box (no en fill-box como los demás Avis): su
+   transformación es un desplazamiento en unidades del viewBox. El brillo, con gradiente y sin filtro:
+   se mueve cada cuadro y el filtro se volvería a rasterizar. */
+.marca .avi { contain: layout }
+.avi .es-marca .mirada { transform-box: view-box; transform-origin: 0 0 }
+.avi .es-marca .brillo { fill: url(#gBrillo); opacity: 1; filter: none }
+.avi .es-marca .pico-i { fill: #DD9433 }
+.avi .es-marca .boca { fill: #3A1C10 }
+.avi .es-marca .e-fe, .avi .es-marca .e-ce, .avi .es-marca .zs { display: none }
+.avi .es-marca.o-fe .e-ab, .avi .es-marca.o-ce .e-ab { display: none }
+.avi .es-marca.o-fe .e-fe, .avi .es-marca.o-ce .e-ce, .avi .es-marca.siesta .zs { display: inline }
+
+/* Escenario de cada sesión (docs/diseno/panel-avis-ux.md 8.5 y 9.2): cada Avi repinta solo su caja
+   (sin contain: paint, que cortaría ondas y burbujas) y el brillo va con gradiente, sin filtro (el
+   filtro se vuelve a rasterizar en cada cuadro del cuerpo que respira). Las cabecitas de la pila
+   "+n" quedan quietas y sin "z". */
+.esc .avi { contain: layout }
+.esc .avi .brillo { fill: url(#gBrillo); opacity: 1; filter: none }
+.esc .mas .avi, .esc .mas .avi * { animation: none !important }
+.esc .mas .avi .z { display: none }
+
 @media (prefers-reduced-motion: no-preference) {
   /* Por defecto respiran y parpadean, cada uno con su desfase (--d) */
   body:not(.pausa) .avi .cuerpo { animation: respira 3.4s ease-in-out infinite var(--d, 0s) }
@@ -68,6 +90,10 @@
   body:not(.pausa) .avi .e-saluda.entra .vaiven { animation: vaiven 3s ease-out .5s both }
   /* En el asistente, el festejo es de 3 vueltas y queda quieto con ojos felices */
   body:not(.pausa) .pp .avi .e-listo .cuerpo, body:not(.pausa) .pp .avi .e-listo .chispa { animation-iteration-count: 3 }
+  /* Marca: con ojos contentos o cerrados no parpadea; en la siesta respira lento; "te vio" es un doble parpadeo */
+  body:not(.pausa) .avi .es-marca.o-fe .ojos, body:not(.pausa) .avi .es-marca.o-ce .ojos { animation: none }
+  body:not(.pausa) .avi .es-marca.siesta .cuerpo { animation: duerme 5.6s ease-in-out infinite }
+  body:not(.pausa) .avi.te-vio .es-marca:not(.o-fe):not(.o-ce) .ojos { animation: doble .5s ease-in-out }
 }
 /* Movimiento reducido o pausa: la mano en alto y los trazos de vaivén dibujados, quietos (como las "z") */
 @media (prefers-reduced-motion: reduce) { .avi .e-saluda .vaiven { opacity: 1 } }
@@ -76,6 +102,7 @@ body.pausa .avi .e-saluda .vaiven { opacity: 1 }
 @keyframes respira { 0%, 100% { transform: scale(1, 1) } 50% { transform: scale(1.03, .965) } }
 @keyframes duerme { 0%, 100% { transform: scale(1, 1) } 50% { transform: scale(1.045, .95) } }
 @keyframes parpadea { 0%, 91%, 97%, 100% { transform: scaleY(1) } 94% { transform: scaleY(.08) } }
+@keyframes doble { 0%, 40%, 100% { transform: scaleY(1) } 20%, 60% { transform: scaleY(.08) } 80% { transform: scaleY(1) } }
 @keyframes teclea { from { transform: translateY(0) } to { transform: translateY(1.5px) scale(1.01, .99) } }
 @keyframes tecla { from { transform: translateY(0) } to { transform: translateY(-3px) } }
 @keyframes titila { 0%, 100% { opacity: 1 } 50% { opacity: .45 } }

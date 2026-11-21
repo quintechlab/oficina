@@ -149,7 +149,7 @@ pub fn menu_tamano(actual: u32) -> (bool, bool, String) {
     (actual < ultimo, actual > primero, format!("Tamaño actual: {actual} %"))
 }
 
-/// Qué hacer cuando se abre Oficina con una ya abierta: nunca otra ventana, sino mostrar la que hay.
+/// Qué hacer cuando se abre Avis con una ya abierta: nunca otra ventana, sino mostrar la que hay.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Accion {
     /// Volver a expandir la tira mini.

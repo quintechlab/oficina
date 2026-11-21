@@ -7,9 +7,9 @@ import {
   BORDES, IMAN, HOMBRO, LUZ, HOLGURA, MARGEN_PANEL, ESPERA_ABRIR, ESPERA_CERRAR, CADA_GOLPE, PILDORA,
   esHorizontal, bordeCercano, lugarDe, lugarAjustado, rectMuesca, rectPanel, recorte, cajaArrastre, rectLuz, relativo,
   estadoMuesca, ESTADO_INICIAL, siguiente, tocaGolpe, dentroDe, posicionFlotante, contenidoMuesca, contenidoPildora,
-  disposicionAcoplada, zonaInteractiva, MARGEN_ZONA, eventoZona, planVentana, secuenciaVelo, ASIENTO_VELO_MS, REAPARECE_MS,
+  disposicionAcoplada, ventanaDeArea, mismoRect, zonaInteractiva, MARGEN_ZONA, eventoZona, TAM_MUESCA, tamMuescaDe, figuraMuesca, planVentana, secuenciaVelo, ASIENTO_VELO_MS, REAPARECE_MS,
 } from '../src/muesca.js'
-import { agruparPorProyecto } from '../src/logica.js'
+import { agruparPorProyecto, reposoPermitido } from '../src/logica.js'
 
 const AREA = { x: 0, y: 0, ancho: 1920, alto: 1040 }
 const TODOS = { arriba: true, derecha: true, abajo: true, izquierda: true }
@@ -237,29 +237,34 @@ const TABLERO = { ancho: 676, alto: 656 }
 const tamDe = borde => esHorizontal(borde) ? MUESCA_H : MUESCA_V
 const contiene = (fuera, r) => r.x >= fuera.x && r.y >= fuera.y && r.x + r.ancho <= fuera.x + fuera.ancho && r.y + r.alto <= fuera.y + fuera.alto
 
-test('acoplada, la ventana contiene la muesca cerrada (con hombros y luz) y el panel abierto, en los cuatro bordes', () => {
+test('acoplada, la ventana es el área de trabajo entera y contiene la muesca y el panel, en los cuatro bordes', () => {
   for (const borde of BORDES) {
     for (const lugar of [0, 0.3, 0.5, 1]) {
       const d = disposicionAcoplada({ borde, lugar }, tamDe(borde), TABLERO, AREA)
-      assert.ok(contiene(d.ventana, d.m), `${borde} ${lugar}: la muesca`)
-      assert.ok(contiene(d.ventana, d.p), `${borde} ${lugar}: el panel`)
-      // Sin un píxel de más: la ventana es la unión de los dos
-      assert.equal(d.ventana.x, Math.min(d.m.x, d.p.x))
-      assert.equal(d.ventana.y + d.ventana.alto, Math.max(d.m.y + d.m.alto, d.p.y + d.p.alto))
+      assert.deepEqual(d.ventana, ventanaDeArea(AREA), `${borde} ${lugar}`)
+      // La muesca negra y el tablero, enteros adentro (los hombros en una punta los corta la pantalla)
+      assert.ok(contiene(d.ventana, d.m.caja), `${borde} ${lugar}: la muesca`)
+      assert.ok(contiene(d.ventana, d.p.tablero), `${borde} ${lugar}: el panel`)
     }
   }
 })
 
-test('acoplada, abrir y cerrar no cambian la ventana: es la misma con la muesca cerrada y con el panel abierto', () => {
-  // La disposición no depende de si está abierta: un solo rectángulo para los dos estados
+test('acoplada, ni abrir, ni correr la muesca, ni cambiar de borde mueven la ventana (sin parpadeo al arrastrar)', () => {
   const d = disposicionAcoplada({ borde: 'arriba', lugar: 0.5 }, MUESCA_H, TABLERO, AREA)
-  assert.deepEqual(d.ventana, { x: 960 - 338 - HOMBRO, y: 0, ancho: 676 + 2 * HOMBRO, alto: 656 })
-  // Correr la muesca a lo largo del borde solo mueve la ventana, no le cambia el tamaño
-  const otra = disposicionAcoplada({ borde: 'arriba', lugar: 0.3 }, MUESCA_H, TABLERO, AREA)
-  assert.deepEqual([otra.ventana.ancho, otra.ventana.alto], [d.ventana.ancho, d.ventana.alto])
-  const der = disposicionAcoplada({ borde: 'derecha', lugar: 0.5 }, MUESCA_V, TABLERO, AREA)
-  const der2 = disposicionAcoplada({ borde: 'derecha', lugar: 0.7 }, MUESCA_V, TABLERO, AREA)
-  assert.deepEqual([der2.ventana.ancho, der2.ventana.alto], [der.ventana.ancho, der.ventana.alto])
+  const otra = disposicionAcoplada({ borde: 'arriba', lugar: 0.05 }, MUESCA_H, TABLERO, AREA)
+  const der = disposicionAcoplada({ borde: 'derecha', lugar: 0.9 }, MUESCA_V, TABLERO, AREA)
+  assert.ok(mismoRect(d.ventana, otra.ventana) && mismoRect(d.ventana, der.ventana))
+  assert.equal(planVentana(d.ventana, der.ventana), 'nada')
+  // Otro monitor sí la cambia
+  const otroMonitor = disposicionAcoplada({ borde: 'arriba', lugar: 0.5 }, MUESCA_H, TABLERO, { ...AREA, x: AREA.x + AREA.ancho })
+  assert.ok(!mismoRect(d.ventana, otroMonitor.ventana))
+})
+
+test('ventanaDeArea redondea el área; mismoRect compara en px enteros', () => {
+  assert.deepEqual(ventanaDeArea({ x: 0.4, y: 10.6, ancho: 1279.5, alto: 719.2 }), { x: 0, y: 11, ancho: 1280, alto: 719 })
+  assert.ok(mismoRect({ x: 1, y: 2, ancho: 3, alto: 4 }, { x: 1.2, y: 2, ancho: 3, alto: 4 }))
+  assert.ok(!mismoRect({ x: 1, y: 2, ancho: 3, alto: 4 }, { x: 1, y: 2, ancho: 3, alto: 5 }))
+  assert.ok(!mismoRect(null, { x: 1, y: 2, ancho: 3, alto: 4 }))
 })
 
 test('adentro de la ventana fija, la muesca toca el lado del borde donde está acoplada', () => {
@@ -287,7 +292,7 @@ test('adentro de la ventana fija, la muesca toca el lado del borde donde está a
 })
 
 test('zona interactiva: cerrada, la muesca con un margen; abierta, el tablero; arrastrando, toda la ventana', () => {
-  assert.ok(MARGEN_ZONA >= 6 && MARGEN_ZONA <= 8)
+  assert.equal(MARGEN_ZONA, 4)
   const d = disposicionAcoplada({ borde: 'arriba', lugar: 0.5 }, MUESCA_H, TABLERO, AREA)
   const c = d.m.caja
   assert.deepEqual(zonaInteractiva(d, { abierta: false }), { x: c.x - MARGEN_ZONA, y: c.y - MARGEN_ZONA, ancho: c.ancho + 2 * MARGEN_ZONA, alto: c.alto + 2 * MARGEN_ZONA, toda: false })
@@ -298,16 +303,46 @@ test('zona interactiva: cerrada, la muesca con un margen; abierta, el tablero; a
   assert.equal(zonaInteractiva(d, { abierta: false }, 2).x, c.x - 2 * MARGEN_ZONA)
 })
 
-test('zona interactiva cerrada: cubre la muesca corrida por el golpe (6 px) y no toma el panel escondido', () => {
-  for (const borde of BORDES) {
-    const d = disposicionAcoplada({ borde, lugar: 0.5 }, tamDe(borde), TABLERO, AREA)
-    const zona = zonaInteractiva(d, { abierta: false })
-    const c = d.m.caja
-    const corrida = { arriba: { ...c, y: c.y + 6 }, abajo: { ...c, y: c.y - 6 }, derecha: { ...c, x: c.x - 6 }, izquierda: { ...c, x: c.x + 6 } }[borde]
-    assert.ok(contiene(zona, corrida), borde)
-    // Lo que queda afuera de la zona deja pasar los clics: el panel escondido no los toma
-    assert.ok(!contiene(zona, d.p.tablero), borde)
+test('zona interactiva cerrada: la caja de la muesca + 4, sin hombros, contiene el hover (1,05 desde el borde)', () => {
+  for (const z of [1, 2]) {
+    for (const borde of BORDES) {
+      const tam = tamMuescaDe(borde, z)
+      const d = disposicionAcoplada({ borde, lugar: 0.5 }, tam, TABLERO, AREA, z)
+      const zona = zonaInteractiva(d, { abierta: false }, z)
+      const c = d.m.caja
+      assert.deepEqual(zona, { x: c.x - 4 * z, y: c.y - 4 * z, ancho: c.ancho + 8 * z, alto: c.alto + 8 * z, toda: false }, `${borde} ${z}`)
+      // Escala 1,05 con el origen en el centro del lado pegado al borde
+      const h = esHorizontal(borde)
+      const ancho = c.ancho * 1.05, alto = c.alto * 1.05
+      const crecida = {
+        arriba: { x: c.x - (ancho - c.ancho) / 2, y: c.y, ancho, alto },
+        abajo: { x: c.x - (ancho - c.ancho) / 2, y: c.y + c.alto - alto, ancho, alto },
+        derecha: { x: c.x + c.ancho - ancho, y: c.y - (alto - c.alto) / 2, ancho, alto },
+        izquierda: { x: c.x, y: c.y - (alto - c.alto) / 2, ancho, alto },
+      }[borde]
+      assert.ok(contiene(zona, crecida), `${borde} ${z}: el hover`)
+      // Sin hombros: el hombro de 16 queda afuera y deja pasar los clics
+      assert.ok(h ? zona.x > c.x - HOMBRO * z : zona.y > c.y - HOMBRO * z, `${borde} ${z}: sin hombros`)
+      // El panel escondido no toma clics
+      assert.ok(!contiene(zona, d.p.tablero), borde)
+    }
   }
+})
+
+test('tamaño de la muesca: 150 × 54 arriba y abajo, 62 × 140 a los costados, con el zoom', () => {
+  assert.deepEqual(TAM_MUESCA, { horizontal: { largo: 150, grosor: 54 }, vertical: { largo: 140, grosor: 62 } })
+  for (const borde of ['arriba', 'abajo']) {
+    assert.deepEqual(tamMuescaDe(borde), { largo: 150, grosor: 54 })
+    assert.deepEqual(tamMuescaDe(borde, 2), { largo: 300, grosor: 108 })
+  }
+  for (const borde of ['derecha', 'izquierda']) {
+    assert.deepEqual(tamMuescaDe(borde), { largo: 140, grosor: 62 })
+    assert.deepEqual(tamMuescaDe(borde, 2), { largo: 280, grosor: 124 })
+  }
+  // En pantalla: arriba la caja mide 150 de ancho y 54 de alto; a la derecha, 62 × 140
+  assert.deepEqual([rectMuesca({ borde: 'arriba', lugar: 0.5 }, tamMuescaDe('arriba'), AREA).caja.ancho, rectMuesca({ borde: 'arriba', lugar: 0.5 }, tamMuescaDe('arriba'), AREA).caja.alto], [150, 54])
+  const der = rectMuesca({ borde: 'derecha', lugar: 0.5 }, tamMuescaDe('derecha', 2), AREA, 2).caja
+  assert.deepEqual([der.ancho, der.alto], [124, 280])
 })
 
 // ------------------------------------------------------------------ estado y nombre (7.1, 7.2)
@@ -318,47 +353,77 @@ const ses = (sesion, repo, extra = {}) => ({ sesion, repo, inicio: hace(30), act
 const trabajando = { id: 'a1', nombre: 'Delfina', tarea: 'x', tipo: 'general-purpose', estado: 'trabajando', desde: hace(3), hasta: null }
 const pregunta = { id: 'toolu_1', agente: null, desde: hace(1), items: [{ pregunta: '¿Sí?', opciones: [{ etiqueta: 'Sí' }] }] }
 
-test('reposo: Avi esperando, punto crema y la cantidad de sesiones', () => {
+test('reposo: modo reposo, Avi esperando sin ocupar, la cantidad de sesiones y sin globo', () => {
   const p = agruparPorProyecto([ses('a', 'q/oficina'), ses('b', 'q/catalogo'), ses('c', 'q/catalogo'), ses('d', 'q/crm')])
   const e = estadoMuesca(p, AHORA)
-  assert.deepEqual({ animo: e.animo, punto: e.punto, chip: e.chip, pregunta: e.pregunta }, { animo: 'esperando', punto: 'crema', chip: '4', pregunta: false })
-  assert.equal(e.nombre, 'Oficina: 4 sesiones abiertas. Abrir')
+  assert.deepEqual({ modo: e.modo, animo: e.animo, ocupado: e.ocupado, sesiones: e.sesiones, globo: e.globo, pregunta: e.pregunta, chip: e.chip },
+    { modo: 'reposo', animo: 'esperando', ocupado: false, sesiones: 4, globo: '', pregunta: false, chip: '4' })
+  assert.equal(e.nombre, 'Avis: 4 sesiones abiertas. Abrir')
+  assert.ok(!('punto' in e) && !('chipNombre' in e), 'sin punto de estado ni nombre del chip')
+  // Sesiones inactivas (sin publicar hace rato) también son reposo: la muesca duerme solo sin sesiones
+  const dormidas = agruparPorProyecto([ses('a', 'q/oficina', { actividad: 'editando x', actualizado: hace(40) })])
+  assert.equal(estadoMuesca(dormidas, AHORA).modo, 'reposo')
+  assert.equal(estadoMuesca(agruparPorProyecto([ses('a', 'q/oficina')]), AHORA).nombre, 'Avis: 1 sesión abierta. Abrir')
 })
 
-test('trabajando: Avi coordinando, punto ámbar y cuántas sesiones trabajan', () => {
+test('trabajando: Avi esperando con ocupado (no coordinando) y "n de m sesiones trabajando"', () => {
   const p = agruparPorProyecto([ses('a', 'q/oficina', { agentes: [trabajando] }), ses('b', 'q/crm', { actividad: 'editando main.js' }), ses('c', 'q/crm')])
   const e = estadoMuesca(p, AHORA)
-  assert.deepEqual({ animo: e.animo, punto: e.punto, chip: e.chip }, { animo: 'coordinando', punto: 'ambar', chip: '3' })
-  assert.equal(e.nombre, 'Oficina: 2 sesiones trabajando. Abrir')
+  assert.deepEqual({ modo: e.modo, animo: e.animo, ocupado: e.ocupado, sesiones: e.sesiones, chip: e.chip }, { modo: 'trabajando', animo: 'esperando', ocupado: true, sesiones: 3, chip: '3' })
+  assert.equal(e.nombre, 'Avis: 2 de 3 sesiones trabajando. Abrir')
+  // Si trabajan todas, sin "de"
+  const todas = agruparPorProyecto([ses('a', 'q/oficina', { actividad: 'leyendo x' }), ses('b', 'q/crm', { actividad: 'pensando' })])
+  assert.equal(estadoMuesca(todas, AHORA).nombre, 'Avis: 2 sesiones trabajando. Abrir')
+  assert.equal(estadoMuesca(agruparPorProyecto([ses('a', 'q/oficina', { actividad: 'pensando' })]), AHORA).nombre, 'Avis: 1 sesión trabajando. Abrir')
 })
 
-test('pregunta: Avi te espera, punto ámbar, chip "1 ?" y el nombre dice quién pregunta y dónde', () => {
-  const p = agruparPorProyecto([ses('a', 'q/oficina'), ses('b', 'quintechlab/catalogo', { preguntas: [pregunta] })])
+test('trabajando es la lista de ANIMOS_DE_TRABAJO: una sesión esperando procesos o escribiendo cuenta', () => {
+  const procesos = agruparPorProyecto([ses('a', 'q/oficina', { procesos: [{ id: 'b1', descripcion: 'npm run dev', desde: hace(1) }] }), ses('b', 'q/crm')])
+  assert.equal(estadoMuesca(procesos, AHORA).modo, 'trabajando')
+  assert.equal(estadoMuesca(procesos, AHORA).nombre, 'Avis: 1 de 2 sesiones trabajando. Abrir')
+  const comando = agruparPorProyecto([ses('a', 'q/oficina', { actividad: 'corriendo npm test' })])
+  assert.equal(estadoMuesca(comando, AHORA).modo, 'trabajando')
+  // La muesca nunca dice "libre" mientras el reposo está prohibido, ni al revés
+  for (const lista of [procesos, comando, agruparPorProyecto([ses('a', 'q/oficina')])]) {
+    assert.equal(estadoMuesca(lista, AHORA).modo === 'reposo', reposoPermitido(lista, AHORA))
+  }
+})
+
+test('pregunta: Avi te espera, globo "!" y el nombre dice quién pregunta y dónde (como antes)', () => {
+  const p = agruparPorProyecto([ses('a', 'q/oficina', { actividad: 'editando x' }), ses('b', 'quintechlab/catalogo', { preguntas: [pregunta] })])
   const e = estadoMuesca(p, AHORA)
-  assert.deepEqual({ animo: e.animo, punto: e.punto, chip: e.chip, pregunta: e.pregunta, pendientes: e.pendientes }, { animo: 'teEspera', punto: 'ambar', chip: '1 ?', pregunta: true, pendientes: 1 })
-  assert.equal(e.nombre, 'Oficina: Claude te hace una pregunta en catalogo. Abrir')
-  assert.equal(e.chipNombre, '1 pregunta pendiente')
+  assert.deepEqual({ modo: e.modo, animo: e.animo, ocupado: e.ocupado, globo: e.globo, pregunta: e.pregunta, pendientes: e.pendientes, chip: e.chip },
+    { modo: 'pregunta', animo: 'teEspera', ocupado: false, globo: '!', pregunta: true, pendientes: 1, chip: '1 ?' })
+  assert.equal(e.nombre, 'Avis: Claude te hace una pregunta en catalogo. Abrir')
   const dos = agruparPorProyecto([ses('b', 'q/catalogo', { preguntas: [pregunta, { ...pregunta, id: 'toolu_2' }] })])
-  assert.equal(estadoMuesca(dos, AHORA).nombre, 'Oficina: 2 preguntas pendientes. Abrir')
+  assert.equal(estadoMuesca(dos, AHORA).nombre, 'Avis: 2 preguntas pendientes. Abrir')
+  assert.equal(estadoMuesca(dos, AHORA).globo, '2')
+  const nueve = agruparPorProyecto([ses('b', 'q/catalogo', { preguntas: Array.from({ length: 9 }, (_, k) => ({ ...pregunta, id: `t${k}` })) })])
+  assert.equal(estadoMuesca(nueve, AHORA).globo, '9')
+  const diez = agruparPorProyecto([ses('b', 'q/catalogo', { preguntas: Array.from({ length: 10 }, (_, k) => ({ ...pregunta, id: `t${k}` })) })])
+  assert.equal(estadoMuesca(diez, AHORA).globo, '9+')
 })
 
-test('sin sesiones o todas dormidas: punto tenue', () => {
-  assert.deepEqual([estadoMuesca([], AHORA).punto, estadoMuesca([], AHORA).chip], ['tenue', '0'])
-  assert.equal(estadoMuesca([], AHORA).nombre, 'Oficina: sin sesiones abiertas. Abrir')
-  const dormidas = agruparPorProyecto([ses('a', 'q/oficina', { actividad: 'editando x', actualizado: hace(40) })])
-  assert.equal(estadoMuesca(dormidas, AHORA).punto, 'tenue')
-  assert.equal(estadoMuesca(agruparPorProyecto([ses('a', 'q/oficina')]), AHORA).nombre, 'Oficina: 1 sesión abierta. Abrir')
+test('sin sesiones: duerme, Avi durmiendo, sin cuenta ni globo', () => {
+  const e = estadoMuesca([], AHORA)
+  assert.deepEqual({ modo: e.modo, animo: e.animo, ocupado: e.ocupado, sesiones: e.sesiones, globo: e.globo, chip: e.chip }, { modo: 'duerme', animo: 'durmiendo', ocupado: false, sesiones: 0, globo: '', chip: '0' })
+  assert.equal(e.nombre, 'Avis: sin sesiones abiertas. Abrir')
 })
 
-test('adentro de la muesca: el Avi de Claude que asoma, el punto y el chip, todo decorativo', () => {
-  const p = agruparPorProyecto([ses('b', 'q/catalogo', { preguntas: [pregunta] })])
-  const html = contenidoMuesca(estadoMuesca(p, AHORA))
-  assert.match(html, /^<span class="asoma"><span class="avi" style="--t:44px[^"]*" aria-hidden="true"><svg viewBox="0 0 120 120" class="e-teEspera"/)
-  assert.match(html, /<span class="pt pt-ambar" aria-hidden="true"><\/span>/)
-  assert.match(html, /<span class="chip chip-preg" aria-hidden="true">1 \?<\/span>$/)
-  assert.doesNotMatch(html, /role="img"/)
+test('adentro de la muesca: armazón decorativo con #muesca-avi, dos manos, globo, alféizar y cuenta; sin punto ni chip fijo', () => {
+  const html = contenidoMuesca()
+  assert.equal(html, '<span class="cuenta" aria-hidden="true"></span><span class="alfeizar" aria-hidden="true"></span>'
+    + '<span class="asoma" aria-hidden="true"><span class="alza" id="muesca-avi"></span><i class="asir i"></i><i class="asir d"></i></span>'
+    + '<span class="excl" aria-hidden="true">!</span>')
+  assert.doesNotMatch(html, /class="pt|class="chip|role="img"/)
+  // El Avi lo dibuja el motor: el de la marca, de 66, sin nombre (el botón lleva el nombre entero)
+  assert.match(figuraMuesca('esperando'), /^<span class="avi" style="--t:66px[^"]*" aria-hidden="true"><svg viewBox="0 0 120 120" class="e-esperando es-marca"/)
+  // La píldora de arrastre sigue igual: Avi de 44, "Avis" y chip
   const pildora = contenidoPildora(estadoMuesca([], AHORA))
-  assert.match(pildora, /<b>Oficina<\/b><span class="chip">0<\/span>$/)
+  assert.match(pildora, /^<span class="asoma"><span class="avi" style="--t:44px/)
+  assert.match(pildora, /<b>Avis<\/b><span class="chip">0<\/span>$/)
+  const conPregunta = contenidoPildora(estadoMuesca(agruparPorProyecto([ses('b', 'q/catalogo', { preguntas: [pregunta] })]), AHORA))
+  assert.match(conPregunta, /<span class="chip chip-preg">1 \?<\/span>$/)
 })
 
 // ------------------------------------------------------------------ abrir y cerrar (7.2)

@@ -1,6 +1,7 @@
 // Tablero del estilo Avis (docs/diseno/estilo-avis-ux.md, opción A): barra de proyectos,
-// encabezado, cuadros de conteo, tarjetas de sesión con sus fichas de subagente, equipo, vacío y
-// tira mini. Arma texto HTML a partir de los datos reales; todo texto que viene de una sesión se escapa.
+// encabezado, chips de conteo y tarjetas escenario con su elenco (docs/diseno/panel-avis-ux.md,
+// "Escenario + chips"), equipo, vacío y tira mini. Arma texto HTML a partir de los datos reales;
+// todo texto que viene de una sesión se escapa.
 
 import { avi, CLAUDE } from './avis.js'
 import {
@@ -42,13 +43,15 @@ export function prepararProyecto(proyecto, ahoraMs) {
 }
 
 /**
- * Subagentes con ficha (hasta MAX_SUBAGENTES_VISIBLES), los que quedan afuera y cuántos son
- * ("+n"). Se eligen por prioridad (pregunta, trabajo, falló, listo, durmiendo) y se muestran en
- * el orden en que se lanzaron, para que no salten de lugar.
+ * Subagentes que se ven, los que quedan afuera y cuántos son ("+n"). Hasta
+ * MAX_SUBAGENTES_VISIBLES van todos; con más, se ven `conMas` (el escenario usa 3 y la pila; el
+ * pie del equipo, 4). Se eligen por prioridad (pregunta, trabajo, falló, listo, durmiendo) y se
+ * muestran en el orden en que se lanzaron, para que no salten de lugar.
  */
-export function subagentesVisibles(sub) {
+export function subagentesVisibles(sub, { conMas = MAX_SUBAGENTES_VISIBLES } = {}) {
+  const cupo = sub.length <= MAX_SUBAGENTES_VISIBLES ? sub.length : conMas
   const orden = [...sub].sort((a, b) => (ORDEN_ANIMO[a.animo] ?? 5) - (ORDEN_ANIMO[b.animo] ?? 5))
-  const elegidos = new Set(orden.slice(0, MAX_SUBAGENTES_VISIBLES).map(a => a.id))
+  const elegidos = new Set(orden.slice(0, cupo).map(a => a.id))
   const ocultos = sub.filter(a => !elegidos.has(a.id))
   return { visibles: sub.filter(a => elegidos.has(a.id)), ocultos, resto: ocultos.length }
 }
@@ -56,6 +59,14 @@ export function subagentesVisibles(sub) {
 /** Firma de lo que se ve de las sesiones: si no cambia, no se redibuja (y no se cortan las animaciones). */
 export function firmaTablero(preparadas) {
   return preparadas.map(({ s, animo, sub }) => [s.sesion, s.tarea, s.rama, animo, (s.procesos ?? []).map(p => p.id).join(','), ...sub.map(a => `${a.id}:${a.nombre}:${a.animo}`)].join('|')).join('/')
+}
+
+/**
+ * Firma de las tarjetas escenario de un proyecto. No lleva el minuto: el tiempo que pasa se
+ * reescribe en su lugar (los `data-vivo`), sin redibujar ni reiniciar los bucles ni los hilos.
+ */
+export function firmaEscenas(repo, preparadas) {
+  return `${repo}/${firmaTablero(preparadas)}`
 }
 
 /** Color de la línea de estado y del estado de un subagente (dirección, tabla 5.4). */
@@ -101,14 +112,17 @@ export function animoMarca(proyectos, ahoraMs) {
   return 'esperando'
 }
 
-/** "4 sesiones abiertas" debajo de "Oficina". */
+/** "4 sesiones abiertas" debajo de "Avis". */
 export function estadoMarca(n) {
   return plural(n, 'sesión abierta', 'sesiones abiertas')
 }
 
-/** El Avi de Claude de 38 de la marca (4.2): está solo, así que lleva nombre y estado. */
+/**
+ * El Avi de Claude de 112 de la marca "Escenario" (marca-avi-ux.md 3), con las capas que mueve
+ * marcaMotion.js. Está solo, así que lleva nombre y estado: el ánimo real, nunca el juego.
+ */
 export function figuraMarca(animo) {
-  return avi(CLAUDE, animo, 38, { alt: `Claude, ${ANIMO[animo] ?? animo}` })
+  return avi(CLAUDE, animo, 112, { alt: `Claude, ${ANIMO[animo] ?? animo}`, marca: true })
 }
 
 /** Una fila por proyecto (reemplaza a ◀ ▶). `i`: el proyecto activo. */
@@ -125,7 +139,7 @@ export function barraProyectos(proyectos, i) {
 
 // ------------------------------------------------------------------ columna principal
 
-/** Los números de los cuadros de conteo, de datos que ya existen. */
+/** Los números de los chips de conteo, de datos que ya existen. */
 export function conteos(preparadas, ahoraMs) {
   const subs = preparadas.flatMap(p => p.sub)
   const masVieja = preparadas.map(p => p.s.inicio).filter(i => i && !Number.isNaN(Date.parse(i)))
@@ -147,14 +161,37 @@ export function lineaEncabezado(preparadas, c) {
   return n
 }
 
-/** Los tres cuadros de conteo: trabajando, terminados y tiempo. La cifra es texto real. */
-export function cuadros(c) {
-  const cuadro = (color, cifra, rotulo, aria, extra = '') =>
-    `<div class="stat" role="group" aria-label="${escapar(aria)}"><i class="ico" style="--c:${color}" aria-hidden="true"></i><b aria-hidden="true">${escapar(cifra)}</b><small aria-hidden="true">${escapar(rotulo)}</small>${extra}</div>`
-  const error = c.fallidos ? `<span class="stat-error" aria-hidden="true">${c.fallidos} con error</span>` : ''
-  return cuadro('var(--ambar)', String(c.trabajando), 'trabajando', plural(c.trabajando, 'subagente trabajando', 'subagentes trabajando'))
-    + cuadro('var(--verde)', String(c.terminados), 'terminados', plural(c.terminados, 'subagente terminado', 'subagentes terminados') + (c.fallidos ? `, ${c.fallidos} con error` : ''), error)
-    + cuadro('var(--violeta)', c.tiempo, c.rotuloTiempo, `${c.rotuloTiempo === 'lleva la sesión' ? 'La sesión lleva' : 'La sesión más larga lleva'} ${c.tiempo}`)
+/**
+ * La cifra de un chip, escapada, con las palabras ("h", "min") más chicas que los números, para
+ * que "11 h 37 min" se lea como cifra sin desbordar.
+ */
+export function cifraConUnidades(cifra) {
+  // Se parte el texto crudo y se escapa cada trozo: marcar después de escapar tocaría las entidades
+  return String(cifra).split(/([a-záéíóúñ]+)/i)
+    .map((t, k) => (k % 2 ? `<span class="u">${escapar(t)}</span>` : escapar(t))).join('')
+}
+
+/** En el chip, con horas los minutos van como "m": "18 h 43 m" (el nombre accesible dice "min"). */
+export const tiempoCorto = t => String(t).replace(/^(\d+ h \d+) min$/, '$1 m')
+
+/** El reloj de 11 del chip del tiempo (trazo violeta en estilos.css). */
+const RELOJ = '<svg class="reloj" width="11" height="11" viewBox="0 0 12 12" focusable="false" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><path d="M6 3.4V6l1.8 1.2"/></svg>'
+
+/**
+ * La fila de chips de conteo (panel-avis-ux.md 4): trabajando, terminados (con "· N con error") y
+ * el tiempo. Cada chip es un grupo con el nombre accesible de siempre; lo visible va aria-hidden.
+ */
+export function chips(c) {
+  const chip = (aria, contenido) => `<div class="conteo" role="group" aria-label="${escapar(aria)}">${contenido}</div>`
+  const punto = color => `<i class="conteo-pt" style="--c:${color}" aria-hidden="true"></i>`
+  const cifra = t => `<b aria-hidden="true">${cifraConUnidades(t)}</b>`
+  const rotulo = t => `<span aria-hidden="true">${escapar(t)}</span>`
+  const error = c.fallidos ? `<span class="conteo-err" aria-hidden="true">· <b>${c.fallidos}</b> con error</span>` : ''
+  const lleva = c.rotuloTiempo === 'lleva la sesión'
+  return chip(plural(c.trabajando, 'subagente trabajando', 'subagentes trabajando'), punto('var(--ambar)') + cifra(String(c.trabajando)) + rotulo('trabajando'))
+    + chip(plural(c.terminados, 'subagente terminado', 'subagentes terminados') + (c.fallidos ? `, ${c.fallidos} con error` : ''),
+      punto('var(--verde)') + cifra(String(c.terminados)) + rotulo(c.terminados === 1 ? 'terminado' : 'terminados') + error)
+    + chip(`${lleva ? 'La sesión lleva' : 'La sesión más larga lleva'} ${c.tiempo}`, RELOJ + cifra(tiempoCorto(c.tiempo)) + rotulo(lleva ? 'lleva' : 'la más larga'))
 }
 
 /** Un subagente dormido conserva su estado: "listo" o "falló". */
@@ -166,32 +203,127 @@ export function textoMas(ocultos) {
   return `${plural(ocultos.length, 'subagente más', 'subagentes más')}: ` + ocultos.map(a => `${a.nombre} — ${a.tarea} (${textoEstado(a)})`).join('; ')
 }
 
-/** Ficha de un subagente con su Avi de 40. Dormido se atenúa solo el Avi, nunca el texto. */
-function ficha(a, ahoraMs, indice) {
-  const tipo = a.inventado && a.tipo ? `<span>${escapar(a.tipo)}</span>` : ''
-  return `<li class="sub${a.animo === 'durmiendo' ? ' dorm' : ''}" style="--c:${a.color};--ce:${colorEstado(estadoLista(a))}">${avi(a, a.animo, 40, { indice })}<b>${escapar(a.nombre)}${tipo}</b><small title="${escapar(a.tarea)}">${escapar(a.tarea)}</small><span class="est">${escapar(textoEstado(a))} · ${escapar(tiempoSubagente(a, ahoraMs))}</span></li>`
+// ------------------------------------------------------------------ escenario (panel-avis-ux.md 5)
+
+/** Medidas del escenario en px (5.2): la fuente única de las posiciones; el CSS solo da la caja. */
+export const ESCENA = { ancho: 408, piso: 98, claude: { t: 96, x: 2 }, x0: 110, zona: 298, ranuraMax: 112, sub: 58, pila: 36 }
+/** Subagentes visibles cuando no entran todos: el cuarto lugar es la pila "+n" (5.4). */
+const CON_PILA = 3
+/** Cabecitas de la pila, como mucho. */
+const MAX_CABEZAS = 3
+/** De la caja de un Avi a sus pies (y 104 de 120) y a su coronilla (destino del hilo). */
+const pie = t => Math.round(t * 0.867)
+const coronilla = t => Math.round(t * 0.26)
+
+/**
+ * Posiciones del escenario con `k` lugares en el elenco (los visibles, más la pila si hay).
+ * `pila`: cuántos quedan en la pila; entonces el último lugar es la pila y no una ranura.
+ */
+export function geometriaEscena(k, { pila = 0 } = {}) {
+  const E = ESCENA
+  const claude = { t: E.claude.t, x: E.claude.x, y: E.piso - pie(E.claude.t) }
+  const foco = { x: claude.x + claude.t / 2, y: claude.y + Math.round(claude.t * 14 / 120) }
+  const ancho = k ? Math.min(E.ranuraMax, Math.floor(E.zona / k)) : 0
+  const yAvi = E.piso - pie(E.sub)
+  const destinoY = yAvi + coronilla(E.sub)
+  const n = pila ? k - 1 : k
+  const ranuras = Array.from({ length: n }, (_, j) => {
+    const x = E.x0 + j * ancho
+    const avi = { x: x + (ancho - E.sub) / 2, y: yAvi }
+    return { x, ancho, avi, destino: { x: avi.x + E.sub / 2, y: destinoY } }
+  })
+  if (!pila) return { claude, foco, ranuras, pila: null }
+  const x = E.x0 + n * ancho
+  const m = Math.min(pila, MAX_CABEZAS)
+  const paso = m > 1 ? Math.min(24, Math.floor((ancho - 44) / (m - 1))) : 0
+  const cabezas = Array.from({ length: m }, (_, i) => ({ x: 4 + i * paso, y: i % 2 ? 8 : 2 }))
+  // La caja de la pila arranca 46 px arriba del piso y mide 52 (cubre las cabecitas)
+  return { claude, foco, ranuras, pila: { x, y: E.piso - 46, ancho, alto: 52, cabezas, destino: { x: x + ancho / 2, y: destinoY } } }
+}
+
+/** El trazo de un hilo: de la antena a la coronilla, con el control 24 px arriba del más alto. */
+export function trazoHilo(desde, hasta) {
+  return `M${desde.x} ${desde.y} Q${(desde.x + hasta.x) / 2} ${Math.min(desde.y, hasta.y) - 24} ${hasta.x} ${hasta.y}`
+}
+
+/** Verbo corto del estado en el rótulo del elenco (5.4). */
+export const ESTADO_CORTO = { escribiendo: 'escribe', comando: 'escribe', comiendo: 'escribe', editando: 'escribe', leyendo: 'lee', teEspera: 'pregunta', listo: 'listo', reposo: 'listo', fallo: 'falló', esperando: 'espera', inactiva: 'inactiva' }
+
+/** El tiempo de `tiempoSubagente` en mínimo: "5m", "2h5m", "2h", "<1m" (sin "hace"). */
+export function tiempoMini(texto) {
+  const t = String(texto).replace(/^hace /, '')
+  if (t === 'menos de 1 min') return '<1m'
+  return t.replace(/\s*h\s*/, 'h').replace(/\s*min$/, 'm')
+}
+
+/** "escribe 5m", "listo 8m", "pregunta <1m": lo que entra debajo de un Avi de 58. */
+export function estadoCorto(a, ahoraMs) {
+  return `${ESTADO_CORTO[estadoLista(a)] ?? textoEstado(a)} ${tiempoMini(tiempoSubagente(a, ahoraMs))}`
 }
 
 /**
- * Tarjeta de una sesión: el Avi de Claude de 56 en el estado de la sesión. El dato no trae el
- * título de la tarea: hasta que se decida (dirección 4.4) el título es la rama, y la línea mono
- * de la rama no se repite. `k`: posición de la tarjeta (desfase de los Avis).
+ * Un subagente en su ranura: el Avi de 58 parado en el piso y el rótulo de 3 líneas (nombre, tarea
+ * y estado corto). El estado completo y el tipo de un nombre inventado van en el `title` y en texto
+ * oculto. Dormido se atenúa solo el Avi (estilos.css), nunca el texto. `j`: orden en la entrada.
+ */
+function figuraSub(a, ahoraMs, indice, ranura, j) {
+  const estado = `${textoEstado(a)} · ${tiempoSubagente(a, ahoraMs)}`
+  const tipo = a.inventado && a.tipo ? ` (${a.tipo})` : ''
+  const titulo = `${a.nombre}${tipo} — ${a.tarea} (${estado})`
+  return `<li class="sub${a.animo === 'durmiendo' ? ' dorm' : ''}" style="left:${ranura.x}px;width:${ranura.ancho}px;--c:${a.color};--ce:${colorEstado(estadoLista(a))};--j:${j}" title="${escapar(titulo)}" data-id="${escapar(a.id)}">`
+    + `<span class="fig" style="left:${ranura.avi.x - ranura.x}px">${avi(a, a.animo, ESCENA.sub, { indice })}</span>`
+    + `<span class="rotulo"><b>${escapar(a.nombre)}${tipo ? `<span class="oculto">${escapar(tipo)}</span>` : ''}</b>`
+    + `<span class="tarea">${escapar(a.tarea)}</span>`
+    + `<em aria-hidden="true" data-vivo>${escapar(estadoCorto(a, ahoraMs))}</em><span class="oculto" data-vivo>${escapar(estado)}</span></span></li>`
+}
+
+/**
+ * La pila "+n" (5.4): cabecitas de 36 dormidas y quietas, "+2 terminados" o "+2 más". No es un
+ * control: quiénes son va en el `title` y en texto oculto.
+ */
+function pilaMas(ocultos, pila, j) {
+  const texto = textoMas(ocultos)
+  const terminados = ocultos.every(a => a.estado === 'listo' || a.estado === 'fallo')
+  const cabezas = ocultos.slice(0, pila.cabezas.length)
+    .map((a, i) => `<span class="cab-p" style="left:${pila.cabezas[i].x}px;top:${pila.cabezas[i].y}px">${avi(a, 'durmiendo', ESCENA.pila)}</span>`).join('')
+  return `<li class="mas" style="left:${pila.x}px;width:${pila.ancho}px;--j:${j}" title="${escapar(texto)}">`
+    + `<span class="pila" aria-hidden="true">${cabezas}</span>`
+    + `<span class="rotulo" aria-hidden="true"><b>+${ocultos.length}</b><span>${terminados ? 'terminados' : 'más'}</span></span>`
+    + `<span class="oculto">${escapar(texto)}</span></li>`
+}
+
+/**
+ * El escenario de una sesión (5.1): el piso, Claude de 96 con su antena, el elenco y los hilos de
+ * coordinación hacia los que trabajan (5.5). Sin subagentes, más bajo y "sin subagentes".
+ */
+function escena(animo, sub, ahoraMs, base) {
+  const { visibles, ocultos, resto } = subagentesVisibles(sub, { conMas: CON_PILA })
+  const g = geometriaEscena(visibles.length + (resto ? 1 : 0), { pila: resto })
+  const piso = '<div class="piso" aria-hidden="true"></div>'
+  const claude = `<div class="esc-claude" style="left:${g.claude.x}px;top:${g.claude.y}px">${avi(CLAUDE, animo, g.claude.t, { indice: base })}</div>`
+  if (!sub.length) return `<div class="esc solo">${piso}${claude}<p class="esc-nada">sin subagentes</p></div>`
+  const hilos = visibles.map((a, j) => a.estado === 'trabajando' && { d: trazoHilo(g.foco, g.ranuras[j].destino), id: a.id }).filter(Boolean)
+  if (resto && ocultos.some(a => a.estado === 'trabajando')) hilos.push({ d: trazoHilo(g.foco, g.pila.destino), id: 'pila' })
+  const elenco = visibles.map((a, j) => figuraSub(a, ahoraMs, base + 1 + j, g.ranuras[j], j)).join('') + (resto ? pilaMas(ocultos, g.pila, visibles.length) : '')
+  const trazos = hilos.length ? `<svg class="hilos" aria-hidden="true">${hilos.map(h => `<path d="${h.d}" data-id="${escapar(h.id)}"/>`).join('')}</svg>` : ''
+  const puntos = hilos.map((h, k) => `<i class="hilo-pt" style="offset-path:path('${h.d}');--k:${k}" data-id="${escapar(h.id)}" aria-hidden="true"></i>`).join('')
+  return `<div class="esc">${piso}${claude}<ul class="elenco" aria-label="Subagentes">${elenco}</ul>${trazos}${puntos}</div>`
+}
+
+/**
+ * Tarjeta escenario de una sesión (5.1). El dato no trae el título de la tarea: el título es la
+ * rama, en una línea con el `title` entero. Los textos que cambian con el tiempo llevan `data-vivo`
+ * (main.js los reescribe en su lugar). `k`: posición de la tarjeta (desfase de los Avis).
  */
 function tarjeta({ s, animo, sub }, ahoraMs, k) {
   const base = k * AVIS_POR_TARJETA
   const tag = s.tarea ? `<span class="tag">#${escapar(s.tarea)}</span>` : '<span class="tag sin">sin tarea</span>'
-  const titulo = s.rama ? `<b${s.tarea ? '' : ' class="sin"'}>${escapar(s.rama)}</b>` : ''
-  const lleva = s.inicio ? `<span class="lleva"><span class="oculto">lleva </span>${escapar(tiempoRelativo(s.inicio, ahoraMs))}</span>` : ''
-  let h = `<article class="ses"><div class="ses-top">${avi(CLAUDE, animo, 56, { indice: base })}<div class="ses-t">`
-  h += `<h3 class="ses-tit">${tag}${titulo}</h3>`
-  h += `<p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span>${escapar(textoActividad(s, ahoraMs))}</p>`
-  h += `</div>${lleva}</div>`
-  if (sub.length) {
-    const { visibles, ocultos, resto } = subagentesVisibles(sub)
-    const mas = resto ? `<li class="mas" title="${escapar(textoMas(ocultos))}" aria-label="${escapar(textoMas(ocultos))}">+${resto}</li>` : ''
-    h += `<ul class="subs" aria-label="Subagentes">${visibles.map((a, j) => ficha(a, ahoraMs, base + 1 + j)).join('')}${mas}</ul>`
-  }
-  return h + '</article>'
+  const titulo = s.rama ? `<b${s.tarea ? '' : ' class="sin"'} title="${escapar(s.rama)}">${escapar(s.rama)}</b>` : ''
+  const lleva = s.inicio ? `<span class="lleva"><span class="oculto">lleva </span><span data-vivo>${escapar(tiempoRelativo(s.inicio, ahoraMs))}</span></span>` : ''
+  return `<article class="ses"><div class="ses-cab"><h3 class="ses-tit">${tag}${titulo}</h3>${lleva}</div>`
+    + `<p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span><span data-vivo>${escapar(textoActividad(s, ahoraMs))}</span></p>`
+    + escena(animo, sub, ahoraMs, base)
+    + '</article>'
 }
 
 /** Las tarjetas de sesión del proyecto, en el orden de `agruparPorProyecto`. */

@@ -435,7 +435,7 @@ mod procesos {
         assert!(!r.exito && r.matado);
         assert!(inicio.elapsed() < Duration::from_secs(10));
         t.terminar();
-        assert_eq!(t.empezar(Accion::Mod).unwrap_err(), "la Oficina se está cerrando");
+        assert_eq!(t.empezar(Accion::Mod).unwrap_err(), "Avis se está cerrando");
         // Sin paso corriendo, salir no falla
         assert!(Turno::default().apagar().is_ok());
     }

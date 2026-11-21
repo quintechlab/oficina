@@ -1,4 +1,6 @@
-# Oficina · Quintech Studio
+# Avis · Quintech Studio
+
+> Antes se llamaba **Oficina**. Cambió el nombre visible (ventana, bandeja, instalador, menú Inicio, panel y el comando `/avis`); por dentro siguen el repositorio `oficina`, el mod `oficina` (`/oficina` sigue andando), las carpetas `~/.claude/oficina` y el identificador `studio.quintech.oficina`, así nada instalado se rompe. El instalador nuevo reemplaza a la Oficina (mismo código de actualización).
 
 Panel para Claude Code que muestra, en vivo, en qué está cada integrante del equipo: proyecto, rama, número de tarea, desde cuándo, horas cargadas, PRs abiertos con el estado del CI y archivos que los dos tocan a la vez. Es la "oficina" de Quintana y Campos: cada uno lo instala en su máquina y entra con su propia cuenta de GitHub.
 
@@ -87,8 +89,8 @@ Desde la versión 0.5 del mod, el globo también responde: tocás una opción (o
 
 ### Instalar
 
-1. Conseguir `Oficina_0.1.0_x64_es-ES.msi` (se arma con `npm run tauri build` dentro de `widget/`; queda en `widget/src-tauri/target/release/bundle/msi/`). También se arma un instalador `.exe` en `bundle/nsis/`, que instala solo para tu usuario.
-2. Abrirlo con doble clic y seguir los pasos. Queda en el menú Inicio como **Oficina**.
+1. Conseguir `Avis_<versión>_x64_es-ES.msi` (se arma con `npm run tauri build` dentro de `widget/`; queda en `widget/src-tauri/target/release/bundle/msi/`). También se arma un instalador `.exe` en `bundle/nsis/`, que instala solo para tu usuario.
+2. Abrirlo con doble clic y seguir los pasos. Queda en el menú Inicio como **Avis**.
 3. Necesita el mod **oficina 0.5 o posterior** en Claude Code (`claude plugin update oficina` y `/reload-plugins` en cada sesión abierta): sin eso no hay estado en vivo que mostrar ni respuestas desde el globo.
 
 El widget lee lo que escribe cada sesión en `%USERPROFILE%\.claude\oficina\sesiones`, deja las respuestas del globo en `%USERPROFILE%\.claude\oficina\respuestas` y anota un log de diagnóstico en `%USERPROFILE%\.claude\oficina\widget.log`. Posición y tamaño de la ventana se guardan en la carpeta de configuración de la app (`%APPDATA%\studio.quintech.oficina`).
@@ -97,10 +99,10 @@ El widget lee lo que escribe cada sesión en `%USERPROFILE%\.claude\oficina\sesi
 
 ### Primeros pasos
 
-La primera vez, si falta algo, el widget muestra **Primeros pasos** en lugar del vacío: tres pasos para dejar la Oficina lista sin escribir comandos.
+La primera vez, si falta algo, el widget muestra **Primeros pasos** en lugar del vacío: tres pasos para dejar Avis listo sin escribir comandos.
 
-1. **Claude Code**: si no está, te lleva a la guía oficial (la Oficina no lo instala).
-2. **Mod de la Oficina**: lo suma a Claude Code para tu usuario (`claude plugin marketplace add quintechlab/oficina` y `claude plugin install oficina@quintech`), o lo activa si está apagado.
+1. **Claude Code**: si no está, te lleva a la guía oficial (Avis no lo instala).
+2. **Mod de Avis**: lo suma a Claude Code para tu usuario (`claude plugin marketplace add quintechlab/oficina` y `claude plugin install oficina@quintech`), o lo activa si está apagado.
 3. **GitHub**: instala GitHub CLI con winget si falta, conecta tu cuenta con el código de un solo uso de GitHub (permisos `repo`, `read:org` y `project`) y revisa que seas miembro de `quintechlab`.
 
 Cada paso corre solo cuando tocás su botón: abrir el asistente o "Volver a buscar" solo revisan qué hay (comandos de lectura), nada se instala solo y no hay tiempo que elija por vos. Con sesiones abiertas, un aviso del tablero ("Falta conectar GitHub · Ver →") y el ítem **Primeros pasos** de la bandeja lo vuelven a abrir; la × lo cierra sin hacer nada. El widget nunca guarda credenciales: usa la sesión de `gh`.
@@ -111,11 +113,11 @@ La ventana toma el ancho y el alto de lo que muestra (tablero, tarjeta de pregun
 
 En cada tarjeta, la línea de Claude dice "te hace una pregunta" solo si tiene una pregunta pendiente; si sus subagentes siguen trabajando, "coordinando el equipo"; si terminó su turno con procesos en segundo plano corriendo, "esperando 1 proceso" (desde la v0.6, con el anillo que gira y los procesos al pasar el mouse); si no, "esperando tu mensaje". Los subagentes que terminaron (o fallaron) se duermen.
 
-Solo puede haber una Oficina abierta por máquina: abrirla otra vez muestra la que ya está (aunque esté en la bandeja o en la tira mini).
+Solo puede haber un Avis abierto por máquina: abrirla otra vez muestra la que ya está (aunque esté en la bandeja o en la tira mini).
 
 ### Desinstalar
 
-Configuración de Windows → Aplicaciones → **Aplicaciones instaladas** → Oficina → Desinstalar. Si estaba prendido "Arrancar con Windows", apagalo antes desde el menú de la bandeja. Las carpetas de `%USERPROFILE%\.claude\oficina` son del mod y quedan.
+Configuración de Windows → Aplicaciones → **Aplicaciones instaladas** → Avis → Desinstalar. Si estaba prendido "Arrancar con Windows", apagalo antes desde el menú de la bandeja. Las carpetas de `%USERPROFILE%\.claude\oficina` son del mod y quedan.
 
 ### Desarrollo
 

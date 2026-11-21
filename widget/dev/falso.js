@@ -15,6 +15,9 @@
 //   ?envio=error  el comando responder falla: "Respondé en Claude…" al instante
 //   (sin ?envio, el archivo queda pendiente y a los 5 s pide responder en Claude)
 //   ?procesos     central-nucleo espera dos procesos en segundo plano (pose "proceso", v0.6)
+//   ?escena=dos   oficina con 2 subagentes (uno trabaja, uno terminó); ?escena=doble: oficina con dos
+//                 sesiones de un subagente cada una (panel-avis-ux.md, casos A y C del boceto). Sin
+//                 ?escena, oficina tiene 5 (caso B: 3 y la pila "+2") y central-nucleo ninguno
 //   ?poses        recorre los Avis: "poses" tiene una sesión por estado de Claude (editando,
 //                 comando, leyendo, pensando, esperándote, proceso, inactiva); "elenco" coordina a los cinco
 //                 subagentes (escribiendo, leyendo, listo y falló recién, dormido; 4 fichas y "+1")
@@ -22,6 +25,17 @@
 //   ?acople=arriba&lugar=0.5  arranca acoplada (arriba, derecha, abajo o izquierda), como si estuviera guardado
 //   ?estado=reposo|trabajando  sin pregunta pendiente: todos esperan, o una sesión coordina (sin ?estado, catalogo pregunta)
 //   ?sinderecha   el borde derecho toca a otro monitor: no acopla
+//   ?reposo=7     la marca juega con los tiempos del reposo divididos por 7, como el boceto
+//                 docs/diseno/bocetos/marca-avi.html (primer juego a los ~6 s, siesta a los ~69 s);
+//                 con ?estado=reposo nadie trabaja y el Avi de la marca puede jugar
+//   ?muesca=reposo|trabajando|pregunta|golpe|duerme  el estado de la muesca A "Asoma"
+//                 (muesca-avi-ux.md 13.8; con &acople=arriba|derecha|abajo|izquierda): reposo y
+//                 trabajando son ?estado=…, pregunta y golpe el caso de siempre (catalogo pregunta y
+//                 golpea al llegar), duerme es ?vacio
+// Mirada del Avi a la vista (marca-avi-ux.md 6 y muesca-avi-ux.md 9): acoplada y con mirada (la marca
+// con el panel abierto o el Avi de la muesca cerrada, si sigue al puntero: zona_interactiva con
+// mirada), el puntero del escritorio se avisa como oficina://cursor { x, y }, a lo sumo cada 50 ms y
+// solo si cambió, como el sondeo de Rust.
 // Muesca (F4): dev/vista.html es el escritorio (la ventana del navegador menos una barra de tareas de
 // 40 px) y carga dev/ventana.html en un iframe que hace de ventana de Tauri: ajustar_ventana y
 // mover_ventana mueven y redimensionan ese iframe. El menú de la bandeja se imita con
@@ -51,6 +65,11 @@
 // su texto queda en window.__menuPasos.
 ;(() => {
   const url = new URLSearchParams(location.search)
+  // ?muesca: atajos de los estados de la muesca A
+  const muesca = url.get('muesca')
+  if ((muesca === 'reposo' || muesca === 'trabajando') && !url.has('estado')) url.set('estado', muesca)
+  if (muesca === 'duerme') url.set('vacio', '')
+  if (Number(url.get('reposo')) > 1) window.__escalaReposo = Number(url.get('reposo'))
   const ahora = Date.now()
   const hace = min => new Date(ahora - min * 60000).toISOString()
   const PASOS = [100, 125, 150, 175, 200]
@@ -78,7 +97,7 @@
     {
       v: 1, sesion: 'ses-nucleo', usuario: 'nicoequintana', nombre: 'Quintana', estado: 'trabajando',
       repo: 'quintechlab/central-nucleo-main', rama: 'main', tarea: null, nota: null,
-      inicio: hace(95), tareaDesde: null, actualizado: hace(1), archivos: [], actividad: 'esperándote',
+      inicio: hace(url.has('larga') ? 697 : 95), tareaDesde: null, actualizado: hace(1), archivos: [], actividad: 'esperándote',
       puedeResponder: true, agentes: [],
     },
     {
@@ -128,6 +147,18 @@
       { id: 'bvista1', descripcion: 'Arma el instalador del widget', desde: hace(3) },
       { id: 'bvista2', descripcion: 'npm run dev', desde: hace(1) },
     ]
+  }
+  // ?escena: los casos del panel "Escenario + chips" (A: 1 sesión y 2 subagentes; C: 2 sesiones)
+  if (url.get('escena') === 'dos' || url.get('escena') === 'doble') {
+    const oficina = SESIONES.find(s => s.sesion === 'ses-oficina')
+    oficina.agentes = [sub('a1', 'Delfina', 'dirección marca B', 'trabajando', { desde: hace(5) })]
+    if (url.get('escena') === 'dos') oficina.agentes.push(sub('a2', 'Mateo', 'boceto Avi grande', 'listo', { hasta: hace(8) }))
+    else {
+      SESIONES.push({
+        ...oficina, sesion: 'ses-oficina-2', rama: 'feat/12-tablero', tarea: 12, inicio: hace(41), tareaDesde: hace(41),
+        actividad: 'editando tablero.js', agentes: [sub('a7', 'Ramiro', 'lee avis.css', 'trabajando', { tipo: 'Explore', desde: hace(2) })],
+      })
+    }
   }
   /** Preguntas que el falso da por tomadas (?envio=listo) o respondidas en Claude (?envio=ya). */
   const tomadas = new Set()
@@ -224,7 +255,7 @@
   const emitir = (nombre, payload) => { for (const f of oyentes[nombre] ?? []) f({ payload }) }
 
   // ---- zona interactiva (9.6): imita el sondeo de Rust y el paso de los clics
-  const zonaSt = { zona: null, toda: false, dentro: true, informado: false, n: 0, punto: null, desfase: null }
+  const zonaSt = { zona: null, toda: false, dentro: true, informado: false, n: 0, punto: null, desfase: null, mirada: false, cursor: null, cursorT: 0 }
   /** Acoplada y fuera de la tira: como `debe_sondear` (la vista no se esconde). */
   const sondea = () => !!acople && !previo
   /** Como `evaluar`: sin zona o arrastrando cuenta como adentro; el borde derecho y el de abajo, afuera. */
@@ -248,6 +279,13 @@
     // Fuera de la zona, el clic pasa al escritorio (vista.html)
     marco.style.pointerEvents = d ? '' : 'none'
     window.__puntero = { ...zonaSt.punto, dentro: d }
+    // Como cursor_para_mirada: con mirada, la posición si cambió y a lo sumo cada 50 ms
+    const p = zonaSt.punto, t = performance.now()
+    if (zonaSt.mirada && (p.x !== zonaSt.cursor?.x || p.y !== zonaSt.cursor?.y) && t - zonaSt.cursorT >= 50) {
+      zonaSt.cursor = { ...p }
+      zonaSt.cursorT = t
+      emitir('oficina://cursor', { x: p.x, y: p.y })
+    }
   }
   if (marco) {
     // La "pantalla" son los px del escritorio (vista.html). screenX no cambia con el zoom del widget:
@@ -386,12 +424,14 @@
       window.__acople = acople
       console.info('[acople]', JSON.stringify(acople))
       // Como olvidar_zona: la zona vieja no vale; flotando, la ventana vuelve a tomar todos los clics
-      Object.assign(zonaSt, { zona: null, toda: false, informado: false })
+      Object.assign(zonaSt, { zona: null, toda: false, informado: false, mirada: false })
       evaluarZona()
     },
-    zona_interactiva: ({ x, y, ancho, alto, toda }) => {
+    zona_interactiva: ({ x, y, ancho, alto, toda, mirada }) => {
       zonaSt.zona = { x, y, ancho, alto }
       zonaSt.toda = !!toda
+      zonaSt.mirada = !!mirada
+      if (!mirada) zonaSt.cursor = null
       zonaSt.informado = false
       window.__zona = { ...zonaSt.zona, toda: zonaSt.toda }
       // Como Rust: devuelve si el puntero está adentro ahora; el aviso lo da el "sondeo"

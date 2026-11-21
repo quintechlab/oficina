@@ -3,9 +3,8 @@
 // recorte de la apertura, estado y nombre de la muesca, abrir y cerrar con el mouse y el teclado, y
 // cuándo golpea una pregunta. Lógica pura: medidas en px lógicos de la pantalla (los de Tauri).
 
-import { animoMarca } from './tablero.js'
 import { avi, CLAUDE } from './avis.js'
-import { animoSesion, preguntasPendientes, escapar } from './logica.js'
+import { animoSesion, preguntasPendientes, escapar, ANIMOS_DE_TRABAJO } from './logica.js'
 import { fueraDeLugar } from './tamano.js'
 
 /** Un borde a la vez (7). El orden desempata el imán en una esquina. */
@@ -33,8 +32,26 @@ const RADIO_PANEL = 26
 
 export const esHorizontal = borde => borde === 'arriba' || borde === 'abajo'
 
+/**
+ * La muesca A "Asoma" (docs/diseno/muesca-avi-ux.md 5.1), en px CSS al 100 %: `largo` a lo largo del
+ * borde y `grosor` hacia el centro. Es la única fuente del tamaño: main.js no mide el DOM.
+ */
+export const TAM_MUESCA = Object.freeze({ horizontal: Object.freeze({ largo: 150, grosor: 54 }), vertical: Object.freeze({ largo: 140, grosor: 62 }) })
+
+/** Tamaño de la muesca en `borde`, en px de pantalla con el zoom `z`. */
+export function tamMuescaDe(borde, z = 1) {
+  const t = esHorizontal(borde) ? TAM_MUESCA.horizontal : TAM_MUESCA.vertical
+  return { largo: t.largo * z, grosor: t.grosor * z }
+}
+
 const limitar = (v, min, max) => Math.min(max, Math.max(min, v))
 const redondear = r => ({ x: Math.round(r.x), y: Math.round(r.y), ancho: Math.round(r.ancho), alto: Math.round(r.alto) })
+
+/** La ventana acoplada de un área de trabajo (9.6): el área entera, en px enteros. */
+export const ventanaDeArea = area => redondear(area)
+
+/** ¿Dos rectángulos son el mismo, en px enteros? */
+export const mismoRect = (a, b) => !!a && !!b && ['x', 'y', 'ancho', 'alto'].every(k => Math.round(a[k]) === Math.round(b[k]))
 
 // ------------------------------------------------------------------ imán (7.3)
 
@@ -186,25 +203,25 @@ export function relativo(r, ventana, z = 1) {
 
 // ------------------------------------------------------------------ ventana fija y zona interactiva (9.6)
 
-/** Margen del puntero alrededor de la muesca cerrada: cubre el golpe (6 px) y el hover (2 px). */
-export const MARGEN_ZONA = 8
-
-const union = (a, b) => {
-  const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y)
-  return { x, y, ancho: Math.max(a.x + a.ancho, b.x + b.ancho) - x, alto: Math.max(a.y + a.alto, b.y + b.alto) - y }
-}
+/**
+ * Margen del puntero alrededor de la muesca cerrada (sin hombros), medido en reposo: cubre el hover
+ * (escala 1,05 desde el borde: 3,75 px por lado y 2,7 hacia el centro; a los costados 3,5 y 3,1). El
+ * golpe (1,1) puede salirse 3,5 px durante 480 ms: no abre ni toma clics (muesca-avi-ux.md 10.1).
+ */
+export const MARGEN_ZONA = 4
 
 /**
- * Acoplada, la ventana no cambia de tamaño al abrir ni al cerrar (9.6): es siempre la unión de la
- * muesca cerrada (`m`, con hombros, luz y holgura) y del panel abierto (`p`), y abrir es solo el
- * recorte adentro. `local`: la muesca, su luz y el tablero en px CSS de esa ventana (para colocarlos
- * con --mx, --lx, --tx…). `tam`: la muesca; `tablero`: el tamaño natural del tablero, ambos en px de
- * pantalla (ya con el zoom `z`).
+ * Acoplada, la ventana es el área de trabajo entera (9.6), transparente y sin tomar clics fuera de
+ * la zona interactiva: abrir, cerrar, correr la muesca a lo largo del borde, pasarla a otro borde o
+ * volverla píldora al arrastrar no mueven ni redimensionan la ventana (WebView2 tarda en repintar
+ * después de un redimensionado: eso era el parpadeo). Solo cambia de monitor. `local`: la muesca, su
+ * luz y el tablero en px CSS de esa ventana (para colocarlos con --mx, --lx, --tx…). `tam`: la
+ * muesca; `tablero`: el tamaño natural del tablero, ambos en px de pantalla (ya con el zoom `z`).
  */
 export function disposicionAcoplada(acople, tam, tablero, area, z = 1) {
   const m = rectMuesca(acople, tam, area, z)
   const p = rectPanel(acople, tablero, tam, area, z)
-  const ventana = union(m, p)
+  const ventana = ventanaDeArea(area)
   return {
     ventana, m, p,
     local: { muesca: relativo(m.caja, ventana, z), luz: relativo(rectLuz(m, acople.borde, z), ventana, z), tablero: relativo(p.tablero, ventana, z) },
@@ -248,51 +265,60 @@ export function dentroDe(p, r) {
 // ------------------------------------------------------------------ estado y nombre (7.1 y 7.2)
 
 const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`
-/** Ánimos de una sesión que cuentan como "trabajando". */
-const TRABAJA = new Set(['coordinando', 'pensando', 'leyendo', 'comando', 'editando'])
 
 /**
- * Lo que muestra la muesca: el ánimo del Avi que asoma (el mismo orden que la marca, 4.2), el
- * color del punto (ámbar si trabaja o pregunta, crema si espera, tenue si todo duerme), el chip
- * (la cantidad de sesiones o "n ?") y el nombre accesible del botón.
+ * Lo que dice la muesca A "Asoma" (muesca-avi-ux.md 6 y 8), sin punto ni chip fijo: todo lo dice el
+ * Avi. `modo` (pregunta > trabajando > reposo > duerme) va a `#muesca[data-modo]`; `animo` es la pose
+ * del Avi (te espera con pregunta, durmiendo sin sesiones, si no esperando) y `ocupado` que trabaja
+ * (no sigue al puntero y mira lo suyo). Trabajar es `ANIMOS_DE_TRABAJO`, la misma lista que el reposo
+ * de la marca. `sesiones`: el chip del hover; `globo`: "!" con una pregunta, el número con varias
+ * ("2"…"9", "9+"), vacío sin preguntas; `chip`: el de la píldora de arrastre; `nombre`: el del botón.
  */
 export function estadoMuesca(proyectos, ahoraMs) {
   const sesiones = proyectos.flatMap(p => p.sesiones)
   const pend = proyectos.flatMap(p => preguntasPendientes(p).map(q => ({ ...q, proyecto: p.nombre })))
-  const animos = sesiones.map(s => animoSesion(s, ahoraMs))
-  const trabajando = animos.filter(a => TRABAJA.has(a)).length
-  const despiertas = animos.filter(a => a !== 'inactiva').length
-  const punto = pend.length || trabajando ? 'ambar' : despiertas ? 'crema' : 'tenue'
+  const trabajando = sesiones.filter(s => ANIMOS_DE_TRABAJO.has(animoSesion(s, ahoraMs))).length
+  const n = sesiones.length
+  const modo = pend.length ? 'pregunta' : trabajando ? 'trabajando' : n ? 'reposo' : 'duerme'
   let nombre
   if (pend.length === 1) nombre = `${pend[0].quien} te hace una pregunta en ${pend[0].proyecto}`
   else if (pend.length) nombre = plural(pend.length, 'pregunta pendiente', 'preguntas pendientes')
-  else if (trabajando) nombre = plural(trabajando, 'sesión trabajando', 'sesiones trabajando')
-  else if (sesiones.length) nombre = plural(sesiones.length, 'sesión abierta', 'sesiones abiertas')
+  else if (trabajando) nombre = trabajando === n ? plural(n, 'sesión trabajando', 'sesiones trabajando') : `${trabajando} de ${n} sesiones trabajando`
+  else if (n) nombre = plural(n, 'sesión abierta', 'sesiones abiertas')
   else nombre = 'sin sesiones abiertas'
   return {
-    animo: animoMarca(proyectos, ahoraMs),
-    punto,
+    animo: modo === 'pregunta' ? 'teEspera' : modo === 'duerme' ? 'durmiendo' : 'esperando',
+    modo,
+    ocupado: modo === 'trabajando',
     pregunta: pend.length > 0,
     pendientes: pend.length,
-    chip: pend.length ? `${pend.length} ?` : String(sesiones.length),
-    chipNombre: pend.length ? plural(pend.length, 'pregunta pendiente', 'preguntas pendientes') : plural(sesiones.length, 'sesión abierta', 'sesiones abiertas'),
-    nombre: `Oficina: ${nombre}. Abrir`,
+    sesiones: n,
+    globo: pend.length === 1 ? '!' : pend.length > 9 ? '9+' : pend.length ? String(pend.length) : '',
+    chip: pend.length ? `${pend.length} ?` : String(n),
+    nombre: `Avis: ${nombre}. Abrir`,
   }
 }
 
 /**
- * Adentro de la muesca (7.1): el Avi de Claude que asoma, el punto de estado y el chip. Todo es
- * decorativo: el botón lleva el nombre entero (`estadoMuesca().nombre`).
+ * El armazón de la muesca (muesca-avi-ux.md 3), todo decorativo (el botón lleva el nombre entero): el
+ * chip de sesiones (solo en hover y foco), la línea del alféizar (a los costados), el recorte donde
+ * asoma el Avi (`#muesca-avi`, lo dibuja y lo mueve marcaMotion.js) con sus dos manos, y el globo de
+ * pregunta. Se escribe una vez: después main.js cambia solo `data-modo`, los textos y el nombre.
  */
-export function contenidoMuesca(e) {
-  return `<span class="asoma">${avi(CLAUDE, e.animo, 44)}</span>`
-    + `<span class="pt pt-${e.punto}" aria-hidden="true"></span>`
-    + `<span class="chip${e.pregunta ? ' chip-preg' : ''}" aria-hidden="true">${escapar(e.chip)}</span>`
+export function contenidoMuesca() {
+  return '<span class="cuenta" aria-hidden="true"></span><span class="alfeizar" aria-hidden="true"></span>'
+    + '<span class="asoma" aria-hidden="true"><span class="alza" id="muesca-avi"></span><i class="asir i"></i><i class="asir d"></i></span>'
+    + '<span class="excl" aria-hidden="true">!</span>'
+}
+
+/** El Avi que asoma: el de Claude de la marca, de 66 px (muesca-avi-ux.md 5.1). */
+export function figuraMuesca(animo) {
+  return avi(CLAUDE, animo, 66, { marca: true })
 }
 
 /** La píldora flotante al arrastrar la muesca (7.3): el Avi, el título y el chip, como la tira mini. */
 export function contenidoPildora(e) {
-  return `<span class="asoma">${avi(CLAUDE, e.animo, 44)}</span><b>Oficina</b>`
+  return `<span class="asoma">${avi(CLAUDE, e.animo, 44)}</span><b>Avis</b>`
     + `<span class="chip${e.pregunta ? ' chip-preg' : ''}">${escapar(e.chip)}</span>`
 }
 
@@ -307,7 +333,7 @@ export const ESTADO_INICIAL = Object.freeze({ abierta: false, fija: false, armad
 
 /**
  * Un evento de la muesca: `entra` y `sale` (mouse), `tiempo` (venció la espera `que`), `clic`
- * (clic, Enter o Espacio sobre la muesca, o "Mostrar oficina"), `esc` o `cerrar` (cierra aunque
+ * (clic, Enter o Espacio sobre la muesca, o "Mostrar Avis"), `esc` o `cerrar` (cierra aunque
  * esté fijada) y `fijar`. Cualquier otro evento (el golpe, la luz) no cambia nada: llamar la
  * atención nunca abre ni responde.
  */

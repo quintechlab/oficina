@@ -137,10 +137,10 @@ function cabezaEscena(forma, pose, rot, titulo, textoHtml) {
 export function escena(modelo, visible, forma, hora) {
   if (visible === 'listo') {
     const login = modelo.pasos.gh.extra?.login
-    return cabezaEscena(forma, 'listo', `Listo · ${PASOS.length} de ${PASOS.length}`, 'Tu Oficina está lista',
+    return cabezaEscena(forma, 'listo', `Listo · ${PASOS.length} de ${PASOS.length}`, 'Avis está listo',
       'Para que las sesiones de Claude Code que ya están abiertas carguen el mod, reinicialas o escribí <code class="pp-code">/reload-plugins</code> en cada una.')
       + `<div class="pp-extra pp-pieza">${login ? cuenta(login, true) : ''}</div>`
-      + `<div class="pp-pieza"><div class="pp-acc"><button type="button" class="pp-btn pri" data-accion="pp-ir" data-foco="ir">Ir a la Oficina</button>`
+      + `<div class="pp-pieza"><div class="pp-acc"><button type="button" class="pp-btn pri" data-accion="pp-ir" data-foco="ir">Ir a Avis</button>`
       + `<button type="button" class="pp-btn sec" data-accion="pp-copiar" data-valor="/reload-plugins" data-foco="copiar:reload">Copiar <code class="pp-code">/reload-plugins</code></button></div></div>`
   }
   const p = modelo.pasos[visible]

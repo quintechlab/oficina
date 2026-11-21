@@ -33,8 +33,8 @@ fn banderas_estado() -> StateFlags {
 }
 
 struct Estado {
-    /// Tamaño de la ventana expandida antes de pasar a la tira mini.
-    tamano_previo: Mutex<Option<LogicalSize<f64>>>,
+    /// Tamaño y posición de la ventana expandida antes de pasar a la tira mini.
+    tamano_previo: Mutex<Option<(LogicalSize<f64>, LogicalPosition<f64>)>>,
     mini: Mutex<bool>,
     login: Mutex<Option<String>>,
     menu: Mutex<Option<MenuBandeja>>,
@@ -65,6 +65,13 @@ const PASO_SONDEO: Duration = Duration::from_millis(20);
 const ESPERA_QUIETO: Duration = Duration::from_millis(250);
 /// Evento a la ventana cuando el puntero entra o sale de la zona: `{ dentro, n }`.
 const EVENTO_ZONA: &str = "oficina://puntero-zona";
+/// Evento con la posición global del puntero, `{ x, y }` en px lógicos de pantalla, para la mirada
+/// del Avi que está a la vista: el de la marca con el panel abierto (docs/diseno/marca-avi-ux.md 6) o
+/// el que asoma en la muesca cerrada (docs/diseno/muesca-avi-ux.md 9). Solo acoplada y si la ventana
+/// lo pide (`mirada`).
+const EVENTO_CURSOR: &str = "oficina://cursor";
+/// Como mucho un aviso de la posición cada tanto.
+const PASO_CURSOR: Duration = Duration::from_millis(50);
 
 /// Rectángulo en px lógicos de pantalla (los de Tauri y de `muesca.js`).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -113,11 +120,21 @@ struct Puntero {
     informado: bool,
     ignorando: bool,
     cambios: u64,
+    /// El Avi que está a la vista quiere el puntero (lo manda la ventana con la zona: la marca con el
+    /// panel abierto o el Avi de la muesca cerrada, si se puede mover y su pose sigue al puntero): solo
+    /// entonces se avisa la posición del puntero.
+    mirada: bool,
+    /// Última posición avisada (px físicos) y cuándo, para no repetirla ni pasar de un aviso cada 50 ms.
+    cursor_enviado: Option<(f64, f64)>,
+    cursor_cuando: Option<Duration>,
 }
 
 impl Default for Puntero {
     fn default() -> Self {
-        Puntero { zona: None, toda: false, escala: 1.0, dentro: true, informado: false, ignorando: false, cambios: 0 }
+        Puntero {
+            zona: None, toda: false, escala: 1.0, dentro: true, informado: false, ignorando: false, cambios: 0,
+            mirada: false, cursor_enviado: None, cursor_cuando: None,
+        }
     }
 }
 
@@ -135,6 +152,29 @@ fn olvidar_zona(p: &mut Puntero) {
     p.zona = None;
     p.toda = false;
     p.informado = false;
+    p.mirada = false;
+}
+
+/// La posición del puntero que hay que avisar para la mirada del Avi a la vista, en px lógicos de
+/// pantalla, o nada: solo con el sondeo corriendo (acoplada, a la vista y fuera de la tira) y
+/// `mirada`, solo si cambió desde el último aviso y a lo sumo uno cada `PASO_CURSOR`. Compara con lo
+/// último avisado (no con lo último visto): si se movió dentro de esos 50 ms, la posición final sale
+/// igual en la vuelta siguiente. Sin `mirada` olvida lo avisado, así al volver avisa otra vez.
+fn cursor_para_mirada(p: &mut Puntero, cursor: Option<(f64, f64)>, sondea: bool, ahora: Duration) -> Option<(f64, f64)> {
+    if !sondea || !p.mirada {
+        p.cursor_enviado = None;
+        return None;
+    }
+    let c = cursor?;
+    if p.cursor_enviado == Some(c) {
+        return None;
+    }
+    if p.cursor_cuando.is_some_and(|t| ahora.saturating_sub(t) < PASO_CURSOR) {
+        return None;
+    }
+    p.cursor_enviado = Some(c);
+    p.cursor_cuando = Some(ahora);
+    Some((c.0 / p.escala, c.1 / p.escala))
 }
 
 /// Lo que hay que hacer después de mirar el puntero: avisar a la ventana (`dentro`, `n`) y prender o
@@ -232,13 +272,16 @@ fn a_la_vista(app: &AppHandle, _estado: &Estado) -> bool {
 
 /// Una vuelta del sondeo: decide con `evaluar` y, fuera de todo lock, cambia el paso de los clics y
 /// avisa a la ventana, solo si algo cambió. Devuelve si el sondeo está corriendo.
-fn mirar_puntero(app: &AppHandle, estado: &Estado) -> bool {
+fn mirar_puntero(app: &AppHandle, estado: &Estado, ahora: Duration) -> bool {
     // Un lock envenenado no puede matar el hilo: si muere con los clics pasando, la muesca no responde más
     let acoplada = estado.acople.lock().unwrap_or_else(PoisonError::into_inner).is_some();
     let mini = *estado.mini.lock().unwrap_or_else(PoisonError::into_inner);
     let sondea = debe_sondear(acoplada, a_la_vista(app, estado), mini);
     let cursor = if sondea { cursor_fisico(app) } else { None };
-    let paso = evaluar(&mut estado.puntero.lock().unwrap_or_else(PoisonError::into_inner), cursor, sondea);
+    let (paso, mirada) = {
+        let mut p = estado.puntero.lock().unwrap_or_else(PoisonError::into_inner);
+        (evaluar(&mut p, cursor, sondea), cursor_para_mirada(&mut p, cursor, sondea, ahora))
+    };
     if let Some(ignorar) = paso.ignorar {
         let aplicado = ventana(app).is_some_and(|v| v.set_ignore_cursor_events(ignorar).is_ok());
         if !aplicado {
@@ -249,6 +292,9 @@ fn mirar_puntero(app: &AppHandle, estado: &Estado) -> bool {
     if let Some((dentro, n)) = paso.avisar {
         let _ = app.emit(EVENTO_ZONA, serde_json::json!({ "dentro": dentro, "n": n }));
     }
+    if let Some((x, y)) = mirada {
+        let _ = app.emit(EVENTO_CURSOR, serde_json::json!({ "x": x, "y": y }));
+    }
     sondea
 }
 
@@ -256,8 +302,9 @@ fn mirar_puntero(app: &AppHandle, estado: &Estado) -> bool {
 /// hasta que lo despierten (`despertar`) o pasen 250 ms. Termina con "Salir".
 fn sondear_puntero(app: AppHandle) {
     let estado = app.state::<Estado>();
+    let inicio = std::time::Instant::now();
     while !estado.apagar.load(Ordering::Relaxed) {
-        let sondea = mirar_puntero(&app, &estado);
+        let sondea = mirar_puntero(&app, &estado, inicio.elapsed());
         std::thread::park_timeout(if sondea { PASO_SONDEO } else { ESPERA_QUIETO });
     }
 }
@@ -283,7 +330,7 @@ struct MenuBandeja {
     primeros_pasos: MenuItem<Wry>,
 }
 
-/// Orden del menú de la bandeja: "Primeros pasos" va justo debajo de "Mostrar oficina" (3.5).
+/// Orden del menú de la bandeja: "Primeros pasos" va justo debajo de "Mostrar Avis" (3.5).
 const ORDEN_BANDEJA: [&str; 10] = ["mostrar", "primeros-pasos", "arriba", "avisar", "pausa", "acoplar", "tamano", "arranque", "separador", "salir"];
 
 fn ventana(app: &AppHandle) -> Option<WebviewWindow> {
@@ -297,7 +344,7 @@ fn mostrar(app: &AppHandle) {
         let _ = v.set_focus();
     }
     despertar(&app.state::<Estado>());
-    // Acoplada, "Mostrar oficina" abre el panel (7.3); flotando, la ventana lo ignora
+    // Acoplada, "Mostrar Avis" abre el panel (7.3); flotando, la ventana lo ignora
     let _ = app.emit("oficina://abrir", ());
 }
 
@@ -388,24 +435,52 @@ fn alternar(app: &AppHandle) {
 }
 
 /// Pasa la ventana a la tira mini (del tamaño que pide el frontend según la escala elegida) o la
-/// devuelve a su tamaño anterior; después el contenido vuelve a mandar.
-fn aplicar_mini(v: &WebviewWindow, estado: &Estado, mini: bool, tira: Option<LogicalSize<f64>>) -> tauri::Result<()> {
+/// devuelve a su tamaño y lugar anteriores; después el contenido vuelve a mandar. La tira se apoya
+/// sobre la barra de tareas, abajo a la derecha del área de trabajo de su monitor.
+fn aplicar_mini(v: &WebviewWindow, estado: &Estado, mini: bool, tira: Option<LogicalSize<f64>>) -> Result<(), String> {
+    let texto = |e: tauri::Error| e.to_string();
     let mut actual = estado.mini.lock().unwrap();
+    let escala = v.scale_factor().map_err(texto)?;
     if mini {
         let tira = tira.unwrap_or(LogicalSize::new(ANCHO, 56.0));
         if !*actual {
-            let escala = v.scale_factor()?;
-            *estado.tamano_previo.lock().unwrap() = Some(v.inner_size()?.to_logical(escala));
+            let tam = v.inner_size().map_err(texto)?.to_logical(escala);
+            let pos = v.outer_position().map_err(texto)?.to_logical(escala);
+            *estado.tamano_previo.lock().unwrap() = Some((tam, pos));
         }
-        v.set_min_size(Some(tira))?;
-        v.set_size(tira)?;
+        v.set_min_size(Some(tira)).map_err(texto)?;
+        match v.current_monitor().map_err(texto)? {
+            Some(m) => {
+                let a = m.work_area();
+                let esc_m = m.scale_factor();
+                let area = (a.position.x as f64 / esc_m, a.position.y as f64 / esc_m, a.size.width as f64 / esc_m, a.size.height as f64 / esc_m);
+                let (x, y) = esquina_tira(area, (tira.width, tira.height));
+                mover_y_redimensionar(v, tira.width, tira.height, x, y)?;
+            }
+            None => v.set_size(tira).map_err(texto)?,
+        }
     } else if *actual {
-        let previo = estado.tamano_previo.lock().unwrap().take().unwrap_or(LogicalSize::new(ANCHO, ALTO));
-        v.set_min_size(Some(LogicalSize::new(MINIMO.0, MINIMO.1)))?;
-        v.set_size(previo)?;
+        let previo = estado.tamano_previo.lock().unwrap().take();
+        v.set_min_size(Some(LogicalSize::new(MINIMO.0, MINIMO.1))).map_err(texto)?;
+        match previo {
+            Some((tam, pos)) => mover_y_redimensionar(v, tam.width, tam.height, pos.x, pos.y)?,
+            None => v.set_size(LogicalSize::new(ANCHO, ALTO)).map_err(texto)?,
+        }
     }
     *actual = mini;
     Ok(())
+}
+
+/// Margen de la tira mini con el borde derecho y con la barra de tareas, en px lógicos.
+const MARGEN_TIRA: f64 = 8.0;
+
+/// Dónde va la tira mini (x, y): abajo a la derecha del área de trabajo `area` (x, y, ancho, alto),
+/// apoyada sobre la barra de tareas con `MARGEN_TIRA`. Si no entra, desde la punta izquierda o de arriba.
+fn esquina_tira(area: (f64, f64, f64, f64), tira: (f64, f64)) -> (f64, f64) {
+    let (ax, ay, aw, ah) = area;
+    let x = (ax + aw - tira.0 - MARGEN_TIRA).max(ax);
+    let y = (ay + ah - tira.1 - MARGEN_TIRA).max(ay);
+    (x.round(), y.round())
 }
 
 fn ruta_preferencias(app: &AppHandle) -> Option<std::path::PathBuf> {
@@ -432,7 +507,7 @@ fn cambiar_tamano_app(app: &AppHandle, direccion: i32) -> u32 {
     nuevo
 }
 
-/// Segunda vez que se abre Oficina: no hay otra ventana, se muestra la que ya está.
+/// Segunda vez que se abre Avis: no hay otra ventana, se muestra la que ya está.
 fn al_segundo_arranque(app: &AppHandle) {
     let Some(v) = ventana(app) else { return };
     let mini = *app.state::<Estado>().mini.lock().unwrap();
@@ -457,7 +532,7 @@ fn al_segundo_arranque(app: &AppHandle) {
             }
         }
     }
-    // Acoplada, se abre el panel como con "Mostrar oficina"; flotando, la ventana lo ignora
+    // Acoplada, se abre el panel como con "Mostrar Avis"; flotando, la ventana lo ignora
     let _ = app.emit("oficina://abrir", ());
 }
 
@@ -520,7 +595,7 @@ async fn leer_equipo(estado: State<'_, Estado>) -> Result<serde_json::Value, Str
     Ok(equipo::respuesta(yo, comentarios))
 }
 
-/// Qué falta en la máquina para la Oficina (bienvenida-ux.md 3.3), solo con comandos de lectura.
+/// Qué falta en la máquina para Avis (bienvenida-ux.md 3.3), solo con comandos de lectura.
 /// Se llama al arrancar, al abrir el asistente y con "Volver a buscar"; nunca en el ciclo de 1,5 s.
 #[tauri::command]
 async fn revisar_primeros_pasos() -> Result<serde_json::Value, String> {
@@ -768,13 +843,20 @@ fn esconder(app: AppHandle, estado: State<'_, Estado>) {
 /// margen (cerrada), el tablero (abierta) o toda la ventana (`toda`, mientras se arrastra). Fuera de
 /// ella los clics pasan a lo que hay debajo. Devuelve si el puntero está adentro ahora; el cambio lo
 /// aplica y lo avisa el hilo del sondeo (`oficina://puntero-zona`), el único que toca la ventana.
+/// `mirada`: el Avi que está a la vista quiere el puntero (la marca con el panel abierto o el de la
+/// muesca cerrada); entonces el sondeo avisa también su posición (`oficina://cursor`).
 #[tauri::command]
-fn zona_interactiva(app: AppHandle, estado: State<'_, Estado>, x: f64, y: f64, ancho: f64, alto: f64, toda: Option<bool>) -> Result<bool, String> {
+#[allow(clippy::too_many_arguments)]
+fn zona_interactiva(app: AppHandle, estado: State<'_, Estado>, x: f64, y: f64, ancho: f64, alto: f64, toda: Option<bool>, mirada: Option<bool>) -> Result<bool, String> {
     let zona = zona_valida(x, y, ancho, alto).ok_or("zona inválida")?;
     let escala = ventana(&app).ok_or("sin ventana")?.scale_factor().map_err(|e| e.to_string())?;
     let toda = toda.unwrap_or(false);
     // Una zona nueva: la próxima vuelta del sondeo avisa el estado real aunque no haya cambiado
-    poner_zona(&mut estado.puntero.lock().unwrap(), zona, toda, escala);
+    let mut p = estado.puntero.lock().unwrap();
+    poner_zona(&mut p, zona, toda, escala);
+    // Si el Avi a la vista quiere el puntero, el sondeo avisa también su posición (su mirada)
+    p.mirada = mirada.unwrap_or(false);
+    drop(p);
     despertar(&estado);
     Ok(toda || cursor_fisico(&app).is_none_or(|c| dentro_de_zona(c, &zona, escala)))
 }
@@ -827,7 +909,7 @@ fn avisar(app: AppHandle, titulo: String, cuerpo: String) -> Result<(), String> 
 }
 
 fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
-    let mostrar_item = MenuItem::with_id(app, "mostrar", "Mostrar oficina", true, None::<&str>)?;
+    let mostrar_item = MenuItem::with_id(app, "mostrar", "Mostrar Avis", true, None::<&str>)?;
     let arriba = CheckMenuItem::with_id(app, "arriba", "Siempre arriba", true, true, None::<&str>)?;
     let avisar_item = CheckMenuItem::with_id(app, "avisar", "Avisarme con cada pregunta", true, true, None::<&str>)?;
     let pausa = CheckMenuItem::with_id(app, "pausa", "Pausar animaciones", true, false, None::<&str>)?;
@@ -877,7 +959,7 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
 
     let mut bandeja = TrayIconBuilder::with_id(BANDEJA)
         .menu(&menu)
-        .tooltip("Oficina")
+        .tooltip("Avis")
         .show_menu_on_left_click(false)
         .on_menu_event(|app, evento| {
             let estado = app.state::<Estado>();
@@ -963,6 +1045,16 @@ mod tests {
     }
 
     #[test]
+    fn la_tira_mini_se_apoya_sobre_la_barra_de_tareas_abajo_a_la_derecha() {
+        // Pantalla de 1920 × 1080 con la barra de tareas de 48 abajo: el área llega hasta 1032
+        assert_eq!(esquina_tira((0.0, 0.0, 1920.0, 1032.0), (362.0, 56.0)), (1920.0 - 362.0 - MARGEN_TIRA, 1032.0 - 56.0 - MARGEN_TIRA));
+        // Otro monitor a la izquierda, con coordenadas negativas
+        assert_eq!(esquina_tira((-1280.0, 0.0, 1280.0, 984.0), (362.0, 56.0)), (-362.0 - MARGEN_TIRA, 984.0 - 56.0 - MARGEN_TIRA));
+        // Si no entra, no se sale del área por la izquierda ni por arriba
+        assert_eq!(esquina_tira((0.0, 0.0, 300.0, 40.0), (362.0, 56.0)), (0.0, 0.0));
+    }
+
+    #[test]
     fn el_rectangulo_fisico_redondea_posicion_y_tamano_con_la_escala() {
         // Al 100 % queda igual; al 125 % y 150 % se multiplica y se redondea al píxel más cercano
         assert_eq!(rect_fisico(100.0, 20.0, 676.0, 656.0, 1.0), (100, 20, 676, 656));
@@ -1011,6 +1103,74 @@ mod tests {
         assert_eq!(paso.ignorar, None);
         assert_eq!(paso.avisar, None);
         assert!(p.dentro && !p.ignorando);
+    }
+
+    // Mirada del Avi a la vista (marca-avi-ux.md 6 y muesca-avi-ux.md 9): la posición global solo con
+    // `mirada`, que la ventana manda con el panel abierto (la marca) o con la muesca cerrada (el Avi que asoma)
+    const MS: fn(u64) -> Duration = Duration::from_millis;
+
+    #[test]
+    fn con_mirada_manda_la_posicion_en_px_logicos() {
+        let mut p = Puntero { mirada: true, escala: 1.5, ..Puntero::default() };
+        assert_eq!(cursor_para_mirada(&mut p, Some((300.0, 150.0)), true, MS(0)), Some((200.0, 100.0)));
+    }
+
+    #[test]
+    fn con_la_muesca_cerrada_manda_la_posicion_solo_si_la_ventana_pide_mirada() {
+        // Muesca cerrada: la zona es la muesca + 4 y el Avi que asoma sigue al puntero (reposo o pregunta)
+        let mut p = Puntero::default();
+        poner_zona(&mut p, ZONA, false, 1.0);
+        assert_eq!(cursor_para_mirada(&mut p, Some((900.0, 400.0)), true, MS(0)), None);
+        p.mirada = true;
+        assert_eq!(cursor_para_mirada(&mut p, Some((900.0, 400.0)), true, MS(100)), Some((900.0, 400.0)));
+        // Trabajando, durmiendo, pausa o movimiento reducido: la ventana manda mirada: false y no se avisa
+        p.mirada = false;
+        assert_eq!(cursor_para_mirada(&mut p, Some((901.0, 400.0)), true, MS(200)), None);
+    }
+
+    #[test]
+    fn sin_mirada_escondida_o_sin_sondeo_no_manda_nada() {
+        let mut p = Puntero::default();
+        assert_eq!(cursor_para_mirada(&mut p, Some((300.0, 150.0)), true, MS(0)), None);
+        p.mirada = true;
+        // Sin sondeo (flotando, escondida, minimizada o en la tira) tampoco
+        assert_eq!(cursor_para_mirada(&mut p, Some((300.0, 150.0)), false, MS(0)), None);
+        assert_eq!(cursor_para_mirada(&mut p, None, true, MS(0)), None);
+    }
+
+    #[test]
+    fn solo_manda_si_cambio_y_a_lo_sumo_cada_50_ms() {
+        let mut p = Puntero { mirada: true, ..Puntero::default() };
+        assert!(cursor_para_mirada(&mut p, Some((10.0, 10.0)), true, MS(0)).is_some());
+        // Quieto: nada
+        assert_eq!(cursor_para_mirada(&mut p, Some((10.0, 10.0)), true, MS(100)), None);
+        // Se movió: avisa
+        assert_eq!(cursor_para_mirada(&mut p, Some((11.0, 10.0)), true, MS(100)), Some((11.0, 10.0)));
+        // Se movió otra vez, pero pasaron 20 ms del último aviso: espera
+        assert_eq!(cursor_para_mirada(&mut p, Some((12.0, 10.0)), true, MS(120)), None);
+        // A los 50 ms del último aviso manda la posición de ahora (la última nunca se pierde)
+        assert_eq!(cursor_para_mirada(&mut p, Some((14.0, 10.0)), true, MS(150)), Some((14.0, 10.0)));
+    }
+
+    #[test]
+    fn al_volver_a_pedir_mirada_manda_la_posicion_aunque_no_haya_cambiado() {
+        let mut p = Puntero { mirada: true, ..Puntero::default() };
+        cursor_para_mirada(&mut p, Some((10.0, 10.0)), true, MS(0));
+        p.mirada = false;
+        assert_eq!(cursor_para_mirada(&mut p, Some((10.0, 10.0)), true, MS(500)), None);
+        p.mirada = true;
+        assert_eq!(cursor_para_mirada(&mut p, Some((10.0, 10.0)), true, MS(1000)), Some((10.0, 10.0)));
+    }
+
+    #[test]
+    fn la_zona_nueva_y_el_reacople_no_cambian_lo_que_ya_hacia_el_sondeo() {
+        // Lo de antes sigue igual: poner_zona no toca `mirada` y olvidar_zona la apaga
+        let mut p = Puntero { mirada: true, ..Puntero::default() };
+        poner_zona(&mut p, ZONA, false, 1.0);
+        assert!(p.mirada);
+        assert_eq!(evaluar(&mut p, Some((150.0, 10.0)), true).avisar, Some((true, 1)));
+        olvidar_zona(&mut p);
+        assert!(!p.mirada);
     }
 
     #[test]
@@ -1148,7 +1308,7 @@ mod tests {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        // Primero, como pide el plugin: una sola Oficina por máquina; abrir otra muestra la que hay
+        // Primero, como pide el plugin: una sola Avis por máquina; abrir otra muestra la que hay
         .plugin(tauri_plugin_single_instance::init(|app, _argumentos, _carpeta| al_segundo_arranque(app)))
         .plugin(tauri_plugin_notification::init())
         // Registrar el plugin no prende nada: el arranque con Windows solo cambia desde el menú

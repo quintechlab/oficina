@@ -1,24 +1,26 @@
 // Ventana del widget: lee las sesiones locales cada 1,5 s y el equipo cada 60 s, y pinta el
-// tablero (barra de proyectos, encabezado, cuadros, sesiones y equipo), la tarjeta de pregunta, la tira mini,
+// tablero (barra de proyectos, encabezado, chips de conteo, escenas de las sesiones y equipo), la tarjeta de pregunta, la tira mini,
 // la bandeja y los avisos. Cada parte se redibuja solo si cambió lo que muestra, para no cortar
 // las animaciones.
 
-import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, escapar } from './logica.js'
+import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, escapar, reposoPermitido } from './logica.js'
 import { companeros } from './equipo.js'
 import { iconoBandeja, textoInsignia } from './bandeja.js'
 import { zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, fueraDeLugar, posicionEnPantalla, tamanoMini, medidaVentana, PASO_POR_DEFECTO } from './tamano.js'
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
-  prepararProyecto, firmaTablero, sesiones, carasMini, companero, firmaCompanero,
-  barraProyectos, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, cuadros, lineaEncabezado,
+  prepararProyecto, firmaEscenas, sesiones, carasMini, companero, firmaCompanero,
+  barraProyectos, animoMarca, estadoMarca, figuraVacio, conteos, chips, lineaEncabezado,
 } from './tablero.js'
 import { globo, avisoOtroProyecto, quienPregunta, anuncioPregunta } from './pregunta.js'
 import { defsAvis } from './avis.js'
 import { entrada, cambioProyecto } from './tableroMotion.js'
+import { entradaEscenas, idsDeEscena, novedades, marcarNuevos, vigilarEscenas } from './escenaMotion.js'
+import { montarMarca } from './marcaMotion.js'
 import {
   esHorizontal, bordeCercano, lugarDe, lugarAjustado, disposicionAcoplada, zonaInteractiva, recorte, cajaArrastre,
-  posicionFlotante, dentroDe, estadoMuesca, contenidoMuesca, contenidoPildora, ESTADO_INICIAL, siguiente, tocaGolpe, PILDORA,
-  eventoZona, planVentana,
+  posicionFlotante, dentroDe, ventanaDeArea, mismoRect, relativo, estadoMuesca, contenidoMuesca, contenidoPildora, ESTADO_INICIAL, siguiente, tocaGolpe, PILDORA,
+  eventoZona, planVentana, tamMuescaDe, figuraMuesca,
 } from './muesca.js'
 import * as movimientoMuesca from './muescaMotion.js'
 import {
@@ -63,6 +65,9 @@ const st = {
   /** Tamaño en porcentaje del original: 100, 125, 150, 175 o 200. */
   tamano: PASO_POR_DEFECTO,
   firmas: {},
+  /** El último HTML de las escenas (con los tiempos) y sus subagentes, para los cambios en vivo (panel-avis-ux.md 8.4). */
+  htmlEscenas: null,
+  idsEscena: null,
   error: null,
   actualizado: null,
   /** Ids de preguntas ya vistas: cada una se avisa una sola vez. */
@@ -160,6 +165,46 @@ function poner(sel, html, firma = html) {
   return true
 }
 
+/**
+ * Reescribe en su lugar lo que cambia con el tiempo, sin redibujar (panel-avis-ux.md 9.3): los
+ * textos con `data-vivo` y los `title`. Los bucles de los Avis y los puntos de los hilos siguen.
+ * Devuelve false si el HTML nuevo no tiene la misma forma (entonces hay que redibujar).
+ */
+function actualizarTiempos(raiz, html) {
+  const nuevo = document.createElement('template')
+  nuevo.innerHTML = html
+  const pares = ['[data-vivo]', '[title]'].map(sel => [raiz.querySelectorAll(sel), nuevo.content.querySelectorAll(sel)])
+  if (pares.some(([a, b]) => a.length !== b.length)) return false
+  for (const [k, el] of pares[0][0].entries()) {
+    const t = pares[0][1][k].textContent
+    if (el.textContent !== t) el.textContent = t
+  }
+  for (const [k, el] of pares[1][0].entries()) {
+    const t = pares[1][1][k].getAttribute('title')
+    if (el.getAttribute('title') !== t) el.setAttribute('title', t)
+  }
+  return true
+}
+
+/**
+ * Las tarjetas escenario. Se redibujan solo si cambió su firma (sin el minuto: lo que pasa con el
+ * tiempo se reescribe en su lugar). Después de redibujar, los subagentes nuevos entran solos y las
+ * tarjetas que no se ven se pausan.
+ */
+function pintarEscenas(proyecto, preparadas, ahora) {
+  const raiz = $('#sesiones')
+  const html = sesiones(preparadas, ahora)
+  const firma = firmaEscenas(proyecto.repo, preparadas)
+  const ids = idsDeEscena(proyecto.repo, preparadas)
+  if (st.firmas['#sesiones'] === firma && html !== st.htmlEscenas && !actualizarTiempos(raiz, html)) st.firmas['#sesiones'] = null
+  if (poner('#sesiones', html, firma)) {
+    marcarNuevos(raiz, novedades(st.idsEscena, ids))
+    vigilarEscenas($('.principal'))
+  }
+  st.htmlEscenas = html
+  st.idsEscena = ids
+}
+
 const insignia = n => n ? `<span class="pend" aria-label="${n} ${n === 1 ? 'pregunta pendiente' : 'preguntas pendientes'}">${n} ?</span>` : ''
 
 /** Pone un texto solo si cambió (así no se pisa una selección ni se relee el lector de pantalla). */
@@ -198,7 +243,7 @@ function pintarBandeja(pendientes) {
   if (st.bandeja === clave || !tauri?.core) return
   st.bandeja = clave
   const ic = iconoBandeja(pendientes)
-  const texto = pendientes ? `Oficina · ${pendientes} ${pendientes === 1 ? 'pregunta pendiente' : 'preguntas pendientes'}` : 'Oficina'
+  const texto = pendientes ? `Avis · ${pendientes} ${pendientes === 1 ? 'pregunta pendiente' : 'preguntas pendientes'}` : 'Avis'
   invocar('poner_bandeja', { rgba: Array.from(ic.rgba), ancho: ic.ancho, alto: ic.alto, texto }).catch(() => { st.bandeja = null })
 }
 
@@ -219,20 +264,26 @@ function pintarEquipo(ahora) {
 }
 
 /**
- * La muesca (7.1): el Avi que asoma, el punto y el chip, su nombre accesible y la luz de
- * pregunta. Acoplada, revisa si toca el golpe (6.4).
+ * La muesca A "Asoma" (muesca-avi-ux.md 3 y 8): el ánimo del Avi que asoma (lo dibuja su motor), el
+ * modo (`data-modo`), el chip de sesiones y el globo, su nombre accesible y la luz de pregunta. El
+ * armazón se escribió una vez: acá solo cambian atributos y textos (un innerHTML borraría el SVG del
+ * motor). Acoplada, revisa si toca el golpe (6.4).
  */
 function pintarMuesca(ahora, faltan) {
   const e = estadoMuesca(st.proyectos, ahora)
-  const firma = `${e.animo}|${e.punto}|${e.chip}`
-  poner('#muesca', contenidoMuesca(e), firma)
-  poner('#pildora', contenidoPildora(e), firma)
+  muescaAvi.animo(e.animo, reposoPermitido(st.proyectos, ahora), { ocupado: e.ocupado })
   const boton = $('#muesca')
+  if (boton.dataset.modo !== e.modo) boton.dataset.modo = e.modo
+  texto('#muesca .cuenta', e.sesiones ? String(e.sesiones) : '')
+  texto('#muesca .excl', e.globo || '!')
+  poner('#pildora', contenidoPildora(e), `${e.animo}|${e.pregunta}|${e.chip}`)
   // Primeros pasos: sin golpe ni luz; solo el nombre suma lo que falta (bienvenida-ux.md 3.5)
   const nombre = nombreMuesca(e.nombre, faltan)
   if (boton.getAttribute('aria-label') !== nombre) boton.setAttribute('aria-label', nombre)
   document.body.classList.toggle('pregunta', e.pregunta)
   if (st.acople) revisarGolpe(ahora)
+  // Si el Avi empezó o dejó de trabajar (o de dormir), cambia si quiere el puntero (repetida, no sale)
+  enviarZona()
 }
 
 /**
@@ -251,6 +302,27 @@ function revisarGolpe(ahora) {
   }
 }
 
+// La marca "Escenario" (docs/diseno/marca-avi-ux.md): el Avi de Claude que mira y juega solo. La vista de
+// desarrollo puede acortar los tiempos del reposo (window.__escalaReposo, ver dev/falso.js)
+const marca = montarMarca($('#marca-avi'), { escala: Number(window.__escalaReposo) || 1 })
+
+// La muesca A "Asoma" (docs/diseno/muesca-avi-ux.md): el armazón una sola vez y, adentro, el Avi de
+// Claude que asoma, movido por el mismo motor que la marca (solo el cucú; el curioseo se repite)
+$('#muesca').innerHTML = contenidoMuesca()
+const muescaAvi = montarMarca($('#muesca-avi'), { escala: Number(window.__escalaReposo) || 1, figura: figuraMuesca, repertorio: 'cucu', sigueOcupado: true })
+
+/**
+ * Qué Avi se ve (marca-avi-ux.md 7.1 y muesca-avi-ux.md 7.1): la marca flotante, o acoplada con el
+ * panel abierto; el de la muesca acoplada y cerrada, sin píldora ni arrastre. Ninguno escondido,
+ * minimizado ni en la tira. Movimiento reducido y "Pausar animaciones" los revisa marcaMotion.js.
+ * Si cambia cuál quiere el puntero, la zona se vuelve a mandar (`mirada`, 9).
+ */
+function verAvis() {
+  marca.visible(!st.fuera && !st.mini && (!st.acople || st.vista), !!st.acople)
+  muescaAvi.visible(!!st.acople && !st.vista && !st.fuera && !st.mini && !document.body.classList.contains('pildora') && !st.arrastre?.activo, true)
+  enviarZona()
+}
+
 function pintar() {
   const ahora = Date.now()
   const pp = modeloPasos()
@@ -260,8 +332,8 @@ function pintar() {
   })
   retenerPanel(pp, forma)
   const totalPend = st.proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
-  const marca = animoMarca(st.proyectos, ahora)
-  poner('#marca-avi', figuraMarca(marca), marca)
+  marca.animo(animoMarca(st.proyectos, ahora), reposoPermitido(st.proyectos, ahora))
+  verAvis()
   texto('#marca-estado', estadoMarca(st.proyectos.reduce((n, p) => n + p.sesiones.length, 0)))
   pintarBandeja(totalPend)
   pintarTira(ahora)
@@ -274,7 +346,7 @@ function pintar() {
     modoMarco('escenario')
     texto('#titulo', 'Primeros pasos')
     texto('#subtitulo', '')
-    poner('#proyectos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#cuadros', ''); poner('#sesiones', '')
+    poner('#proyectos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
     pintarAsistente(pp, forma)
     return
   }
@@ -286,7 +358,7 @@ function pintar() {
     poner('#vacio-avi', figuraVacio(cargando ? 'esperando' : 'durmiendo'), cargando ? 'cargando' : 'vacio')
     texto('#titulo', cargando ? 'Buscando sesiones…' : 'No hay sesiones de Claude Code abiertas.')
     texto('#subtitulo', cargando ? '' : 'Cuando abras una, aparece acá con sus subagentes.')
-    poner('#proyectos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#cuadros', ''); poner('#sesiones', '')
+    poner('#proyectos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
     return
   }
   modoMarco('tablero')
@@ -309,8 +381,8 @@ function pintar() {
   texto('#titulo', proyecto.nombre)
   $('#titulo').title = proyecto.repo ?? proyecto.nombre
   texto('#subtitulo', lineaEncabezado(preparadas, c))
-  poner('#cuadros', cuadros(c))
-  poner('#sesiones', sesiones(preparadas, ahora), `${proyecto.repo}/${firmaTablero(preparadas)}|${Math.floor(ahora / 60000)}`)
+  poner('#conteos', chips(c))
+  pintarEscenas(proyecto, preparadas, ahora)
 
   const pend = pendientesVisibles(proyecto)
   if (st.activa >= pend.length) st.activa = 0
@@ -344,6 +416,7 @@ function pintar() {
   if (!st.revelado && !st.fuera && !st.mini && !(st.acople && !st.vista)) {
     st.revelado = true
     entrada()
+    entradaEscenas(document.querySelectorAll('#sesiones > .ses'))
   }
 }
 
@@ -358,6 +431,7 @@ function irAProyecto(repo, direccion) {
   pintar()
   $('.principal').scrollTop = 0
   cambioProyecto(direccion)
+  entradaEscenas(document.querySelectorAll('#sesiones > .ses'))
 }
 
 /**
@@ -368,6 +442,7 @@ function ponerFuera(fuera) {
   if (st.fuera === fuera) return
   st.fuera = fuera
   document.body.classList.toggle('fuera', fuera)
+  verAvis()
   if (fuera) st.revelado = false
   else pintar()
 }
@@ -593,6 +668,7 @@ function pintarControles() {
 function ponerPausa(valor) {
   st.pausa = valor
   document.body.classList.toggle('pausa', valor)
+  verAvis()
 }
 
 async function ponerMini(mini) {
@@ -602,6 +678,7 @@ async function ponerMini(mini) {
     if (mini) {
       st.mini = true
       document.body.classList.add('mini')
+      verAvis()
       $('#tira').hidden = false
       await invocar('modo_mini', { mini: true, ...tamanoMini(zoomDe(st.tamano)) })
     } else {
@@ -817,23 +894,15 @@ async function ajustarVentana() {
 document.addEventListener('visibilitychange', () => ponerFuera(document.hidden))
 
 // El contenido cambia (otro proyecto, globo, compañero desplegado, tamaño elegido): la ventana lo
-// sigue. Acoplada, también el chip de la muesca ("4" o "1 ?")
+// sigue. La muesca tiene un tamaño fijo (TAM_MUESCA): no hace falta observarla
 const observador = new ResizeObserver(() => programarAjuste())
 observador.observe($('#contenido'))
-observador.observe($('#muesca'))
 
 // ------------------------------------------------------------------ muesca acoplable (sección 7)
 
 const zoom = () => zoomDe(st.tamano)
-const MUESCA_DE_REFERENCIA = { largo: 120, grosor: 40 }
-
-/** Tamaño de la muesca en px de pantalla: `largo` a lo largo del borde y `grosor` hacia el centro. */
-function tamMuesca() {
-  const m = $('#muesca')
-  const ancho = m.offsetWidth * zoom(), alto = m.offsetHeight * zoom()
-  if (!ancho || !alto) return MUESCA_DE_REFERENCIA
-  return esHorizontal(st.acople.borde) ? { largo: ancho, grosor: alto } : { largo: alto, grosor: ancho }
-}
+/** Tamaño de la muesca en px de pantalla (`TAM_MUESCA` por el zoom), sin medir el DOM. */
+const tamMuesca = () => tamMuescaDe(st.acople.borde, zoom())
 
 /** Largo del área de trabajo a lo largo de un borde. */
 const largoDe = (borde, area) => esHorizontal(borde) ? area.ancho : area.alto
@@ -854,7 +923,7 @@ function colocar(d) {
     cuerpo.setProperty(`--${prefijo}y`, `${c.y}px`)
     if (conTamano) { cuerpo.setProperty(`--${prefijo}w`, `${c.ancho}px`); cuerpo.setProperty(`--${prefijo}h`, `${c.alto}px`) }
   }
-  poner('m', d.local.muesca, false)
+  poner('m', d.local.muesca)
   poner('l', d.local.luz)
   poner('t', d.local.tablero)
   st.disp = d
@@ -889,7 +958,10 @@ async function colocarAcoplada(g) {
 async function enviarZona(forzar = false) {
   if (!st.acople || !st.disp || !tauri?.core) return null
   const zona = zonaInteractiva(st.disp, { abierta: st.vista, arrastrando: !!st.arrastre?.activo }, zoom())
-  const clave = `${zona.x},${zona.y},${zona.ancho},${zona.alto},${zona.toda}`
+  // `mirada`: el Avi a la vista (la marca abierta o el de la muesca cerrada) quiere el puntero; entonces
+  // Rust manda su posición global (muesca-avi-ux.md 9)
+  zona.mirada = !zona.toda && (st.vista ? marca.quiereCursor() : muescaAvi.quiereCursor())
+  const clave = `${zona.x},${zona.y},${zona.ancho},${zona.alto},${zona.toda},${zona.mirada}`
   if (!forzar && clave === st.zonaEnviada) return null
   st.zonaEnviada = clave
   try {
@@ -907,6 +979,7 @@ async function enviarZona(forzar = false) {
  */
 function ponerDentro(dentro) {
   st.dentroZona = dentro
+  muescaAvi.zona(dentro)
   // `st.ventana`: la muesca ya está en su borde (al arrancar, la ventana todavía está en otro lado)
   if (!st.acople || st.arrastre || !st.ventana) return
   // Decide lo que la muesca todavía no sabe: Rust repite el estado real con cada zona nueva
@@ -922,13 +995,14 @@ function aplicarModo() {
   else delete cuerpo.dataset.borde
   cuerpo.classList.remove('abierta', 'desplegada', 'abriendo', 'muesca-oculta', 'pildora')
   $('#marco').style.clipPath = ''
-  for (const v of ['tx', 'ty', 'tw', 'th', 'mx', 'my', 'lx', 'ly', 'lw', 'lh']) cuerpo.style.removeProperty(`--${v}`)
+  for (const v of ['tx', 'ty', 'tw', 'th', 'mx', 'my', 'mw', 'mh', 'lx', 'ly', 'lw', 'lh']) cuerpo.style.removeProperty(`--${v}`)
   st.vista = false
   st.ventana = null
   st.disp = null
   st.dispBorde = null
   st.zonaEnviada = null
   pintarControles()
+  verAvis()
 }
 
 let relojMuesca = null
@@ -1006,6 +1080,7 @@ async function animarApertura() {
   marco.style.clipPath = rc.desde
   colocar(d)
   st.vista = true
+  verAvis()
   // Abierta, la zona que toma el mouse es el tablero entero
   enviarZona()
   document.body.classList.add('abierta', 'abriendo')
@@ -1025,6 +1100,7 @@ async function animarCierre() {
   const soltar = await movimientoMuesca.cerrar($('#marco'), $('#contenido'), rc)
   document.body.classList.remove('abierta')
   st.vista = false
+  verAvis()
   soltar()
   colocar(d)
   // Recién visto: el próximo golpe, dentro de 90 s si la pregunta sigue
@@ -1086,7 +1162,7 @@ async function acoplarA(borde, { lugar, puntero, plegar } = {}) {
 function pliegueHacia(borde) {
   const marco = $('#marco')
   const w = marco.offsetWidth, h = marco.offsetHeight
-  const { largo, grosor } = MUESCA_DE_REFERENCIA
+  const { largo, grosor } = tamMuescaDe(borde)
   const lados = esHorizontal(borde) ? (w - largo) / 2 : (h - largo) / 2
   const fondo = (esHorizontal(borde) ? h : w) - grosor
   const inset = {
@@ -1146,17 +1222,13 @@ async function enviarVentana() {
   enviandoVentana = null
 }
 
-/** Vela si el pedido que sigue a `st.ventana` la redimensiona o cambia su forma (9.6). Devuelve el turno o 0. */
-function velarSiRedimensiona(rect, cambiaForma) {
-  return planVentana(st.ventana, rect, { cambiaForma }) === 'velar' ? movimientoMuesca.velar() : 0
-}
-
 document.addEventListener('pointerdown', e => {
-  if (e.button !== 0 || st.mini || st.arrastre || !tauri?.core) return
+  if (e.button !== 0 || st.arrastre || !tauri?.core) return
   const asa = e.target.closest?.('#muesca, [data-arrastre]')
   if (!asa) return
-  // Acoplada (cerrada o abierta) se arrastra la muesca; flotando, el tablero
-  const a = { origen: st.acople ? 'muesca' : 'tablero', id: e.pointerId, x0: e.screenX, y0: e.screenY, dx: 0, dy: 0, agarre: { x: e.clientX, y: e.clientY }, activo: false }
+  // Acoplada (cerrada o abierta) se arrastra la muesca; flotando, el tablero o la tira mini (con el
+  // mismo imán: soltada junto a un borde, se acopla)
+  const a = { origen: st.acople ? 'muesca' : (st.mini ? 'tira' : 'tablero'), id: e.pointerId, x0: e.screenX, y0: e.screenY, dx: 0, dy: 0, agarre: { x: e.clientX, y: e.clientY }, activo: false }
   st.arrastre = a
   invocar('geometria', { puntero: true }).then(g => {
     a.inicio = { x: g.x, y: g.y, ancho: g.ancho, alto: g.alto }
@@ -1195,6 +1267,7 @@ function empezarArrastre(a, e) {
     // Mientras se arrastra, toda la ventana toma el mouse: el puntero no se pierde a mitad de camino
     enviarZona(true)
   }
+  verAvis()
 }
 
 function moverArrastre(a) {
@@ -1208,9 +1281,11 @@ function moverArrastre(a) {
   if (a.origen === 'muesca') {
     const caja = cajaArrastre(puntero, null, a.tam)
     a.borde = bordeCercano(caja, a.area, a.libres)
+    // La ventana es el área de trabajo entera (9.6): la muesca y la píldora se mueven adentro y la
+    // ventana queda quieta. Solo al pasar a otro monitor se mueve, velada
+    const ventana = ventanaDeArea(a.area)
+    const turno = mismoRect(st.ventana, ventana) ? 0 : movimientoMuesca.velar()
     if (a.borde) {
-      // Otro borde o volver de la píldora cambia la forma de adentro (velo, 9.6)
-      const cambiaForma = st.acople.borde !== a.borde || document.body.classList.contains('pildora')
       // Cerca de un borde: la muesca se pega a él y se desliza a lo largo
       if (st.acople.borde !== a.borde) {
         st.acople = { borde: a.borde, lugar: 0.5 }
@@ -1220,22 +1295,17 @@ function moverArrastre(a) {
       const tm = tamMuesca()
       const centro = { x: caja.x + caja.ancho / 2, y: caja.y + caja.alto / 2 }
       st.acople.lugar = lugarAjustado(lugarDe(a.borde, centro, a.area), tm.largo, largoDe(a.borde, a.area), zoom())
-      // La ventana fija acompaña a la muesca: a lo largo del mismo borde cambia de lugar, no de
-      // tamaño (salvo cerca de una punta, donde el panel se ajusta al área: ahí se vela)
-      const d = disposicion(a.area, a.tablero)
-      // Todo en esta misma tarea: el velo y la forma nueva llegan juntos al próximo cuadro
-      const turno = velarSiRedimensiona(d.ventana, cambiaForma)
-      colocar(d)
-      pedirVentana(d.ventana, turno)
+      colocar(disposicion(a.area, a.tablero))
     } else {
-      // Lejos de todo borde: la píldora flotante sigue al puntero
-      const entra = !document.body.classList.contains('pildora')
-      const pildora = { x: Math.round(caja.x), y: Math.round(caja.y), ancho: Math.round(caja.ancho), alto: Math.round(caja.alto) }
-      const turno = velarSiRedimensiona(pildora, entra)
+      // Lejos de todo borde: la píldora flotante sigue al puntero, dentro de la misma ventana
+      const p = relativo(caja, ventana, zoom())
+      const cuerpo = document.body.style
+      cuerpo.setProperty('--px', `${p.x}px`)
+      cuerpo.setProperty('--py', `${p.y}px`)
       document.body.classList.add('pildora')
-      st.ventana = pildora
-      pedirVentana(st.ventana, turno)
+      st.ventana = ventana
     }
+    if (turno) pedirVentana(ventana, turno)
   } else {
     const caja = cajaArrastre(puntero, a.agarre, a.inicio)
     a.caja = caja
@@ -1257,6 +1327,7 @@ async function soltarArrastre(e) {
   st.arrastre = null
   document.body.classList.remove('arrastrando')
   if (!a.activo) return
+  verAvis()
   // El clic que sigue al soltar no abre la muesca
   justoArrastro = true
   setTimeout(() => { justoArrastro = false }, 0)
@@ -1275,8 +1346,11 @@ async function soltarArrastre(e) {
     delete document.body.dataset.iman
     if (a.borde) {
       const centro = { x: a.caja.x + a.caja.ancho / 2, y: a.caja.y + a.caja.alto / 2 }
-      await acoplarA(a.borde, { lugar: lugarDe(a.borde, centro, a.area), plegar: true })
-    } else {
+      // La tira no se pliega (no hay tablero a la vista): se vela ya, así la ventana que vuelve a su
+      // tamaño antes de acoplarse no se ve
+      if (a.origen === 'tira') movimientoMuesca.velar()
+      await acoplarA(a.borde, { lugar: lugarDe(a.borde, centro, a.area), plegar: a.origen === 'tablero' })
+    } else if (a.origen === 'tablero') {
       // Flotando: la posición la guarda window-state al salir, como siempre
       st.ultimaFlotante = { x: Math.round(a.caja.x), y: Math.round(a.caja.y) }
     }
@@ -1387,7 +1461,7 @@ async function irAPaso(destino, { foco = 'titulo' } = {}) {
   const direccion = Math.sign(indiceVisible(destino) - indiceVisible(pp.visible)) || 1
   pp.visible = destino
   await movimientoPasos.cambioPaso($('#pp-escena'), direccion, () => pintar())
-  if (destino === 'listo') anunciar('Todo listo. Tu Oficina está conectada')
+  if (destino === 'listo') anunciar('Todo listo. Avis está conectado')
   // Anterior y Siguiente llevan el foco al título del paso nuevo (el botón tocado puede quedar deshabilitado)
   if (foco === 'titulo') $('#pp-titulo')?.focus()
   else if (foco === 'tab') $(`#pp-tab-${destino}`)?.focus()
@@ -1411,7 +1485,7 @@ async function abrirAsistente({ foco = false } = {}) {
   }
 }
 
-/** La × y "Ir a la Oficina": cierran sin hacer nada más; un paso que corre sigue corriendo (3.2). */
+/** La × y "Ir a Avis": cierran sin hacer nada más; un paso que corre sigue corriendo (3.2). */
 function cerrarAsistente() {
   const eraHoja = st.pp.forma === 'hoja'
   st.pp.abierto = false
@@ -1582,13 +1656,21 @@ async function iniciar() {
     escuchar('oficina://avisar', ev => { st.avisar = !!ev.payload })
     escuchar('oficina://pausa', ev => ponerPausa(!!ev.payload))
     escuchar('oficina://tamano', ev => aplicarTamano(Number(ev.payload)))
-    // Se abrió Oficina otra vez estando en la tira mini: volver a la ventana completa
+    // Se abrió Avis otra vez estando en la tira mini: volver a la ventana completa
     escuchar('oficina://expandir', () => ponerMini(false))
     // "Acoplar a" de la bandeja (7.3): un borde o Flotante (null)
     escuchar('oficina://acoplar', ev => acoplarA(typeof ev.payload === 'string' ? ev.payload : null))
-    // "Mostrar oficina", la notificación o abrir Oficina otra vez: acoplada, abre el panel
+    // "Mostrar Avis", la notificación o abrir Avis otra vez: acoplada, abre el panel
     escuchar('oficina://abrir', () => { if (st.acople) evento({ tipo: 'clic' }) })
     // El puntero entró o salió de la zona interactiva (9.6); un aviso más viejo que el último se descarta
+    // Acoplada: el puntero global (px lógicos de pantalla) para la mirada del Avi a la vista; cada motor
+    // lo ignora si no se ve (marca-avi-ux.md 6 y muesca-avi-ux.md 9)
+    escuchar('oficina://cursor', ev => {
+      const p = ev.payload
+      if (!st.acople || !st.ventana || typeof p?.x !== 'number' || typeof p?.y !== 'number') return
+      marca.cursor(p.x - st.ventana.x, p.y - st.ventana.y)
+      muescaAvi.cursor(p.x - st.ventana.x, p.y - st.ventana.y)
+    })
     escuchar('oficina://puntero-zona', ev => {
       const n = ev.payload?.n
       if (typeof n !== 'number' || n <= st.zonaN) return

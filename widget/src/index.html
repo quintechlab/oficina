@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Oficina</title>
+<title>Avis</title>
 <link rel="preload" href="fuentes/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fuentes/martian-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="estilos.css">
@@ -17,9 +17,11 @@
       <!-- El tamaño natural de este bloque decide el de la ventana (tamano.js) -->
       <div id="contenido">
         <aside class="lado">
+          <!-- Marca "Escenario" (docs/diseno/marca-avi-ux.md): el Avi de Claude de 112 sobre su luz; marcaMotion.js lo mueve -->
           <div class="marca" data-arrastre title="Arrastrá para mover o acoplar a un borde">
             <span id="marca-avi"></span>
-            <span class="marca-t"><b class="marca-n">Oficina</b><span class="estado" id="marca-estado"></span></span>
+            <b class="marca-n">Avis</b>
+            <span class="estado" id="marca-estado"></span>
           </div>
           <nav class="proyectos" aria-labelledby="h-proyectos">
             <h2 class="oculto" id="h-proyectos">Proyectos</h2>
@@ -54,7 +56,7 @@
           <div id="w-globo"></div>
           <!-- Primeros pasos (docs/diseno/bienvenida-ux.md): el escenario en lugar del vacío o la hoja de la columna -->
           <div id="pp"></div>
-          <div class="stats" id="cuadros"></div>
+          <div class="conteos" id="conteos"></div>
           <section class="sesiones" aria-labelledby="h-sesiones">
             <h2 class="oculto" id="h-sesiones">Sesiones</h2>
             <div id="sesiones"></div>
@@ -64,7 +66,8 @@
     </div>
   </div>
   <!-- Muesca acoplada (sección 7): el único control mientras está cerrada. El panel es #marco -->
-  <button type="button" id="muesca" aria-expanded="false" aria-controls="marco" aria-label="Oficina. Abrir"></button>
+  <!-- Muesca A "Asoma" (docs/diseno/muesca-avi-ux.md): main.js escribe su armazón una vez (contenidoMuesca) -->
+  <button type="button" id="muesca" aria-expanded="false" aria-controls="marco" aria-label="Avis. Abrir"></button>
   <div id="luz" aria-hidden="true"></div>
   <!-- Píldora al arrastrar la muesca lejos de los bordes, y aviso del imán al arrastrar el tablero (7.3) -->
   <div id="pildora" aria-hidden="true"></div>
@@ -73,7 +76,7 @@
   <p class="oculto" id="anuncio" aria-live="polite"></p>
   <!-- Tira mini (400 × 56): caras, resumen, preguntas, expandir y cerrar -->
   <div class="tira" id="tira" hidden>
-    <div class="arrastre" data-tauri-drag-region title="Arrastrá para mover">
+    <div class="arrastre" data-arrastre title="Arrastrá para mover o acoplar a un borde">
       <span class="caras" id="tira-caras"></span>
       <span class="resumen" id="tira-resumen"></span>
     </div>

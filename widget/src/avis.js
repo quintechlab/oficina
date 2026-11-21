@@ -47,6 +47,9 @@ export function defsAvis() {
     + `<radialGradient id="gPiel" cx="36%" cy="28%" r="78%"><stop offset="0" stop-color="#FFFCF4"/><stop offset=".42" stop-color="#F5EDDC"/><stop offset=".8" stop-color="#E1D4B6"/><stop offset="1" stop-color="#CBBB97"/></radialGradient>`
     + `<radialGradient id="gSuelo" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#F2B632" stop-opacity=".22"/><stop offset="1" stop-color="#F2B632" stop-opacity="0"/></radialGradient>`
     + `<filter id="fBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.7"/></filter>`
+    // Marca "Escenario" (marca-avi-ux.md 5.2 y 5.3): el brillo sin filtro (se mueve cada cuadro) y la pelota
+    + `<radialGradient id="gBrillo" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset=".55" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>`
+    + `<radialGradient id="gBola" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#FFD873"/><stop offset=".6" stop-color="#F2B632"/><stop offset="1" stop-color="#C98A12"/></radialGradient>`
     + `</defs></svg>`
 }
 
@@ -108,13 +111,66 @@ function efectos(pose, c, comando) {
   }
 }
 
+// ------------------------------------------------------------------ marca "Escenario" (marca-avi-ux.md 5.3)
+// Cada transformación vive en su propio grupo, así no se pisan el CSS (respirar, parpadear) y el JS de
+// marcaMotion.js (mirada, juegos). Los grupos que mueve el JS van con transform-box: view-box (avis.css).
+
+/** La mano de "saluda": palma 6,6 × 8, pulgar que la une al cuerpo y pliegue, centrada en (0,0). */
+const MANO = `<ellipse rx="6.6" ry="8" fill="${CREMA_MANO}"/><ellipse cx="-5.4" cy="4.5" rx="2.6" ry="3.6" fill="${CREMA_MANO}" transform="rotate(-35 -5.4 4.5)"/>`
+  + `<path d="M-3 -5.5q3-1.6 6 0" stroke="#D9CCAD" stroke-width="1.4" fill="none" stroke-linecap="round"/>`
+
+/** Ojos contentos ∩ (canta, festeja) y cerrados ∪ (se estira, siesta). */
+const OJOS_FELIZ_MARCA = `<path class="trazo e-fe" d="M44.5 72Q49 65.5 53.5 72M66.5 72Q71 65.5 75.5 72"/>`
+const OJOS_CERRADOS_MARCA = `<path class="trazo e-ce" d="M44.5 70Q49 74.5 53.5 70M66.5 70Q71 74.5 75.5 70"/>`
+
+/** La antena de Claude con el foco y el bulbo en grupos propios (el juego los escala y los apaga). */
+const antenaMarca = c => `<g class="antena"><path d="M60 38V19" stroke="#CDBE9C" stroke-width="3.2" stroke-linecap="round"/>`
+  + `<g class="foco"><circle class="halo" cx="60" cy="14" r="9.5" fill="${c}" opacity=".22"/></g>`
+  + `<g class="bulbo"><circle cx="60" cy="14" r="5.4" fill="${c}"/><circle cx="58.2" cy="12.3" r="1.7" fill="#fff" opacity=".85"/></g></g>`
+
+/** El Avi de la marca: el mismo dibujo con las capas del escenario, las manos, el globito y la pelota. */
+function svgMarca({ pj, color }, e, comando) {
+  const c = color
+  const atras = pj === 'antena' ? antenaMarca(c) : (ATRAS[pj]?.(c) ?? '')
+  const frente = FRENTE[pj]?.(c) ?? ''
+  const clase = `e-${e}${e === 'escribiendo' && comando ? ' comando' : ''} es-marca`
+  return `<svg viewBox="0 0 120 120" class="${clase}" aria-hidden="true" focusable="false">`
+    + `<ellipse class="suelo" cx="60" cy="104" rx="42" ry="9"/>`
+    + `<ellipse class="contacto" cx="60" cy="104" rx="26" ry="3.6"/>`
+    + `<ellipse class="b-sombra" cx="0" cy="104" rx="6.5" ry="1.8" fill="#000" opacity="0"/>`
+    + `<g class="actua"><g class="inclina"><g class="cuerpo">${atras}`
+    + `<ellipse class="pata" cx="47" cy="101" rx="8.5" ry="4.4"/><ellipse class="pata" cx="73" cy="101" rx="8.5" ry="4.4"/>`
+    + `<path class="piel" d="M60 34C84 34 97 52 97 74C97 92 81 102 60 102C39 102 23 92 23 74C23 52 36 34 60 34Z"/>`
+    + `<path class="sombreado" d="M25 80C30 95 90 95 95 80C92 99 28 99 25 80Z"/>`
+    + `<g class="c-brillo"><ellipse class="brillo" cx="43" cy="49" rx="12" ry="6.4" transform="rotate(-30 43 49)"/></g>`
+    + `<g class="c-mejillas"><ellipse cx="37" cy="81" rx="6.8" ry="3.5" fill="${c}" opacity=".36"/><ellipse cx="83" cy="81" rx="6.8" ry="3.5" fill="${c}" opacity=".36"/></g>`
+    + `<g class="mirada"><g class="parpado"><g class="ojos"><g class="e-ab">${ojosDe(e)}</g>${OJOS_FELIZ_MARCA}${OJOS_CERRADOS_MARCA}</g></g></g>`
+    + `<g class="c-pico"><ellipse class="boca" cx="60" cy="81.5" rx="3.4" ry="3.6"/>`
+    + `<path class="pico pico-i" d="M56.4 79.2Q60 81.2 63.6 79.2Q60 85.5 56.4 79.2Z"/><path class="pico pico-s" d="M56 78.5Q60 76.8 64 78.5Q60 80.8 56 78.5Z"/></g>`
+    + `${frente}</g>`
+    + `<g class="manito mn-i" opacity="0">${MANO}</g><g class="manito mn-d" opacity="0"><g transform="scale(-1 1)">${MANO}</g></g>`
+    + `<g class="zs"><text class="z" x="88" y="50">z</text><text class="z z2" x="95" y="40" style="font-size:14px">z</text></g>`
+    + `</g></g>`
+    // En un grupo propio: la muesca (muesca-avi-ux.md 5.2) los esconde enteros; en la marca no cambia nada
+    + `<g class="efectos">${efectos(e, c, comando)}</g>`
+    + `<g class="notas"></g>`
+    // Globito de "Te llama": crema con texto negro, nunca ámbar (el ámbar con "!" es la pregunta de Claude)
+    + `<g class="globo" opacity="0"><rect x="-20" y="-13" width="40" height="22" rx="11" fill="#F3EBD8"/><path d="M-12 7L-19 17L-4 8Z" fill="#F3EBD8"/>`
+    + `<text x="0" y="2.6" text-anchor="middle" font-family="Manrope,sans-serif" font-weight="800" font-size="12" fill="#000">¡ey!</text></g>`
+    + `<g class="bola" opacity="0"><g class="bola-r"><circle r="7" fill="url(#gBola)"/>`
+    + `<path d="M-6.4 -2.6Q0 1.8 6.4 -2.6M-2.4 -6.6Q1.6 0 -2.4 6.6" stroke="#1D1707" stroke-opacity=".45" stroke-width="1.1" fill="none"/></g>`
+    + `<circle cx="-2.6" cy="-3" r="1.6" fill="#fff" opacity=".7"/></g>`
+    + `</svg>`
+}
+
 /**
  * El SVG de un Avi en una pose (`viewBox` 0 0 120 120, se escala con el contenedor). `personaje`:
  * `{ pj, color }` de `personajeDeNombre`. Siempre `aria-hidden`: el nombre, si hace falta, lo
- * lleva el contenedor (`avi`).
+ * lleva el contenedor (`avi`). `marca`: el Avi de la marca, con las capas del escenario.
  */
-export function svgAvi({ pj, color }, pose, comando = false) {
+export function svgAvi({ pj, color }, pose, comando = false, { marca = false } = {}) {
   const e = POSES.includes(pose) ? pose : 'esperando'
+  if (marca) return svgMarca({ pj, color }, e, comando)
   const c = color
   const atras = ATRAS[pj]?.(c) ?? ''
   const frente = FRENTE[pj]?.(c) ?? ''
@@ -140,8 +196,8 @@ export function svgAvi({ pj, color }, pose, comando = false) {
  * donde el texto de al lado ya dice quién es y qué hace; con `alt` lleva `role="img"` y nombre
  * (solo la marca y el vacío, 5.6). `indice`: para el desfase de la respiración.
  */
-export function avi(personaje, animo, tamano, { alt = '', indice = 0 } = {}) {
+export function avi(personaje, animo, tamano, { alt = '', indice = 0, marca = false } = {}) {
   const { pose, comando } = poseAvi(animo)
   const a11y = alt ? ` role="img" aria-label="${escapar(alt)}"` : ' aria-hidden="true"'
-  return `<span class="avi" style="--t:${tamano}px;--d:${desfase(indice)}"${a11y}>${svgAvi(personaje, pose, comando)}</span>`
+  return `<span class="avi" style="--t:${tamano}px;--d:${desfase(indice)}"${a11y}>${svgAvi(personaje, pose, comando, { marca })}</span>`
 }

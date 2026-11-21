@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import {
   agruparPorProyecto, nombreProyecto, animoSesion, animoSubagente, personajeDeNombre,
   tiempoRelativo, tiempoSubagente, textoActividad, preguntasPendientes, etiquetaOpcion, escapar,
-  preguntasNuevas, resumenMini,
+  preguntasNuevas, resumenMini, reposoPermitido, ANIMOS_DE_TRABAJO,
 } from '../src/logica.js'
 
 const AHORA = Date.parse('2026-11-19T23:50:00Z')
@@ -216,4 +216,41 @@ test('regla 4: si no, la actividad tal cual', () => {
   const s = sesion({ actividad: 'corriendo npm test', preguntas: [], agentes: [terminado] })
   assert.equal(animoSesion(s, AHORA), 'comando')
   assert.equal(textoActividad(s, AHORA), 'ahora · corriendo npm test')
+})
+
+// Marca "Escenario" (docs/diseno/marca-avi-ux.md 7.1, regla 2): el Avi de la marca solo juega si nadie trabaja
+test('reposoPermitido: con sesiones que esperan tu mensaje o no dicen nada, puede jugar', () => {
+  assert.equal(reposoPermitido(agruparPorProyecto([sesion({ actividad: 'esperándote' }), sesion({ sesion: 's2', repo: null })]), AHORA), true)
+})
+
+test('reposoPermitido: sin sesiones no juega (la marca duerme)', () => {
+  assert.equal(reposoPermitido([], AHORA), false)
+})
+
+test('reposoPermitido: una pregunta pendiente (de Claude o de un subagente) no lo deja jugar', () => {
+  const pregunta = { id: 'p', agente: null, items: [{ pregunta: '¿?' }] }
+  assert.equal(reposoPermitido(agruparPorProyecto([sesion({ actividad: 'esperándote', preguntas: [pregunta] })]), AHORA), false)
+  const deSub = { id: 'q', agente: 'a1', items: [{ pregunta: '¿?' }] }
+  const s = sesion({ actividad: 'esperándote', agentes: [{ id: 'a1', nombre: 'Lucas', estado: 'listo', desde: hace(MIN), hasta: hace(MIN) }], preguntas: [deSub] })
+  assert.equal(reposoPermitido(agruparPorProyecto([s]), AHORA), false)
+})
+
+test('reposoPermitido: cualquier sesión trabajando (escribe, lee, piensa, coordina o espera procesos) no lo deja jugar', () => {
+  const trabajos = [
+    { actividad: 'editando logica.js' }, { actividad: 'corriendo npm test' }, { actividad: 'leyendo main.js' },
+    { actividad: 'pensando' }, { actividad: 'esperándote', agentes: [{ id: 'a', nombre: 'Lucas', estado: 'trabajando', desde: hace(MIN) }] },
+    { actividad: 'esperándote', procesos: [{ id: 'b1', descripcion: 'npm run dev', desde: hace(MIN) }] },
+  ]
+  for (const t of trabajos) {
+    const lista = agruparPorProyecto([sesion({ actividad: 'esperándote' }), sesion({ sesion: 's2', ...t })])
+    assert.equal(reposoPermitido(lista, AHORA), false, JSON.stringify(t))
+  }
+})
+
+test('ANIMOS_DE_TRABAJO: una sola lista de lo que cuenta como trabajo, la que usan la marca y la muesca', () => {
+  assert.deepEqual([...ANIMOS_DE_TRABAJO].sort(), ['comando', 'coordinando', 'editando', 'escribiendo', 'leyendo', 'pensando', 'proceso'])
+})
+
+test('reposoPermitido: una sesión inactiva (sin publicar hace rato) no cuenta como trabajo', () => {
+  assert.equal(reposoPermitido(agruparPorProyecto([sesion({ actividad: 'editando x', actualizado: hace(30 * MIN) })]), AHORA), true)
 })

@@ -26,11 +26,33 @@ const EASE_CIERRA_LARGO = 'cubic-bezier(.3, .5, .6, 1)'
 const fin = anim => anim.finished.catch(() => {})
 
 /**
+ * Los hombros del panel (body::before y ::after) acompañan al recorte: en la muesca (`inset`, px
+ * CSS del tablero) están corridos hacia adentro, justo donde están los hombros de la muesca, y a lo
+ * largo del borde quedan en su lugar. `abrir`: de la muesca al borde en el primer tramo; si no, al
+ * revés en el último. Sin animación de pseudoelementos, quedan quietos en su lugar.
+ */
+function hombros(inset, abrir) {
+  const borde = document.body.dataset.borde
+  if (!borde || !inset) return []
+  const [eje, a, b] = borde === 'arriba' || borde === 'abajo' ? ['X', 'izquierda', 'derecha'] : ['Y', 'arriba', 'abajo']
+  const cerca = { transform: `translate${eje}(0px)` }
+  return [['::before', inset[a]], ['::after', -inset[b]]].map(([pseudoElement, d]) => {
+    const lejos = { transform: `translate${eje}(${d}px)` }
+    const cuadros = abrir
+      ? [{ ...lejos, easing: EASE_LARGO }, { ...cerca, offset: TRAMO_LARGO }, cerca]
+      : [cerca, { ...cerca, offset: TRAMO_CIERRE, easing: EASE_CIERRA_LARGO }, lejos]
+    try {
+      return document.body.animate(cuadros, { duration: abrir ? ABRE_MS : CIERRA_MS, fill: 'both', pseudoElement })
+    } catch { return null }
+  }).filter(Boolean)
+}
+
+/**
  * Abre como una isla: el recorte va de la muesca (`desde`) a todo lo largo del borde (`medio`) y de
  * ahí hacia el centro hasta el panel entero (`hasta`), en un solo movimiento de 720 ms. El
  * contenido se funde recién en el segundo tramo, así el primero es solo la forma negra estirándose.
  */
-export async function abrir(marco, { desde, medio, hasta }, contenido) {
+export async function abrir(marco, { desde, medio, hasta, inset }, contenido) {
   const cuerpo = document.body
   if (!hayMovimiento()) { cuerpo.classList.add('muesca-oculta'); return }
   const anim = marco.animate([
@@ -38,6 +60,7 @@ export async function abrir(marco, { desde, medio, hasta }, contenido) {
     { clipPath: medio, offset: TRAMO_LARGO, easing: EASE_ADENTRO },
     { clipPath: hasta },
   ], { duration: ABRE_MS })
+  const animHombros = hombros(inset, true)
   contenido?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, delay: ABRE_MS * (TRAMO_LARGO + 0.06), easing: 'ease-out', fill: 'backwards' })
   // El recorte nace con la forma de la muesca: en cuanto se pintó su primer cuadro, la muesca se
   // funde (90 ms) y queda solo el panel creciendo. Si se quedaba encima un rato, se veían las dos.
@@ -45,6 +68,21 @@ export async function abrir(marco, { desde, medio, hasta }, contenido) {
   await fin(anim)
   cancelAnimationFrame(cuadro)
   cuerpo.classList.add('muesca-oculta')
+  // Ya en su lugar: sin la animación quedan exactamente donde los pone el CSS
+  for (const h of animHombros) h.cancel()
+}
+
+const VUELVE_MS = 320
+let relojVuelve = null
+
+/** La muesca reaparece (una sola vez por cierre) y su Avi entra con "vuelve". */
+function reaparecer() {
+  const cuerpo = document.body
+  if (!cuerpo.classList.contains('muesca-oculta')) return
+  cuerpo.classList.remove('muesca-oculta')
+  cuerpo.classList.add('muesca-vuelve')
+  clearTimeout(relojVuelve)
+  relojVuelve = setTimeout(() => cuerpo.classList.remove('muesca-vuelve'), VUELVE_MS)
 }
 
 /**
@@ -52,7 +90,7 @@ export async function abrir(marco, { desde, medio, hasta }, contenido) {
  * La muesca vuelve a verse antes de que termine. Devuelve con qué soltar el último cuadro, para
  * llamarlo recién cuando el tablero ya no se ve (si no, parpadea el panel entero).
  */
-export async function cerrar(marco, contenido, { desde, medio, hasta }) {
+export async function cerrar(marco, contenido, { desde, medio, hasta, inset }) {
   const cuerpo = document.body
   if (!hayMovimiento()) { cuerpo.classList.remove('muesca-oculta'); return () => {} }
   const apaga = contenido.animate([{ opacity: 1 }, { opacity: 0 }], { duration: APAGA_MS, fill: 'forwards' })
@@ -62,12 +100,14 @@ export async function cerrar(marco, contenido, { desde, medio, hasta }) {
     { clipPath: medio, offset: TRAMO_CIERRE, easing: EASE_CIERRA_LARGO },
     { clipPath: desde },
   ], { duration: CIERRA_MS, fill: 'forwards' })
-  // La muesca vuelve cuando el recorte ya casi tiene su forma: antes se veían las dos superpuestas
-  const mostrar = setTimeout(() => cuerpo.classList.remove('muesca-oculta'), CIERRA_MS * 0.85)
+  const animHombros = hombros(inset, false)
+  // La muesca vuelve cuando el recorte ya casi tiene su forma: antes se veían las dos superpuestas.
+  // Al reaparecer, el Avi vuelve a asomar desde abajo (body.muesca-vuelve, 320 ms, muesca-avi-ux.md 6)
+  const mostrar = setTimeout(reaparecer, CIERRA_MS * 0.85)
   await fin(anim)
   clearTimeout(mostrar)
-  cuerpo.classList.remove('muesca-oculta')
-  return () => { apaga.cancel(); anim.cancel() }
+  reaparecer()
+  return () => { apaga.cancel(); anim.cancel(); for (const h of animHombros) h.cancel() }
 }
 
 /**
@@ -142,8 +182,8 @@ export async function revelar(turno = turnoVelo) {
 }
 
 /**
- * Golpe (6.4): la muesca se corre 6 px hacia el centro y vuelve, el Avi salta, la luz sube y el
- * chip late, una sola vez. Solo llama la atención: no abre ni responde nada.
+ * Golpe (6.4 y muesca-avi-ux.md 6): la muesca crece desde el borde y vuelve, el Avi salta, el globo
+ * reaparece y la luz sube, una sola vez. Solo llama la atención: no abre ni responde nada.
  */
 export function golpe() {
   if (!hayMovimiento()) return
