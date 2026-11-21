@@ -24,6 +24,7 @@ import {
   esActividadEnEspera,
   preguntaDesdeEntrada,
   latidoLocal,
+  puedeEscribirLocal,
   ciDesdeRollup,
   choques,
   diferencias,
@@ -90,8 +91,8 @@ let cola: Promise<void> = Promise.resolve()
 const ESPERA_PUBLICACION_MS = 15000
 /** Lo último que esta sesión escribió en su archivo local; null antes de escribir o ya cerrada. */
 let ultimaLocal: Presencia | null = null
-/** La sesión ya escribió su cierre: nada vuelve a abrir su archivo. */
-let cerradaLocal = false
+/** Las sesiones que ya escribieron su cierre: nada vuelve a abrir su archivo (por sesión, ver puedeEscribirLocal). */
+const cerradasLocal = new Set<string>()
 /** Cada cuánto se renueva la hora del archivo local (el widget descarta lo que no late en 2 min). */
 const LATIDO_LOCAL_MS = 30000
 
@@ -256,7 +257,7 @@ function esperarCortable($: EngineInterface, ms: number, senal: AbortSignal): Pr
 /** Escribe el estado de esta sesión en un archivo propio; el widget lee la carpeta entera. */
 async function escribirEstadoLocal($: EngineInterface, p: Presencia, cerrada = false): Promise<void> {
   const carpeta = await carpetaLocal($)
-  if (!carpeta || cerradaLocal) return
+  if (!carpeta || !puedeEscribirLocal(cerradasLocal, p.sesion)) return
   if (!cerrada) ultimaLocal = p
   await $.fs.write(`${carpeta}/${p.sesion}.json`, JSON.stringify({ ...p, cerrada }, null, 2)).catch(() => undefined)
 }
@@ -272,7 +273,7 @@ async function cerrarEstadoLocal($: EngineInterface, sesion: string): Promise<vo
   const carpeta = await carpetaLocal($)
   // Que ningún latido ni publicación en vuelo la reviva
   ultimaLocal = null
-  cerradaLocal = true
+  cerradasLocal.add(sesion)
   if (!carpeta) return
   const ahora = new Date(await $.clock.now()).toISOString()
   await $.fs.write(`${carpeta}/${sesion}.json`, JSON.stringify({ sesion, cerrada: true, actualizado: ahora })).catch(() => undefined)

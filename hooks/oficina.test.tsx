@@ -17,6 +17,7 @@ import {
   actividadDesdeHerramienta,
   iniciales,
   latidoLocal,
+  puedeEscribirLocal,
   mapaNombres,
   NOMBRES_INVENTADOS,
   nombreSubagente,
@@ -589,4 +590,13 @@ test('/avis y /oficina (el nombre anterior) responden lo mismo', async ($, on) =
   expect(avis.text).toContain('/avis tarea 42')
   expect(avis.text).toContain('/oficina')
   expect(oficina.text).toBe(avis.text)
+})
+
+test('tras un /clear, cerrar la sesión vieja no bloquea el archivo local de la nueva', async () => {
+  const cerradas = new Set(['vieja'])
+  // La sesión cerrada no revive (ningún latido ni publicación en vuelo)
+  expect(puedeEscribirLocal(cerradas, 'vieja')).toBe(false)
+  // La sesión nueva que nace del /clear sí escribe: el widget la ve
+  expect(puedeEscribirLocal(cerradas, 'nueva')).toBe(true)
+  expect(puedeEscribirLocal(new Set(), 'nueva')).toBe(true)
 })

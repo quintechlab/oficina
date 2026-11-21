@@ -681,3 +681,12 @@ export async function resultadoDelWidget(
   }
   return { result: { questions, answers } }
 }
+
+/**
+ * ¿Puede la sesión `sesion` escribir su archivo local? Sí, salvo que ya haya escrito su cierre
+ * (`cerradas`). La marca es por sesión: tras un /clear el mismo módulo sigue con una sesión nueva,
+ * que tiene que seguir escribiendo aunque la vieja esté cerrada.
+ */
+export function puedeEscribirLocal(cerradas: ReadonlySet<string>, sesion: string): boolean {
+  return !cerradas.has(sesion)
+}
