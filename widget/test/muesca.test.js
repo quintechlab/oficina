@@ -8,7 +8,9 @@ import {
   esHorizontal, bordeCercano, lugarDe, lugarAjustado, rectMuesca, rectPanel, recorte, cajaArrastre, rectLuz, relativo,
   estadoMuesca, ESTADO_INICIAL, siguiente, tocaGolpe, dentroDe, posicionFlotante, contenidoMuesca, contenidoPildora,
   disposicionAcoplada, ventanaDeArea, mismoRect, zonaInteractiva, MARGEN_ZONA, eventoZona, TAM_MUESCA, tamMuescaDe, figuraMuesca, planVentana, secuenciaVelo, ASIENTO_VELO_MS, REAPARECE_MS,
+  disposicionFlotante, disposicionTira, transformEntre, plegadoHacia, anclaHacia, fueraDelBorde,
 } from '../src/muesca.js'
+import { esquinaTira, tamanoMini } from '../src/tamano.js'
 import { agruparPorProyecto, reposoPermitido } from '../src/logica.js'
 
 const AREA = { x: 0, y: 0, ancho: 1920, alto: 1040 }
@@ -575,19 +577,13 @@ test('plan de la ventana: igual o casi igual no se toca (abrir y cerrar no redim
   assert.equal(planVentana(V, { ...V, x: 101, ancho: 602 }), 'nada')
 })
 
-test('plan de la ventana: solo cambia el lugar, se mueve sin esconder nada', () => {
-  assert.equal(planVentana(V, { ...V, x: 300 }), 'mover')
-  assert.equal(planVentana(V, { ...V, y: 50 }), 'mover')
-})
-
-test('plan de la ventana: cambia el tamaño, el borde o no se sabe dónde está: velar', () => {
-  // Zoom, contenido que llega, borde nuevo o la píldora: WebView2 deja la ventana sin pintar
+test('plan de la ventana: otro monitor, otra área o no se sabe dónde está: velar (WebView2 tarda en repintar)', () => {
+  // La ventana solo cambia cuando cambia el área: aunque mida lo mismo, es otro monitor
+  assert.equal(planVentana(V, { ...V, x: 300 }), 'velar')
+  assert.equal(planVentana(V, { ...V, y: 50 }), 'velar')
   assert.equal(planVentana(V, { ...V, ancho: 700 }), 'velar')
   assert.equal(planVentana(V, { ...V, x: 300, alto: 48 }), 'velar')
-  assert.equal(planVentana(V, { ...V, x: 300 }, { cambiaForma: true }), 'velar')
   assert.equal(planVentana(null, V), 'velar')
-  // Un cambio de tamaño chico con el lugar cambiado también se vela (no hay tolerancia de tamaño)
-  assert.equal(planVentana(V, { ...V, x: 300, ancho: 601 }), 'velar')
 })
 
 test('secuencia del velo: esconder, redimensionar, dos cuadros y un asiento, y reaparecer en 160 ms', () => {
@@ -606,4 +602,106 @@ test('secuencia del velo sin movimiento: también se esconde y espera, pero reap
   assert.deepEqual(s.map(p => p.paso), ['ocultar', 'ajustar', 'esperar', 'mostrar'])
   assert.equal(s[2].ms, ASIENTO_VELO_MS)
   assert.equal(s[3].ms, 0)
+})
+
+// ------------------------------------------------------------------ ventana única (todas las formas adentro de una ventana del área)
+
+const TAB = { ancho: 700, alto: 500 }
+const MONITOR2 = { x: 1920, y: 0, ancho: 2560, alto: 1400 }
+
+test('flotando, la ventana es el área de trabajo entera y el tablero va adentro, donde está', () => {
+  for (const z of [1, 2]) {
+    const d = disposicionFlotante({ x: 300, y: 120 }, TAB, AREA, z)
+    assert.equal(d.modo, 'flotante')
+    assert.deepEqual(d.ventana, ventanaDeArea(AREA))
+    assert.deepEqual(d.tablero, { x: 300, y: 120, ancho: 700, alto: 500 })
+    // En px CSS de la ventana (los de pantalla divididos por el zoom)
+    assert.deepEqual(d.local.tablero, { x: 300 / z, y: 120 / z, ancho: 700 / z, alto: 500 / z })
+  }
+  // En otro monitor, relativo a esa área
+  const d2 = disposicionFlotante({ x: 2000, y: 100 }, TAB, MONITOR2)
+  assert.deepEqual(d2.ventana, ventanaDeArea(MONITOR2))
+  assert.deepEqual(d2.local.tablero, { x: 80, y: 100, ancho: 700, alto: 500 })
+})
+
+test('en la tira, la ventana es el área de trabajo entera y la tira va abajo a la derecha (o donde se la soltó)', () => {
+  for (const z of [1, 1.5, 2]) {
+    const tam = tamanoMini(z)
+    const d = disposicionTira(null, tam, AREA, z)
+    assert.equal(d.modo, 'tira')
+    assert.deepEqual(d.ventana, ventanaDeArea(AREA))
+    assert.deepEqual(d.tira, { ...esquinaTira(AREA, tam), ...tam })
+    assert.deepEqual(d.local.tira, { x: d.tira.x / z, y: d.tira.y / z, ancho: 400, alto: 56 })
+  }
+  const suelta = disposicionTira({ x: 200, y: 300 }, tamanoMini(1), AREA)
+  assert.deepEqual(suelta.tira, { x: 200, y: 300, ancho: 400, alto: 56 })
+})
+
+test('acoplada, flotando y en la tira la ventana es la misma: pasar de una forma a otra no la toca (sin velo)', () => {
+  const ventanas = [
+    disposicionAcoplada({ borde: 'arriba', lugar: 0.5 }, MUESCA_H, TABLERO, AREA).ventana,
+    disposicionAcoplada({ borde: 'derecha', lugar: 0.2 }, MUESCA_V, TABLERO, AREA).ventana,
+    disposicionFlotante({ x: 300, y: 120 }, TAB, AREA).ventana,
+    disposicionFlotante({ x: 1500, y: 900 }, TAB, AREA, 2).ventana,
+    disposicionTira(null, tamanoMini(1), AREA).ventana,
+    disposicionTira({ x: 10, y: 10 }, tamanoMini(2), AREA, 2).ventana,
+  ]
+  for (const v of ventanas) {
+    assert.ok(mismoRect(v, ventanas[0]))
+    assert.equal(planVentana(ventanas[0], v), 'nada')
+  }
+  // Al pasar a otro monitor sí cambia, una vez, y se vela
+  assert.equal(planVentana(ventanas[0], disposicionFlotante({ x: 2000, y: 100 }, TAB, MONITOR2).ventana), 'velar')
+})
+
+test('zona interactiva por forma: flotando, el tablero; en la tira, la tira; arrastrando, toda la ventana', () => {
+  const f = disposicionFlotante({ x: 300, y: 120 }, TAB, AREA)
+  assert.deepEqual(zonaInteractiva(f, { abierta: false }), { x: 300, y: 120, ancho: 700, alto: 500, toda: false })
+  assert.deepEqual(zonaInteractiva(f, { abierta: false, arrastrando: true }), { ...ventanaDeArea(AREA), toda: true })
+  const t = disposicionTira(null, tamanoMini(1), AREA)
+  assert.deepEqual(zonaInteractiva(t, { abierta: false }), { ...t.tira, toda: false })
+  assert.deepEqual(zonaInteractiva(t, { abierta: false, arrastrando: true }), { ...ventanaDeArea(AREA), toda: true })
+  // Con zoom la zona sigue en px de pantalla (el tablero y la tira ya vienen con el zoom)
+  const t2 = disposicionTira(null, tamanoMini(2), AREA, 2)
+  assert.deepEqual(zonaInteractiva(t2, { abierta: false }, 2), { ...t2.tira, toda: false })
+  // Acoplada sigue igual: la muesca + 4 cerrada, el tablero abierta
+  const a = disposicionAcoplada({ borde: 'arriba', lugar: 0.5 }, MUESCA_H, TABLERO, AREA)
+  assert.equal(a.modo, 'acoplada')
+  assert.deepEqual(zonaInteractiva(a, { abierta: true }), { ...a.p.tablero, toda: false })
+})
+
+test('transformEntre lleva una caja encima de otra (origen arriba a la izquierda)', () => {
+  assert.equal(transformEntre({ x: 10, y: 20, ancho: 100, alto: 50 }, { x: 10, y: 20, ancho: 100, alto: 50 }), 'translate(0px, 0px) scale(1, 1)')
+  assert.equal(transformEntre({ x: 10, y: 20, ancho: 100, alto: 50 }, { x: 60, y: 0, ancho: 200, alto: 25 }), 'translate(50px, -20px) scale(2, 0.5)')
+})
+
+test('plegar el tablero hacia otra caja: un recorte de su tamaño en el ancla y el movimiento que lo lleva encima', () => {
+  const t = { x: 100, y: 100, ancho: 600, alto: 400 }
+  // A la tira (abajo a la derecha, 400 × 56): el recorte contra el rincón de abajo a la derecha
+  const tira = { x: 1500, y: 970, ancho: 400, alto: 56 }
+  const p = plegadoHacia(t, tira, 28, { x: 1, y: 1 })
+  assert.equal(p.clip, 'inset(344px 0px 0px 200px round 28px)')
+  // El rincón (300, 444) del tablero queda en (1500, 970)
+  assert.equal(p.transform, 'translate(1200px, 526px) scale(1, 1)')
+  // A la muesca de arriba: el recorte centrado en el lado de arriba
+  const m = { x: 325, y: 0, ancho: 150, alto: 54 }
+  const q = plegadoHacia(t, m, 22, anclaHacia('arriba'))
+  assert.equal(q.clip, 'inset(0px 225px 346px 225px round 22px)')
+  assert.equal(q.transform, 'translate(0px, -100px) scale(1, 1)')
+  // Más ancha que el tablero (el escenario de 340 a la tira de 400): el recorte se topa y escala
+  const e = plegadoHacia({ x: 0, y: 0, ancho: 340, alto: 600 }, { x: 500, y: 500, ancho: 400, alto: 56 }, 28, { x: 1, y: 1 })
+  assert.equal(e.clip, 'inset(544px 0px 0px 0px round 28px)')
+  assert.equal(e.transform, `translate(500px, -44px) scale(${400 / 340}, 1)`)
+})
+
+test('anclas por borde y la caja que sale por el borde (cambio de borde desde la bandeja)', () => {
+  assert.deepEqual(anclaHacia('arriba'), { x: 0.5, y: 0 })
+  assert.deepEqual(anclaHacia('abajo'), { x: 0.5, y: 1 })
+  assert.deepEqual(anclaHacia('derecha'), { x: 1, y: 0.5 })
+  assert.deepEqual(anclaHacia('izquierda'), { x: 0, y: 0.5 })
+  const c = { x: 500, y: 0, ancho: 150, alto: 54 }
+  assert.deepEqual(fueraDelBorde(c, 'arriba'), { ...c, y: -54 })
+  assert.deepEqual(fueraDelBorde({ x: 0, y: 300, ancho: 62, alto: 140 }, 'izquierda'), { x: -62, y: 300, ancho: 62, alto: 140 })
+  assert.deepEqual(fueraDelBorde({ x: 1858, y: 300, ancho: 62, alto: 140 }, 'derecha'), { x: 1920, y: 300, ancho: 62, alto: 140 })
+  assert.deepEqual(fueraDelBorde({ x: 500, y: 986, ancho: 150, alto: 54 }, 'abajo'), { x: 500, y: 1040, ancho: 150, alto: 54 })
 })

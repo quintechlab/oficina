@@ -6,7 +6,10 @@
 import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, escapar, reposoPermitido } from './logica.js'
 import { companeros } from './equipo.js'
 import { iconoBandeja, textoInsignia } from './bandeja.js'
-import { zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, fueraDeLugar, posicionEnPantalla, tamanoMini, medidaVentana, PASO_POR_DEFECTO } from './tamano.js'
+import {
+  zoomDe, direccionDeTecla, tamanoDeseado, fueraDeLugar, posicionEnPantalla, tamanoMini, medidaVentana, PASO_POR_DEFECTO,
+  fraccionFlotante, posicionDeFraccion,
+} from './tamano.js'
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
   prepararProyecto, firmaEscenas, sesiones, carasMini, companero, firmaCompanero,
@@ -20,7 +23,7 @@ import { montarMarca } from './marcaMotion.js'
 import {
   esHorizontal, bordeCercano, lugarDe, lugarAjustado, disposicionAcoplada, zonaInteractiva, recorte, cajaArrastre,
   posicionFlotante, dentroDe, ventanaDeArea, mismoRect, relativo, estadoMuesca, contenidoMuesca, contenidoPildora, ESTADO_INICIAL, siguiente, tocaGolpe, PILDORA,
-  eventoZona, planVentana, tamMuescaDe, figuraMuesca,
+  eventoZona, planVentana, tamMuescaDe, figuraMuesca, disposicionFlotante, disposicionTira, plegadoHacia, anclaHacia, fueraDelBorde, centroDe,
 } from './muesca.js'
 import * as movimientoMuesca from './muescaMotion.js'
 import {
@@ -103,19 +106,26 @@ const st = {
   muesca: ESTADO_INICIAL,
   /** Lo que se ve: el panel abierto (true) o la muesca. Va detrás de `muesca.abierta` mientras anima. */
   vista: false,
-  /** Abriendo o cerrando: el ajuste de la ventana al contenido espera (9.2). */
+  /** Abriendo, cerrando o pasando de una forma a otra: el ajuste espera (9.2). */
   animando: false,
+  /** Pasando de una forma a otra (`transicion`, 6.6): no empieza otro cambio de forma ni un arrastre. */
+  transicion: false,
   /** Arrastre propio en curso (9.3). */
   arrastre: null,
   /** Golpe de la pregunta: claves ya vistas y hora del último (6.4). */
   golpe: { vistas: new Set(), ultimo: null },
-  /** Rectángulo de la ventana acoplada (px de pantalla) y última posición flotante. */
+  /** Rectángulo de la ventana (px de pantalla): siempre el área de trabajo de su monitor (9.7). */
   ventana: null,
-  ultimaFlotante: null,
-  /** Última disposición acoplada (`disposicionAcoplada`): ventana fija, muesca y panel (9.6). */
+  /** Esquina del tablero flotante (px de pantalla), adentro del área; null hasta ubicarlo. */
+  flotante: null,
+  /** La posición flotante guardada (fracciones, `fraccionFlotante`), para ubicarlo la primera vez. */
+  fraccion: null,
+  /** Dónde se soltó la tira (px de pantalla); null: abajo a la derecha (`esquinaTira`). */
+  tira: null,
+  /** La píldora mientras se arrastra la muesca lejos de los bordes (px CSS de la ventana). */
+  pildora: null,
+  /** Última disposición (`disposicionAcoplada`, `disposicionFlotante` o `disposicionTira`). */
   disp: null,
-  /** Borde con el que se colocó esa disposición: otro borde cambia la forma de adentro (velo). */
-  dispBorde: null,
   /** El puntero en la zona interactiva, según el sondeo de Rust (`oficina://puntero-zona`, 9.6). */
   dentroZona: false,
   /** Número del último aviso del sondeo: uno más viejo se descarta. */
@@ -625,8 +635,8 @@ async function leerEquipo() {
 async function ciclo() {
   await leer()
   ponerFuera(await fueraDeVista())
-  // Acoplada, si el área de trabajo o el monitor cambiaron, la ventana fija se recoloca (9.6)
-  if (st.acople) programarAjuste()
+  // Si el área de trabajo o el monitor cambiaron, la ventana vuelve a ser el área (9.7)
+  programarAjuste()
   setTimeout(ciclo, INTERVALO_MS)
 }
 
@@ -671,30 +681,52 @@ function ponerPausa(valor) {
   verAvis()
 }
 
+/**
+ * Minimizar a la tira o expandirla (6.6): la ventana no cambia. Minimizar pliega el tablero hasta la
+ * tira, que viaja a su lugar abajo a la derecha; expandir lo despliega desde la tira hasta su lugar y
+ * su tamaño de antes. La tira mini es solo de la forma flotante.
+ */
 async function ponerMini(mini) {
-  // La tira mini es solo de la ventana flotante
-  if (st.mini === mini || (mini && st.acople)) return
+  if (st.mini === mini || (mini && st.acople) || st.animando || !st.ventana) return
+  const tira = $('#tira'), marco = $('#marco')
+  st.animando = true
   try {
     if (mini) {
+      const desde = st.disp?.local.tablero
       st.mini = true
-      document.body.classList.add('mini')
+      st.tira = null
       verAvis()
-      $('#tira').hidden = false
-      await invocar('modo_mini', { mini: true, ...tamanoMini(zoomDe(st.tamano)) })
+      invocar('modo_mini', { mini: true }).catch(() => {})
+      const d = disposicionActual(st.ventana)
+      const soltar = desde ? await movimientoMuesca.plegar(marco, $('#contenido'), plegadoHacia(desde, d.local.tira, 28, { x: 1, y: 1 }), { viaje: true }) : () => {}
+      colocar(d)
+      document.body.classList.add('mini')
+      tira.hidden = false
+      soltar()
+      movimientoMuesca.aparecerContenido(tira)
     } else {
-      await invocar('modo_mini', { mini: false })
+      const desde = st.disp?.local.tira
       st.mini = false
       document.body.classList.remove('mini')
-      $('#tira').hidden = true
-      programarAjuste()
-      // Al expandir desde la tira, el tablero entra escalonado (6.1)
-      st.revelado = false
+      const d = disposicionActual(st.ventana)
+      colocar(d)
+      // Arranca en esta tarea: el tablero ya tiene la forma de la tira cuando la tira se esconde
+      const anim = desde ? movimientoMuesca.desplegar(marco, $('#contenido'), plegadoHacia(d.local.tablero, desde, 28, { x: 1, y: 1 })) : Promise.resolve()
+      tira.hidden = true
+      invocar('modo_mini', { mini: false }).catch(() => {})
+      // Lo de adentro se funde con el despliegue (como la isla): sin entrada escalonada encima
+      st.revelado = true
+      verAvis()
       pintar()
+      await anim
     }
   } catch (e) {
-    st.error = `No se pudo cambiar el tamaño: ${e}`
-    pintarPie()
+    registrar(`tira: ${e}`)
+  } finally {
+    st.animando = false
   }
+  await enviarZona(true)
+  programarAjuste()
 }
 
 document.addEventListener('click', async e => {
@@ -821,15 +853,13 @@ document.addEventListener('keydown', e => {
 
 /**
  * Tamaño elegido (Ctrl + / Ctrl − o el submenú "Tamaño"): todo, dibujo y texto, crece con el
- * mismo zoom. Después la ventana se ajusta al contenido.
+ * mismo zoom. La ventana no cambia (es el área): en la misma tarea se vuelve a ubicar lo de adentro,
+ * así nada salta de lugar por un cuadro.
  */
 async function aplicarTamano(porcentaje) {
-  // Acoplada, otro zoom redimensiona la ventana fija: se vela ya, antes de que el contenido cambie
-  // de tamaño adentro; colocarAcoplada lo levanta cuando la ventana quedó en su tamaño nuevo
-  if (st.acople && !st.mini && zoomDe(porcentaje) !== zoomDe(st.tamano)) movimientoMuesca.velar()
   st.tamano = porcentaje
   document.documentElement.style.zoom = String(zoomDe(porcentaje))
-  if (st.mini) await invocar('modo_mini', { mini: true, ...tamanoMini(zoomDe(porcentaje)) }).catch(() => {})
+  recolocar()
   programarAjuste()
 }
 
@@ -842,10 +872,10 @@ document.addEventListener('keydown', e => {
 })
 
 /**
- * Tamaño del tablero en px de la ventana (ya con el zoom aplicado), con el margen transparente del
- * body para la sombra (dirección 9.5). El ancho es el de #contenido más el relleno del área que
- * desplaza, su barra y el borde de #marco. El alto del tablero es fijo (`--alto-tablero`, 9.2): no
- * cambia de un proyecto a otro. En el vacío y la carga el alto sigue al contenido.
+ * Tamaño del tablero en px de pantalla (ya con el zoom aplicado). El ancho es el de #contenido más
+ * el relleno del área que desplaza, su barra y el borde de #marco. El alto del tablero es fijo
+ * (`--alto-tablero`, 9.2): no cambia de un proyecto a otro. En el vacío y la carga el alto sigue al
+ * contenido. El body ya no tiene relleno (la ventana es el área: la sombra entra sobrada).
  */
 function medirContenido() {
   const marco = $('#marco'), cuerpo = $('#cuerpo'), contenido = $('#contenido')
@@ -876,15 +906,10 @@ function programarAjuste() {
 }
 
 async function ajustarVentana() {
-  // Mientras la muesca abre, cierra o se arrastra, el tamaño ya está fijado (9.2)
-  if (st.mini || !tauri?.core || st.animando || st.arrastre) return
+  // Mientras algo abre, cierra, se transforma o se arrastra, lo de adentro ya está ubicado (9.2)
+  if (!tauri?.core || st.animando || st.arrastre) return
   try {
-    const g = await invocar('geometria')
-    if (st.acople) { await colocarAcoplada(g); return }
-    const deseado = tamanoDeseado(medirContenido(), g.area)
-    if (!debeAjustar({ ancho: g.ancho, alto: g.alto }, deseado)) return
-    const pos = posicionEnPantalla({ x: g.x, y: g.y }, deseado, g.area)
-    await invocar('ajustar_ventana', { ...deseado, ...pos })
+    await colocarEnArea(await invocar('geometria'))
   } catch (e) {
     registrar(`tamaño: ${e}`)
   }
@@ -893,8 +918,8 @@ async function ajustarVentana() {
 // Escondida o minimizada (si el WebView lo informa): pausa al instante, sin esperar la lectura
 document.addEventListener('visibilitychange', () => ponerFuera(document.hidden))
 
-// El contenido cambia (otro proyecto, globo, compañero desplegado, tamaño elegido): la ventana lo
-// sigue. La muesca tiene un tamaño fijo (TAM_MUESCA): no hace falta observarla
+// El contenido cambia (otro proyecto, globo, compañero desplegado, tamaño elegido): el tablero lo
+// sigue adentro de la ventana. La muesca tiene un tamaño fijo (TAM_MUESCA): no hace falta observarla
 const observador = new ResizeObserver(() => programarAjuste())
 observador.observe($('#contenido'))
 
@@ -913,54 +938,89 @@ function disposicion(area, tablero = medirContenido()) {
 }
 
 /**
- * Ubica adentro de la ventana fija la muesca, su luz y el tablero (`d.local`, px CSS). Abierta o
- * cerrada es lo mismo: lo que cambia es el recorte y la clase `abierta`.
+ * La disposición de la forma de ahora en el área `area` (9.7): acoplada (muesca y panel), la tira
+ * (abajo a la derecha o donde se soltó) o el tablero flotante (donde quedó, topado al área; la
+ * primera vez, en la posición guardada). La ventana es siempre el área.
  */
-function colocar(d) {
-  const cuerpo = document.body.style
-  const poner = (prefijo, c, conTamano = true) => {
-    cuerpo.setProperty(`--${prefijo}x`, `${c.x}px`)
-    cuerpo.setProperty(`--${prefijo}y`, `${c.y}px`)
-    if (conTamano) { cuerpo.setProperty(`--${prefijo}w`, `${c.ancho}px`); cuerpo.setProperty(`--${prefijo}h`, `${c.alto}px`) }
+function disposicionActual(area) {
+  const z = zoom()
+  if (st.acople) return disposicion(area)
+  if (st.mini) {
+    const tam = tamanoMini(z)
+    return disposicionTira(st.tira ? posicionEnPantalla(st.tira, tam, area) : null, tam, area, z)
   }
-  poner('m', d.local.muesca)
-  poner('l', d.local.luz)
-  poner('t', d.local.tablero)
-  st.disp = d
-  st.dispBorde = st.acople.borde
-  st.ventana = { ...d.ventana }
+  const tam = tamanoDeseado(medirContenido(), area)
+  st.flotante = posicionEnPantalla(st.flotante ?? posicionDeFraccion(st.fraccion, tam, area), tam, area)
+  return disposicionFlotante(st.flotante, tam, area, z)
 }
 
 /**
- * Coloca la ventana acoplada (9.6): una sola vez al acoplar, al cambiar de borde, de lugar, de
- * tamaño elegido, de contenido o de área de trabajo. Abrir y cerrar no la tocan. Si cambia de
- * tamaño o de forma (`planVentana`), lo que se ve se vela antes y vuelve cuando WebView2 ya pintó.
+ * Ubica adentro de la ventana lo que corresponda a `d` (`d.local`, px CSS): la muesca, su luz y el
+ * tablero (acoplada; abierta o cerrada es lo mismo, cambian el recorte y la clase `abierta`), el
+ * tablero flotante o la tira.
  */
-async function colocarAcoplada(g) {
-  const d = disposicion(g.area)
-  const plan = planVentana(g, d.ventana, { cambiaForma: st.dispBorde !== st.acople.borde })
+function colocar(d) {
+  const cuerpo = document.body.style
+  const poner = (prefijo, c) => {
+    cuerpo.setProperty(`--${prefijo}x`, `${c.x}px`)
+    cuerpo.setProperty(`--${prefijo}y`, `${c.y}px`)
+    cuerpo.setProperty(`--${prefijo}w`, `${c.ancho}px`)
+    cuerpo.setProperty(`--${prefijo}h`, `${c.alto}px`)
+  }
+  if (d.local.muesca) { poner('m', d.local.muesca); poner('l', d.local.luz) }
+  if (d.local.tablero) poner('t', d.local.tablero)
+  if (d.local.tira) poner('q', d.local.tira)
+  st.disp = d
+  st.ventana = { ...d.ventana }
+  // La primera vez: hasta acá el tablero no tenía lugar y no se veía; flotando, entra (6.1)
+  if (!document.body.classList.contains('colocada')) {
+    document.body.classList.add('colocada')
+    if (d.modo === 'flotante') entradaMarco()
+  }
+}
+
+/** La entrada del tablero flotante al mostrarse por primera vez (`aparece`, 620 ms). */
+function entradaMarco() {
+  const marco = $('#marco')
+  marco.classList.add('entra')
+  marco.addEventListener('animationend', () => marco.classList.remove('entra'), { once: true })
+}
+
+/** Vuelve a ubicar lo de adentro con el área de ahora (la ventana es el área), sin esperar a Rust. */
+function recolocar() {
+  if (st.ventana && !st.animando && !st.arrastre) colocar(disposicionActual(st.ventana))
+}
+
+/**
+ * Lleva la ventana al área de trabajo `g.area` si no está (9.7): solo pasa al cambiar de monitor o
+ * de área, y entonces lo que se ve se vela antes y vuelve cuando WebView2 ya pintó (`planVentana`).
+ * Pasar de una forma a otra, abrir, cerrar o cambiar el zoom no la tocan. Después ubica lo de adentro.
+ */
+async function colocarEnArea(g) {
+  const d = disposicionActual(g.area)
+  const plan = planVentana(g, d.ventana)
   const turno = plan === 'velar' ? movimientoMuesca.velar() : undefined
   colocar(d)
   try {
     if (plan !== 'nada') await invocar('ajustar_ventana', { ...d.ventana })
   } finally {
-    // También levanta el velo que puso otro antes (el del zoom o el del acople nuevo)
     if (movimientoMuesca.velada()) movimientoMuesca.revelar(turno)
   }
   await enviarZona()
 }
 
 /**
- * Le dice a Rust qué parte de la ventana fija toma el mouse (`zonaInteractiva`): fuera de ella los
+ * Le dice a Rust qué parte de la ventana toma el mouse (`zonaInteractiva`): fuera de ella los
  * clics pasan a lo que hay debajo. Devuelve si el puntero está adentro ahora (null sin respuesta).
  * Sin `forzar`, una zona igual a la última no se manda.
  */
 async function enviarZona(forzar = false) {
-  if (!st.acople || !st.disp || !tauri?.core) return null
+  if (!st.disp || !tauri?.core) return null
   const zona = zonaInteractiva(st.disp, { abierta: st.vista, arrastrando: !!st.arrastre?.activo }, zoom())
-  // `mirada`: el Avi a la vista (la marca abierta o el de la muesca cerrada) quiere el puntero; entonces
-  // Rust manda su posición global (muesca-avi-ux.md 9)
-  zona.mirada = !zona.toda && (st.vista ? marca.quiereCursor() : muescaAvi.quiereCursor())
+  // `mirada`: acoplada, el Avi a la vista (la marca abierta o el de la muesca cerrada) quiere el
+  // puntero; entonces Rust manda su posición global (muesca-avi-ux.md 9). Flotando, la marca mira
+  // con el puntero del DOM, como siempre
+  zona.mirada = !zona.toda && !!st.acople && (st.vista ? marca.quiereCursor() : muescaAvi.quiereCursor())
   const clave = `${zona.x},${zona.y},${zona.ancho},${zona.alto},${zona.toda},${zona.mirada}`
   if (!forzar && clave === st.zonaEnviada) return null
   st.zonaEnviada = clave
@@ -980,6 +1040,9 @@ async function enviarZona(forzar = false) {
 function ponerDentro(dentro) {
   st.dentroZona = dentro
   muescaAvi.zona(dentro)
+  // Flotando, fuera del tablero los clics pasan y el WebView no ve salir al puntero: la marca lo
+  // sabe por acá y mira hacia donde salió, como al salir de la ventana chica de antes
+  if (!st.acople) marca.zona(dentro)
   // `st.ventana`: la muesca ya está en su borde (al arrancar, la ventana todavía está en otro lado)
   if (!st.acople || st.arrastre || !st.ventana) return
   // Decide lo que la muesca todavía no sabe: Rust repite el estado real con cada zona nueva
@@ -987,19 +1050,19 @@ function ponerDentro(dentro) {
   if (tipo) evento({ tipo })
 }
 
-/** Clases y estilos del modo: acoplada a un borde o flotante. Empieza cerrada. */
+/**
+ * Clases del modo: acoplada a un borde o flotante. Empieza cerrada. La ventana y lo ya ubicado no se
+ * tocan (la ventana es el área en todos los modos): quien llama coloca la forma nueva en esta misma
+ * tarea, y la píldora la saca quien la reemplaza.
+ */
 function aplicarModo() {
   const cuerpo = document.body
   cuerpo.classList.toggle('acoplada', !!st.acople)
   if (st.acople) cuerpo.dataset.borde = st.acople.borde
   else delete cuerpo.dataset.borde
-  cuerpo.classList.remove('abierta', 'desplegada', 'abriendo', 'muesca-oculta', 'pildora')
+  cuerpo.classList.remove('abierta', 'desplegada', 'abriendo', 'muesca-oculta')
   $('#marco').style.clipPath = ''
-  for (const v of ['tx', 'ty', 'tw', 'th', 'mx', 'my', 'mw', 'mh', 'lx', 'ly', 'lw', 'lh']) cuerpo.style.removeProperty(`--${v}`)
   st.vista = false
-  st.ventana = null
-  st.disp = null
-  st.dispBorde = null
   st.zonaEnviada = null
   pintarControles()
   verAvis()
@@ -1074,7 +1137,7 @@ async function animarApertura() {
   // Red de seguridad: si el área o el contenido cambiaron y nadie recolocó la ventana todavía
   // (el ciclo lo hace cada 1,5 s), se coloca una vez antes de animar
   if (fueraDeLugar(g, d.ventana)) {
-    await colocarAcoplada(g)
+    await colocarEnArea(g)
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
   }
   marco.style.clipPath = rc.desde
@@ -1112,64 +1175,138 @@ async function animarCierre() {
 }
 
 /**
- * Acopla a `borde` o deja flotando (`null`): desde la bandeja ("Acoplar a"), al soltar el tablero
- * junto a un borde o al soltar la muesca lejos de todos. Guarda el acople (7.5).
+ * Un cambio de forma (6.6): mientras dura, nada se reubica, no empieza otro cambio ni un arrastre.
+ * Al terminar, la muesca se pone al día con lo pedido (abrir o cerrar) y lo de adentro se reubica.
  */
-async function acoplarA(borde, { lugar, puntero, plegar } = {}) {
-  if (!tauri?.core || st.arrastre) return
-  if (st.mini) await ponerMini(false)
+async function transicion(fn) {
+  st.animando = true
+  st.transicion = true
+  try {
+    return await fn()
+  } finally {
+    st.animando = false
+    st.transicion = false
+    if (st.acople) sincronizar()
+    programarAjuste()
+  }
+}
+
+/**
+ * Acopla a `borde` o deja flotando (`null`): desde la bandeja ("Acoplar a"), al soltar el tablero o
+ * la tira junto a un borde, o al soltar la píldora lejos de todos. Guarda el acople (7.5). La
+ * ventana no cambia (9.7): lo que se ve se transforma adentro, sin velo (6.6).
+ */
+async function acoplarA(borde, { lugar, puntero } = {}) {
+  if (!tauri?.core || st.arrastre || st.transicion) return
   clearTimeout(relojMuesca)
   try {
     const g = await invocar('geometria')
-    if (borde) {
-      if (!st.acople) st.ultimaFlotante = { x: g.x, y: g.y }
-      let soltar = () => {}
-      if (plegar && !st.acople) soltar = await movimientoMuesca.plegar($('#marco'), pliegueHacia(borde))
-      const centro = { x: g.x + g.ancho / 2, y: g.y + g.alto / 2 }
-      const l = lugar ?? (st.acople ? st.acople.lugar : lugarDe(borde, centro, g.area))
-      st.acople = { borde, lugar: l }
-      st.muesca = { ...ESTADO_INICIAL, armado: false }
-      // La ventana va a cambiar de forma y de tamaño: velada desde ya; colocarAcoplada la revela
-      movimientoMuesca.velar()
-      aplicarModo()
-      soltar()
-      pintar()
-      st.acople.lugar = lugarAjustado(l, tamMuesca().largo, largoDe(borde, g.area), zoom())
-      await invocar('guardar_acople', { borde, lugar: st.acople.lugar })
-      await colocarAcoplada(await invocar('geometria'))
-    } else {
-      st.acople = null
-      st.muesca = ESTADO_INICIAL
-      // De la muesca (o la píldora) al tablero flotante: velado hasta que la ventana tenga su tamaño
-      const turno = movimientoMuesca.velar()
-      aplicarModo()
-      await invocar('guardar_acople', { borde: null, lugar: null })
-      const g2 = await invocar('geometria')
-      const tam = tamanoDeseado(medirContenido(), g2.area)
-      const pos = puntero ? posicionFlotante(puntero, tam, g2.area) : posicionEnPantalla(st.ultimaFlotante ?? { x: g2.x, y: g2.y }, tam, g2.area)
-      await invocar('ajustar_ventana', { ...tam, ...pos })
-      movimientoMuesca.revelar(turno)
-      st.revelado = false
-      pintar()
-    }
+    // Si la ventana todavía no es el área de su monitor, primero eso (una vez, velado)
+    if (planVentana(g, ventanaDeArea(g.area)) === 'velar') await colocarEnArea(g)
+    if (borde) await acoplarABorde(borde, lugar, g.area)
+    else if (st.acople) await flotar(puntero, g.area)
+    else if (st.mini) await ponerMini(false)
   } catch (e) {
     st.error = `No se pudo acoplar: ${e}`
     pintarPie()
   }
 }
 
-/** Recorte final del tablero flotante al plegarse hacia `borde`: una muesca en el medio de ese lado. */
-function pliegueHacia(borde) {
-  const marco = $('#marco')
-  const w = marco.offsetWidth, h = marco.offsetHeight
-  const { largo, grosor } = tamMuescaDe(borde)
-  const lados = esHorizontal(borde) ? (w - largo) / 2 : (h - largo) / 2
-  const fondo = (esHorizontal(borde) ? h : w) - grosor
-  const inset = {
-    arriba: [0, lados, fondo, lados], abajo: [fondo, lados, 0, lados],
-    derecha: [lados, 0, lados, fondo], izquierda: [lados, fondo, lados, 0],
-  }[borde]
-  return `inset(${inset.map(v => `${Math.max(0, v)}px`).join(' ')} round 22px)`
+/** Cerrada al instante de la pregunta del usuario: la isla se cierra antes de cambiar de forma. */
+async function cerrarAntes() {
+  if (!st.vista) return
+  st.muesca = { ...ESTADO_INICIAL, armado: false }
+  pintarControles()
+  await animarCierre()
+}
+
+/**
+ * A un borde: el tablero flotante se pliega hacia ese lado y queda la muesca; la tira viaja hasta la
+ * muesca; la muesca de otro borde sale por el suyo y entra por el nuevo. El `lugar` es la proyección
+ * del centro de lo que se ve sobre el borde (7.3), salvo que venga dado.
+ */
+async function acoplarABorde(borde, lugar, area) {
+  const z = zoom()
+  const tam = tamMuescaDe(borde, z)
+  const desde = st.acople ? 'muesca' : st.mini ? 'tira' : 'tablero'
+  if (desde === 'muesca' && st.acople.borde === borde && lugar == null) return
+  const caja = desde === 'muesca' ? st.disp.m.caja : desde === 'tira' ? st.disp.tira : st.disp.tablero
+  const l = lugar ?? (desde === 'muesca' ? st.acople.lugar : lugarDe(borde, centroDe(caja), area))
+  const acople = { borde, lugar: lugarAjustado(l, tam.largo, largoDe(borde, area), z) }
+  // Dónde queda la muesca (para eso no hace falta medir el tablero)
+  const destino = disposicionAcoplada(acople, tam, { ancho: 0, alto: 0 }, area, z).local.muesca
+  await transicion(async () => {
+    let soltar = () => {}
+    if (desde === 'tablero') {
+      soltar = await movimientoMuesca.plegar($('#marco'), $('#contenido'), plegadoHacia(st.disp.local.tablero, destino, 22, anclaHacia(borde)))
+    } else if (desde === 'tira') {
+      soltar = await movimientoMuesca.viajar($('#tira'), st.disp.local.tira, destino, { easing: movimientoMuesca.EASE_CIERRA, apagarContenido: true })
+    } else {
+      await cerrarAntes()
+      soltar = await movimientoMuesca.viajar($('#muesca'), st.disp.local.muesca, fueraDelBorde(st.disp.local.muesca, st.acople.borde), { easing: movimientoMuesca.EASE_CIERRA, apagar: true })
+    }
+    if (st.mini) {
+      st.mini = false
+      document.body.classList.remove('mini')
+      $('#tira').hidden = true
+      invocar('modo_mini', { mini: false }).catch(() => {})
+    }
+    st.acople = acople
+    st.muesca = { ...ESTADO_INICIAL, armado: false }
+    aplicarModo()
+    colocar(disposicion(area))
+    soltar()
+    pintar()
+    const guardado = invocar('guardar_acople', { borde, lugar: acople.lugar })
+    if (desde === 'muesca') await movimientoMuesca.viajar($('#muesca'), fueraDelBorde(st.disp.local.muesca, borde), st.disp.local.muesca, { llega: true, apagar: true })
+    await guardado
+  })
+  // La zona vuelve a ser la muesca (guardar_acople olvidó la de antes)
+  await enviarZona(true)
+}
+
+/** Dónde nace el tablero que sale de la píldora: arriba al medio (posicionFlotante lo pone ahí). */
+const ANCLA_PILDORA = { x: 0.5, y: 0 }
+
+/**
+ * A flotar: el tablero crece desde la píldora soltada (donde se soltó, `posicionFlotante`) o, desde
+ * la bandeja, desde la muesca hasta su lugar de antes, como la isla (6.6).
+ */
+async function flotar(puntero, area) {
+  const conPildora = document.body.classList.contains('pildora') && st.pildora
+  const bordeViejo = st.acople.borde
+  await transicion(async () => {
+    await cerrarAntes()
+    const origen = conPildora ? { ...st.pildora, ancho: PILDORA.ancho, alto: PILDORA.alto } : st.disp.local.muesca
+    st.acople = null
+    st.muesca = ESTADO_INICIAL
+    aplicarModo()
+    const tam = tamanoDeseado(medirContenido(), area)
+    st.flotante = puntero ? posicionFlotante(puntero, tam, area) : posicionEnPantalla(st.flotante ?? posicionDeFraccion(st.fraccion, tam, area), tam, area)
+    const d = disposicionFlotante(st.flotante, tam, area, zoom())
+    colocar(d)
+    // Lo de adentro se funde con el despliegue: sin entrada escalonada encima (6.4)
+    st.revelado = true
+    pintar()
+    const plegado = plegadoHacia(d.local.tablero, origen, conPildora ? PILDORA.alto / 2 : 22, conPildora ? ANCLA_PILDORA : anclaHacia(bordeViejo))
+    const anim = movimientoMuesca.desplegar($('#marco'), $('#contenido'), plegado)
+    // En esta misma tarea: el tablero ya tiene la forma de la píldora cuando ella se va
+    document.body.classList.remove('pildora')
+    st.pildora = null
+    // Flotando: sin la zona de la muesca, y la del tablero apenas Rust olvidó la vieja
+    const guardado = invocar('guardar_acople', { borde: null, lugar: null }).then(() => enviarZona(true))
+    await anim
+    await guardado
+    guardarFlotante()
+  })
+  await enviarZona(true)
+}
+
+/** Guarda dónde quedó el tablero flotante (fracción del lugar libre del área, `fraccionFlotante`). */
+function guardarFlotante() {
+  if (!st.flotante || st.disp?.modo !== 'flotante' || !st.ventana || !tauri?.core) return
+  st.fraccion = fraccionFlotante(st.flotante, st.disp.tablero, st.ventana)
+  invocar('guardar_flotante', st.fraccion).catch(e => registrar(`flotante: ${e}`))
 }
 
 // ---- mouse y teclado sobre la muesca (7.2)
@@ -1199,9 +1336,9 @@ muescaEl.addEventListener('click', () => {
 const UMBRAL_ARRASTRE = 4
 
 /**
- * Pide mover o redimensionar la ventana; si hay un pedido en vuelo, gana el último. `turno`: el del
- * velo puesto para este pedido (`velar`); un pedido que reemplaza a otro sin mandar hereda su velo,
- * así nunca queda uno sin revelar.
+ * Pide llevar la ventana a otra área (al pasar a otro monitor arrastrando); si hay un pedido en
+ * vuelo, gana el último. `turno`: el del velo puesto para este pedido (`velar`); un pedido que
+ * reemplaza a otro sin mandar hereda su velo, así nunca queda uno sin revelar.
  */
 let destinoVentana = null, enviandoVentana = null
 function pedirVentana(r, turno = 0) {
@@ -1213,27 +1350,34 @@ async function enviarVentana() {
     const r = destinoVentana
     destinoVentana = null
     try {
-      if (r.ancho) await invocar('ajustar_ventana', { ancho: r.ancho, alto: r.alto, x: r.x, y: r.y })
-      else await invocar('mover_ventana', { x: r.x, y: r.y })
+      await invocar('ajustar_ventana', { ancho: r.ancho, alto: r.alto, x: r.x, y: r.y })
     } catch (e) { registrar(`arrastre: ${e}`) }
-    // Ya redimensionada: lo velado vuelve cuando se pintó (si no se veló otra vez mientras tanto)
+    // Ya en su lugar: lo velado vuelve cuando se pintó (si no se veló otra vez mientras tanto)
     if (r.turno) movimientoMuesca.revelar(r.turno)
   }
   enviandoVentana = null
 }
 
 document.addEventListener('pointerdown', e => {
-  if (e.button !== 0 || st.arrastre || !tauri?.core) return
+  if (e.button !== 0 || st.arrastre || st.transicion || !tauri?.core) return
   const asa = e.target.closest?.('#muesca, [data-arrastre]')
   if (!asa) return
   // Acoplada (cerrada o abierta) se arrastra la muesca; flotando, el tablero o la tira mini (con el
-  // mismo imán: soltada junto a un borde, se acopla)
-  const a = { origen: st.acople ? 'muesca' : (st.mini ? 'tira' : 'tablero'), id: e.pointerId, x0: e.screenX, y0: e.screenY, dx: 0, dy: 0, agarre: { x: e.clientX, y: e.clientY }, activo: false }
+  // mismo imán: soltada junto a un borde, se acopla). Todo se mueve adentro de la ventana del área
+  const a = { origen: st.acople ? 'muesca' : (st.mini ? 'tira' : 'tablero'), id: e.pointerId, x0: e.screenX, y0: e.screenY, dx: 0, dy: 0, cliente: { x: e.clientX, y: e.clientY }, activo: false }
   st.arrastre = a
   invocar('geometria', { puntero: true }).then(g => {
-    a.inicio = { x: g.x, y: g.y, ancho: g.ancho, alto: g.alto }
     a.area = g.area
     a.libres = g.libres
+    // El puntero al tocar, en px de pantalla (la ventana más el punto adentro de ella)
+    a.p0 = { x: g.x + a.cliente.x, y: g.y + a.cliente.y }
+    // El tablero o la tira, y de dónde se los tomó
+    const caja = a.origen === 'tablero' ? st.disp?.tablero : a.origen === 'tira' ? st.disp?.tira : null
+    if (caja) {
+      a.caja0 = { ...caja }
+      a.agarre = { x: a.p0.x - caja.x, y: a.p0.y - caja.y }
+    }
+    a.listo = a.origen === 'muesca' || !!caja
   }).catch(() => { if (st.arrastre === a) st.arrastre = null })
 })
 
@@ -1243,7 +1387,7 @@ document.addEventListener('pointermove', e => {
   a.dx = e.screenX - a.x0
   a.dy = e.screenY - a.y0
   if (!a.activo) {
-    if (Math.hypot(a.dx, a.dy) <= UMBRAL_ARRASTRE || !a.inicio) return
+    if (Math.hypot(a.dx, a.dy) <= UMBRAL_ARRASTRE || !a.listo) return
     empezarArrastre(a, e)
   }
   if (!a.cuadro) a.cuadro = requestAnimationFrame(() => { a.cuadro = 0; moverArrastre(a) })
@@ -1264,60 +1408,108 @@ function empezarArrastre(a, e) {
     a.tam = { ancho: PILDORA.ancho * zoom(), alto: PILDORA.alto * zoom() }
     // El tablero se mide una vez: a lo largo del borde la ventana fija solo se mueve (9.6)
     a.tablero = medirContenido()
-    // Mientras se arrastra, toda la ventana toma el mouse: el puntero no se pierde a mitad de camino
-    enviarZona(true)
   }
+  // Mientras se arrastra, toda la ventana toma el mouse: el puntero no se pierde a mitad de camino
+  enviarZona(true)
   verAvis()
 }
 
+/** Una caja de la píldora en px CSS de la ventana (184 × 48 en px CSS, con cualquier zoom). */
+const cajaPildora = p => ({ x: p.x, y: p.y, ancho: PILDORA.ancho, alto: PILDORA.alto })
+
 function moverArrastre(a) {
-  const puntero = { x: a.inicio.x + a.agarre.x + a.dx, y: a.inicio.y + a.agarre.y + a.dy }
+  const puntero = { x: a.p0.x + a.dx, y: a.p0.y + a.dy }
   a.puntero = puntero
   // Otro monitor bajo el puntero: su área y sus bordes (9.4)
   if (!dentroDe(puntero, a.area) && !a.pidiendo) {
     a.pidiendo = true
     invocar('geometria', { puntero: true }).then(g => { a.area = g.area; a.libres = g.libres }).catch(() => {}).finally(() => { a.pidiendo = false })
   }
-  if (a.origen === 'muesca') {
-    const caja = cajaArrastre(puntero, null, a.tam)
-    a.borde = bordeCercano(caja, a.area, a.libres)
-    // La ventana es el área de trabajo entera (9.6): la muesca y la píldora se mueven adentro y la
-    // ventana queda quieta. Solo al pasar a otro monitor se mueve, velada
-    const ventana = ventanaDeArea(a.area)
-    const turno = mismoRect(st.ventana, ventana) ? 0 : movimientoMuesca.velar()
-    if (a.borde) {
-      // Cerca de un borde: la muesca se pega a él y se desliza a lo largo
-      if (st.acople.borde !== a.borde) {
-        st.acople = { borde: a.borde, lugar: 0.5 }
-        document.body.dataset.borde = a.borde
-      }
-      document.body.classList.remove('pildora')
-      const tm = tamMuesca()
-      const centro = { x: caja.x + caja.ancho / 2, y: caja.y + caja.alto / 2 }
-      st.acople.lugar = lugarAjustado(lugarDe(a.borde, centro, a.area), tm.largo, largoDe(a.borde, a.area), zoom())
-      colocar(disposicion(a.area, a.tablero))
-    } else {
-      // Lejos de todo borde: la píldora flotante sigue al puntero, dentro de la misma ventana
-      const p = relativo(caja, ventana, zoom())
-      const cuerpo = document.body.style
-      cuerpo.setProperty('--px', `${p.x}px`)
-      cuerpo.setProperty('--py', `${p.y}px`)
-      document.body.classList.add('pildora')
-      st.ventana = ventana
+  // La ventana es el área de trabajo entera (9.7): lo que se arrastra se mueve adentro y la ventana
+  // queda quieta. Solo al pasar a otro monitor se mueve, una vez y velada
+  const ventana = ventanaDeArea(a.area)
+  const turno = mismoRect(st.ventana, ventana) ? 0 : movimientoMuesca.velar()
+  if (a.origen === 'muesca') moverMuesca(a, puntero, ventana)
+  else moverForma(a, puntero)
+  if (turno) pedirVentana(ventana, turno)
+}
+
+/**
+ * Arrastrando la muesca (7.3): cerca de un borde se pega a él y se desliza a lo largo; lejos de
+ * todos es la píldora que sigue al puntero. Al pasar de una a otra, la forma viaja de una caja a la
+ * otra (6.6), sin aparecer de golpe.
+ */
+function moverMuesca(a, puntero, ventana) {
+  const caja = cajaArrastre(puntero, null, a.tam)
+  a.borde = bordeCercano(caja, a.area, a.libres)
+  const eraPildora = document.body.classList.contains('pildora')
+  if (a.borde) {
+    const antes = st.disp?.local.muesca
+    const otroBorde = st.acople.borde !== a.borde
+    if (otroBorde) {
+      st.acople = { borde: a.borde, lugar: 0.5 }
+      document.body.dataset.borde = a.borde
     }
-    if (turno) pedirVentana(ventana, turno)
+    document.body.classList.remove('pildora')
+    const tm = tamMuesca()
+    st.acople.lugar = lugarAjustado(lugarDe(a.borde, centroDe(caja), a.area), tm.largo, largoDe(a.borde, a.area), zoom())
+    colocar(disposicion(a.area, a.tablero))
+    const ahora = st.disp.local.muesca
+    if (eraPildora && st.pildora) movimientoMuesca.viajar(muescaEl, cajaPildora(st.pildora), ahora, { llega: true })
+    else if (otroBorde && antes) movimientoMuesca.viajar(muescaEl, antes, ahora, { llega: true })
   } else {
-    const caja = cajaArrastre(puntero, a.agarre, a.inicio)
-    a.caja = caja
-    a.borde = bordeCercano(caja, a.area, a.libres)
-    if (a.borde) {
-      document.body.dataset.iman = a.borde
-      $('#aviso-iman').textContent = `Soltá para acoplar · ${a.borde}`
-    } else {
-      delete document.body.dataset.iman
-    }
-    pedirVentana({ x: Math.round(caja.x), y: Math.round(caja.y) })
+    // Lejos de todo borde: la píldora flotante sigue al puntero, dentro de la misma ventana
+    const p = relativo(caja, ventana, zoom())
+    const cuerpo = document.body.style
+    cuerpo.setProperty('--px', `${p.x}px`)
+    cuerpo.setProperty('--py', `${p.y}px`)
+    document.body.classList.add('pildora')
+    st.pildora = { x: p.x, y: p.y }
+    st.ventana = ventana
+    if (!eraPildora && st.disp?.local.muesca) movimientoMuesca.viajar($('#pildora'), st.disp.local.muesca, cajaPildora(st.pildora), { llega: true })
   }
+}
+
+/** Arrastrando el tablero flotante o la tira: se mueven adentro de la ventana, con el aviso del imán. */
+function moverForma(a, puntero) {
+  const caja = cajaArrastre(puntero, a.agarre, a.caja0)
+  a.caja = caja
+  a.borde = bordeCercano(caja, a.area, a.libres)
+  if (a.borde) {
+    document.body.dataset.iman = a.borde
+    $('#aviso-iman').textContent = `Soltá para acoplar · ${a.borde}`
+  } else {
+    delete document.body.dataset.iman
+  }
+  const pos = { x: caja.x, y: caja.y }
+  if (a.origen === 'tablero') {
+    st.flotante = pos
+    colocar(disposicionFlotante(pos, a.caja0, a.area, zoom()))
+  } else {
+    st.tira = pos
+    colocar(disposicionTira(pos, a.caja0, a.area, zoom()))
+  }
+}
+
+/**
+ * Soltado lejos de los bordes: el tablero (o la tira) queda donde se soltó, topado al área; si se
+ * había salido, vuelve adentro con el mismo viaje (6.6). La posición del tablero se guarda.
+ */
+function soltarDentro(a) {
+  const tablero = a.origen === 'tablero'
+  const el = tablero ? $('#marco') : $('#tira')
+  const antes = tablero ? st.disp.local.tablero : st.disp.local.tira
+  const pos = posicionEnPantalla(a.caja, a.caja0, a.area)
+  if (tablero) {
+    st.flotante = pos
+    colocar(disposicionFlotante(pos, a.caja0, a.area, zoom()))
+  } else {
+    st.tira = pos
+    colocar(disposicionTira(pos, a.caja0, a.area, zoom()))
+  }
+  const ahora = tablero ? st.disp.local.tablero : st.disp.local.tira
+  if (!mismoRect(antes, ahora)) movimientoMuesca.viajar(el, antes, ahora, { llega: true })
+  if (tablero) guardarFlotante()
 }
 
 async function soltarArrastre(e) {
@@ -1333,26 +1525,24 @@ async function soltarArrastre(e) {
   setTimeout(() => { justoArrastro = false }, 0)
   await enviandoVentana
   if (a.origen === 'muesca') {
-    document.body.classList.remove('pildora')
     if (a.borde) {
       await invocar('guardar_acople', { borde: st.acople.borde, lugar: st.acople.lugar }).catch(err => registrar(`acople: ${err}`))
       // La zona vuelve a ser la muesca: lo demás deja pasar los clics otra vez
       await enviarZona(true)
       programarAjuste()
     } else {
+      // La píldora sigue a la vista hasta que el tablero crece desde ella
       await acoplarA(null, { puntero: a.puntero })
     }
   } else {
     delete document.body.dataset.iman
     if (a.borde) {
-      const centro = { x: a.caja.x + a.caja.ancho / 2, y: a.caja.y + a.caja.alto / 2 }
-      // La tira no se pliega (no hay tablero a la vista): se vela ya, así la ventana que vuelve a su
-      // tamaño antes de acoplarse no se ve
-      if (a.origen === 'tira') movimientoMuesca.velar()
-      await acoplarA(a.borde, { lugar: lugarDe(a.borde, centro, a.area), plegar: a.origen === 'tablero' })
-    } else if (a.origen === 'tablero') {
-      // Flotando: la posición la guarda window-state al salir, como siempre
-      st.ultimaFlotante = { x: Math.round(a.caja.x), y: Math.round(a.caja.y) }
+      await acoplarA(a.borde, { lugar: lugarDe(a.borde, centroDe(a.caja), a.area) })
+    } else {
+      soltarDentro(a)
+      // La zona vuelve a ser el tablero o la tira
+      await enviarZona(true)
+      programarAjuste()
     }
   }
 }
@@ -1642,11 +1832,12 @@ async function iniciar() {
       if (typeof m.arriba === 'boolean') ponerArriba(m.arriba)
       if (typeof m.avisar === 'boolean') st.avisar = m.avisar
       if (typeof m.pausa === 'boolean') ponerPausa(m.pausa)
-      // Acoplada al cerrar la última vez: vuelve como muesca, en el monitor de la última posición (7.5)
+      // Dónde quedó el tablero flotante la última vez (fracciones del área, 9.7)
+      if (m.flotante && typeof m.flotante === 'object') st.fraccion = { x: Number(m.flotante.x), y: Number(m.flotante.y) }
+      // Acoplada al cerrar la última vez: vuelve como muesca. Rust ya puso la ventana en el área del
+      // monitor de la última vez (9.7): la muesca va a su borde sin velo
       if (typeof m.acople?.borde === 'string') {
         st.acople = { borde: m.acople.borde, lugar: Number(m.acople.lugar) }
-        // La ventana todavía está donde la dejó window-state: velada hasta colocarla en su borde
-        movimientoMuesca.velar()
         aplicarModo()
       }
       await aplicarTamano(typeof m.tamano === 'number' ? m.tamano : PASO_POR_DEFECTO)
@@ -1681,7 +1872,9 @@ async function iniciar() {
     escuchar('oficina://primeros-pasos-abrir', () => abrirAsistente({ foco: true }))
     escuchar('oficina://primeros-pasos', ev => alEventoPaso(ev.payload))
   } else {
+    // Sin Tauri (el HTML abierto solo): la ventana del navegador hace de área
     await aplicarTamano(PASO_POR_DEFECTO)
+    colocar(disposicionActual({ x: 0, y: 0, ancho: innerWidth, alto: innerHeight }))
   }
   ciclo()
   cicloEquipo()

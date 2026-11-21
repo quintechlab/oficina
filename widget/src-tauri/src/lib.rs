@@ -13,28 +13,14 @@ use std::time::Duration;
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewWindow, Wry};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WebviewWindow, Wry};
 use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_notification::NotificationExt;
-use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 const VENTANA: &str = "principal";
 const BANDEJA: &str = "bandeja";
-/// Tamaño por defecto de la ventana expandida. Después manda el contenido (`ajustar_ventana`).
-const ANCHO: f64 = 400.0;
-const ALTO: f64 = 620.0;
-/// Mínimo de la ventana expandida (el mismo que `MINIMO` de `tamano.js`).
-const MINIMO: (f64, f64) = (320.0, 120.0);
-
-/// Qué se recuerda de la ventana entre usos.
-fn banderas_estado() -> StateFlags {
-    // Solo la posición: el tamaño lo decide el contenido y el estado guardado no tiene que pelearle
-    StateFlags::POSITION
-}
-
 struct Estado {
-    /// Tamaño y posición de la ventana expandida antes de pasar a la tira mini.
-    tamano_previo: Mutex<Option<(LogicalSize<f64>, LogicalPosition<f64>)>>,
+    /// En la tira mini (lo avisa la ventana con `modo_mini`): abrir Avis otra vez la expande.
     mini: Mutex<bool>,
     login: Mutex<Option<String>>,
     menu: Mutex<Option<MenuBandeja>>,
@@ -52,16 +38,17 @@ struct Estado {
     hwnd: AtomicIsize,
 }
 
-// ------------------------------------------------------------------ zona interactiva (9.6)
+// ------------------------------------------------------------------ zona interactiva (9.6 y 9.7)
 //
-// Acoplada, la ventana tiene siempre el tamaño del panel abierto: abrir y cerrar son solo el recorte
-// adentro (sin redimensionar, que en WebView2 deja la ventana transparente sin pintar ~0,4 s). Lo que
-// no es la muesca (cerrada) o el tablero (abierta) deja pasar los clics: un hilo mira el puntero cada
-// 20 ms y prende o apaga `set_ignore_cursor_events` solo cuando cruza el borde de la zona.
+// Ventana única: acoplada, flotando y en la tira, la ventana es el área de trabajo entera del monitor
+// y transparente. La muesca, la píldora, el tablero y la tira son elementos adentro: pasar de uno a
+// otro es una animación, sin redimensionar (que en WebView2 deja la ventana transparente sin pintar
+// ~0,4 s). Lo que no es la zona interactiva deja pasar los clics: un hilo mira el puntero cada 20 ms
+// y prende o apaga `set_ignore_cursor_events` solo cuando cruza el borde de la zona.
 
-/// Cada cuánto se mira el puntero mientras la muesca está acoplada y a la vista.
+/// Cada cuánto se mira el puntero mientras la ventana está a la vista.
 const PASO_SONDEO: Duration = Duration::from_millis(20);
-/// Sin sondeo (flotando, escondida o en la tira), el hilo duerme hasta que lo despierten o pase esto.
+/// Sin sondeo (escondida en la bandeja o minimizada), el hilo duerme hasta que lo despierten o pase esto.
 const ESPERA_QUIETO: Duration = Duration::from_millis(250);
 /// Evento a la ventana cuando el puntero entra o sale de la zona: `{ dentro, n }`.
 const EVENTO_ZONA: &str = "oficina://puntero-zona";
@@ -98,10 +85,11 @@ fn dentro_de_zona(cursor: (f64, f64), zona: &Zona, escala: f64) -> bool {
     cursor.0 >= x0 && cursor.0 < x1 && cursor.1 >= y0 && cursor.1 < y1
 }
 
-/// ¿Corre el sondeo? Solo acoplada, a la vista y fuera de la tira mini. Si no, la ventana toma
-/// todos los clics, como siempre.
-fn debe_sondear(acoplada: bool, visible: bool, mini: bool) -> bool {
-    acoplada && visible && !mini
+/// ¿Corre el sondeo? En todas las formas (acoplada, flotando o en la tira) mientras la ventana se ve:
+/// siempre es el área entera y fuera de la zona los clics tienen que pasar. Escondida o minimizada,
+/// no hay nada que mirar.
+fn debe_sondear(visible: bool) -> bool {
+    visible
 }
 
 /// Lo que sabe el sondeo: la zona que mandó la ventana (`toda`: arrastrando, toda la ventana), la
@@ -156,7 +144,7 @@ fn olvidar_zona(p: &mut Puntero) {
 }
 
 /// La posición del puntero que hay que avisar para la mirada del Avi a la vista, en px lógicos de
-/// pantalla, o nada: solo con el sondeo corriendo (acoplada, a la vista y fuera de la tira) y
+/// pantalla, o nada: solo con el sondeo corriendo (la ventana a la vista) y
 /// `mirada`, solo si cambió desde el último aviso y a lo sumo uno cada `PASO_CURSOR`. Compara con lo
 /// último avisado (no con lo último visto): si se movió dentro de esos 50 ms, la posición final sale
 /// igual en la vuelta siguiente. Sin `mirada` olvida lo avisado, así al volver avisa otra vez.
@@ -273,10 +261,8 @@ fn a_la_vista(app: &AppHandle, _estado: &Estado) -> bool {
 /// Una vuelta del sondeo: decide con `evaluar` y, fuera de todo lock, cambia el paso de los clics y
 /// avisa a la ventana, solo si algo cambió. Devuelve si el sondeo está corriendo.
 fn mirar_puntero(app: &AppHandle, estado: &Estado, ahora: Duration) -> bool {
-    // Un lock envenenado no puede matar el hilo: si muere con los clics pasando, la muesca no responde más
-    let acoplada = estado.acople.lock().unwrap_or_else(PoisonError::into_inner).is_some();
-    let mini = *estado.mini.lock().unwrap_or_else(PoisonError::into_inner);
-    let sondea = debe_sondear(acoplada, a_la_vista(app, estado), mini);
+    // Un lock envenenado no puede matar el hilo: si muere con los clics pasando, la ventana no responde más
+    let sondea = debe_sondear(a_la_vista(app, estado));
     let cursor = if sondea { cursor_fisico(app) } else { None };
     let (paso, mirada) = {
         let mut p = estado.puntero.lock().unwrap_or_else(PoisonError::into_inner);
@@ -298,7 +284,7 @@ fn mirar_puntero(app: &AppHandle, estado: &Estado, ahora: Duration) -> bool {
     sondea
 }
 
-/// El único hilo del sondeo (uno solo, para siempre): cada 20 ms acoplada y a la vista, o dormido
+/// El único hilo del sondeo (uno solo, para siempre): cada 20 ms con la ventana a la vista, o dormido
 /// hasta que lo despierten (`despertar`) o pasen 250 ms. Termina con "Salir".
 fn sondear_puntero(app: AppHandle) {
     let estado = app.state::<Estado>();
@@ -393,19 +379,11 @@ fn rect_de(m: &tauri::Monitor) -> Rect {
     (m.position().x, m.position().y, m.size().width, m.size().height)
 }
 
-/// Acoplada, la ventana va siempre arriba, fuera de la barra de tareas y sin tamaño mínimo (la
-/// muesca mide unos 112 × 40). Flotando, vuelve a lo de hoy: el mínimo del tablero y "Siempre
-/// arriba" según la marca del menú.
+/// Acoplada, la ventana va siempre arriba y fuera de la barra de tareas. Flotando (tablero o tira),
+/// en la barra de tareas y "Siempre arriba" según la marca del menú. El tamaño es siempre el del área.
 fn aplicar_acople_ventana(v: &WebviewWindow, acoplada: bool, arriba_marcado: bool) -> tauri::Result<()> {
-    if acoplada {
-        v.set_min_size(None::<LogicalSize<f64>>)?;
-        v.set_skip_taskbar(true)?;
-        v.set_always_on_top(true)
-    } else {
-        v.set_min_size(Some(LogicalSize::new(MINIMO.0, MINIMO.1)))?;
-        v.set_skip_taskbar(false)?;
-        v.set_always_on_top(arriba_marcado)
-    }
+    v.set_skip_taskbar(acoplada)?;
+    v.set_always_on_top(acoplada || arriba_marcado)
 }
 
 /// Pone las marcas de "Acoplar a" (una sola) según el acople actual.
@@ -434,53 +412,50 @@ fn alternar(app: &AppHandle) {
     }
 }
 
-/// Pasa la ventana a la tira mini (del tamaño que pide el frontend según la escala elegida) o la
-/// devuelve a su tamaño y lugar anteriores; después el contenido vuelve a mandar. La tira se apoya
-/// sobre la barra de tareas, abajo a la derecha del área de trabajo de su monitor.
-fn aplicar_mini(v: &WebviewWindow, estado: &Estado, mini: bool, tira: Option<LogicalSize<f64>>) -> Result<(), String> {
-    let texto = |e: tauri::Error| e.to_string();
-    let mut actual = estado.mini.lock().unwrap();
-    let escala = v.scale_factor().map_err(texto)?;
-    if mini {
-        let tira = tira.unwrap_or(LogicalSize::new(ANCHO, 56.0));
-        if !*actual {
-            let tam = v.inner_size().map_err(texto)?.to_logical(escala);
-            let pos = v.outer_position().map_err(texto)?.to_logical(escala);
-            *estado.tamano_previo.lock().unwrap() = Some((tam, pos));
-        }
-        v.set_min_size(Some(tira)).map_err(texto)?;
-        match v.current_monitor().map_err(texto)? {
-            Some(m) => {
-                let a = m.work_area();
-                let esc_m = m.scale_factor();
-                let area = (a.position.x as f64 / esc_m, a.position.y as f64 / esc_m, a.size.width as f64 / esc_m, a.size.height as f64 / esc_m);
-                let (x, y) = esquina_tira(area, (tira.width, tira.height));
-                mover_y_redimensionar(v, tira.width, tira.height, x, y)?;
-            }
-            None => v.set_size(tira).map_err(texto)?,
-        }
-    } else if *actual {
-        let previo = estado.tamano_previo.lock().unwrap().take();
-        v.set_min_size(Some(LogicalSize::new(MINIMO.0, MINIMO.1))).map_err(texto)?;
-        match previo {
-            Some((tam, pos)) => mover_y_redimensionar(v, tam.width, tam.height, pos.x, pos.y)?,
-            None => v.set_size(LogicalSize::new(ANCHO, ALTO)).map_err(texto)?,
-        }
-    }
-    *actual = mini;
-    Ok(())
+/// El monitor (índice en `monitores`, rectángulos en px físicos) que contiene `punto`: el borde
+/// izquierdo y el de arriba cuentan, el derecho y el de abajo son del vecino. Ninguno si ya no está.
+fn monitor_que_contiene(punto: (f64, f64), monitores: &[Rect]) -> Option<usize> {
+    monitores.iter().position(|&(x, y, w, h)| {
+        let (x, y, w, h) = (x as f64, y as f64, w as f64, h as f64);
+        punto.0 >= x && punto.0 < x + w && punto.1 >= y && punto.1 < y + h
+    })
 }
 
-/// Margen de la tira mini con el borde derecho y con la barra de tareas, en px lógicos.
-const MARGEN_TIRA: f64 = 8.0;
+/// El centro de un rectángulo en px físicos: el punto que se guarda para volver a ese monitor.
+fn centro_de(r: Rect) -> (f64, f64) {
+    (r.0 as f64 + r.2 as f64 / 2.0, r.1 as f64 + r.3 as f64 / 2.0)
+}
 
-/// Dónde va la tira mini (x, y): abajo a la derecha del área de trabajo `area` (x, y, ancho, alto),
-/// apoyada sobre la barra de tareas con `MARGEN_TIRA`. Si no entra, desde la punta izquierda o de arriba.
-fn esquina_tira(area: (f64, f64, f64, f64), tira: (f64, f64)) -> (f64, f64) {
-    let (ax, ay, aw, ah) = area;
-    let x = (ax + aw - tira.0 - MARGEN_TIRA).max(ax);
-    let y = (ay + ah - tira.1 - MARGEN_TIRA).max(ay);
-    (x.round(), y.round())
+/// El área de trabajo de un monitor, en px físicos.
+fn area_fisica(m: &tauri::Monitor) -> Rect {
+    let a = m.work_area();
+    (a.position.x, a.position.y, a.size.width, a.size.height)
+}
+
+/// Guarda el monitor donde está la ventana (el centro de su área), para volver a él al arrancar.
+fn guardar_monitor_actual(app: &AppHandle) -> Result<(), String> {
+    let v = ventana(app).ok_or("sin ventana")?;
+    let m = v.current_monitor().map_err(|e| e.to_string())?.ok_or("sin monitor")?;
+    let ruta = ruta_preferencias(app).ok_or("no se conoce la carpeta de configuración")?;
+    preferencias::guardar_monitor(&ruta, centro_de(area_fisica(&m)))
+}
+
+/// Al arrancar (9.7): la ventana ocupa el área de trabajo del monitor de la última vez (el que
+/// contiene el punto guardado) o, si ya no está, la del principal. Se pone en px físicos, así no
+/// depende de la escala de cada monitor; después la ventana ubica adentro la muesca o el tablero.
+fn colocar_al_arrancar(app: &AppHandle, v: &WebviewWindow) -> Result<(), String> {
+    let texto = |e: tauri::Error| e.to_string();
+    let monitores = v.available_monitors().map_err(texto)?;
+    let guardado = ruta_preferencias(app).and_then(|r| preferencias::leer_monitor(&r));
+    let rects: Vec<Rect> = monitores.iter().map(rect_de).collect();
+    let elegido = guardado.and_then(|p| monitor_que_contiene(p, &rects)).map(|i| monitores[i].clone());
+    let monitor = match elegido {
+        Some(m) => Some(m),
+        None => v.primary_monitor().map_err(texto)?,
+    };
+    let m = monitor.ok_or("sin monitor")?;
+    let (x, y, w, h) = area_fisica(&m);
+    colocar_fisico(v, x, y, w as i32, h as i32)
 }
 
 fn ruta_preferencias(app: &AppHandle) -> Option<std::path::PathBuf> {
@@ -552,11 +527,7 @@ fn salir(app: &AppHandle) {
     let estado = app.state::<Estado>();
     estado.apagar.store(true, Ordering::Relaxed);
     despertar(&estado);
-    // Guardar el tamaño expandido, no el de la tira mini
-    if let Some(v) = ventana(app) {
-        let _ = aplicar_mini(&v, &app.state::<Estado>(), false, None);
-    }
-    let _ = app.save_window_state(banderas_estado());
+    // La posición flotante y el monitor ya se guardaron al soltar (preferencias.json)
     app.exit(0);
 }
 
@@ -686,6 +657,7 @@ fn estado_menu(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
         "pausa": marca(menu.as_ref().map(|m| &m.pausa)),
         "tamano": tamano_guardado(&app),
         "acople": preferencias::valor_de_acople(*estado.acople.lock().unwrap()),
+        "flotante": ruta_preferencias(&app).and_then(|r| preferencias::leer_flotante(&r)).map(|f| serde_json::json!({ "x": f.x, "y": f.y })),
     })
 }
 
@@ -729,19 +701,9 @@ fn geometria(app: AppHandle, puntero: Option<bool>) -> Result<serde_json::Value,
     }))
 }
 
-/// Mueve la ventana sin cambiarle el tamaño (arrastre propio, 9.3), en píxeles lógicos.
-#[tauri::command]
-fn mover_ventana(app: AppHandle, x: f64, y: f64) -> Result<(), String> {
-    if !(x.is_finite() && y.is_finite() && x.abs() < 100_000.0 && y.abs() < 100_000.0) {
-        return Err(String::from("posición inválida"));
-    }
-    let v = ventana(&app).ok_or("sin ventana")?;
-    v.set_position(LogicalPosition::new(x, y)).map_err(|e| e.to_string())
-}
-
 /// Acopla la muesca a `borde` en `lugar` (0 a 1), o la deja flotando sin `borde`: lo guarda en
-/// `preferencias.json`, ajusta la ventana (arriba, sin barra de tareas, sin mínimo) y las marcas de
-/// "Acoplar a". Mover y animar la ventana lo hace el frontend.
+/// `preferencias.json` con el monitor donde está, ajusta la ventana (arriba y sin barra de tareas
+/// acoplada) y las marcas de "Acoplar a". Lo que se ve lo anima el frontend, adentro de la ventana.
 #[tauri::command]
 fn guardar_acople(app: AppHandle, estado: State<'_, Estado>, borde: Option<String>, lugar: Option<f64>) -> Result<(), String> {
     let acople = match borde {
@@ -761,19 +723,26 @@ fn guardar_acople(app: AppHandle, estado: State<'_, Estado>, borde: Option<Strin
     if let Some(v) = ventana(&app) {
         aplicar_acople_ventana(&v, acople.is_some(), arriba_marcado(&estado)).map_err(|e| e.to_string())?;
     }
+    let _ = guardar_monitor_actual(&app);
     match ruta_preferencias(&app) {
         Some(r) => preferencias::guardar_acople(&r, acople),
         None => Err(String::from("no se conoce la carpeta de configuración")),
     }
 }
 
-/// Ajusta la ventana al contenido: tamaño y posición ya calculados por `tamano.js`.
-/// En la tira mini no hace nada (la tira tiene su propio tamaño).
+/// Guarda dónde quedó el tablero flotante (fracciones del lugar libre del área, `fraccionFlotante`
+/// de `tamano.js`) y el monitor donde está la ventana, para volver ahí al arrancar (9.7).
 #[tauri::command]
-fn ajustar_ventana(app: AppHandle, estado: State<'_, Estado>, ancho: f64, alto: f64, x: f64, y: f64) -> Result<(), String> {
-    if *estado.mini.lock().unwrap() {
-        return Ok(());
-    }
+fn guardar_flotante(app: AppHandle, x: f64, y: f64) -> Result<(), String> {
+    let _ = guardar_monitor_actual(&app);
+    let ruta = ruta_preferencias(&app).ok_or("no se conoce la carpeta de configuración")?;
+    preferencias::guardar_flotante(&ruta, preferencias::Flotante { x, y })
+}
+
+/// Lleva la ventana al área de trabajo que calculó el frontend (`ventanaDeArea`), en px lógicos:
+/// solo al pasar a otro monitor o si cambió el área. Todo lo demás pasa adentro de la ventana.
+#[tauri::command]
+fn ajustar_ventana(app: AppHandle, ancho: f64, alto: f64, x: f64, y: f64) -> Result<(), String> {
     let valido = |n: f64| n.is_finite() && n.abs() < 100_000.0;
     if !(valido(ancho) && valido(alto) && valido(x) && valido(y)) || ancho < 1.0 || alto < 1.0 {
         return Err(String::from("tamaño inválido"));
@@ -789,9 +758,16 @@ fn rect_fisico(x: f64, y: f64, ancho: f64, alto: f64, escala: f64) -> (i32, i32,
 }
 
 /// Mueve y redimensiona en UNA operación de Windows (`SetWindowPos`). Con `set_size` y después
-/// `set_position` había cuadros con la ventana grande en el lugar viejo: el parpadeo al abrir la muesca.
-#[cfg(windows)]
+/// `set_position` había cuadros con la ventana grande en el lugar viejo.
 fn mover_y_redimensionar(v: &WebviewWindow, ancho: f64, alto: f64, x: f64, y: f64) -> Result<(), String> {
+    let escala = v.scale_factor().map_err(|e| e.to_string())?;
+    let (fx, fy, fa, fh) = rect_fisico(x, y, ancho, alto, escala);
+    colocar_fisico(v, fx, fy, fa, fh)
+}
+
+/// Pone la ventana en un rectángulo de px físicos, en una sola operación de Windows.
+#[cfg(windows)]
+fn colocar_fisico(v: &WebviewWindow, x: i32, y: i32, ancho: i32, alto: i32) -> Result<(), String> {
     #[link(name = "user32")]
     extern "system" {
         fn SetWindowPos(hwnd: isize, despues: isize, x: i32, y: i32, cx: i32, cy: i32, banderas: u32) -> i32;
@@ -800,34 +776,28 @@ fn mover_y_redimensionar(v: &WebviewWindow, ancho: f64, alto: f64, x: f64, y: f6
     const SWP_NOACTIVATE: u32 = 0x0010;
     const SWP_NOOWNERZORDER: u32 = 0x0200;
     let hwnd = v.hwnd().map_err(|e| e.to_string())?.0 as isize;
-    let escala = v.scale_factor().map_err(|e| e.to_string())?;
-    let (fx, fy, fa, fh) = rect_fisico(x, y, ancho, alto, escala);
     // SAFETY: hwnd es la ventana viva de Tauri; SetWindowPos no guarda punteros
-    let ok = unsafe { SetWindowPos(hwnd, 0, fx, fy, fa, fh, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER) };
+    let ok = unsafe { SetWindowPos(hwnd, 0, x, y, ancho.max(1), alto.max(1), SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER) };
     if ok == 0 {
         // Si Windows la rechaza, el camino de antes en dos pasos
-        v.set_size(LogicalSize::new(ancho, alto)).map_err(|e| e.to_string())?;
-        return v.set_position(LogicalPosition::new(x, y)).map_err(|e| e.to_string());
+        v.set_size(PhysicalSize::new(ancho.max(1) as u32, alto.max(1) as u32)).map_err(|e| e.to_string())?;
+        return v.set_position(PhysicalPosition::new(x, y)).map_err(|e| e.to_string());
     }
     Ok(())
 }
 
 #[cfg(not(windows))]
-fn mover_y_redimensionar(v: &WebviewWindow, ancho: f64, alto: f64, x: f64, y: f64) -> Result<(), String> {
-    v.set_size(LogicalSize::new(ancho, alto)).map_err(|e| e.to_string())?;
-    v.set_position(LogicalPosition::new(x, y)).map_err(|e| e.to_string())
+fn colocar_fisico(v: &WebviewWindow, x: i32, y: i32, ancho: i32, alto: i32) -> Result<(), String> {
+    v.set_size(PhysicalSize::new(ancho.max(1) as u32, alto.max(1) as u32)).map_err(|e| e.to_string())?;
+    v.set_position(PhysicalPosition::new(x, y)).map_err(|e| e.to_string())
 }
 
+/// La ventana avisa que pasó a la tira mini o volvió (la tira es un elemento adentro de la ventana
+/// del área: no cambia nada de la ventana). Sirve para que abrir Avis otra vez la expanda.
 #[tauri::command]
-fn modo_mini(app: AppHandle, estado: State<'_, Estado>, mini: bool, ancho: Option<f64>, alto: Option<f64>) -> Result<(), String> {
-    let v = ventana(&app).ok_or("sin ventana")?;
-    let tira = match (ancho, alto) {
-        (Some(a), Some(h)) if a.is_finite() && h.is_finite() && a >= 1.0 && h >= 1.0 => Some(LogicalSize::new(a, h)),
-        _ => None,
-    };
-    let hecho = aplicar_mini(&v, &estado, mini, tira).map_err(|e| e.to_string());
+fn modo_mini(estado: State<'_, Estado>, mini: bool) {
+    *estado.mini.lock().unwrap() = mini;
     despertar(&estado);
-    hecho
 }
 
 /// Esconde la ventana en la bandeja (la × de la barra de título).
@@ -839,8 +809,9 @@ fn esconder(app: AppHandle, estado: State<'_, Estado>) {
     despertar(&estado);
 }
 
-/// Zona de la ventana acoplada que toma el mouse (9.6), en px lógicos de pantalla: la muesca con un
-/// margen (cerrada), el tablero (abierta) o toda la ventana (`toda`, mientras se arrastra). Fuera de
+/// Zona de la ventana que toma el mouse (9.6 y 9.7), en px lógicos de pantalla: acoplada, la muesca
+/// con un margen (cerrada) o el tablero (abierta); flotando, el tablero; en la tira, la tira; o toda
+/// la ventana (`toda`, mientras se arrastra). Fuera de
 /// ella los clics pasan a lo que hay debajo. Devuelve si el puntero está adentro ahora; el cambio lo
 /// aplica y lo avisa el hilo del sondeo (`oficina://puntero-zona`), el único que toca la ventana.
 /// `mirada`: el Avi que está a la vista quiere el puntero (la marca con el panel abierto o el de la
@@ -1045,16 +1016,6 @@ mod tests {
     }
 
     #[test]
-    fn la_tira_mini_se_apoya_sobre_la_barra_de_tareas_abajo_a_la_derecha() {
-        // Pantalla de 1920 × 1080 con la barra de tareas de 48 abajo: el área llega hasta 1032
-        assert_eq!(esquina_tira((0.0, 0.0, 1920.0, 1032.0), (362.0, 56.0)), (1920.0 - 362.0 - MARGEN_TIRA, 1032.0 - 56.0 - MARGEN_TIRA));
-        // Otro monitor a la izquierda, con coordenadas negativas
-        assert_eq!(esquina_tira((-1280.0, 0.0, 1280.0, 984.0), (362.0, 56.0)), (-362.0 - MARGEN_TIRA, 984.0 - 56.0 - MARGEN_TIRA));
-        // Si no entra, no se sale del área por la izquierda ni por arriba
-        assert_eq!(esquina_tira((0.0, 0.0, 300.0, 40.0), (362.0, 56.0)), (0.0, 0.0));
-    }
-
-    #[test]
     fn el_rectangulo_fisico_redondea_posicion_y_tamano_con_la_escala() {
         // Al 100 % queda igual; al 125 % y 150 % se multiplica y se redondea al píxel más cercano
         assert_eq!(rect_fisico(100.0, 20.0, 676.0, 656.0, 1.0), (100, 20, 676, 656));
@@ -1086,13 +1047,30 @@ mod tests {
     }
 
     #[test]
-    fn el_sondeo_corre_solo_acoplada_visible_y_fuera_de_la_tira() {
-        assert!(debe_sondear(true, true, false));
-        // Flotando, escondida en la bandeja o en la tira mini: no
-        assert!(!debe_sondear(false, true, false));
-        assert!(!debe_sondear(true, false, false));
-        assert!(!debe_sondear(true, true, true));
-        assert!(!debe_sondear(false, false, true));
+    fn el_sondeo_corre_en_todas_las_formas_mientras_la_ventana_se_ve() {
+        // Ventana única (9.7): acoplada, flotando y en la tira la ventana es el área entera y fuera de
+        // la zona los clics pasan; solo escondida en la bandeja o minimizada no hay nada que mirar
+        assert!(debe_sondear(true));
+        assert!(!debe_sondear(false));
+    }
+
+    #[test]
+    fn al_arrancar_la_ventana_va_al_monitor_que_contiene_el_punto_guardado() {
+        let monitores: [Rect; 3] = [PRINCIPAL, (1920, 0, 2560, 1440), (-1280, 100, 1280, 1024)];
+        assert_eq!(monitor_que_contiene((960.0, 500.0), &monitores), Some(0));
+        assert_eq!(monitor_que_contiene((3000.0, 700.0), &monitores), Some(1));
+        assert_eq!(monitor_que_contiene((-10.0, 600.0), &monitores), Some(2));
+        // El borde izquierdo y el de arriba cuentan; el derecho y el de abajo, del vecino
+        assert_eq!(monitor_que_contiene((1920.0, 0.0), &monitores), Some(1));
+        // Un monitor que ya no está: ninguno (va el principal)
+        assert_eq!(monitor_que_contiene((9000.0, 9000.0), &monitores), None);
+        assert_eq!(monitor_que_contiene((f64::NAN, 0.0), &monitores), None);
+    }
+
+    #[test]
+    fn el_punto_que_se_guarda_es_el_centro_del_area_en_px_fisicos() {
+        assert_eq!(centro_de((0, 0, 1920, 1032)), (960.0, 516.0));
+        assert_eq!(centro_de((-1280, 100, 1280, 984)), (-640.0, 592.0));
     }
 
     #[test]
@@ -1278,12 +1256,6 @@ mod tests {
     }
 
     #[test]
-    fn flotando_se_sigue_recordando_solo_la_posicion() {
-        // El tamaño lo decide el contenido; la posición la guarda window-state, como antes de la muesca
-        assert_eq!(banderas_estado().bits(), StateFlags::POSITION.bits());
-    }
-
-    #[test]
     fn con_un_solo_monitor_los_cuatro_bordes_acoplan() {
         assert_eq!(bordes_libres(PRINCIPAL, &[]), [true, true, true, true]);
     }
@@ -1313,9 +1285,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         // Registrar el plugin no prende nada: el arranque con Windows solo cambia desde el menú
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
-        .plugin(tauri_plugin_window_state::Builder::default().with_state_flags(banderas_estado()).build())
         .manage(Estado {
-            tamano_previo: Mutex::new(None),
             mini: Mutex::new(false),
             login: Mutex::new(None),
             menu: Mutex::new(None),
@@ -1331,12 +1301,14 @@ pub fn run() {
             let acople = ruta_preferencias(&handle).and_then(|r| preferencias::leer_acople(&r));
             *handle.state::<Estado>().acople.lock().unwrap() = acople;
             crear_bandeja(&handle)?;
-            if acople.is_some() {
-                // La ventana ya está en la última posición guardada (window-state): la muesca vuelve
-                // en ese monitor. El frontend la lleva al borde.
-                if let Some(v) = ventana(&handle) {
-                    let _ = aplicar_acople_ventana(&v, true, true);
+            if let Some(v) = ventana(&handle) {
+                // Ventana única (9.7): el área de trabajo del monitor de la última vez, antes de
+                // mostrarla (arranca escondida). Adentro, la ventana pone la muesca o el tablero
+                if let Err(e) = colocar_al_arrancar(&handle, &v) {
+                    registrar(format!("al arrancar: {e}"));
                 }
+                let _ = aplicar_acople_ventana(&v, acople.is_some(), arriba_marcado(&handle.state::<Estado>()));
+                let _ = v.show();
             }
             // El sondeo del puntero (9.6): un solo hilo para toda la vida de la app
             #[cfg(windows)]
@@ -1375,8 +1347,8 @@ pub fn run() {
             estado_menu,
             geometria,
             ajustar_ventana,
-            mover_ventana,
             guardar_acople,
+            guardar_flotante,
             cambiar_tamano,
             modo_mini,
             esconder,

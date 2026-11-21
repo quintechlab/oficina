@@ -85,24 +85,31 @@
 * { box-sizing: border-box; margin: 0; padding: 0 }
 [hidden] { display: none !important }
 html, body { height: 100%; background: var(--fondo-pagina) }
+/* Ventana única (9.7): la ventana es el área de trabajo entera, transparente; la muesca, la píldora,
+   el tablero y la tira se ubican adentro con position: fixed y variables (main.js, `colocar`) */
 body {
-  display: flex; flex-direction: column; align-items: flex-start; overflow: hidden;
-  padding: 0 0 var(--margen-sombra);
+  display: block; overflow: hidden; padding: 0;
   color: var(--crema); font: var(--t-cuerpo); -webkit-font-smoothing: antialiased;
 }
+/* Hasta saber dónde va cada cosa (la primera disposición), no se ve nada */
+body:not(.colocada) #marco, body:not(.colocada) #muesca, body:not(.colocada) #luz, body:not(.colocada) #tira { visibility: hidden }
 button { font: inherit; color: inherit }
 :focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px }
 h1, h2, h3 { font: inherit }
 .oculto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap }
 
-/* ------------------------------------------------------------------ marco de la ventana (9.5) */
+/* ------------------------------------------------------------------ marco del tablero (9.5 y 9.7)
+   Flotando, un elemento adentro de la ventana del área: --tx, --ty (lugar) y --tw, --th (tamaño,
+   `tamanoDeseado`), en px CSS. Moverlo o arrastrarlo es cambiar esas variables, no la ventana */
 #marco {
-  display: flex; flex-direction: column; height: var(--alto-tablero); max-height: 100%; min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column; overflow: hidden;
+  position: fixed; left: var(--tx, 0); top: var(--ty, 0); width: var(--tw, auto); height: var(--th, var(--alto-tablero)); min-height: 0;
   background: var(--negro); color: var(--crema);
   border: 1px solid rgba(255, 255, 255, .07); border-radius: var(--r-ventana);
   box-shadow: var(--sombra-ventana);
-  animation: aparece var(--d-entrada) var(--ease) both;
 }
+/* La entrada al mostrarse por primera vez flotando (main.js, `entradaMarco`) */
+#marco.entra { animation: aparece var(--d-entrada) var(--ease) both }
 /* Sin escala: medirContenido() lee el tamaño de #marco y una escala lo falsearía */
 @keyframes aparece { from { opacity: 0; transform: translateY(12px) } }
 /* El tablero no desplaza entero: cada columna tiene su scroll (9.2). A la derecha no hay relleno:
@@ -423,11 +430,12 @@ button.op:active { transform: scale(.985) }
 /* El texto largo no estira la ventana: el ancho lo dan el escenario, los chips y el mínimo */
 #otro, #w-globo, .conteos, .ses-cab, .ses > .linea, .compa-t, .fila-t, .pie-w, .lado-pie { contain: inline-size }
 
-/* ------------------------------------------------------------------ tira mini (4.6): 400 × 56 */
-body.mini { padding: 0 }
+/* ------------------------------------------------------------------ tira mini (4.6): 400 × 56
+   Un elemento adentro de la ventana del área (9.7), abajo a la derecha o donde se la soltó: --qx, --qy */
 body.mini #marco { display: none }
 .tira {
-  display: flex; align-items: center; gap: var(--e-1); width: 100%; height: 100%; padding: 0 var(--e-1) 0 0;
+  position: fixed; left: var(--qx, 0); top: var(--qy, 0); width: 400px; height: 56px;
+  display: flex; align-items: center; gap: var(--e-1); padding: 0 var(--e-1) 0 0;
   background: var(--negro); border-radius: 28px; overflow: hidden; user-select: none;
 }
 .tira .arrastre { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--e-5); height: 100%; padding-left: var(--e-6); cursor: grab }
@@ -436,7 +444,7 @@ body.mini #marco { display: none }
 .tira { transition: box-shadow var(--d-presion) ease }
 body.mini[data-iman] .tira { box-shadow: inset 0 0 0 2px var(--ambar) }
 body.mini[data-iman] .tira .resumen { visibility: hidden }
-body.mini[data-iman] #aviso-iman { top: 50%; bottom: auto; left: 50%; right: auto; transform: translate(-50%, -50%) }
+body.mini[data-iman] #aviso-iman { top: calc(var(--qy) + 28px); bottom: auto; left: calc(var(--qx) + 200px); right: auto; transform: translate(-50%, -50%) }
 /* Cabecitas de 32 apiladas: −10 px y borde de 2 en --s1 */
 .caras, .cabezas-g { display: flex; flex: none; align-items: center }
 .caras { padding-left: var(--e-5) }
@@ -449,20 +457,16 @@ body.mini[data-iman] #aviso-iman { top: 50%; bottom: auto; left: 50%; right: aut
 .pend { flex: none; margin-right: var(--e-1); padding: 5px var(--e-4); border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro); font: 600 11px/1 var(--m); white-space: nowrap }
 
 /* ------------------------------------------------------------------ muesca acoplable (secciones 6.4, 7 y 9)
-   Acoplada, la ventana tiene siempre el tamaño del panel abierto (9.6): abrir y cerrar son solo el
-   recorte adentro. muesca.js calcula la disposición y main.js ubica la muesca (--mx, --my), su luz
-   y el tablero (--tx, --ty, --tw, --th) en px CSS. Todo lo demás es transparente y no pinta nada
-   (ni fondo ni sombra): ahí los clics pasan a lo que hay debajo (zona interactiva, Rust). */
+   La ventana es el área de trabajo entera (9.6 y 9.7): abrir y cerrar son solo el recorte adentro.
+   muesca.js calcula la disposición y main.js ubica la muesca (--mx, --my), su luz y el tablero
+   (--tx, --ty, --tw, --th) en px CSS. Todo lo demás es transparente y no pinta nada (ni fondo ni
+   sombra): ahí los clics pasan a lo que hay debajo (zona interactiva, Rust). */
 #muesca, #luz, #pildora, #aviso-iman { display: none }
-body.acoplada { display: block; padding: 0 }
 body.acoplada #tira { display: none }
 body.acoplada [data-accion="mini"] { display: none }
 
 /* El panel abierto: el tablero entero, sin borde ni radio contra el borde de la pantalla (7.4) */
-body.acoplada #marco {
-  position: fixed; left: var(--tx, 0); top: var(--ty, 0); width: var(--tw, auto); height: var(--th, var(--alto-tablero)); max-height: none;
-  box-shadow: none; animation: none; z-index: 0;
-}
+body.acoplada #marco { box-shadow: none; animation: none; z-index: 0 }
 body.acoplada[data-borde="arriba"] #marco { border-top: 0; border-radius: 0 0 var(--r-panel) var(--r-panel) }
 body.acoplada[data-borde="abajo"] #marco { border-bottom: 0; border-radius: var(--r-panel) var(--r-panel) 0 0 }
 body.acoplada[data-borde="derecha"] #marco { border-right: 0; border-radius: var(--r-panel) 0 0 var(--r-panel) }
@@ -590,8 +594,9 @@ body.acoplada.pregunta:not(.abierta):not(.pildora) #luz {
 body[data-borde="derecha"] #luz, body[data-borde="izquierda"] #luz { --luz-dir: 180deg }
 
 /* Píldora al arrastrar la muesca lejos de los bordes (7.3): el estilo de la tira mini. Sigue al
-   puntero adentro de la ventana quieta (--px, --py; PILDORA de muesca.js mide 184 × 48) */
-body.acoplada.pildora #pildora {
+   puntero adentro de la ventana quieta (--px, --py; PILDORA de muesca.js mide 184 × 48). Al soltarla
+   lejos sigue a la vista hasta que el tablero crece desde ella (6.6) */
+body.pildora #pildora {
   display: flex; align-items: center; gap: var(--e-4); position: fixed; left: var(--px, 0); top: var(--py, 0); width: 184px; height: 48px;
   box-sizing: border-box; padding: 0 var(--e-5) 0 var(--e-4); z-index: 3;
   background: var(--negro); border-radius: var(--r-pildora); cursor: grabbing; user-select: none; white-space: nowrap;
@@ -610,15 +615,16 @@ body[data-iman] #aviso-iman {
   display: block; position: fixed; z-index: 3; padding: var(--e-2) var(--e-5); border-radius: var(--r-pildora);
   background: var(--ambar); color: var(--negro); font: var(--t-mono-s); font-stretch: 75%; white-space: nowrap; pointer-events: none;
 }
-body[data-iman="arriba"] #aviso-iman { top: var(--e-6); left: 50%; transform: translateX(-50%) }
-body[data-iman="abajo"] #aviso-iman { bottom: calc(var(--margen-sombra) + var(--e-6)); left: 50%; transform: translateX(-50%) }
-body[data-iman="derecha"] #aviso-iman { right: var(--e-6); top: 50%; transform: translateY(-50%) }
-body[data-iman="izquierda"] #aviso-iman { left: var(--e-6); top: 50%; transform: translateY(-50%) }
+/* Adentro del tablero, junto al lado que mira al borde (el tablero es un elemento de la ventana del área) */
+body[data-iman="arriba"] #aviso-iman { top: calc(var(--ty) + var(--e-6)); left: calc(var(--tx) + var(--tw) / 2); transform: translateX(-50%) }
+body[data-iman="abajo"] #aviso-iman { top: calc(var(--ty) + var(--th) - var(--e-6)); left: calc(var(--tx) + var(--tw) / 2); transform: translate(-50%, -100%) }
+body[data-iman="derecha"] #aviso-iman { left: calc(var(--tx) + var(--tw) - var(--e-6)); top: calc(var(--ty) + var(--th) / 2); transform: translate(-100%, -50%) }
+body[data-iman="izquierda"] #aviso-iman { left: calc(var(--tx) + var(--e-6)); top: calc(var(--ty) + var(--th) / 2); transform: translateY(-50%) }
 
-/* Velo al redimensionar (9.6): mientras la ventana cambia de tamaño (borde, lugar, zoom, carga,
-   píldora) lo que se ve se esconde al instante, sin transición; muescaMotion.js lo funde de vuelta
-   cuando WebView2 ya pintó el tamaño nuevo. `!important` gana también a las animaciones (golpe) */
-body.velada #muesca, body.velada #marco, body.velada #luz, body.velada #pildora,
+/* Velo al pasar a otro monitor (9.6 y 9.7): mientras la ventana se mueve a otra área lo que se ve
+   se esconde al instante, sin transición; muescaMotion.js lo funde de vuelta cuando WebView2 ya
+   pintó. Dentro del mismo monitor no hay velo. `!important` gana también a las animaciones (golpe) */
+body.velada #muesca, body.velada #marco, body.velada #luz, body.velada #pildora, body.velada #tira,
 body.velada.acoplada.abierta::before, body.velada.acoplada.abierta::after { opacity: 0 !important; transition: none !important }
 
 /* Golpe de la pregunta (6.4 y muesca-avi-ux.md 6), 480 ms: la muesca crece desde el borde
@@ -694,7 +700,7 @@ body.pausa #muesca .alza, body.pausa #muesca .asir, body.pausa #muesca .cuenta, 
 /* ------------------------------------------------------------------ movimiento reducido y pausa (6.5)
    Los Avis quedan quietos en su pose (avis.css) y no hay entradas */
 @media (prefers-reduced-motion: reduce) {
-  #marco, .preg.entra, .hecho, .hecho.sale { animation: none }
+  #marco, #marco.entra, .preg.entra, .hecho, .hecho.sale { animation: none }
   .pj, .tb, .esc .fig, .esc .fig .avi, .ses, .aviso, button.op, .btn, .preg-tab, .preg-otra input { transition: none }
   .esc .sub:hover .fig { transform: none }
 }

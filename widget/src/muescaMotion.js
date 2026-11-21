@@ -1,17 +1,19 @@
-// Movimiento de la muesca (docs/diseno/estilo-avis-ux.md, 6.4): abrir, cerrar, plegar el tablero al
-// acoplarlo y el golpe de la pregunta. El recorte usa la Web Animations API del WebView (sin
-// dependencias); el golpe y el imán son clases de CSS (estilos.css). Con movimiento reducido o
-// "Pausar animaciones" todo pasa al instante y no hay golpe (6.5).
+// Movimiento de la muesca y de la ventana única (docs/diseno/estilo-avis-ux.md, 6.4 y 6.6): abrir,
+// cerrar, el golpe de la pregunta, y las formas que se transforman una en otra adentro de la ventana
+// del área (la muesca y la píldora, el tablero que se pliega a la muesca o a la tira y se despliega).
+// El recorte y los viajes usan la Web Animations API del WebView (sin dependencias); el golpe y el
+// imán son clases de CSS (estilos.css). Con movimiento reducido o "Pausar animaciones" todo pasa al
+// instante y no hay golpe (6.5). El velo queda solo para pasar la ventana a otro monitor (9.6).
 
 import { hayMovimiento } from './tableroMotion.js'
-import { secuenciaVelo } from './muesca.js'
+import { secuenciaVelo, transformEntre, REAPARECE_MS } from './muesca.js'
 
 export const ABRE_MS = 720
 export const CIERRA_MS = 480
 const APAGA_MS = 120
 const PLIEGA_MS = 360
 const GOLPE_MS = 1100
-const EASE_CIERRA = 'cubic-bezier(.5, 0, .75, 0)'
+export const EASE_CIERRA = 'cubic-bezier(.5, 0, .75, 0)'
 // Isla (6.4): primero a lo largo del borde, después hacia el centro. Los tramos se encadenan sin
 // frenar en el medio: el primero termina con velocidad y el segundo arranca con ella.
 const TRAMO_LARGO = 0.38
@@ -110,23 +112,103 @@ export async function cerrar(marco, contenido, { desde, medio, hasta, inset }) {
   return () => { apaga.cancel(); anim.cancel(); for (const h of animHombros) h.cancel() }
 }
 
-/**
- * Al soltar el tablero flotante junto a un borde, se pliega hacia ese lado (`recorte`: el
- * `inset(...)` final) en 360 ms antes de volverse muesca (6.4).
- */
-export async function plegar(marco, recorte) {
-  if (!hayMovimiento()) return () => {}
-  const anim = marco.animate([{ clipPath: 'inset(0px 0px 0px 0px round 26px)' }, { clipPath: recorte, opacity: 0.4 }], { duration: PLIEGA_MS, easing: EASE_CIERRA, fill: 'forwards' })
-  await fin(anim)
-  return () => anim.cancel()
+// ---- ventana única (estilo-avis-ux.md 9.7 y 6.6): la muesca, la píldora, el tablero y la tira son
+// formas adentro de una ventana del área; pasar de una a otra es una de estas animaciones (solo
+// transform, opacity y clip-path), sin redimensionar ni velar.
+
+/** El tablero entero, sin recorte (radio de la ventana flotante, 26). */
+const ENTERO = 'inset(0px 0px 0px 0px round 26px)'
+/** Recorrido de una forma que se transforma en otra (la píldora y la muesca, la tira): como plegar. */
+export const TRANSFORMA_MS = PLIEGA_MS
+/** Minimizar a la tira o expandirla: lo que dura abrir la isla, en dos tramos. */
+export const MINIMIZA_MS = ABRE_MS
+/** Tramo de minimizar en el que el tablero se recoge en su lugar; después viaja. */
+const TRAMO_RECOGE = 0.45
+
+/** Las animaciones propias que siguen en `el` (una forma nueva corta a la anterior). */
+const enCurso = new WeakMap()
+function cortar(el) {
+  for (const a of enCurso.get(el) ?? []) a.cancel()
+  enCurso.delete(el)
+}
+function anotar(el, ...anims) {
+  enCurso.set(el, anims.filter(Boolean))
 }
 
-// ---- velo para redimensionar (9.6): WebView2 deja la ventana transparente sin pintar después de
-// redimensionarla. Lo que se ve (muesca, luz, píldora, tablero y sus hombros) se esconde al
-// instante con `body.velada` (estilos.css) y vuelve cuando el tamaño nuevo ya se pintó.
+/**
+ * Una forma viaja de una caja a otra (px CSS de la ventana): con `llega`, `el` ya está en `hasta` y
+ * entra desde `desde` (la muesca que vuelve de la píldora); sin `llega`, `el` está en `desde` y se
+ * va hasta `hasta` (la tira que se acopla), y queda ahí hasta llamar a lo que devuelve. `apagar`:
+ * además se funde al irse (o aparece al llegar); `apagarContenido`: al irse, lo de adentro se apaga
+ * en los primeros 120 ms (la tira no se ve aplastada mientras se achica a la muesca).
+ */
+export async function viajar(el, desde, hasta, { llega = false, duracion = TRANSFORMA_MS, easing = EASE_ADENTRO, apagar = false, apagarContenido = false } = {}) {
+  if (!el || !hayMovimiento()) return () => {}
+  cortar(el)
+  const lejos = { transform: llega ? transformEntre(hasta, desde) : transformEntre(desde, hasta), transformOrigin: '0 0', ...(apagar ? { opacity: 0 } : {}) }
+  const cerca = { transform: 'translate(0px, 0px) scale(1, 1)', transformOrigin: '0 0', ...(apagar ? { opacity: 1 } : {}) }
+  const anim = el.animate(llega ? [lejos, cerca] : [cerca, lejos], { duration: duracion, easing, fill: llega ? 'backwards' : 'forwards' })
+  const apagados = !llega && apagarContenido ? [...el.children].map(h => h.animate([{ opacity: 1 }, { opacity: 0 }], { duration: APAGA_MS, fill: 'forwards' })) : []
+  anotar(el, anim)
+  await fin(anim)
+  if (llega) { anotar(el); return () => {} }
+  return () => { anim.cancel(); for (const a of apagados) a.cancel(); anotar(el) }
+}
 
-/** Lo que se esconde mientras la ventana cambia de tamaño. */
-const VELADOS = ['#muesca', '#marco', '#luz', '#pildora']
+/**
+ * El tablero se pliega hasta otra forma (`plegado`: `plegadoHacia` de muesca.js): el contenido se
+ * apaga en 120 ms y el recorte se cierra a la forma nueva mientras viaja hasta ella. Junto a un borde
+ * (hacia la muesca) es un solo movimiento de 360 ms; con `viaje` (minimizar a la tira), primero se
+ * recoge en su lugar y después viaja con el resorte, en 720 ms. Devuelve con qué soltar el último
+ * cuadro, para llamarlo cuando la forma nueva ya está a la vista.
+ */
+export async function plegar(marco, contenido, { clip, transform }, { viaje = false } = {}) {
+  if (!hayMovimiento()) return () => {}
+  cortar(marco)
+  const entero = { clipPath: ENTERO, transform: 'translate(0px, 0px) scale(1, 1)', transformOrigin: '0 0' }
+  const final = { clipPath: clip, transform, transformOrigin: '0 0' }
+  const cuadros = viaje
+    ? [{ ...entero, easing: EASE_CIERRA_ADENTRO }, { ...final, transform: entero.transform, offset: TRAMO_RECOGE, easing: EASE_ADENTRO }, final]
+    : [{ ...entero, easing: EASE_CIERRA }, final]
+  const apaga = contenido?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: APAGA_MS, fill: 'forwards' })
+  const anim = marco.animate(cuadros, { duration: viaje ? MINIMIZA_MS : PLIEGA_MS, fill: 'forwards' })
+  anotar(marco, anim)
+  await fin(anim)
+  return () => { anim.cancel(); apaga?.cancel(); anotar(marco) }
+}
+
+/**
+ * Al revés que plegar, como abrir la isla: el tablero nace con la forma de donde viene (la píldora
+ * soltada, la tira o la muesca), viaja a su lugar (38 %) y crece con el resorte hasta entero, en
+ * 720 ms; el contenido se funde en el segundo tramo. Arranca en esta misma tarea (el primer cuadro
+ * ya tiene la forma de origen), así quien llama puede esconder la forma vieja enseguida.
+ */
+export function desplegar(marco, contenido, { clip, transform }) {
+  if (!hayMovimiento()) return Promise.resolve()
+  cortar(marco)
+  const origen = { clipPath: clip, transform, transformOrigin: '0 0' }
+  const anim = marco.animate([
+    { ...origen, easing: EASE_LARGO },
+    { ...origen, transform: 'translate(0px, 0px) scale(1, 1)', offset: TRAMO_LARGO, easing: EASE_ADENTRO },
+    { clipPath: ENTERO, transform: 'translate(0px, 0px) scale(1, 1)', transformOrigin: '0 0' },
+  ], { duration: ABRE_MS, fill: 'backwards' })
+  anotar(marco, anim)
+  contenido?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, delay: ABRE_MS * (TRAMO_LARGO + 0.06), easing: 'ease-out', fill: 'backwards' })
+  return fin(anim).then(() => anotar(marco))
+}
+
+/** Lo de adentro de una forma recién llegada (la tira) se funde en 160 ms. */
+export function aparecerContenido(el) {
+  if (!el || !hayMovimiento()) return
+  for (const hijo of el.children) hijo.animate([{ opacity: 0 }, { opacity: 1 }], { duration: REAPARECE_MS, easing: 'ease-out', fill: 'backwards' })
+}
+
+// ---- velo para pasar a otro monitor (9.6 y 9.7): WebView2 deja la ventana transparente sin pintar
+// después de moverla y redimensionarla. Lo que se ve (muesca, luz, píldora, tablero con sus hombros
+// y tira) se esconde al instante con `body.velada` (estilos.css) y vuelve cuando ya se pintó.
+
+/** Lo que se esconde mientras la ventana pasa a otra área. */
+const VELADOS = ['#muesca', '#marco', '#luz', '#pildora', '#tira']
 /** Si nadie revela (un error en el medio), el velo se levanta solo a este tiempo. */
 const VELO_MAXIMO_MS = 1500
 let turnoVelo = 0

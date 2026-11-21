@@ -1,5 +1,6 @@
-//! Preferencias del widget que sobreviven entre usos: el tamaño elegido en la bandeja y el borde
-//! donde está acoplada la muesca (docs/diseno/estilo-avis-ux.md, 7.5).
+//! Preferencias del widget que sobreviven entre usos: el tamaño elegido en la bandeja, el borde
+//! donde está acoplada la muesca (docs/diseno/estilo-avis-ux.md, 7.5), la posición del tablero
+//! flotante y el monitor de la última vez (9.7).
 //! Se guardan en `<carpeta de configuración de la app>/preferencias.json`.
 
 use std::path::Path;
@@ -28,20 +29,87 @@ pub fn leer_tamano(ruta: &Path) -> u32 {
     }
 }
 
-/// Guarda el tamaño elegido (solo uno de `PASOS`). El acople guardado se conserva.
+/// Guarda el tamaño elegido (solo uno de `PASOS`). Lo demás guardado se conserva.
 pub fn guardar_tamano(ruta: &Path, tamano: u32) -> Result<(), String> {
     if !PASOS.contains(&tamano) {
         return Err(format!("tamaño desconocido: {tamano}"));
     }
-    escribir(ruta, tamano, leer_acople(ruta))
+    escribir(ruta, Preferencias { tamano, ..leer_todo(ruta) })
 }
 
-/// Escribe el archivo entero: las dos preferencias juntas, así guardar una no borra la otra.
-fn escribir(ruta: &Path, tamano: u32, acople: Option<Acople>) -> Result<(), String> {
+/// Todo lo que se guarda, junto: guardar una preferencia no borra las otras.
+struct Preferencias {
+    tamano: u32,
+    acople: Option<Acople>,
+    flotante: Option<Flotante>,
+    monitor: Option<(f64, f64)>,
+}
+
+/// Lo guardado, ya leído y migrado (el tamaño de texto de la 0.2 pasa a número).
+fn leer_todo(ruta: &Path) -> Preferencias {
+    Preferencias { tamano: leer_tamano(ruta), acople: leer_acople(ruta), flotante: leer_flotante(ruta), monitor: leer_monitor(ruta) }
+}
+
+/// Escribe el archivo entero con todas las preferencias.
+fn escribir(ruta: &Path, p: Preferencias) -> Result<(), String> {
     if let Some(carpeta) = ruta.parent() {
         std::fs::create_dir_all(carpeta).map_err(|e| e.to_string())?;
     }
-    std::fs::write(ruta, json!({ "tamano": tamano, "acople": valor_de_acople(acople) }).to_string()).map_err(|e| e.to_string())
+    let flotante = p.flotante.map_or(Value::Null, |f| json!({ "x": fraccion(Some(f.x)), "y": fraccion(Some(f.y)) }));
+    let monitor = p.monitor.map_or(Value::Null, |(x, y)| json!({ "x": x, "y": y }));
+    let valor = json!({ "tamano": p.tamano, "acople": valor_de_acople(p.acople), "flotante": flotante, "monitor": monitor });
+    std::fs::write(ruta, valor.to_string()).map_err(|e| e.to_string())
+}
+
+fn leer_valor(ruta: &Path) -> Option<Value> {
+    serde_json::from_str::<Value>(&std::fs::read_to_string(ruta).ok()?).ok()
+}
+
+// ------------------------------------------------------------------ ventana única (estilo-avis-ux.md 9.7)
+
+/// Posición del tablero flotante adentro del área de trabajo: la fracción del lugar libre (0 arriba
+/// a la izquierda, 1 abajo a la derecha; `fraccionFlotante` de `tamano.js`). Así vuelve adentro del
+/// área aunque cambie el monitor, la barra de tareas o el tamaño elegido. Reemplaza a lo que
+/// guardaba `tauri-plugin-window-state` de la ventana flotante.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Flotante {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// Entre 0 y 1; lo que no es número, al medio.
+fn fraccion(v: Option<f64>) -> f64 {
+    match v {
+        Some(n) if n.is_finite() => n.clamp(0.0, 1.0),
+        _ => 0.5,
+    }
+}
+
+/// Posición flotante guardada. Sin archivo, sin posición o `null`: ninguna (el tablero va al medio).
+pub fn leer_flotante(ruta: &Path) -> Option<Flotante> {
+    let v = leer_valor(ruta)?;
+    let f = v.get("flotante")?.as_object()?;
+    Some(Flotante { x: fraccion(f.get("x").and_then(Value::as_f64)), y: fraccion(f.get("y").and_then(Value::as_f64)) })
+}
+
+pub fn guardar_flotante(ruta: &Path, flotante: Flotante) -> Result<(), String> {
+    escribir(ruta, Preferencias { flotante: Some(flotante), ..leer_todo(ruta) })
+}
+
+/// Monitor de la última vez: un punto en px físicos de pantalla (el centro de su área de trabajo).
+/// Al arrancar, la ventana va al monitor que lo contiene, acoplada o flotando.
+pub fn leer_monitor(ruta: &Path) -> Option<(f64, f64)> {
+    let v = leer_valor(ruta)?;
+    let m = v.get("monitor")?;
+    let (x, y) = (m.get("x")?.as_f64()?, m.get("y")?.as_f64()?);
+    (x.is_finite() && y.is_finite()).then_some((x, y))
+}
+
+pub fn guardar_monitor(ruta: &Path, punto: (f64, f64)) -> Result<(), String> {
+    if !(punto.0.is_finite() && punto.1.is_finite()) {
+        return Err(String::from("punto inválido"));
+    }
+    escribir(ruta, Preferencias { monitor: Some(punto), ..leer_todo(ruta) })
 }
 
 // ------------------------------------------------------------------ acople de la muesca (7.5)
@@ -103,14 +171,12 @@ pub fn valor_de_acople(acople: Option<Acople>) -> Value {
 
 /// Acople guardado. Sin archivo, ilegible o de una versión sin muesca (0.3 y anteriores): flota.
 pub fn leer_acople(ruta: &Path) -> Option<Acople> {
-    let texto = std::fs::read_to_string(ruta).ok()?;
-    let v = serde_json::from_str::<Value>(&texto).ok()?;
-    acople_desde_valor(&v["acople"])
+    acople_desde_valor(&leer_valor(ruta)?["acople"])
 }
 
-/// Guarda el acople (`None`: flota) y conserva el tamaño, ya migrado al número.
+/// Guarda el acople (`None`: flota) y conserva lo demás, con el tamaño ya migrado al número.
 pub fn guardar_acople(ruta: &Path, acople: Option<Acople>) -> Result<(), String> {
-    escribir(ruta, leer_tamano(ruta), acople)
+    escribir(ruta, Preferencias { acople, ..leer_todo(ruta) })
 }
 
 /// Ids del submenú "Acoplar a", en su orden: Arriba, Derecha, Abajo, Izquierda y Flotante.
@@ -315,6 +381,48 @@ mod tests {
         let guardado: serde_json::Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
         assert_eq!(guardado["tamano"], serde_json::json!(200));
         assert_eq!(guardado["acople"], serde_json::json!({ "borde": "izquierda", "lugar": 0.5 }));
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn la_posicion_flotante_se_guarda_entre_0_y_1_y_no_borra_lo_demas() {
+        let r = ruta_temporal("flotante");
+        // Sin archivo, ni posición ni monitor: el tablero arranca al medio del principal
+        assert_eq!(leer_flotante(&r), None);
+        assert_eq!(leer_monitor(&r), None);
+        guardar_tamano(&r, 150).unwrap();
+        guardar_acople(&r, Some(Acople { borde: Borde::Abajo, lugar: 0.3 })).unwrap();
+        guardar_flotante(&r, Flotante { x: 0.25, y: 0.8 }).unwrap();
+        assert_eq!(leer_flotante(&r), Some(Flotante { x: 0.25, y: 0.8 }));
+        // Guardar la posición conserva el tamaño y el acople, y al revés
+        assert_eq!(leer_tamano(&r), 150);
+        assert_eq!(leer_acople(&r), Some(Acople { borde: Borde::Abajo, lugar: 0.3 }));
+        guardar_tamano(&r, 175).unwrap();
+        guardar_acople(&r, None).unwrap();
+        assert_eq!(leer_flotante(&r), Some(Flotante { x: 0.25, y: 0.8 }));
+        // Fuera de 0..1 se topa; lo que no es número va al medio
+        guardar_flotante(&r, Flotante { x: 3.0, y: -1.0 }).unwrap();
+        assert_eq!(leer_flotante(&r), Some(Flotante { x: 1.0, y: 0.0 }));
+        fs::write(&r, r#"{"flotante":{"x":"no","y":0.4}}"#).unwrap();
+        assert_eq!(leer_flotante(&r), Some(Flotante { x: 0.5, y: 0.4 }));
+        fs::write(&r, r#"{"flotante":null}"#).unwrap();
+        assert_eq!(leer_flotante(&r), None);
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn el_monitor_se_guarda_como_un_punto_y_sobrevive_a_las_otras_preferencias() {
+        let r = ruta_temporal("monitor");
+        guardar_monitor(&r, (2880.0, 700.0)).unwrap();
+        assert_eq!(leer_monitor(&r), Some((2880.0, 700.0)));
+        guardar_tamano(&r, 125).unwrap();
+        guardar_acople(&r, Some(Acople { borde: Borde::Arriba, lugar: 0.5 })).unwrap();
+        guardar_flotante(&r, Flotante { x: 0.5, y: 0.5 }).unwrap();
+        assert_eq!(leer_monitor(&r), Some((2880.0, 700.0)));
+        // Un punto que no sirve no se guarda ni se lee
+        assert!(guardar_monitor(&r, (f64::INFINITY, 0.0)).is_err());
+        fs::write(&r, r#"{"monitor":{"x":"a","y":1}}"#).unwrap();
+        assert_eq!(leer_monitor(&r), None);
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 

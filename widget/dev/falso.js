@@ -36,14 +36,17 @@
 // con el panel abierto o el Avi de la muesca cerrada, si sigue al puntero: zona_interactiva con
 // mirada), el puntero del escritorio se avisa como oficina://cursor { x, y }, a lo sumo cada 50 ms y
 // solo si cambió, como el sondeo de Rust.
-// Muesca (F4): dev/vista.html es el escritorio (la ventana del navegador menos una barra de tareas de
-// 40 px) y carga dev/ventana.html en un iframe que hace de ventana de Tauri: ajustar_ventana y
-// mover_ventana mueven y redimensionan ese iframe. El menú de la bandeja se imita con
+// Ventana única (9.7): dev/vista.html es el escritorio (la ventana del navegador menos una barra de
+// tareas de 40 px) y carga dev/ventana.html en un iframe que hace de ventana de Tauri. Como la real,
+// la ventana es el área entera en todos los modos (acoplada, flotando y en la tira): la muesca, la
+// píldora, el tablero y la tira se mueven adentro. ajustar_ventana movería y redimensionaría el
+// iframe (pasar a otro monitor; acá hay uno solo). El menú de la bandeja se imita con
 // window.__bandeja('oficina://acoplar', 'derecha') desde la consola del iframe. Lo guardado con
-// guardar_acople queda en window.__acople.
+// guardar_acople queda en window.__acople y con guardar_flotante en window.__flotante.
+//   ?flotante=0.2,0.7  la posición flotante guardada (fracciones del lugar libre del área)
 // La ventana pedida por ajustar_ventana queda en window.__ventana y en la consola (info).
-// Zona interactiva (9.6): acoplada, zona_interactiva guarda la zona (window.__zona) y el puntero
-// del escritorio se sigue en vista.html y en el iframe; al entrar o salir se emite
+// Zona interactiva (9.6 y 9.7): en todos los modos zona_interactiva guarda la zona (window.__zona)
+// y el puntero del escritorio se sigue en vista.html y en el iframe; al entrar o salir se emite
 // oficina://puntero-zona { dentro, n }, como el sondeo de Rust. El paso de los clics se imita con
 // pointer-events: none en el iframe (el escritorio de vista.html recibe el clic). window.__puntero
 // dice el último punto visto y si estaba adentro.
@@ -228,15 +231,19 @@
   }
 
   let paso = PASOS.includes(Number(url.get('zoom'))) ? Number(url.get('zoom')) : 100
-  const ventana = { x: 40, y: 40, ancho: 400, alto: 620 }
-  window.__ventana = { ...ventana }
   /** El iframe que hace de ventana (dev/vista.html); abierta sola, no hay. */
   const marco = window.frameElement
   if (marco) document.documentElement.classList.add('en-iframe')
   const BARRA = 40
   const area = () => marco
     ? { x: 0, y: 0, ancho: parent.innerWidth, alto: parent.innerHeight - BARRA }
-    : { x: 0, y: 0, ancho: 1920, alto: 1040 }
+    : { x: 0, y: 0, ancho: innerWidth, alto: innerHeight }
+  // Como Rust al arrancar: la ventana ya es el área de trabajo del monitor
+  const ventana = { ...area() }
+  window.__ventana = { ...ventana }
+  const [fx, fy] = (url.get('flotante') ?? '').split(',').map(Number)
+  let flotante = Number.isFinite(fx) && Number.isFinite(fy) ? { x: fx, y: fy } : null
+  let mini = false
   const libres = { arriba: true, derecha: !url.has('sinderecha'), abajo: true, izquierda: true }
   /** Mueve y redimensiona el iframe como Tauri a la ventana. */
   const aplicar = () => {
@@ -249,15 +256,14 @@
     ? { borde: url.get('acople'), lugar: url.has('lugar') ? Number(url.get('lugar')) : 0.5 }
     : null
   window.__acople = acople
-  let previo = null
   const oyentes = {}
   let lecturas = 0
   const emitir = (nombre, payload) => { for (const f of oyentes[nombre] ?? []) f({ payload }) }
 
   // ---- zona interactiva (9.6): imita el sondeo de Rust y el paso de los clics
   const zonaSt = { zona: null, toda: false, dentro: true, informado: false, n: 0, punto: null, desfase: null, mirada: false, cursor: null, cursorT: 0 }
-  /** Acoplada y fuera de la tira: como `debe_sondear` (la vista no se esconde). */
-  const sondea = () => !!acople && !previo
+  /** Como `debe_sondear`: en todas las formas mientras se ve (la vista no se esconde). */
+  const sondea = () => true
   /** Como `evaluar`: sin zona o arrastrando cuenta como adentro; el borde derecho y el de abajo, afuera. */
   const adentro = p => {
     const z = zonaSt.zona
@@ -403,7 +409,7 @@
     },
     abrir_enlace: ({ cual }) => console.info('[navegador]', cual),
     poner_bandeja: ({ texto }) => { document.title = texto },
-    estado_menu: () => ({ arriba: true, avisar: true, pausa: url.has('pausa'), tamano: paso, acople }),
+    estado_menu: () => ({ arriba: true, avisar: true, pausa: url.has('pausa'), tamano: paso, acople, flotante }),
     leer_sesiones: () => {
       lecturas++
       if (url.has('cargando')) return new Promise(() => {})
@@ -418,7 +424,11 @@
       aplicar()
       console.info(`[ventana] ${ancho} × ${alto} en ${x}, ${y}`)
     },
-    mover_ventana: ({ x, y }) => { Object.assign(ventana, { x, y }); aplicar() },
+    guardar_flotante: ({ x, y }) => {
+      flotante = { x, y }
+      window.__flotante = flotante
+      console.info('[flotante]', JSON.stringify(flotante))
+    },
     guardar_acople: ({ borde, lugar }) => {
       acople = borde ? { borde, lugar } : null
       window.__acople = acople
@@ -445,17 +455,11 @@
       for (const f of oyentes['oficina://tamano'] ?? []) f({ payload: paso })
     },
     fijar_arriba: () => null,
-    modo_mini: ({ mini, ancho, alto }) => {
-      if (mini) {
-        previo ??= { ancho: ventana.ancho, alto: ventana.alto }
-        Object.assign(ventana, { ancho: ancho ?? 400, alto: alto ?? 56 })
-        console.info(`[ventana] tira ${ancho} × ${alto}`)
-      } else if (previo) {
-        Object.assign(ventana, previo)
-        previo = null
-      }
-      aplicar()
-      evaluarZona()
+    // La tira es un elemento adentro de la ventana: Rust solo anota el modo (segundo arranque)
+    modo_mini: args => {
+      mini = !!args.mini
+      window.__mini = mini
+      console.info('[tira]', mini)
     },
     esconder: () => console.info('[ventana] escondida en la bandeja'),
     avisar: () => null,

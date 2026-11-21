@@ -422,9 +422,15 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
 
     zona(dentro) {
       if (dentro) return
-      // Salió de la zona (lo sabe Rust): el próximo pointermove es una entrada y dice "te vio"
+      // Salió de la zona (lo sabe Rust): el próximo pointermove es una entrada y dice "te vio".
+      // Flotando, mira hacia el último punto donde el DOM lo vio, como al salir de la ventana
+      if (s.dentro && s.puntero && s.avi) {
+        const r = s.avi.getBoundingClientRect()
+        s.dir = direccionSalida(s.puntero.x, s.puntero.y, { left: r.left, top: r.top, width: r.width, height: r.height })
+      }
       s.dentro = false
       s.salio = reloj()
+      despertar()
     },
 
     quiereCursor: () => puede() && sigue(),

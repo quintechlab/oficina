@@ -5,7 +5,7 @@
 
 import { avi, CLAUDE } from './avis.js'
 import { animoSesion, preguntasPendientes, escapar, ANIMOS_DE_TRABAJO } from './logica.js'
-import { fueraDeLugar } from './tamano.js'
+import { fueraDeLugar, esquinaTira } from './tamano.js'
 
 /** Un borde a la vez (7). El orden desempata el imán en una esquina. */
 export const BORDES = ['arriba', 'derecha', 'abajo', 'izquierda']
@@ -223,18 +223,43 @@ export function disposicionAcoplada(acople, tam, tablero, area, z = 1) {
   const p = rectPanel(acople, tablero, tam, area, z)
   const ventana = ventanaDeArea(area)
   return {
-    ventana, m, p,
+    modo: 'acoplada', ventana, m, p,
     local: { muesca: relativo(m.caja, ventana, z), luz: relativo(rectLuz(m, acople.borde, z), ventana, z), tablero: relativo(p.tablero, ventana, z) },
   }
 }
 
 /**
- * Lo que toma el mouse en la ventana fija (9.6), en px de pantalla; el resto deja pasar los clics a
- * lo que hay debajo. Cerrada: la muesca más `MARGEN_ZONA`. Abierta: el tablero. Arrastrando (la
- * muesca o la píldora), toda la ventana (`toda`), para no perder el puntero a mitad de camino.
+ * Ventana única (estilo-avis-ux.md 9.7): flotando, la ventana también es el área de trabajo entera y
+ * el tablero es un elemento adentro, en `pos` (px de pantalla; quien llama lo topa al área si hace
+ * falta) y de tamaño `tam` (px de pantalla, ya con el zoom `z`). Moverlo es mover el elemento.
+ */
+export function disposicionFlotante(pos, tam, area, z = 1) {
+  const ventana = ventanaDeArea(area)
+  const tablero = redondear({ x: pos.x, y: pos.y, ancho: tam.ancho, alto: tam.alto })
+  return { modo: 'flotante', ventana, tablero, local: { tablero: relativo(tablero, ventana, z) } }
+}
+
+/**
+ * La tira mini adentro de la ventana del área: abajo a la derecha (`esquinaTira`) o en `pos`, donde
+ * se la soltó. `tam`: `tamanoMini` del zoom `z`.
+ */
+export function disposicionTira(pos, tam, area, z = 1) {
+  const ventana = ventanaDeArea(area)
+  const lugar = pos ?? esquinaTira(area, tam)
+  const tira = redondear({ x: lugar.x, y: lugar.y, ancho: tam.ancho, alto: tam.alto })
+  return { modo: 'tira', ventana, tira, local: { tira: relativo(tira, ventana, z) } }
+}
+
+/**
+ * Lo que toma el mouse en la ventana del área (9.6 y 9.7), en px de pantalla; el resto deja pasar
+ * los clics a lo que hay debajo. Acoplada y cerrada: la muesca más `MARGEN_ZONA`; abierta: el
+ * tablero. Flotando, el tablero; en la tira, la tira. Arrastrando (la muesca, la píldora, el tablero
+ * o la tira), toda la ventana (`toda`), para no perder el puntero a mitad de camino.
  */
 export function zonaInteractiva(d, { abierta, arrastrando = false }, z = 1) {
   if (arrastrando) return { ...d.ventana, toda: true }
+  if (d.modo === 'tira') return { ...d.tira, toda: false }
+  if (d.modo === 'flotante') return { ...d.tablero, toda: false }
   if (abierta) return { ...d.p.tablero, toda: false }
   const c = d.m.caja, g = MARGEN_ZONA * z
   return { x: c.x - g, y: c.y - g, ancho: c.ancho + 2 * g, alto: c.alto + 2 * g, toda: false }
@@ -404,16 +429,57 @@ export const ASIENTO_VELO_MS = 220
 export const REAPARECE_MS = 160
 
 /**
- * Qué hacer con la ventana para llevarla de `actual` a `deseado` (px de pantalla): 'nada' si está
- * en su lugar (abrir y cerrar no la tocan), 'mover' si solo cambia el lugar (no deja de pintarse) y
- * 'velar' si cambia el tamaño, la forma de adentro (`cambiaForma`: otro borde, la píldora, el
- * acople nuevo) o no se sabe cómo está: hay que esconder lo que se ve mientras se redimensiona.
+ * Qué hacer con la ventana para llevarla de `actual` a `deseado` (px de pantalla; `deseado` es
+ * siempre un área de trabajo, `ventanaDeArea`): 'nada' si ya está (pasar de la muesca a la píldora,
+ * al tablero o a la tira no la toca: todo eso pasa adentro) y 'velar' si cambia, que es pasar a otro
+ * monitor o que cambie el área (o no se sabe dónde está): lo que se ve se esconde mientras se mueve.
  */
-export function planVentana(actual, deseado, { cambiaForma = false } = {}) {
+export function planVentana(actual, deseado) {
   if (!actual) return 'velar'
-  if (!cambiaForma && !fueraDeLugar(actual, deseado)) return 'nada'
-  const mismoTamano = Math.round(actual.ancho) === Math.round(deseado.ancho) && Math.round(actual.alto) === Math.round(deseado.alto)
-  return mismoTamano && !cambiaForma ? 'mover' : 'velar'
+  return fueraDeLugar(actual, deseado) ? 'velar' : 'nada'
+}
+
+// ------------------------------------------------------------------ transformaciones adentro de la ventana (9.7)
+
+const pxTexto = v => `${Math.round(v * 100) / 100 || 0}px`
+
+/** El centro de un rectángulo. */
+export const centroDe = r => ({ x: r.x + r.ancho / 2, y: r.y + r.alto / 2 })
+
+/**
+ * El `transform` (origen arriba a la izquierda) que lleva la caja `desde` encima de `hasta`: para
+ * que una forma viaje de un lugar a otro sin redimensionar nada (px CSS de la ventana).
+ */
+export function transformEntre(desde, hasta) {
+  return `translate(${pxTexto(hasta.x - desde.x)}, ${pxTexto(hasta.y - desde.y)}) scale(${hasta.ancho / desde.ancho}, ${hasta.alto / desde.alto})`
+}
+
+/** Hacia qué lado del tablero se pliega para quedar como muesca en `borde` (fracciones del tablero). */
+export function anclaHacia(borde) {
+  return { arriba: { x: 0.5, y: 0 }, abajo: { x: 0.5, y: 1 }, derecha: { x: 1, y: 0.5 }, izquierda: { x: 0, y: 0.5 } }[borde]
+}
+
+/** La caja corrida su grosor más allá de `borde` (por donde sale y entra la muesca al cambiar de borde). */
+export function fueraDelBorde(c, borde) {
+  const d = { arriba: [0, -c.alto], abajo: [0, c.alto], derecha: [c.ancho, 0], izquierda: [-c.ancho, 0] }[borde]
+  return { ...c, x: c.x + d[0], y: c.y + d[1] }
+}
+
+/**
+ * Cómo se pliega el tablero `t` hasta otra forma `c` (la tira, la muesca o la píldora), en px CSS de
+ * la ventana: `clip` es un recorte del tamaño de `c` (topado al tablero) contra el lado `ancla` del
+ * tablero, con radio `radio`; `transform` (origen arriba a la izquierda) lleva ese recorte encima de
+ * `c`, y escala lo que el tablero no alcanza (el escenario de 340 a la tira de 400).
+ */
+export function plegadoHacia(t, c, radio, ancla) {
+  const cw = Math.min(c.ancho, t.ancho), ch = Math.min(c.alto, t.alto)
+  const cx = (t.ancho - cw) * ancla.x, cy = (t.alto - ch) * ancla.y
+  const sx = c.ancho / cw, sy = c.alto / ch
+  const inset = [cy, t.ancho - cx - cw, t.alto - cy - ch, cx].map(pxTexto).join(' ')
+  return {
+    clip: `inset(${inset} round ${radio}px)`,
+    transform: `translate(${pxTexto(c.x - t.x - cx * sx)}, ${pxTexto(c.y - t.y - cy * sy)}) scale(${sx}, ${sy})`,
+  }
 }
 
 /**

@@ -429,7 +429,7 @@ Los bucles de los Avis, los estados de hover y foco y las entradas simples son C
 
 ### 6.1 Entrada escalonada
 
-- **Cuándo:** al mostrarse la ventana y al expandir desde la tira o la muesca.
+- **Cuándo:** al mostrarse la ventana. Desde la ventana única (6.6), expandir desde la tira o la muesca, o soltar la píldora, ya no entra escalonado: el contenido se funde con el despliegue, como en la isla (6.4).
 - **Qué:** cada bloque (marca, cada proyecto, el pie de la barra, el encabezado, el aviso, la pregunta, cada cuadro y cada sesión) entra con `sube`: opacidad 0 → 1, `translateY` 14 → 0 y escala .985 → 1.
 - **Tiempos:** 620 ms con `--ease` y un retraso de `índice × 65 ms + 120 ms`.
 - **No se repite** en cada lectura de 1,5 s. Las firmas de `poner()` ya evitan redibujar lo que no cambió, y eso se mantiene.
@@ -473,6 +473,28 @@ Los bucles de los Avis, los estados de hover y foco y las entradas simples son C
 - No hay entrada escalonada ni golpe. La muesca abre y cierra al instante.
 - La luz del borde queda fija.
 - El estado se sigue leyendo por el color, el "?" y el texto.
+
+### 6.6 Transiciones de la ventana única
+
+Decidido con el usuario el 2026-11-21 ("Ventana única de pantalla"): la ventana es siempre el área de trabajo del monitor, invisible, acoplada, flotando y en la tira (9.7). La muesca, la píldora, el tablero y la tira son formas adentro, y pasar de una a otra es una animación, sin velo ni parpadeo, como la isla. Solo `transform`, `opacity` y `clip-path`, con la Web Animations API (`muescaMotion.js`), y con los tiempos y curvas de 6.4. La geometría sale de funciones puras de `muesca.js`: `plegadoHacia` (el recorte del tamaño de la forma nueva contra un lado del tablero, y el `transform` que lo lleva encima de ella), `transformEntre` y `fueraDelBorde`.
+
+| Transición | Cómo | Tiempo y curva |
+|---|---|---|
+| Muesca → píldora (arrastrada lejos del borde) | La píldora nace con la caja de la muesca y viaja hasta el puntero (`viajar`, llega). | 360 ms, resorte de la isla. |
+| Píldora → muesca (vuelve a un borde) | La muesca nace con la caja de la píldora y se asienta en el borde. Al saltar de borde arrastrando, viaja del borde viejo al nuevo. | 360 ms, resorte. |
+| Píldora soltada lejos → tablero | El tablero nace con la forma de la píldora (recorte de 184 × 48, radio 24, arriba al medio), viaja a su lugar (`posicionFlotante`) y crece hasta entero (`desplegar`). El contenido se funde en el segundo tramo. | 720 ms: 38 % con `EASE_LARGO`, después el resorte. |
+| Tablero soltado junto a un borde → muesca | El recorte se cierra al tamaño de la muesca contra el lado que mira al borde y, a la vez, viaja hasta donde queda la muesca (`plegar`). El contenido se apaga en 120 ms. Al terminar, la muesca está en ese mismo lugar. | 360 ms, `--ease-cierra`. |
+| Minimizar → tira | El contenido se apaga en 120 ms; el tablero se recoge en su lugar contra su rincón de abajo a la derecha hasta el tamaño de la tira (45 %) y viaja a su lugar abajo a la derecha (`esquinaTira`, margen 8). Ahí aparece la tira y su contenido se funde. | 720 ms: recoge con la curva del cierre, viaja con el resorte; contenido 160 ms. |
+| Expandir ← tira | Al revés: el tablero nace con la forma de la tira, viaja a su lugar y tamaño de antes y crece. | 720 ms, como abrir la isla. |
+| Tira arrastrada a un borde → muesca | La tira viaja hasta la caja de la muesca mientras su contenido se apaga (120 ms). | 360 ms, `--ease-cierra`. |
+| Bandeja: otro borde | La isla se cierra si estaba abierta; la muesca sale por su borde fundiéndose y entra por el nuevo. | 360 + 360 ms: sale con `--ease-cierra`, entra con el resorte. |
+| Bandeja: Flotante | El tablero nace con la forma de la muesca, viaja a su lugar flotante guardado y crece. | 720 ms, como abrir la isla. |
+| Tablero o tira soltados medio afuera sin imán (un borde que toca otro monitor) | Vuelven adentro del área con el mismo viaje. | 360 ms, resorte. |
+| Cambio de tamaño (zoom) | Sin animación: en la misma tarea se reubica todo, así nada salta un cuadro. | — |
+
+- **Una transición por vez:** mientras dura no empieza otra ni un arrastre (`st.transicion`), y al terminar la muesca se pone al día con lo pedido (abrir o cerrar).
+- **Sin movimiento** (reducido o "Pausar animaciones"): todo cambia al instante, como en 6.5.
+- **Velo:** solo al pasar la ventana a otro monitor o si cambia el área (9.6 y 9.7).
 
 ---
 
@@ -547,8 +569,9 @@ En `preferencias.json`, junto a `tamano`:
 
 - `borde` es `"arriba"`, `"derecha"`, `"abajo"` o `"izquierda"`.
 - `lugar` va de 0 a 1 y es el centro de la muesca a lo largo del borde, ajustado para que la muesca y sus hombros entren en el `workArea`.
-- Flotando es `"acople": null`, y la posición sigue en `tauri-plugin-window-state`, como hoy.
-- Al arrancar, se acopla en el monitor que contiene la última posición guardada. Si no hay, en el principal.
+- Flotando es `"acople": null`. La posición del tablero flotante va en `"flotante": { "x", "y" }`: la fracción del lugar libre del área (0 arriba a la izquierda, 1 abajo a la derecha), así vuelve adentro aunque cambien el monitor, la barra de tareas o el tamaño (9.7). Reemplaza a `tauri-plugin-window-state`, que se sacó.
+- El monitor de la última vez va en `"monitor": { "x", "y" }`: el centro de su área de trabajo en px físicos, guardado al acoplar y al soltar el tablero.
+- Al arrancar, la ventana ocupa el área del monitor que contiene ese punto, acoplada o flotando. Si no hay o ya no está, el principal.
 
 ---
 
@@ -636,18 +659,31 @@ Decidido con el usuario el 2026-11-20 ("dale, probemos la opción 1"), después 
   - cerrada: la muesca más 8 px (`MARGEN_ZONA`, cubre el golpe de 6 y el hover de 2);
   - abierta: el tablero;
   - arrastrando la muesca: toda la ventana (`toda`), para no perder el puntero.
-- **Clics que pasan de largo:** un solo hilo de Rust (`sondear_puntero`) mira el puntero cada 20 ms, solo acoplada, a la vista y fuera de la tira mini (`debe_sondear`). Usa `GetCursorPos`, en px físicos, y pasa la zona a px físicos con la escala de la ventana (`dentro_de_zona`: el borde izquierdo y el de arriba cuentan, el derecho y el de abajo no). Solo cuando el puntero cruza el borde de la zona llama a `set_ignore_cursor_events` y emite `oficina://puntero-zona { dentro, n }`. Flotando, en la tira o escondida en la bandeja, la ventana vuelve a tomar todos los clics y el hilo duerme (despierta a los 250 ms o cuando un comando lo despierta). "Salir" lo termina.
+- **Clics que pasan de largo:** un solo hilo de Rust (`sondear_puntero`) mira el puntero cada 20 ms mientras la ventana se ve, en todas las formas desde la ventana única (`debe_sondear`, 9.7). Usa `GetCursorPos`, en px físicos, y pasa la zona a px físicos con la escala de la ventana (`dentro_de_zona`: el borde izquierdo y el de arriba cuentan, el derecho y el de abajo no). Solo cuando el puntero cruza el borde de la zona llama a `set_ignore_cursor_events` y emite `oficina://puntero-zona { dentro, n }`. Escondida en la bandeja o minimizada, la ventana vuelve a tomar todos los clics y el hilo duerme (despierta a los 250 ms o cuando un comando lo despierta). "Salir" lo termina.
 - **Hover y salida los manda el sondeo:** con los clics pasando de largo, el WebView no ve salir al puntero. `oficina://puntero-zona` dispara `entra` (abre a los 180 ms) y `sale` (cierra a los 650 ms, salvo fijada). Un aviso con `n` más viejo se descarta. El DOM solo adelanta lo mismo: `pointerenter` en la muesca o en el tablero, y `pointerleave` de la ventana entera.
 - **Teclado:** Enter o Espacio sobre la muesca, "Mostrar oficina" y Esc siguen igual. Abierta desde la bandeja con el puntero lejos, el panel queda abierto (cuenta como adentro) hasta que el puntero entre y salga, o Esc.
-- **Arrastre:** a lo largo del mismo borde, la ventana fija acompaña a la muesca: cambia de lugar, no de tamaño. Al cambiar de borde, al pasar a la píldora y al soltar flotando se redimensiona, como antes.
+- **Arrastre:** la muesca, la píldora, el tablero y la tira se mueven adentro de la ventana del área; la ventana solo se mueve al pasar a otro monitor (9.7).
 - **Primer aviso de cada zona:** el sondeo avisa el estado real en su primera vuelta al arrancar, con cada zona nueva y al volver a sondear, aunque no haya cambiado (`informado`). `guardar_acople` olvida la zona vieja (`olvidar_zona`). La muesca decide qué hacer con cada aviso (`eventoZona`): con el puntero ya encima al arrancar, el hover abre; tras reacoplar con el puntero lejos, la primera entrada abre.
-- **Redimensionar sin parpadeo:** cuando la ventana acoplada cambia de tamaño o de forma (borde, lugar cerca de una punta, zoom, carga, píldora, flotar), `planVentana` decide velar: `body.velada` esconde al instante la muesca, la luz, la píldora y el tablero, se llama a `ajustar_ventana`, se esperan dos cuadros y `ASIENTO_VELO_MS` (220 ms, ajustable) y todo vuelve en 160 ms (al instante sin movimiento). Abrir y cerrar no velan: no redimensionan.
+- **Redimensionar sin parpadeo:** desde la ventana única (9.7) la ventana solo cambia al pasar a otro monitor o si cambia el área de trabajo. Entonces `planVentana` decide velar: `body.velada` esconde al instante la muesca, la luz, la píldora, el tablero y la tira, se llama a `ajustar_ventana`, se esperan dos cuadros y `ASIENTO_VELO_MS` (220 ms, ajustable) y todo vuelve en 160 ms (al instante sin movimiento). Cambiar de borde, pasar a la píldora, flotar, minimizar, el zoom, abrir y cerrar no velan: no tocan la ventana.
 - **Vista de desarrollo:** `dev/falso.js` imita el sondeo con el puntero de `vista.html` y el paso de los clics con `pointer-events: none` en el iframe.
 - **Solo se puede confirmar en la ventana real de Tauri:**
   - que `set_ignore_cursor_events` deje pasar los clics sin parpadeo (en Windows prende `WS_EX_TRANSPARENT | WS_EX_LAYERED`);
   - el costo del sondeo en CPU;
   - el comportamiento con monitores de distinta escala;
   - que el panel abra sin el hueco sin pintar.
+
+### 9.7 Ventana única: la ventana es el área en todos los modos
+
+Decidido con el usuario el 2026-11-21: arrastrar la muesca, pasar a la píldora, flotar, acoplar el tablero, minimizar y expandir "todavía funciona un poco raro". La causa era la misma de 9.6: cada cambio de forma redimensionaba una ventana transparente y WebView2 tardaba ~0,4 s en repintar (el velo lo tapaba). La solución elegida fue extender 9.6 a todo: "La ventana queda siempre del tamaño de la pantalla, invisible, también flotando y en la tira".
+
+- **La ventana es `ventanaDeArea(area)` siempre.** Solo se mueve, una vez y velada, al pasar a otro monitor o si cambia el área (`colocarEnArea`, el ciclo de 1,5 s). `mover_ventana`, `aplicar_mini` y `esquina_tira` de Rust se sacaron.
+- **Cada forma es un elemento adentro** (`disposicionAcoplada`, `disposicionFlotante`, `disposicionTira` en `muesca.js`, colocadas con `colocar` en `main.js`): el tablero flotante con `--tx`…`--th` (su tamaño sale de `tamanoDeseado`, topado al 90 % del área), la tira con `--qx`, `--qy` (abajo a la derecha, `esquinaTira`, `MARGEN_TIRA` 8, o donde se la soltó en esta ejecución), la muesca y la píldora como en 9.6. Arrastrar es mover el elemento.
+- **Zona interactiva en todos los modos** (`zonaInteractiva`): acoplada como en 9.6; flotando, el tablero; en la tira, la tira; arrastrando cualquier forma, toda la ventana. Afuera, los clics pasan. La mirada (`oficina://cursor`) sigue siendo solo acoplada; flotando, la marca mira con el puntero del DOM, y al salir del tablero lo sabe por el aviso de la zona (`marca.zona`).
+- **Al arrancar,** Rust pone la ventana en el área del monitor guardado (`colocar_al_arrancar`, en px físicos, con la ventana escondida hasta ubicarla: `visible: false` en `tauri.conf.json`). Nada se ve hasta la primera disposición (`body.colocada`); flotando, el tablero entra con `aparece`.
+- **Lo que se guarda** está en 7.5 (`flotante` y `monitor` en `preferencias.json`). Se sacó `tauri-plugin-window-state`: guardaba la posición de una ventana que ahora es siempre el área, y dos lugares guardando lo mismo se pisaban.
+- **"Siempre arriba"** sigue siendo del usuario flotando (acoplada, siempre arriba), y flotando la app sigue en la barra de tareas.
+- **Transiciones:** 6.6.
+- **Solo se puede confirmar en la ventana real de Tauri** (además de lo de 9.6): que una ventana transparente del tamaño del área no moleste en la barra de tareas ni en Alt+Tab; que al arrancar no haya un cuadro de la ventana en otro lugar; y el paso entre monitores de distinta escala (la ventana se coloca con px lógicos de su escala actual, como antes).
 
 ---
 

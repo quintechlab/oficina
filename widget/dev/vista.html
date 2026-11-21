@@ -6,8 +6,9 @@
 <!-- Vista de desarrollo del widget (no entra en la app: frontendDist es ../src).
      Servir widget/ con un servidor http y abrir dev/vista.html; parámetros en falso.js.
      Esta página es el escritorio: el área de trabajo es la ventana del navegador menos una barra de
-     tareas de 40 px, y el iframe #ventana hace de ventana de Tauri (falso.js la mueve y la
-     redimensiona con geometria, ajustar_ventana y mover_ventana). -->
+     tareas de 40 px, y el iframe #ventana hace de ventana de Tauri. Como la ventana real (ventana
+     única, estilo-avis-ux.md 9.7), ocupa toda el área en todos los modos; falso.js solo la movería al
+     pasar a otra área (ajustar_ventana), que acá no existe. -->
 <title>Avis · vista de desarrollo</title>
 <link rel="icon" href="data:,">
 <style>
@@ -15,7 +16,7 @@
   /* Un escritorio de fondo para ver la transparencia de la ventana */
   body { background: linear-gradient(135deg, #3B4A5C, #6B7E8F) }
   #barra { position: fixed; left: 0; right: 0; bottom: 0; height: 40px; background: #1B1F26; color: #8A8478; font: 11px/40px monospace; padding-left: 12px }
-  #ventana { position: fixed; left: 40px; top: 40px; width: 400px; height: 620px; border: 0; background: transparent; color-scheme: normal }
+  #ventana { position: fixed; left: 0; top: 0; width: 100%; height: calc(100% - 40px); border: 0; background: transparent; color-scheme: normal }
 </style>
 </head>
 <body>

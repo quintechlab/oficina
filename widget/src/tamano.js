@@ -86,3 +86,36 @@ export function tamanoMini(zoom) {
   return { ancho: Math.round(MINI.ancho * zoom), alto: Math.round(MINI.alto * zoom) }
 }
 
+/** Margen de la tira mini con el borde derecho y con la barra de tareas, en px de pantalla. */
+export const MARGEN_TIRA = 8
+
+/**
+ * Dónde va la tira mini: abajo a la derecha del área de trabajo, apoyada sobre la barra de tareas
+ * con `MARGEN_TIRA`. Si no entra, desde la punta izquierda o de arriba.
+ */
+export function esquinaTira(area, tam) {
+  return {
+    x: Math.round(Math.max(area.x, area.x + area.ancho - tam.ancho - MARGEN_TIRA)),
+    y: Math.round(Math.max(area.y, area.y + area.alto - tam.alto - MARGEN_TIRA)),
+  }
+}
+
+const fraccion = v => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.5)
+
+/**
+ * La posición del tablero flotante como se guarda (preferencias.rs): la fracción del lugar libre del
+ * área (0 arriba a la izquierda, 1 abajo a la derecha). Así vuelve adentro aunque el área o el
+ * tamaño cambien. Pasado el borde (arrastrado medio afuera), se topa.
+ */
+export function fraccionFlotante(pos, tam, area) {
+  const libre = (largo, propio) => Math.max(0, largo - propio)
+  const parte = (v, inicio, largo, propio) => (libre(largo, propio) ? fraccion((v - inicio) / libre(largo, propio)) : 0)
+  return { x: parte(pos.x, area.x, area.ancho, tam.ancho), y: parte(pos.y, area.y, area.alto, tam.alto) }
+}
+
+/** La posición guardada (`fraccionFlotante`) en esta área, siempre adentro; sin dato, al medio. */
+export function posicionDeFraccion(f, tam, area) {
+  const lugar = (v, inicio, largo, propio) => Math.round(inicio + fraccion(v) * Math.max(0, largo - propio))
+  return { x: lugar(f?.x, area.x, area.ancho, tam.ancho), y: lugar(f?.y, area.y, area.alto, tam.alto) }
+}
+

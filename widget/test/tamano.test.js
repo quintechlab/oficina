@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, posicionEnPantalla, tamanoMini, medidaVentana, fueraDeLugar, MINIMO, FRACCION_MAXIMA,
+  esquinaTira, MARGEN_TIRA, fraccionFlotante, posicionDeFraccion,
 } from '../src/tamano.js'
 
 const AREA = { x: 0, y: 0, ancho: 1920, alto: 1040 }
@@ -95,4 +96,41 @@ test('acoplada, la ventana se recoloca solo si cambió de tamaño (más de 2 px)
   assert.equal(fueraDeLugar(v, { ...v, ancho: 711 }), true)
   assert.equal(fueraDeLugar(v, { ...v, x: 602 }), true)
   assert.equal(fueraDeLugar(v, { ...v, y: -2 }), true)
+})
+
+// ------------------------------------------------------------------ ventana única: tira y posición flotante
+
+test('la tira mini va abajo a la derecha del área, apoyada sobre la barra de tareas con un margen de 8', () => {
+  assert.equal(MARGEN_TIRA, 8)
+  // Pantalla de 1920 × 1080 con la barra de tareas de 48 abajo: el área llega hasta 1032
+  assert.deepEqual(esquinaTira({ x: 0, y: 0, ancho: 1920, alto: 1032 }, { ancho: 400, alto: 56 }), { x: 1920 - 400 - 8, y: 1032 - 56 - 8 })
+  // Otro monitor a la izquierda, con coordenadas negativas
+  assert.deepEqual(esquinaTira({ x: -1280, y: 0, ancho: 1280, alto: 984 }, { ancho: 362, alto: 56 }), { x: -362 - 8, y: 984 - 56 - 8 })
+  // Si no entra, no se sale del área por la izquierda ni por arriba
+  assert.deepEqual(esquinaTira({ x: 0, y: 0, ancho: 300, alto: 40 }, { ancho: 362, alto: 56 }), { x: 0, y: 0 })
+  // Crece con el zoom: la tira de 200 % sigue pegada a la esquina
+  assert.deepEqual(esquinaTira(AREA, tamanoMini(2)), { x: 1920 - 800 - 8, y: 1040 - 112 - 8 })
+})
+
+test('posición flotante: se guarda como fracción del lugar libre del área y se restaura dentro del área', () => {
+  const tam = { ancho: 700, alto: 500 }
+  // Arriba a la izquierda es 0, abajo a la derecha 1, al medio 0,5
+  assert.deepEqual(fraccionFlotante({ x: 0, y: 0 }, tam, AREA), { x: 0, y: 0 })
+  assert.deepEqual(fraccionFlotante({ x: 1220, y: 540 }, tam, AREA), { x: 1, y: 1 })
+  assert.deepEqual(fraccionFlotante({ x: 610, y: 270 }, tam, AREA), { x: 0.5, y: 0.5 })
+  // Ida y vuelta en la misma área: el mismo lugar
+  assert.deepEqual(posicionDeFraccion(fraccionFlotante({ x: 300, y: 120 }, tam, AREA), tam, AREA), { x: 300, y: 120 })
+  // En un área más chica (otro monitor, otra barra de tareas) queda adentro, en la misma proporción
+  const chica = { x: -1280, y: 0, ancho: 1280, alto: 984 }
+  const p = posicionDeFraccion({ x: 1, y: 1 }, tam, chica)
+  assert.deepEqual(p, { x: -700, y: 484 })
+  assert.deepEqual(posicionDeFraccion({ x: 0.5, y: 0 }, tam, chica), { x: -990, y: 0 })
+  // Fuera de lugar o basura: entre 0 y 1, y al medio si no es número
+  assert.deepEqual(posicionDeFraccion({ x: 7, y: -3 }, tam, AREA), { x: 1220, y: 0 })
+  assert.deepEqual(posicionDeFraccion({ x: 'no', y: null }, tam, AREA), { x: 610, y: 270 })
+  assert.deepEqual(posicionDeFraccion(null, tam, AREA), { x: 610, y: 270 })
+  // Pasado el borde (arrastrado medio afuera) la fracción se topa
+  assert.deepEqual(fraccionFlotante({ x: -200, y: 900 }, tam, AREA), { x: 0, y: 1 })
+  // Un tablero más grande que el área: arriba a la izquierda
+  assert.deepEqual(posicionDeFraccion({ x: 0.7, y: 0.7 }, { ancho: 2000, alto: 2000 }, AREA), { x: 0, y: 0 })
 })
