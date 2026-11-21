@@ -64,7 +64,7 @@ Orden de la columna principal (estilo-avis-ux.md 4.3), con el hueco nuevo:
 
 ### 3.3 Qué guarda el estado
 
-`st.resumen` en `main.js`: `{ estado, progreso: { bajado, total }, texto, hora, ms, aceleracion, firma, detalle, motivo, pedido, sinVer, hablando }`.
+`st.resumen` en `main.js`: `{ estado, progreso: { bajado, total }, texto, hora, ms, aceleracion, firma, detalle, motivo, pedido, sinVer, hablando }`, más (implementación, `resumenInicial` en `resumen.js`): `trabajo` (lo que corre por detrás aunque el globo esté cerrado: `descargando`, `preparando`, `pensando` o `null`), `modelo` (lo último que dijo el backend; `null` antes de saberlo), `motor`, `primeraVez`, `resultado` (`listo` o `fallo` del último pedido), `cambio` (el aviso "Cambió algo") y `leyendo` (el "Leyendo …" de lo que se le pasó en ese pedido; queda fijo mientras piensa).
 
 - `pedido`: número que crece en cada pedido; un resultado con un número viejo se descarta (como `n` en `oficina://puntero-zona`).
 - `sinVer`: el resultado llegó con el globo cerrado o el panel plegado.
@@ -78,7 +78,7 @@ Textos exactos del boceto, en la voz de Avis (rioplatense, segunda persona, fras
 
 | Estado | Rótulo (`.rz-k`) | Título / cuerpo | Acciones (en este orden) | Pie |
 |---|---|---|---|---|
-| **Apagado** | "Resumen con IA · apagado" | Título: "¿En qué anda Claude? Te lo cuento en pocas frases." Cuerpo: "Un modelo chico, en tu PC, lee lo que Avis ya ve (sesiones, subagentes, procesos y preguntas) y lo resume. Sin internet: nada sale de tu máquina." | Primario "Descargar 2,6 GB" (abierto: la cifra sale de `total`), secundario "Ahora no" | "Qwen3-4B + motor llama.cpp · se puede borrar cuando quieras" (abierto) |
+| **Apagado** | "Resumen con IA · apagado" | Título: "¿En qué anda Claude? Te lo cuento en pocas frases." Cuerpo: "Un modelo chico, en tu PC, lee lo que Avis ya ve (sesiones, subagentes, procesos y preguntas) y lo resume. Sin internet: nada sale de tu máquina." | Primario "Descargar 2,6 GB" (la cifra sale de `total`; sin `total`, "Descargar"); con una descarga cancelada a medias, "Seguir descargando · 1,1 de 2,6 GB" (decisión del usuario, 14.3); secundario "Ahora no" | "Qwen3-4B + motor llama.cpp · se puede borrar desde la bandeja" (el modelo, abierto; el borrado, decisión del usuario, 14.2) |
 | **Descargando** | "Bajando el modelo" | Cifra "1,1" (`--t-cifra`) + "de 2,6 GB" + "42 %" a la derecha; barra de progreso | Secundario "Cancelar" | "Podés seguir usando Avis mientras baja" |
 | **Preparando** | "Preparando · solo la primera vez" | Título: "Acomodando el modelo en tu placa de video". Barra indeterminada. Cuerpo: "Tarda 2 o 3 minutos. Después, cada resumen sale en unos 3 segundos." (abierto: tiempos sin medir) | Secundario "Cancelar" | — |
 | **Pensando** | "Pensando · en tu PC" | Título: "Leyendo 3 sesiones, 2 subagentes y 1 proceso" con tres puntitos; esqueleto de tres líneas | Secundario "Cancelar" | En la fila de acciones: "~3 s con la placa de video" o "~11 s solo con CPU", según `aceleracion` (abierto: tiempos sin medir; se muestra solo la que corresponde) |
@@ -265,7 +265,11 @@ Para el implementador. Nombres en español, como `correr_paso` / `cancelar_paso`
 | `cancelar_resumen` | — | `Ok` | No | Solo con el clic en "Cancelar", o al vencer los 60 s de pensando |
 | `pedir_resumen` | `{ pedido, datos }` (8.3) | `Ok` al aceptar | No | Solo con un clic (tocar el Avi, "Volver a pedir", "Probar de nuevo", o el clic en "Descargar" que incluye el primero) |
 
-`borrar_modelo` queda reservado: el boceto promete "se puede borrar cuando quieras" pero no dice dónde ni cómo (pregunta abierta 14.2).
+Borrar el modelo es un ítem de la bandeja (decisión del usuario, 14.2): lo resuelve Rust y no hay comando para la UI. Al borrarlo, Rust emite `{ tipo: 'estado', … , modelo: 'falta' }` (8.2) y el globo vuelve a apagado. Ningún texto del globo ofrece borrar.
+
+Cancelar la descarga **guarda lo bajado** (decisión del usuario, 14.3: "Se retoma después"): `estado_resumen` devuelve `modelo: 'falta'` con `bajado > 0` y `bajado < total`, el globo ofrece "Seguir descargando · N de M" y `descargar_modelo` retoma desde ahí.
+
+Forma exacta de las llamadas (Tauri pasa los argumentos por nombre): `invoke('estado_resumen')`, `invoke('descargar_modelo', {})`, `invoke('cancelar_resumen', {})`, `invoke('pedir_resumen', { pedido, datos })` (`pedido`: entero que crece; `datos`: el objeto de 8.3). Un comando que falla rechaza la promesa con un texto: `descargar_modelo` → falló (`descarga`) y `pedir_resumen` → falló sin título extra, con el texto como detalle.
 
 ### 8.2 Evento `oficina://resumen`
 
@@ -280,6 +284,9 @@ Un solo evento con `tipo`:
 | `listo` | `{ pedido, texto, ms, aceleracion }` | Listo con `limpiarTexto(texto)`; descarta si `pedido` no es el último |
 | `fallo` | `{ pedido?, motivo, detalle? }` | Falló o sin modelo (`motivo: 'falta'`) |
 | `cancelado` | `{ pedido? }` | Nada nuevo: la UI ya cambió al hacer clic |
+| `estado` | la misma forma que devuelve `estado_resumen` | Actualiza lo que se sabe del modelo. Si el modelo estaba `listo` y pasa a `falta` (borrado desde la bandeja) o `roto`, el globo vuelve a apagado o sin modelo. Nunca arranca trabajo (solo al arrancar, si Rust ya está bajando el modelo de un clic anterior, el globo lo muestra) |
+
+La UI solo acepta estos `tipo` del evento; cualquier otro se ignora (un evento nunca puede hacer de clic). `fallo` sin `pedido` aplica a lo que esté en curso; durante la descarga, cualquier motivo que no sea `falta` se muestra como `descarga`. Rust quita del `texto` cualquier bloque de razonamiento del modelo antes de emitirlo.
 
 ### 8.3 Qué datos se le pasan al modelo
 
@@ -361,10 +368,10 @@ Sin dependencias nuevas: CSS para los bucles y Web Animations API para las secue
 | `widget/src/avis.css` | Bucles de 6.2 (`titila`, `calor`, `tiembla`, `piensa`) dentro de `prefers-reduced-motion: no-preference` y `body:not(.pausa)`; cejas visibles solo en `error` |
 | `widget/src/marca.js` | `VOCES`: por pose de voz, los canales sostenidos y la `mira` de 6.2, como datos (igual que `ACTOS`) |
 | `widget/src/marcaMotion.js` | `voz(pose \| null, { hablando })`: con voz, cancela juego y siesta, no programa reposo, pone la pose (redibujo con rebote) y lleva los canales a `VOCES[pose]` en 360 ms; `contando` mueve `boca`; `null` vuelve al ánimo con la salida de 280 ms |
-| `widget/src/tablero.js` | `figuraMarca` sin `alt` (aria-hidden); nueva `animoTexto(animo)` para `#marca-animo` ("Claude, esperando") |
+| `widget/src/tablero.js` | `figuraMarca` sin `alt` (aria-hidden); nueva `animoTexto(animo)` para `#marca-animo` ("Claude, esperando"). **Implementado distinto:** `tablero.js` quedó sin tocar; `span#marca-avi` lleva `aria-hidden="true"` (oculta el `role="img"` de adentro) y `animoTexto` vive en `resumen.js` |
 | `widget/src/logica.js` | `UMBRAL_ARRASTRE` y `superaUmbral(dx, dy)` se mudan acá desde `main.js`, para usarlos y probarlos en un solo lugar |
 | `widget/src-tauri/src/resumen.rs` (nuevo) | Los comandos de 8.1, el evento de 8.2, las reglas de 8.4; se registra en `lib.rs` |
-| `widget/dev/falso.js`, `dev/vista.html` | Comandos y eventos falsos; `vista.html?resumen=<estado>` salta a cualquiera de los 8 y `&rapido=1` acorta la descarga |
+| `widget/dev/falso.js`, `dev/vista.html` | Comandos y eventos falsos; `vista.html?resumen=apagado\|parcial\|descargando\|preparando\|pensando\|listo\|sinmodelo\|fallo` deja el modelo en ese punto (se toca el Avi para abrir), `&rapido=1` acorta la descarga, `&acel=cpu`, `&rzfalla=descarga\|vacio`, `&inyecta`, `&largo`; `window.__borrarModelo()` imita la bandeja |
 
 ## 12. Tests que fijan cada regla
 
@@ -398,8 +405,8 @@ El widget no tiene breakpoints: el tablero mide siempre 188 + 460 de ancho y 640
 ## 14. Preguntas abiertas para el usuario
 
 1. **El modelo y la oferta:** ¿Qwen3-4B con llama.cpp, unos 2,6 GB? Los textos "Descargar 2,6 GB", "Qwen3-4B + motor llama.cpp", "~3 s con la placa de video · ~11 s solo con CPU" y "Tarda 2 o 3 minutos" quedan pendientes hasta elegirlo y medir en una PC real. La cifra de gigas sale de `total`; los tiempos, de una medición.
-2. **Borrar el modelo:** el pie promete "se puede borrar cuando quieras". ¿Dónde: un ítem de la bandeja, un enlace en el globo apagado/listo, o nada por ahora (y se saca la promesa)?
-3. **Cancelar la descarga:** ¿descarta lo bajado (simple; "Descargar" empieza de cero) o lo guarda para seguir ("Seguir descargando · faltan 1,5 GB")?
+2. ~~**Borrar el modelo**~~ Decidido: **en la bandeja**. El pie dice "se puede borrar desde la bandeja" y el globo no ofrece borrar (8.1).
+3. ~~**Cancelar la descarga**~~ Decidido: **se retoma después**. Apagado con descarga parcial ofrece "Seguir descargando · 1,1 de 2,6 GB" (4.1 y 8.1).
 
 ## 15. Correcciones al boceto
 
@@ -420,3 +427,68 @@ Orden de construcción, cada paso con sus tests:
 5. `resumen.rs` y su registro en `lib.rs`, con `cargo test`. Probar en la ventana real: descarga, cancelar, preparando, pensando, listo, sin modelo (borrando el archivo) y falló (matando el motor).
 
 **No improvisar:** los textos de 4 (lo marcado abierto espera al usuario), el orden de 3.2, las transiciones de 6.1 (sobre todo que cerrar no cancela y que nada arranca sin clic), la tabla de poses de 6.2, los datos permitidos y prohibidos de 8.3, las reglas de 8.4, los tiempos de 9 y solo `transform` y `opacity`. Cualquier estado, texto o acción nueva vuelve a diseño.
+
+## 17. Contrato implementado (backend, 2026-11-21)
+
+Lo que hace `widget/src-tauri/src/modelo.rs` (registrado en `lib.rs`). Donde la dirección dejaba algo abierto se eligió lo más simple; cada elección está marcada **(elegido)**. El módulo se llama `modelo.rs`, no `resumen.rs` como dice la sección 11.
+
+### 17.1 Comandos
+
+| Comando | Argumentos | Devuelve |
+|---|---|---|
+| `estado_resumen` | — | `{ modelo, bajado, total, motor, primeraVez, aceleracion }` (abajo) |
+| `descargar_modelo` | — | `Ok(null)` al empezar; `Err(texto)` si Avis se está cerrando. Un segundo clic con la descarga en curso no empieza otra (devuelve `Ok`); uno justo después de "Cancelar", mientras el hilo todavía no soltó, la retoma |
+| `cancelar_resumen` | — | `null`. Avisa `cancelado` solo si había descarga o pedido en curso |
+| `pedir_resumen` | `{ pedido: número, datos: objeto }` | `Ok(null)` al aceptar; `Err` si hay un pedido en curso con número mayor o igual, si se está bajando el modelo o si Avis se está cerrando. Con el modelo sin instalar o roto, acepta y avisa `fallo` con `motivo: 'falta'` |
+
+`estado_resumen`:
+
+- `modelo`: `falta` (nada, o una descarga a medias sin hilo que la siga), `bajando` (solo con la descarga corriendo), `listo` (modelo y motor instalados), `roto` (el SHA-256 no coincidió y se borró; el `.gguf` no mide lo que debe; o estuvo instalado y ya no está).
+- `bajado` y `total`: bytes del plan entero de esta PC (motor + modelo), también con una descarga a medias: "Seguir descargando · N de M" sale de acá y lo que falta es `total − bajado` **(elegido)**. Con todo instalado, `bajado == total`. Con NVIDIA el plan es CUDA + cudart + modelo (3 246 663 558 bytes, "3,2 GB"); sin NVIDIA, CPU + modelo (2 522 290 169 bytes, "2,5 GB"). La cifra "2,6 GB" del boceto no coincide con ninguno: la UI tiene que usar `total`.
+- `motor`: `apagado`, `preparando` o `listo`.
+- `primeraVez`: el motor nunca contestó con ese dispositivo en esta PC (marca `.calentado-<cuda|cpu>`).
+- `aceleracion`: siempre `gpu` o `cpu` **(elegido: nunca `null`)**: la del motor que corre, o la que se usaría.
+- Lee solo disco y procesos propios. Para saber si hay NVIDIA corre `nvidia-smi -L` sin consola, una vez por arranque de la app (sin red).
+
+### 17.2 Evento `oficina://resumen`
+
+| `tipo` | Datos |
+|---|---|
+| `progreso` | `{ bajado, total }` del plan entero, a lo sumo cada 250 ms |
+| `bajado` | `{ total }`. La UI llama a `pedir_resumen` (el backend no pide solo) |
+| `preparando` | `{ pedido, primeraVez }`. Se avisa cada vez que hay que arrancar el motor (al primer pedido o después de apagarse por inactividad) |
+| `pensando` | `{ pedido }`, siempre antes de `listo`, aunque el motor ya estuviera listo |
+| `listo` | `{ pedido, texto, ms, aceleracion }`. `texto` ya viene limpio (sin `<think>`, sin `**`, a 600 caracteres en un fin de frase); `ms` mide solo el pedido del resumen |
+| `fallo` | `{ pedido?, motivo, detalle? }`. Motivos: `falta` (el modelo no está, o el bajado no coincidió con su SHA-256 → sin modelo), `descarga` (red, disco o servidor), `cerrado` (el motor se cerró o falló; `detalle` "llama-server · código de salida 3221225477 · <última línea de su registro>"), `tiempo` (el motor no estuvo listo en 240 s o el resumen pasó los 90 s), `vacio` |
+| `cancelado` | `{ pedido }` (`null` si era la descarga). Sale enseguida, con el clic |
+
+Un evento de un `pedido` viejo o cancelado no sale (8.4.6). Con la ventana recargada el contador de la UI vuelve a 1: sin pedido en curso se acepta cualquier número **(elegido)**.
+
+### 17.3 Descarga
+
+- URLs fijas: el modelo en el commit `a06e946bb6b655725eafa393f4a9745d460374c9` de `unsloth/Qwen3-4B-Instruct-2507-GGUF` (verificado contra la API pública: mismo tamaño y SHA-256 que el brief), y los zips de llama.cpp b12606. Solo `agente_red()` arma un cliente para internet, y solo lo usa la descarga (un test lo fija).
+- Orden: los zips del motor primero (chicos: fallan rápido si no hay red) y el modelo al final.
+- Se retoma: cada archivo se baja a `<nombre>.part` con `Range: bytes=N-` (el Range sigue la redirección al CDN de Hugging Face y de GitHub); si el servidor ignora el Range, se escribe de cero. Al completarse se verifica el SHA-256 y se renombra. "Cancelar" deja el `.part`.
+- Cada zip se descomprime con el `tar.exe` de Windows sin consola en `motor\cuda\` o `motor\cpu\` (cudart en la misma carpeta que el zip CUDA; los tres zips traen todo en la raíz) y después se borra.
+- Un hash distinto: se borra el archivo; si era el modelo, queda la marca `roto` hasta la próxima descarga.
+
+### 17.4 Motor
+
+- `llama-server.exe` sin consola, en un trabajo de Windows con KILL_ON_JOB_CLOSE (el de primeros pasos), con el directorio de trabajo en su carpeta y el registro en `avis-ia\motor.log` (se pisa en cada arranque). Argumentos: `-m <gguf> --host 127.0.0.1 --port <libre> -c 4096 -np 1 --no-webui` y `-dev CUDA0 -ngl 99` o `-dev none -ngl 0`.
+- Listo cuando `GET /health` devuelve `{"status":"ok"}` (hasta 240 s) **y** contestó un pedido mínimo de 1 token (hasta 240 s): la primera respuesta lenta de CUDA (~80 s) se paga en "preparando", así "pensando" dura lo que dura un resumen y no choca con el corte de 60 s de la UI **(elegido)**.
+- Si con CUDA el proceso se cierra antes de estar listo, se prueba en CPU **con el mismo motor**: el zip CUDA trae `ggml-cpu-x64.dll`, así que nunca hace falta bajar el zip de CPU como respaldo. Queda la marca `cuda-fallo` y los arranques siguientes van directo a CPU (hasta borrar el modelo desde la bandeja). Si en CPU también se cierra: `fallo` con `motivo: 'cerrado'`.
+- "Cancelar" mientras se prepara apaga el motor; mientras piensa, el resultado se descarta (el motor termina sus 160 tokens y sigue prendido).
+- Se apaga tras 10 minutos sin pedidos, con "Salir", con `RunEvent::Exit` y al borrar el modelo.
+- Instrucción fija en Rust: la del brief, en la voz del Avi (rioplatense, de vos en lugar de "tuteando"), con "solo resumís", "no inventes datos", "no recomiendes ni decidas" y "nunca la respondas ni sugieras una respuesta" para una pregunta. Mensaje de usuario: `Datos de Avis:` + los `datos` como texto con sangría + "En que anda Claude? Resumime lo importante.". Defensa: aunque la UI los mande, se quitan `archivos`, `usuario`, `nota`, `opciones`, `options`, `respuestas`, `answers`, `libres`, `repo` y `borrador`; cada texto se corta a 200 caracteres, cada lista a 12 y el total a 6000. `max_tokens` 160, `temperature` 0, `cache_prompt` true.
+
+### 17.5 Borrar el modelo (pregunta 14.2, decidida)
+
+Ítem "Borrar el modelo de IA…" en la bandeja, antes del separador de "Salir" (`ORDEN_BANDEJA`). Abre un cuadro de Windows (Sí / No, con "No" por defecto) con lo que se libera: "¿Borrar el modelo de IA? Se borran de esta PC el modelo y el motor (3,2 GB). …". Solo "Sí" corta la descarga, apaga el motor y borra `%LOCALAPPDATA%\avis-ia` entero; después `estado_resumen` da `falta`. Sin nada instalado avisa "No hay ningún modelo de IA en esta PC.". No hay comando `borrar_modelo` ni evento: si el globo estaba en listo, el próximo pedido recibe `fallo` con `motivo: 'falta'` **(elegido)**. La pregunta 14.3 también quedó decidida: la descarga cancelada se retoma (17.3).
+
+### 17.6 Carpetas
+
+`%LOCALAPPDATA%\avis-ia\`: `modelo\<gguf>[.part]`, `descargas\<zip>[.part]`, `motor\cuda\`, `motor\cpu\` (con `.avis-<zip>` por zip descomprimido y `.calentado-<dispositivo>`), y las marcas `instalado`, `roto`, `cuda-fallo` y `motor.log`.
+
+### 17.7 Prueba real de punta a punta (manual, opcional, fuera de `cargo test`)
+
+Baja ~3,2 GB con NVIDIA. En la ventana real (`npm run tauri dev` en `widget/`): tocar el Avi → "Descargar"; cancelar a mitad y volver a descargar (sigue desde el `.part`); esperar `bajado` → "preparando" (la primera vez con CUDA, ~2,5 min) → "pensando" → "listo". Sin modelo: borrar `%LOCALAPPDATA%\avis-ia\modelo\*.gguf` → `roto`. Falló: matar `llama-server.exe` mientras piensa → `cerrado` con el código de salida. Borrar: ítem de la bandeja. Inactividad: esperar 10 min y ver que `llama-server.exe` ya no corre.
