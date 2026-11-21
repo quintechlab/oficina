@@ -5,9 +5,9 @@ import assert from 'node:assert/strict'
 import {
   proximoReposo, REPOSO_PRIMERO_MS, REPOSO_ENTRE_MS, REPOSO_SIESTA_MS, REPOSO_LLAMA_MS, PESOS_REPOSO,
   ACTOS, REPOSO, valorPista, estadoActo, mirarPuntero, direccionSalida, objetivoMirada, cambioMirada,
-  siguePuntero, sigueAhora, miraPropia, salida, SUELTA_MS, MIRA_OCUPADO,
+  siguePuntero, sigueAhora, miraPropia, salida, SUELTA_MS, MIRA_OCUPADO, VOCES, VOZ_MS, canalesVoz, haciaVoz, puedeJugar,
 } from '../src/marca.js'
-import { svgAvi, CLAUDE } from '../src/avis.js'
+import { svgAvi, CLAUDE, POSES, poseAvi } from '../src/avis.js'
 
 /** Un azar que devuelve los valores dados, en orden (y repite el último). */
 const azarDe = (...v) => { let k = 0; return () => v[Math.min(k++, v.length - 1)] }
@@ -345,4 +345,67 @@ test('la muesca te sigue aunque trabaje ("Siempre te sigue"); la marca, trabajan
   assert.ok(sigueAhora('esperando', false) && sigueAhora('teEspera', false, true))
   assert.ok(!sigueAhora('durmiendo', false, true))
   assert.equal(miraPropia(false), null)
+})
+
+// ------------------------------------------------------------------ voz del resumen (resumen-ia-ux.md 6.2 y 6.3)
+
+const listo = { visto: true, quieto: false, reposo: true, pose: 'esperando', ocupado: false, voz: null }
+
+test('juegos: sin voz, la marca juega como siempre (se ve, se mueve, en reposo, esperando y sin trabajo)', () => {
+  assert.equal(puedeJugar(listo), true)
+  for (const k of ['visto', 'reposo']) assert.equal(puedeJugar({ ...listo, [k]: false }), false, k)
+  assert.equal(puedeJugar({ ...listo, quieto: true }), false)
+  assert.equal(puedeJugar({ ...listo, ocupado: true }), false)
+  assert.equal(puedeJugar({ ...listo, pose: 'teEspera' }), false)
+})
+
+test('juegos suspendidos: con una voz puesta (el globo abierto) no juega, aunque la voz sea "esperando"', () => {
+  for (const voz of Object.keys(VOCES)) assert.equal(puedeJugar({ ...listo, voz }), false, voz)
+})
+
+test('VOCES: la mirada y los canales sostenidos de cada pose (6.2)', () => {
+  assert.deepEqual(Object.keys(VOCES).sort(), ['baja', 'calienta', 'contando', 'error', 'esperando', 'feliz', 'pensando', 'teEspera'])
+  assert.equal(VOZ_MS, 360)
+  assert.equal(VOCES.esperando.mira, null, 'apagado: sigue al puntero')
+  assert.equal(VOCES.teEspera.mira, null)
+  assert.deepEqual(VOCES.baja.mira, { x: 0.55, y: 0.6 })
+  assert.deepEqual(VOCES.calienta.mira, { x: 0, y: 0 })
+  assert.deepEqual(VOCES.pensando.mira, { x: 0.5, y: -0.75 })
+  assert.deepEqual(VOCES.contando.mira, { x: 0.6, y: 0.15 })
+  assert.deepEqual(VOCES.feliz.mira, { x: 0.6, y: 0.15 })
+  assert.deepEqual(VOCES.error.mira, { x: 0, y: 0 })
+  assert.equal(canalesVoz('calienta').par, 0.9)
+  assert.equal(canalesVoz('feliz').ojos, 1)
+  assert.deepEqual([canalesVoz('error').ant, canalesVoz('error').luz, canalesVoz('error').par], [18, -1, 0.8])
+})
+
+test('cada voz deja los canales dentro de la zona de juego; null los devuelve al reposo', () => {
+  for (const pose of Object.keys(VOCES)) {
+    const v = canalesVoz(pose)
+    assert.deepEqual(Object.keys(v).sort(), Object.keys(REPOSO).sort(), pose)
+    assert.ok(Math.abs(v.ant) <= 22 && v.luz >= -1 && v.luz <= 1 && v.par >= 0 && v.par <= 1.28 && [0, 1, 2].includes(v.ojos), pose)
+    assert.ok(v.boca >= 0 && v.boca <= 1 && v.bo === 0 && v.globo === 0, `${pose}: sin pelota ni globito`)
+  }
+  assert.deepEqual(canalesVoz(null), REPOSO)
+})
+
+test('llevar los canales a una voz: 360 ms desde los de ahora y termina en los de la voz', () => {
+  const desde = { ...REPOSO, ant: -10, par: 0.4 }
+  const def = haciaVoz(desde, 'error')
+  assert.equal(def.dur, 360)
+  assert.equal(def.sostiene, true, 'queda en su último cuadro')
+  assert.deepEqual(estadoActo(def, 0), { ...desde, ojos: canalesVoz('error').ojos })
+  assert.deepEqual(estadoActo(def, 360), canalesVoz('error'))
+})
+
+test('las poses nuevas de la voz: solo las dibuja la marca, con las cejas en "error"', () => {
+  for (const pose of ['baja', 'calienta', 'contando', 'feliz', 'error']) {
+    assert.ok(POSES.includes(pose), pose)
+    assert.equal(poseAvi(pose).pose, pose)
+    assert.match(svgAvi(CLAUDE, pose, false, { marca: true }), new RegExp(`class="e-${pose} es-marca"`))
+  }
+  assert.match(svgAvi(CLAUDE, 'error', false, { marca: true }), /<path class="trazo cejas" d="M44 60\.5L52\.5 57\.5M76 60\.5L67\.5 57\.5"\/>/)
+  // Los demás Avis no llevan cejas, y el ánimo de una sesión nunca pide estas poses
+  assert.doesNotMatch(svgAvi(CLAUDE, 'error'), /cejas/)
+  assert.equal(poseAvi('editando').pose, 'escribiendo')
 })

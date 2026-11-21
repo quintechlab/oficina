@@ -8,9 +8,11 @@ import { escapar, personajeDeNombre } from './logica.js'
 
 /**
  * Poses que se dibujan. "proceso" (5.5): espera procesos en segundo plano. "saluda": el Avi base de
- * primeros pasos levanta la mano (docs/diseno/bienvenida-ux.md 6.3).
+ * primeros pasos levanta la mano (docs/diseno/bienvenida-ux.md 6.3). "baja", "calienta", "contando",
+ * "feliz" y "error": la voz del Avi de la marca con el globo del resumen abierto
+ * (docs/diseno/resumen-ia-ux.md 6.2); solo las usa la marca, ningún ánimo de sesión las devuelve.
  */
-export const POSES = ['esperando', 'escribiendo', 'leyendo', 'pensando', 'coordinando', 'teEspera', 'durmiendo', 'inactiva', 'listo', 'fallo', 'proceso', 'saluda']
+export const POSES = ['esperando', 'escribiendo', 'leyendo', 'pensando', 'coordinando', 'teEspera', 'durmiendo', 'inactiva', 'listo', 'fallo', 'proceso', 'saluda', 'baja', 'calienta', 'contando', 'feliz', 'error']
 
 /** El personaje de Claude: antena con foco, en ámbar. */
 export const CLAUDE = personajeDeNombre('Claude')
@@ -25,6 +27,8 @@ const POSE_DE_ANIMO = {
   comiendo: 'escribiendo', reposo: 'listo',
   // Primeros pasos (bienvenida-ux.md 6.3); antes, heredado de escena.js, era "esperando"
   saluda: 'saluda',
+  // La voz del resumen (resumen-ia-ux.md 6.2): marcaMotion.js las pide por nombre
+  baja: 'baja', calienta: 'calienta', contando: 'contando', feliz: 'feliz', error: 'error',
 }
 
 /**
@@ -121,6 +125,8 @@ const MANO = `<ellipse rx="6.6" ry="8" fill="${CREMA_MANO}"/><ellipse cx="-5.4" 
 
 /** Ojos contentos ∩ (canta, festeja) y cerrados ∪ (se estira, siesta). */
 const OJOS_FELIZ_MARCA = `<path class="trazo e-fe" d="M44.5 72Q49 65.5 53.5 72M66.5 72Q71 65.5 75.5 72"/>`
+/** Cejas preocupadas, solo visibles en la pose "error" de la voz (resumen-ia-ux.md 6.2). */
+const CEJAS_MARCA = '<path class="trazo cejas" d="M44 60.5L52.5 57.5M76 60.5L67.5 57.5"/>'
 const OJOS_CERRADOS_MARCA = `<path class="trazo e-ce" d="M44.5 70Q49 74.5 53.5 70M66.5 70Q71 74.5 75.5 70"/>`
 
 /** La antena de Claude con el foco y el bulbo en grupos propios (el juego los escala y los apaga). */
@@ -144,6 +150,7 @@ function svgMarca({ pj, color }, e, comando) {
     + `<path class="sombreado" d="M25 80C30 95 90 95 95 80C92 99 28 99 25 80Z"/>`
     + `<g class="c-brillo"><ellipse class="brillo" cx="43" cy="49" rx="12" ry="6.4" transform="rotate(-30 43 49)"/></g>`
     + `<g class="c-mejillas"><ellipse cx="37" cy="81" rx="6.8" ry="3.5" fill="${c}" opacity=".36"/><ellipse cx="83" cy="81" rx="6.8" ry="3.5" fill="${c}" opacity=".36"/></g>`
+    + CEJAS_MARCA
     + `<g class="mirada"><g class="parpado"><g class="ojos"><g class="e-ab">${ojosDe(e)}</g>${OJOS_FELIZ_MARCA}${OJOS_CERRADOS_MARCA}</g></g></g>`
     + `<g class="c-pico"><ellipse class="boca" cx="60" cy="81.5" rx="3.4" ry="3.6"/>`
     + `<path class="pico pico-i" d="M56.4 79.2Q60 81.2 63.6 79.2Q60 85.5 56.4 79.2Z"/><path class="pico pico-s" d="M56 78.5Q60 76.8 64 78.5Q60 80.8 56 78.5Z"/></g>`

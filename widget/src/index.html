@@ -18,8 +18,12 @@
       <div id="contenido">
         <aside class="lado">
           <!-- Marca "Escenario" (docs/diseno/marca-avi-ux.md): el Avi de Claude de 112 sobre su luz; marcaMotion.js lo mueve -->
+          <!-- El Avi es además el botón de "¿En qué anda Claude?" (docs/diseno/resumen-ia-ux.md 3.1): arrastrar desde él sigue moviendo el tablero -->
           <div class="marca" data-arrastre title="Arrastrá para mover o acoplar a un borde">
-            <span id="marca-avi"></span>
+            <button type="button" id="marca-boton" class="avi-btn" aria-label="¿En qué anda Claude?" aria-describedby="marca-animo" aria-expanded="false" aria-controls="resumen" title="¿En qué anda Claude?">
+              <span id="marca-avi" aria-hidden="true"></span>
+              <span id="marca-animo" class="oculto"></span>
+            </button>
             <b class="marca-n">Avis</b>
             <span class="estado" id="marca-estado"></span>
           </div>
@@ -54,6 +58,8 @@
           <div id="vacio-avi" class="vacio-avi" hidden></div>
           <div id="otro"></div>
           <div id="w-globo"></div>
+          <!-- "¿En qué anda Claude?": el globo del Avi de la marca (resumen-ia-ux.md 3.2), entre la pregunta y la hoja de primeros pasos -->
+          <section id="resumen" aria-labelledby="h-resumen"></section>
           <!-- Primeros pasos (docs/diseno/bienvenida-ux.md): el escenario en lugar del vacío o la hoja de la columna -->
           <div id="pp"></div>
           <div class="conteos" id="conteos"></div>
@@ -74,6 +80,8 @@
   <p id="aviso-iman" aria-hidden="true"></p>
   <!-- Anuncia una sola vez cada pregunta que llega (dirección 8); nunca mueve el foco -->
   <p class="oculto" id="anuncio" aria-live="polite"></p>
+  <!-- Un aviso por estado del resumen (resumen-ia-ux.md 6.4): fuera de #marco, así se oye con el panel plegado -->
+  <p class="oculto" id="anuncio-resumen" aria-live="polite" aria-atomic="true"></p>
   <!-- Tira mini (400 × 56): caras, resumen, preguntas, expandir y cerrar -->
   <div class="tira" id="tira" hidden>
     <div class="arrastre" data-arrastre title="Arrastrá para mover o acoplar a un borde">

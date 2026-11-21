@@ -8,6 +8,8 @@
 // El mismo motor mueve al Avi que asoma en la muesca cerrada (docs/diseno/muesca-avi-ux.md 7 y 9), con
 // opciones: otra figura, el repertorio de un solo juego ("cucú", sin siesta ni notas: a los 8 min se
 // aquieta) y `ocupado` (trabaja: no sigue al puntero y mira lo suyo).
+// La voz del resumen (docs/diseno/resumen-ia-ux.md 6.2 y 6.3): con el globo abierto, la marca toma la
+// pose del estado del globo (`voz`), sostiene sus canales y suspende los juegos.
 
 import { figuraMarca } from './tablero.js'
 import { poseAvi } from './avis.js'
@@ -15,6 +17,7 @@ import { hayMovimiento } from './tableroMotion.js'
 import {
   ACTOS, REPOSO, PESOS_REPOSO, TIEMPOS_REPOSO, estadoActo, salida, proximoReposo, objetivoMirada,
   cambioMirada, direccionSalida, siguePuntero, sigueAhora, miraPropia, MIRA_OCUPADO,
+  VOCES, VOZ_MS, canalesVoz, haciaVoz, puedeJugar,
 } from './marca.js'
 
 const NS = 'http://www.w3.org/2000/svg'
@@ -27,6 +30,10 @@ const CORCHEA = '<ellipse rx="3.6" ry="2.7" transform="rotate(-20)"/><rect x="2.
 const DOBLE = '<ellipse rx="3.4" ry="2.6" transform="rotate(-20)"/><ellipse cx="9" cy="-2" rx="3.4" ry="2.6" transform="rotate(-20 9 -2)"/><rect x="2.3" y="-15" width="1.5" height="14" rx=".75"/><rect x="11.3" y="-17" width="1.5" height="14" rx=".75"/><path d="M2.3 -15L12.8 -17V-13.6L2.3 -11.6Z"/>'
 /** Repertorios del reposo: el escenario de la marca y el cucú de la muesca. */
 const REPERTORIOS = { escenario: PESOS_REPOSO, cucu: Object.freeze({ cucu: 1 }) }
+/** El pico de "contando": 0 ↔ 0,6 cada 170 ms (6.2). */
+const HABLA_MS = 170
+/** El rebote del cambio de pose de la voz (`--rebote`). */
+const REBOTE = 'cubic-bezier(.34,1.56,.64,1)'
 /** Diferencia bajo la cual la mirada llegó a su destino y el cuadro se detiene (8). */
 const CONVERGE = 0.002
 
@@ -51,6 +58,7 @@ function tiemposCon(escala) {
  * - `zona(dentro)`: el aviso de Rust de que el puntero entró o salió de la zona interactiva (acoplada y
  *   cerrada el WebView no ve salir al puntero): al salir, el próximo movimiento vuelve a decir "te vio";
  * - `quiereCursor()`: se ve, se puede mover y la pose sigue al puntero (para `mirada` de la zona);
+ * - `voz(pose | null, { hablando })`: la pose de voz del resumen (`vozAvi`); null vuelve al ánimo;
  * - `destruir()`.
  */
 export function montarMarca(el, { escala = 1, reloj = () => performance.now(), azar = Math.random, figura = figuraMarca, repertorio = 'escenario', sigueOcupado = false } = {}) {
@@ -65,12 +73,22 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
     puntero: null, dentro: false, salio: -Infinity, dir: { x: 0, y: 0 }, ultimoMov: reloj(),
     plan: { quietoDesde: reloj(), ultimoFin: null, ultimo: null, ultimaLlamada: null, juegos: 0 },
     previsto: null, temporizador: null, temporizadorMirada: null, cuadro: null,
+    voz: null, hablando: false,
   }
 
   const puede = () => s.visto && !s.quieto
-  /** ¿Sigue al puntero? Las poses que miran (esperando, te espera); trabajando, solo con `sigueOcupado` (la muesca). */
-  const sigue = () => sigueAhora(s.pose, s.ocupado, sigueOcupado)
-  const jugable = () => puede() && s.reposo && s.pose === 'esperando' && !s.ocupado
+  /**
+   * ¿Sigue al puntero? Las poses que miran (esperando, te espera); trabajando, solo con `sigueOcupado`
+   * (la muesca). Con voz, solo si la voz no mira a un lugar fijo (VOCES).
+   */
+  const sigue = () => (!s.voz || VOCES[s.voz].mira == null) && sigueAhora(s.pose, s.ocupado, sigueOcupado)
+  /** Adónde mira por su cuenta: el lugar de la voz o, trabajando, lo suyo. */
+  const mira = () => (s.voz && VOCES[s.voz].mira) || miraPropia(s.ocupado, sigueOcupado)
+  const jugable = () => puedeJugar({ visto: s.visto, quieto: s.quieto, reposo: s.reposo, pose: s.pose, ocupado: s.ocupado, voz: s.voz })
+  /** El reposo de los canales: el de la voz, si hay una (sus canales sostenidos). */
+  const reposoCanales = () => (s.voz ? canalesVoz(s.voz) : { ...REPOSO })
+  /** Hay un juego (o la siesta) en curso; el viaje a la voz no cuenta. */
+  const enJuego = () => (!!s.acto && s.acto.def.id !== 'voz') || s.dormido
 
   // ---------------------------------------------------------------- dibujo
 
@@ -81,6 +99,7 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
     s.g = Object.fromEntries(GRUPOS.map(k => [k, s.svg.querySelector('.' + k)]))
     s.ojos = -1
     s.svg.classList.toggle('ocupado', s.ocupado)
+    s.svg.classList.toggle('voz', !!s.voz)
     // En la muesca, el canal "asir" agarra las manos del recorte padre (.asoma.agarra, CSS)
     s.asoma = el.closest('.asoma')
     s.avi.addEventListener('animationend', e => { if (e.animationName === 'doble') s.avi.classList.remove('te-vio') })
@@ -190,11 +209,11 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
     despertar()
   }
 
-  /** Se cancela sin animación (otra pose, trabajo de Claude, ya no se ve): todo al reposo de una. */
+  /** Se cancela sin animación (otra pose, trabajo de Claude, ya no se ve): todo al reposo de una (o a la voz). */
   function cancelar() {
     s.acto = null
     s.dormido = false
-    s.V = { ...REPOSO }
+    s.V = reposoCanales()
     apagarNotas(true)
     s.svg?.classList.remove('siesta')
     aplicar(s.V)
@@ -203,7 +222,8 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
   /** Lo interrumpiste (7.4): suelta el juego en 280 ms y te mira; de la siesta, despierta. */
   function interrumpir() {
     const id = s.acto?.def.id
-    if (id === 'salida' || id === 'despierta') return
+    // La voz no es un juego: no se suelta
+    if (id === 'salida' || id === 'despierta' || id === 'voz') return
     if (id === 'siesta' || s.dormido) {
       s.dormido = false
       s.svg?.classList.remove('siesta')
@@ -231,16 +251,28 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
     aplicar(s.V)
     if (ahora - t0 < def.dur) return true
     s.acto = null
+    // La voz queda en su último cuadro hasta que cambie
+    if (def.sostiene) return false
     if (def.lazo) {
       // La siesta queda en su último cuadro (la respiración lenta es CSS) hasta la próxima actividad
       s.dormido = true
       return false
     }
+    if (def.id in pesos) s.plan.ultimoFin = ahora
+    // Terminó un juego o el despertar con una voz puesta: los canales van a los de la voz
+    if (s.voz) { iniciar(haciaVoz(s.V, s.voz)); return true }
     s.V = { ...REPOSO }
     aplicar(s.V)
-    if (def.id in pesos) s.plan.ultimoFin = ahora
     programar()
     return false
+  }
+
+  /** "contando": el pico se abre y se cierra mientras salen las palabras. Devuelve si sigue. */
+  function pasoHabla(ahora) {
+    if (s.voz !== 'contando' || !s.hablando || s.acto) return false
+    s.V.boca = 0.3 - 0.3 * Math.cos((Math.PI * ahora) / HABLA_MS)
+    aplicar(s.V)
+    return true
   }
 
   // ---------------------------------------------------------------- mirada
@@ -250,7 +282,7 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
     if (!s.svg || !s.avi) return true
     const r = s.avi.getBoundingClientRect()
     const o = objetivoMirada({
-      sigue: sigue(), mira: miraPropia(s.ocupado, sigueOcupado), quieto: s.quieto, puntero: s.puntero, dentro: s.dentro,
+      sigue: sigue(), mira: mira(), quieto: s.quieto, puntero: s.puntero, dentro: s.dentro,
       modo: s.acoplada ? 'acoplada' : 'flotante', caja: { left: r.left, top: r.top, width: r.width, height: r.height },
       ahora, salio: s.salio, dir: s.dir, ultimoMov: s.ultimoMov, acto: s.acto || s.dormido ? s.V : null,
     })
@@ -268,8 +300,9 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
     if (!puede()) return
     const ahora = reloj()
     const juega = s.acto ? pasoActo(ahora) : false
+    const habla = pasoHabla(ahora)
     const llego = pasoMirada(ahora)
-    if (juega || !llego) { s.cuadro = requestAnimationFrame(cuadro); return }
+    if (juega || habla || !llego) { s.cuadro = requestAnimationFrame(cuadro); return }
     // Quieto: sin cuadros hasta el próximo cambio de la mirada por tiempo (curiosear) o un movimiento
     clearTimeout(s.temporizadorMirada)
     if (sigue() && !s.dormido) {
@@ -369,20 +402,26 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
       if (!!ocupado !== s.ocupado) {
         // Empieza o deja de trabajar: la mirada cambia de destino (lo suyo o el puntero)
         s.ocupado = !!ocupado
-        if (s.ocupado && (s.acto || s.dormido)) cancelar()
+        if (s.ocupado && enJuego()) cancelar()
         s.svg?.classList.toggle('ocupado', s.ocupado)
       }
       if (animo !== s.animo) {
-        // La pose de ánimo manda al instante: se cancela el juego y la siesta (el redibujo ya cambia la pose)
-        cancelar()
         s.animo = animo
-        s.pose = poseAvi(animo).pose
-        dibujar(animo)
-        aplicarMirada()
+        // Con una voz puesta manda la voz: el ánimo vuelve al cerrar el globo (voz(null))
+        if (!s.voz) {
+          // La pose de ánimo manda al instante: se cancela el juego y la siesta (el redibujo ya cambia la pose)
+          cancelar()
+          s.pose = poseAvi(animo).pose
+          dibujar(animo)
+          aplicarMirada()
+        } else if (!s.svg) {
+          dibujar(s.voz)
+          aplicarMirada()
+        }
       }
       const antes = s.reposo
       s.reposo = !!reposo
-      if (antes && !s.reposo && (s.acto || s.dormido)) cancelar()
+      if (antes && !s.reposo && enJuego()) cancelar()
       // La quietud se cuenta también desde el último trabajo de Claude (7.2)
       if (!antes && s.reposo) reiniciarQuietud()
       if (antes !== s.reposo || !s.temporizador) programar()
@@ -434,6 +473,53 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
     },
 
     quiereCursor: () => puede() && sigue(),
+
+    /**
+     * La voz del resumen (resumen-ia-ux.md 6.2): con una pose, cancela el juego y la siesta (salvo el
+     * despertar, que termina y sigue a la voz), no programa reposo, redibuja la pose con un rebote y
+     * lleva los canales a los de la voz en 360 ms; "contando" mueve el pico mientras `hablando`.
+     * `null` vuelve al ánimo con la salida de 280 ms. Idempotente: main.js la llama en cada pintada.
+     */
+    voz(pose, { hablando = false } = {}) {
+      const nueva = pose && VOCES[pose] ? pose : null
+      s.hablando = !!hablando && nueva === 'contando'
+      if (nueva === s.voz) { despertar(); return }
+      const antes = s.voz
+      s.voz = nueva
+      clearTimeout(s.temporizador)
+      s.temporizador = null
+      const dibujo = nueva ?? s.animo
+      const pose2 = nueva ?? poseAvi(s.animo).pose
+      if (pose2 !== s.pose || !!antes !== !!nueva) {
+        s.pose = pose2
+        if (dibujo != null) {
+          dibujar(dibujo)
+          aplicarMirada()
+          // El cambio de pose se marca con un rebote desde el piso (solo transform)
+          if (!s.quieto && s.visto) {
+            s.svg.animate([{ transform: 'scale(.94, 1.04)', transformOrigin: '50% 100%' }, { transform: 'none', transformOrigin: '50% 100%' }], { duration: VOZ_MS, easing: REBOTE })
+          }
+        }
+      }
+      if (!puede()) {
+        // Sin movimiento o sin verse: los canales de la voz (o el reposo) quedan de una
+        cancelar()
+        programar()
+        return
+      }
+      const id = s.acto?.def.id
+      if (nueva) {
+        // El despertar de la siesta termina y después va a la voz (pasoActo)
+        if (id === 'despierta') { despertar(); return }
+        apagarNotas(false)
+        s.dormido = false
+        s.svg?.classList.remove('siesta')
+        iniciar(haciaVoz(s.V, nueva))
+      } else {
+        // Vuelve al ánimo: los canales al reposo en 280 ms y el reposo se programa al terminar
+        iniciar(salida(s.V))
+      }
+    },
 
     destruir() {
       detenerCuadros()

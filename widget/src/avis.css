@@ -45,6 +45,12 @@
 .avi .es-marca .e-fe, .avi .es-marca .e-ce, .avi .es-marca .zs { display: none }
 .avi .es-marca.o-fe .e-ab, .avi .es-marca.o-ce .e-ab { display: none }
 .avi .es-marca.o-fe .e-fe, .avi .es-marca.o-ce .e-ce, .avi .es-marca.siesta .zs { display: inline }
+/* La voz del resumen (docs/diseno/resumen-ia-ux.md 6.2): las cejas solo en "error", que además va sin
+   halo. El halo late desde su centro (los bucles de abajo) */
+.avi .es-marca .cejas { display: none }
+.avi .es-marca.e-error .cejas { display: inline }
+.avi .es-marca.e-error .halo { opacity: 0 }
+.avi .es-marca .halo { transform-origin: 50% 50% }
 
 /* Escenario de cada sesión (docs/diseno/panel-avis-ux.md 8.5 y 9.2): cada Avi repinta solo su caja
    (sin contain: paint, que cortaría ondas y burbujas) y el brillo va con gradiente, sin filtro (el
@@ -94,6 +100,17 @@
   body:not(.pausa) .avi .es-marca.o-fe .ojos, body:not(.pausa) .avi .es-marca.o-ce .ojos { animation: none }
   body:not(.pausa) .avi .es-marca.siesta .cuerpo { animation: duerme 5.6s ease-in-out infinite }
   body:not(.pausa) .avi.te-vio .es-marca:not(.o-fe):not(.o-ce) .ojos { animation: doble .5s ease-in-out }
+  /* La voz del resumen (6.2): apagado con el halo que late; mira la descarga con el bulbo que titila;
+     calienta la antena y tiembla; piensa balanceándose; cuenta respirando rápido. Feliz y error
+     respiran como siempre (feliz con ojos contentos, sin parpadeo) */
+  body:not(.pausa) .avi .es-marca.voz.e-esperando .halo { animation: haloVoz 2.8s ease-in-out infinite }
+  body:not(.pausa) .avi .es-marca.e-baja .bulbo { animation: titila 1.3s ease-in-out infinite }
+  body:not(.pausa) .avi .es-marca.e-calienta .halo { animation: calor 1.6s ease-in-out infinite }
+  body:not(.pausa) .avi .es-marca.e-calienta .cuerpo { animation: tiembla 2.4s linear infinite }
+  body:not(.pausa) .avi .es-marca.e-pensando .cuerpo { animation: piensa 2.6s ease-in-out infinite }
+  body:not(.pausa) .avi .es-marca.e-pensando .halo { animation: haloVoz 1.1s ease-in-out infinite }
+  body:not(.pausa) .avi .es-marca.e-contando .cuerpo { animation: respira 1.1s ease-in-out infinite }
+  body:not(.pausa) .avi .es-marca.e-contando .halo { animation: haloVoz .9s ease-in-out infinite }
 }
 /* Movimiento reducido o pausa: la mano en alto y los trazos de vaivén dibujados, quietos (como las "z") */
 @media (prefers-reduced-motion: reduce) { .avi .e-saluda .vaiven { opacity: 1 } }
@@ -118,4 +135,8 @@ body.pausa .avi .e-saluda .vaiven { opacity: 1 }
 @keyframes sigue { 0%, 100% { transform: translate(3px, -2px) } 50% { transform: translate(4px, -3px) } }
 @keyframes saluda { from { transform: rotate(-8deg) } to { transform: rotate(20deg) } }
 @keyframes vaiven { 0% { opacity: 0 } 15%, 80% { opacity: 1 } 100% { opacity: 0 } }
+@keyframes haloVoz { 0%, 100% { opacity: .18; transform: scale(1) } 50% { opacity: .4; transform: scale(1.22) } }
+@keyframes calor { 0%, 100% { opacity: .25; transform: scale(1) } 50% { opacity: .62; transform: scale(1.55) } }
+@keyframes tiembla { 0%, 86%, 100% { transform: translateX(0) } 88% { transform: translateX(-1px) } 90% { transform: translateX(1px) } 92% { transform: translateX(-1px) } 94% { transform: translateX(.6px) } 96% { transform: translateX(0) } }
+@keyframes piensa { 0%, 100% { transform: rotate(-2.5deg) } 50% { transform: rotate(2.5deg) } }
 @keyframes tambalea { 0%, 100% { transform: rotate(0) } 10% { transform: rotate(-5deg) } 20% { transform: rotate(4deg) } 30% { transform: rotate(-2deg) } 40% { transform: rotate(0) } }
