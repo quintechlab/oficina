@@ -44,6 +44,7 @@ import {
   ordenar,
   esRepoLocal,
   proyectoDesdeRepo,
+  proyectoDesdeCarpeta,
   resumen,
   talleDesdeCuerpo,
   tareaDesdeRama,
@@ -132,7 +133,11 @@ type Local = { repo: string | null; rama: string | null; archivos: string[] }
 async function leerLocal($: EngineInterface): Promise<Local> {
   const cwd = await $.session.cwd()
   const sr = await $.session.repo()
-  if (!sr) return { repo: null, rama: null, archivos: [] }
+  if (!sr) {
+    // Sin git: el nombre de la carpeta abierta (salvo la del usuario o un borrador)
+    const casa = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME')) ?? null
+    return { repo: proyectoDesdeCarpeta(cwd, casa), rama: null, archivos: [] }
+  }
   const repo = proyectoDesdeRepo(sr.root, sr.remote)
   const rama = (await git($, ['branch', '--show-current'], cwd)).trim() || null
   let archivos: string[] = []

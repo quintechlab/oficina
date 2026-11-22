@@ -11,6 +11,7 @@ import {
   envolverComentario,
   esRepoLocal,
   proyectoDesdeRepo,
+  proyectoDesdeCarpeta,
   estadoVisible,
   extraerComentario,
   formatoDuracion,
@@ -599,4 +600,18 @@ test('tras un /clear, cerrar la sesión vieja no bloquea el archivo local de la 
   // La sesión nueva que nace del /clear sí escribe: el widget la ve
   expect(puedeEscribirLocal(cerradas, 'nueva')).toBe(true)
   expect(puedeEscribirLocal(new Set(), 'nueva')).toBe(true)
+})
+
+test('sin git, el proyecto es el nombre de la carpeta abierta (salvo la carpeta del usuario o un borrador)', async () => {
+  const casa = String.raw`C:\Users\Nico`
+  expect(proyectoDesdeCarpeta(String.raw`C:\Users\Nico\OneDrive\Desktop\mi-sitio`, casa)).toBe('local/mi-sitio')
+  expect(proyectoDesdeCarpeta('C:/Users/Nico/OneDrive/Desktop/mi-sitio/', casa)).toBe('local/mi-sitio')
+  // La carpeta del usuario no es un proyecto: sigue "fuera de un repositorio"
+  expect(proyectoDesdeCarpeta(String.raw`C:\Users\Nico`, casa)).toBe(null)
+  expect(proyectoDesdeCarpeta('c:/users/nico/', casa)).toBe(null)
+  // Los borradores de la app de escritorio tampoco
+  expect(proyectoDesdeCarpeta(String.raw`C:\Users\Nico\AppData\Roaming\Claude\scratch-workspaces\a\b\scratch-2026-11-20-b87f12`, casa)).toBe(null)
+  expect(proyectoDesdeCarpeta('', casa)).toBe(null)
+  // Lo de antes sigue igual: con git manda el repo (o su carpeta si no tiene remoto)
+  expect(proyectoDesdeRepo('C:/x/central-nucleo-main', null)).toBe('local/central-nucleo-main')
 })

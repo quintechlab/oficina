@@ -46,6 +46,19 @@ export function proyectoDesdeRepo(raiz: string, remoto: string | null): string |
   return carpeta ? `${PREFIJO_LOCAL}${carpeta}` : null
 }
 
+/**
+ * Sin git: el proyecto es el nombre de la carpeta abierta (la de VS Code o la de la sesión), como un
+ * repo local. La carpeta del usuario (`casa`) y los borradores de la app de escritorio
+ * (`scratch-workspaces`) no son proyectos: quedan "fuera de un repositorio" (null).
+ */
+export function proyectoDesdeCarpeta(cwd: string, casa: string | null): string | null {
+  const limpia = (s: string) => s.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  if (!cwd.trim()) return null
+  if (casa && limpia(cwd) === limpia(casa)) return null
+  if (/[\\/]scratch-workspaces[\\/]/i.test(cwd)) return null
+  return proyectoDesdeRepo(cwd, null)
+}
+
 /** Un proyecto sin remoto en GitHub: no tiene Issues ni PRs que consultar. */
 export function esRepoLocal(repo: string | null): boolean {
   return !!repo && repo.startsWith(PREFIJO_LOCAL)
