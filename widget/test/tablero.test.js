@@ -376,3 +376,51 @@ test('con horas, el chip acorta los minutos a "m"; sin horas queda igual', () =>
   assert.match(html, /18 <span class="u">h<\/span> 43 <span class="u">m<\/span>/)
   assert.match(html, /aria-label="La sesión lleva 18 h 43 min"/)
 })
+
+// ------------------------------------------------------------------ pantalla dividida (dividida-ux.md 5.10 y 6)
+
+test('subagentesVisibles con { max: 2, conMas: 1 } (la mitad de la dividida): hasta 2 van todos; con 3 o más, el de mayor prioridad', () => {
+  const lista = [{ id: 'a', animo: 'listo' }, { id: 'b', animo: 'teEspera' }, { id: 'c', animo: 'escribiendo' }]
+  assert.deepEqual(subagentesVisibles(lista.slice(0, 2), { max: 2, conMas: 1 }).visibles.map(a => a.id), ['a', 'b'])
+  const r = subagentesVisibles(lista, { max: 2, conMas: 1 })
+  assert.deepEqual(r.visibles.map(a => a.id), ['b'])
+  assert.deepEqual(r.ocultos.map(a => a.id), ['a', 'c'])
+  assert.equal(r.resto, 2)
+})
+
+test('sin max, subagentesVisibles reparte como siempre (hasta 4 con ficha)', () => {
+  const lista = n => Array.from({ length: n }, (_, k) => ({ id: String(k), animo: 'escribiendo' }))
+  assert.equal(subagentesVisibles(lista(4)).visibles.length, 4)
+  assert.equal(subagentesVisibles(lista(5)).visibles.length, 4)
+  assert.deepEqual(subagentesVisibles(lista(5)), subagentesVisibles(lista(5), { max: MAX_SUBAGENTES_VISIBLES }))
+})
+
+test('la tarjeta con rastro activo: "⇄ conversa con …" debajo de la línea, todo celeste, con title y tiempo vivo', () => {
+  const s = { sesion: 'a', repo: 'q/tienda-web', rama: 'main', inicio: hace(42), actualizado: hace(0), agentes: [] }
+  const [p] = agruparPorProyecto([s])
+  const prep = prepararProyecto(p, AHORA)
+  const h = sesiones(prep, AHORA, new Map([['a', { clave: 'k', texto: 'conversa con api-pagos · 6 min', fin: false }]]))
+  assert.match(h, /<\/p><p class="rastro" title="⇄ conversa con api-pagos · 6 min"><span class="rastro-m" aria-hidden="true">⇄<\/span> <span data-vivo>conversa con api-pagos · 6 min<\/span><\/p><div class="esc/)
+  const fin = sesiones(prep, AHORA, new Map([['a', { clave: 'k', texto: 'habló con api-pagos · 8 min · terminó hace 1 min', fin: true }]]))
+  assert.match(fin, /<p class="rastro fin" title="⇄ habló con api-pagos · 8 min · terminó hace 1 min">/)
+})
+
+test('sin rastros, las tarjetas y su firma quedan como siempre', () => {
+  const s = { sesion: 'a', repo: 'q/oficina', rama: 'main', inicio: hace(42), actualizado: hace(0), agentes: [sub('1', 'Lucas', 'trabajando')] }
+  const [p] = agruparPorProyecto([s])
+  const prep = prepararProyecto(p, AHORA)
+  assert.equal(sesiones(prep, AHORA, new Map()), sesiones(prep, AHORA))
+  assert.doesNotMatch(sesiones(prep, AHORA), /rastro/)
+  assert.equal(firmaEscenas(p.repo, prep, new Map()), firmaEscenas(p.repo, prep))
+  assert.equal(firmaEscenas(p.repo, prep), `q/oficina/${firmaTablero(prep)}`)
+})
+
+test('la firma de las escenas cambia si aparece o termina un rastro, no con el tiempo que dice', () => {
+  const s = { sesion: 'a', repo: 'q/oficina', rama: 'main', inicio: hace(42), actualizado: hace(0), agentes: [] }
+  const [p] = agruparPorProyecto([s])
+  const prep = prepararProyecto(p, AHORA)
+  const activo = t => new Map([['a', { clave: 'k', texto: `conversa con api-pagos · ${t}`, fin: false }]])
+  assert.notEqual(firmaEscenas(p.repo, prep, activo('6 min')), firmaEscenas(p.repo, prep))
+  assert.equal(firmaEscenas(p.repo, prep, activo('6 min')), firmaEscenas(p.repo, prep, activo('7 min')))
+  assert.notEqual(firmaEscenas(p.repo, prep, new Map([['a', { clave: 'k', texto: 'x', fin: true }]])), firmaEscenas(p.repo, prep, activo('6 min')))
+})

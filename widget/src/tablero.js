@@ -46,10 +46,11 @@ export function prepararProyecto(proyecto, ahoraMs) {
  * Subagentes que se ven, los que quedan afuera y cuántos son ("+n"). Hasta
  * MAX_SUBAGENTES_VISIBLES van todos; con más, se ven `conMas` (el escenario usa 3 y la pila; el
  * pie del equipo, 4). Se eligen por prioridad (pregunta, trabajo, falló, listo, durmiendo) y se
- * muestran en el orden en que se lanzaron, para que no salten de lugar.
+ * muestran en el orden en que se lanzaron, para que no salten de lugar. `max`: hasta cuántos van
+ * todos (la mitad de la pantalla dividida usa 2 y `conMas: 1`, dividida-ux.md 6).
  */
-export function subagentesVisibles(sub, { conMas = MAX_SUBAGENTES_VISIBLES } = {}) {
-  const cupo = sub.length <= MAX_SUBAGENTES_VISIBLES ? sub.length : conMas
+export function subagentesVisibles(sub, { conMas = MAX_SUBAGENTES_VISIBLES, max = MAX_SUBAGENTES_VISIBLES } = {}) {
+  const cupo = sub.length <= max ? sub.length : conMas
   const orden = [...sub].sort((a, b) => (ORDEN_ANIMO[a.animo] ?? 5) - (ORDEN_ANIMO[b.animo] ?? 5))
   const elegidos = new Set(orden.slice(0, cupo).map(a => a.id))
   const ocultos = sub.filter(a => !elegidos.has(a.id))
@@ -64,9 +65,11 @@ export function firmaTablero(preparadas) {
 /**
  * Firma de las tarjetas escenario de un proyecto. No lleva el minuto: el tiempo que pasa se
  * reescribe en su lugar (los `data-vivo`), sin redibujar ni reiniciar los bucles ni los hilos.
+ * `rastros` (sesión → rastro, dividida-ux.md 5.10): cuenta si hay rastro y si terminó, no su texto.
  */
-export function firmaEscenas(repo, preparadas) {
-  return `${repo}/${firmaTablero(preparadas)}`
+export function firmaEscenas(repo, preparadas, rastros = new Map()) {
+  const r = preparadas.map(({ s }) => rastros.get(s.sesion)).filter(Boolean).map(x => `${x.clave}:${x.fin ? 'fin' : 'activa'}`)
+  return `${repo}/${firmaTablero(preparadas)}${r.length ? `#${r.join(',')}` : ''}`
 }
 
 /** Color de la línea de estado y del estado de un subagente (dirección, tabla 5.4). */
@@ -315,20 +318,33 @@ function escena(animo, sub, ahoraMs, base) {
  * rama, en una línea con el `title` entero. Los textos que cambian con el tiempo llevan `data-vivo`
  * (main.js los reescribe en su lugar). `k`: posición de la tarjeta (desfase de los Avis).
  */
-function tarjeta({ s, animo, sub }, ahoraMs, k) {
+/**
+ * El rastro de la conversación con otra sesión (dividida-ux.md 5.10): "⇄ conversa con api-pagos ·
+ * 6 min" en celeste, o terminada con el texto en crema2 (sin opacidad). No es un control.
+ */
+function rastro(r) {
+  if (!r) return ''
+  return `<p class="rastro${r.fin ? ' fin' : ''}" title="${escapar(`⇄ ${r.texto}`)}"><span class="rastro-m" aria-hidden="true">⇄</span> <span data-vivo>${escapar(r.texto)}</span></p>`
+}
+
+function tarjeta({ s, animo, sub }, ahoraMs, k, r) {
   const base = k * AVIS_POR_TARJETA
   const tag = s.tarea ? `<span class="tag">#${escapar(s.tarea)}</span>` : '<span class="tag sin">sin tarea</span>'
   const titulo = s.rama ? `<b${s.tarea ? '' : ' class="sin"'} title="${escapar(s.rama)}">${escapar(s.rama)}</b>` : ''
   const lleva = s.inicio ? `<span class="lleva"><span class="oculto">lleva </span><span data-vivo>${escapar(tiempoRelativo(s.inicio, ahoraMs))}</span></span>` : ''
   return `<article class="ses"><div class="ses-cab"><h3 class="ses-tit">${tag}${titulo}</h3>${lleva}</div>`
     + `<p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span><span data-vivo>${escapar(textoActividad(s, ahoraMs))}</span></p>`
+    + rastro(r)
     + escena(animo, sub, ahoraMs, base)
     + '</article>'
 }
 
-/** Las tarjetas de sesión del proyecto, en el orden de `agruparPorProyecto`. */
-export function sesiones(preparadas, ahoraMs) {
-  return preparadas.map((p, k) => tarjeta(p, ahoraMs, k)).join('')
+/**
+ * Las tarjetas de sesión del proyecto, en el orden de `agruparPorProyecto`. `rastros`: sesión →
+ * rastro de su conversación con otra sesión (`rastroConversa` de dividida.js), si tiene.
+ */
+export function sesiones(preparadas, ahoraMs, rastros = new Map()) {
+  return preparadas.map((p, k) => tarjeta(p, ahoraMs, k, rastros.get(p.s.sesion))).join('')
 }
 
 /** El Avi de Claude de 120 del vacío (`durmiendo`) o de la carga (`esperando`): está solo, lleva nombre. */
