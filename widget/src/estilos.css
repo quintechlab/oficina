@@ -1203,3 +1203,39 @@ body.pausa .drena { visibility: hidden }
 
 /* Las piezas mono de la pantalla dividida, Martian Mono angosta: al final, por la misma razón que la lista de arriba */
 .ses > .rastro, .rot-c, .conv em, .tok-ic, .insig, .cab .kick, .pest em, .rotulo-d em, .turno, .pild, .u-d, .ficha-u small { font-stretch: 75% }
+
+/* ------------------------------------------------------------------ detalle del subagente (#14)
+   El Avi y su rótulo son un botón del tamaño de su ranura; el detalle se despliega debajo del
+   escenario, dentro de la tarjeta, con una flecha hacia el Avi elegido. Uno abierto por vez. */
+.esc .sub-boton { position: absolute; inset: 0; padding: 0; border: 0; border-radius: var(--r-ficha); background: none; color: inherit; font: inherit; text-align: inherit; cursor: pointer }
+.esc .sub-boton:focus-visible { outline: 2px solid var(--c, var(--ambar)); outline-offset: 2px }
+.esc .sub-boton[aria-expanded="true"] .fig { transform: translateY(-3px) }
+.esc .sub-boton[aria-expanded="true"]::after { content: ""; position: absolute; left: 50%; bottom: -4px; width: 18px; height: 2px; margin-left: -9px; border-radius: var(--r-pildora); background: var(--c) }
+.det-sub { position: relative; width: var(--ancho-escena); margin: var(--e-3) 0 var(--e-4); padding: var(--e-5) var(--e-6) var(--e-6); background: var(--s2); border: 1px solid var(--linea-hover); border-radius: var(--r-cuadro); box-sizing: border-box }
+.det-sub::before { content: ""; position: absolute; top: -6px; left: calc(var(--flecha) - 5px); width: 10px; height: 10px; background: var(--s2); border-left: 1px solid var(--linea-hover); border-top: 1px solid var(--linea-hover); transform: rotate(45deg) }
+.det-cab { display: flex; align-items: baseline; gap: var(--e-3); min-width: 0 }
+.det-cab b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--t-cuerpo-f); color: var(--c) }
+.det-tipo { flex: none; font: var(--t-mono-s); color: var(--crema2) }
+.det-estado { flex: none; margin-left: auto; font: var(--t-mono-s); color: var(--ce, var(--ambar)); white-space: nowrap }
+.det-tarea { margin-top: var(--e-2); font: var(--t-cuerpo); color: var(--crema); overflow-wrap: anywhere }
+.det-ahora { display: flex; align-items: baseline; gap: var(--e-3); margin-top: var(--e-4); font: var(--t-cuerpo-f); color: var(--crema); min-width: 0 }
+.det-ahora > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.det-rot { flex: none; font: var(--t-rotulo); color: var(--crema2); text-transform: uppercase; letter-spacing: .06em }
+p.det-rot { margin-top: var(--e-5) }
+.det-pasos { display: grid; gap: 3px; margin-top: var(--e-3); list-style: none }
+.det-pasos li { display: flex; align-items: baseline; justify-content: space-between; gap: var(--e-4); min-width: 0; font: var(--t-chico); color: var(--crema2) }
+.det-pasos li:first-child { color: var(--crema) }
+.det-pasos li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.det-pasos time { flex: none; font: var(--t-mono-s); color: var(--crema2) }
+.det-vacio { margin-top: var(--e-3); font: var(--t-chico); color: var(--crema2) }
+.det-tipo, .det-estado, .det-rot, .det-pasos time { font-stretch: 75% }
+/* Solo al abrir (main.js pone .entra): baja desde el Avi y los pasos entran en escalera */
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .det-sub.entra { animation: despliega var(--d-abre) var(--ease) both; transform-origin: var(--flecha) 0 }
+  body:not(.pausa) .det-sub.entra .det-pasos li { animation: sube var(--d-entrada) var(--ease) both }
+  body:not(.pausa) .det-sub.entra .det-pasos li:nth-child(2) { animation-delay: 45ms }
+  body:not(.pausa) .det-sub.entra .det-pasos li:nth-child(3) { animation-delay: 90ms }
+  body:not(.pausa) .det-sub.entra .det-pasos li:nth-child(4) { animation-delay: 135ms }
+  body:not(.pausa) .det-sub.entra .det-pasos li:nth-child(5) { animation-delay: 180ms }
+}
+@keyframes despliega { from { opacity: 0; transform: translateY(-6px) scale(.98) } }
