@@ -87,6 +87,10 @@ function estadoMod(r, e) {
   const m = r.mod ?? {}
   if (m.activo) {
     const ahora = e?.fase === 'hecho' && e.accion === 'mod'
+    // Prendido con el clic: ya estaba instalado, decir "instalado" confunde
+    if (e?.fase === 'hecho' && e.accion === 'activar') {
+      return { estado: 'hecho', pose: 'listo', chip: 'listo', titulo: 'El mod quedó prendido', texto: `oficina ${m.version} · prendido en Claude Code.` }
+    }
     return {
       estado: 'hecho', pose: 'listo', chip: 'listo', titulo: 'El mod quedó instalado',
       texto: ahora ? `oficina ${m.version} · para tu usuario.` : `Ya estaba instalado · oficina ${m.version}.`,
