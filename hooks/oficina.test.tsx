@@ -602,15 +602,14 @@ test('tras un /clear, cerrar la sesión vieja no bloquea el archivo local de la 
   expect(puedeEscribirLocal(new Set(), 'nueva')).toBe(true)
 })
 
-test('sin git, el proyecto es el nombre de la carpeta abierta (salvo la carpeta del usuario o un borrador)', async () => {
+test('sin git, el proyecto es siempre el nombre de la carpeta abierta: nada queda "fuera de un repositorio"', async () => {
   const casa = String.raw`C:\Users\Nico`
   expect(proyectoDesdeCarpeta(String.raw`C:\Users\Nico\OneDrive\Desktop\mi-sitio`, casa)).toBe('local/mi-sitio')
   expect(proyectoDesdeCarpeta('C:/Users/Nico/OneDrive/Desktop/mi-sitio/', casa)).toBe('local/mi-sitio')
-  // La carpeta del usuario no es un proyecto: sigue "fuera de un repositorio"
-  expect(proyectoDesdeCarpeta(String.raw`C:\Users\Nico`, casa)).toBe(null)
-  expect(proyectoDesdeCarpeta('c:/users/nico/', casa)).toBe(null)
-  // Los borradores de la app de escritorio tampoco
-  expect(proyectoDesdeCarpeta(String.raw`C:\Users\Nico\AppData\Roaming\Claude\scratch-workspaces\a\b\scratch-2026-11-20-b87f12`, casa)).toBe(null)
+  // También la carpeta del usuario y los borradores de la app de escritorio: cada uno su solapa
+  expect(proyectoDesdeCarpeta(String.raw`C:\Users\Nico`, casa)).toBe('local/Nico')
+  expect(proyectoDesdeCarpeta(String.raw`C:\Users\Nico\AppData\Roaming\Claude\scratch-workspaces\a\b\scratch-2026-11-20-b87f12`, casa)).toBe('local/scratch-2026-11-20-b87f12')
+  // Solo sin carpeta no hay proyecto
   expect(proyectoDesdeCarpeta('', casa)).toBe(null)
   // Lo de antes sigue igual: con git manda el repo (o su carpeta si no tiene remoto)
   expect(proyectoDesdeRepo('C:/x/central-nucleo-main', null)).toBe('local/central-nucleo-main')

@@ -509,7 +509,7 @@ async function iniciar($: EngineInterface): Promise<string> {
 }
 
 const AYUDA = [
-  '/avis            abre el panel',
+  '/avis            muestra esta ayuda (el panel está en Avis, el widget de escritorio)',
   '/avis tarea 42   fija la tarea actual (auto: volver a detectarla por la rama)',
   '/avis nota texto deja una nota visible para el otro (nota - la borra)',
   '/avis fuera      marca que te vas; /avis volver te marca trabajando',
@@ -533,11 +533,8 @@ export const register: Register = (on, options) => {
     await $.command.register({ name: 'avis', description: 'Avis de Quintech: quién trabaja en qué', argumentHint })
     await $.command.register({ name: 'oficina', description: 'Lo mismo que /avis (nombre anterior)', argumentHint })
     const resultado = await next(e)
-    // Siempre, no solo si `isInteractive`: la sesión de la app de escritorio llega como SDK (false).
-    void (async () => {
-      const abierto = await $.ui.open({ id: PANE, title: TITULO }).catch(() => ({ isPlaced: false }))
-      if (!abierto.isPlaced) $.ui.toast('Avis: escribí /avis para abrir el panel', { timeoutMs: 8000 })
-    })()
+    // Sin panel en la sesión (pedido del usuario, 22/11: "ahora lo voy a ver todo desde avis"): el mod
+    // solo publica lo que muestra el widget de escritorio Avis
     void arrancar($)
     return resultado
   })
@@ -548,9 +545,9 @@ export const register: Register = (on, options) => {
     const ajustes = ((await $.store.get('ajustes')) as Ajustes | undefined) ?? {}
     switch ((verbo ?? '').toLowerCase()) {
       case '':
-        await $.ui.open({ id: PANE, title: TITULO })
+        // El panel vive en el widget de escritorio Avis, no en la sesión
         void refrescar($)
-        return { text: 'Avis abierto.' }
+        return { text: `El panel ahora está en Avis, el widget de escritorio.\n\n${AYUDA}` }
       case 'ayuda':
       case 'help':
         return { text: AYUDA }

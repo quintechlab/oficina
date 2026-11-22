@@ -48,14 +48,12 @@ export function proyectoDesdeRepo(raiz: string, remoto: string | null): string |
 
 /**
  * Sin git: el proyecto es el nombre de la carpeta abierta (la de VS Code o la de la sesión), como un
- * repo local. La carpeta del usuario (`casa`) y los borradores de la app de escritorio
- * (`scratch-workspaces`) no son proyectos: quedan "fuera de un repositorio" (null).
+ * repo local, siempre, también la carpeta del usuario y los borradores de la app de escritorio:
+ * cada sesión va a su propia solapa (pedido del usuario, 22/11: sin "fuera de un repositorio").
+ * Solo sin carpeta (null) queda sin proyecto. `casa` queda por compatibilidad.
  */
-export function proyectoDesdeCarpeta(cwd: string, casa: string | null): string | null {
-  const limpia = (s: string) => s.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+export function proyectoDesdeCarpeta(cwd: string, _casa?: string | null): string | null {
   if (!cwd.trim()) return null
-  if (casa && limpia(cwd) === limpia(casa)) return null
-  if (/[\\/]scratch-workspaces[\\/]/i.test(cwd)) return null
   return proyectoDesdeRepo(cwd, null)
 }
 
