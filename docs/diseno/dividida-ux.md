@@ -212,7 +212,7 @@ Si llega una pregunta en **cualquier** proyecto (incluidos los dos que conversan
 |---|---|---|---|---|
 | 1 | Pregunta propia pendiente | `teEspera` | "ahora · te hace una pregunta" | ámbar |
 | 2 | Le escribió al otro y el otro no contestó, y Claude no hace otra cosa que coordinar o esperar (`animoSesion` es `coordinando`, `esperando` o `pensando`) | `pensando` | "⇄ esperando a api-pagos · 40 s" | celeste |
-| 3 | El otro le contestó hace menos de 10 s | la de `animoSesion` | "⇄ api-pagos le contestó" | celeste |
+| 3 | El otro le escribió hace menos de 10 s | la de `animoSesion` | "⇄ api-pagos le escribió" (el mensaje que abre la conversación) o "⇄ api-pagos le contestó" (los demás) | celeste |
 | 4 | Si no | la de `animoSesion` | `textoActividad` de hoy | `colorEstado` de hoy |
 
 - La 2 le gana a "coordinando el equipo" **solo dentro de la mitad**: el tema de la dividida es la conversación, y los hilos ámbar siguen mostrando que su equipo trabaja. Una actividad concreta (editando, corriendo, leyendo, procesos) le gana a la 2.

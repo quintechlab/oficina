@@ -282,6 +282,9 @@ test('línea de la mitad 3: el otro le contestó hace menos de 10 s; después, l
   const recien = { ...conv, ultimo: { emisor: 't', cuando: haceS(4) }, turno: 'p' }
   const l = lineaConversa(ses('p', PAGOS, { actividad: 'leyendo pago.ts' }), recien, AHORA, nombre)
   assert.deepEqual(l, { animo: 'leyendo', texto: 'tienda-web le contestó', color: 'var(--celeste)', conversa: true })
+  // El primer mensaje de la conversación no es una respuesta: "le escribió"
+  const primero = { ...conv, desde: haceS(4), empezo: 't', ultimo: { emisor: 't', cuando: haceS(4) }, turno: 'p' }
+  assert.equal(lineaConversa(ses('p', PAGOS, { actividad: 'leyendo pago.ts' }), primero, AHORA, nombre).texto, 'tienda-web le escribió')
   const tarde = lineaConversa(ses('p', PAGOS, { actividad: 'leyendo pago.ts' }), conv, AHORA, nombre)
   assert.deepEqual(tarde, { animo: 'leyendo', texto: 'ahora · leyendo pago.ts', color: 'var(--celeste)', conversa: false })
 })

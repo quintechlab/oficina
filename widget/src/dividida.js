@@ -235,7 +235,9 @@ export function lineaConversa(s, conv, ahoraMs, nombre) {
     return { animo: 'pensando', texto: `esperando a ${nombre(otro)} · ${duracionCorta(hace)}`, color: CELESTE, conversa: true }
   }
   if (conv.ultimo.emisor === otro && hace < CONTESTO_MS) {
-    return { animo, texto: `${nombre(otro)} le contestó`, color: CELESTE, conversa: true }
+    // El mensaje que abre la conversación no es una respuesta
+    const abre = conv.empezo === otro && ms(conv.ultimo.cuando) === ms(conv.desde)
+    return { animo, texto: `${nombre(otro)} ${abre ? 'le escribió' : 'le contestó'}`, color: CELESTE, conversa: true }
   }
   return hoy
 }
