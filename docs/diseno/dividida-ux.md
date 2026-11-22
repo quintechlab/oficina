@@ -596,3 +596,13 @@ El usuario aceptó todas las recomendaciones de esta dirección:
 7. **Ficha terminada** 5 min en la barra; el rastro, 30 min.
 
 Queda para el mod (no es de diseño): cómo detecta el inicio, cada mensaje y el fin de una conversación entre sesiones, y cómo sabe el `con` de la otra.
+
+## 18. Ajustes de la revisión (2026-11-22)
+
+Revisión de diseño después de la implementación: aprobada con cambios. El usuario aceptó las tres propuestas:
+
+1. **Una sesión se da por ida a las 2 lecturas seguidas sin ella** (`LECTURAS_PARA_CERRAR`, unos 3 s), no a la primera: una sola lectura puede ser su archivo a medio escribir, y cerrar ahí hacía volver la vista antes de tiempo. Corrige la regla de 13.3.
+2. **Todas las etiquetas nombran el par en el orden del título** (pestañas, riel, fichas "Conversan" y anuncios): primero el lado izquierdo (`ladoIzquierdo` con el proyecto visto, `primeroDe`); sin un proyecto visto en el par, quien empezó.
+3. **La ficha "Conversan" dice "ahora" en el primer minuto**, después "1 min", "6 min"…
+
+Además se corrigieron las letras cortadas de las pestañas y de "‹ vista anterior" (alto de línea) y el rótulo de la ranura de afuera, que se salía 3 px de su mitad: ahora queda entre 0 y 208 (sección 6).

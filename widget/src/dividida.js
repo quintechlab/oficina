@@ -102,6 +102,19 @@ const misma = (g, p) => p.par.join('|') === g.par.join('|')
  * (`previas`), así la clave no salta y una conversación cuya sesión se fue sigue como terminada
  * hasta que vence su rastro (30 min). Una sesión que nunca se vio es "sin datos", no "se cerró".
  */
+/**
+ * Una sesión se da por ida cuando falta en estas lecturas seguidas (3 s): una sola lectura sin ella
+ * puede ser su archivo a medio escribir, y cerrar ahí hacía volver la vista antes de tiempo.
+ */
+export const LECTURAS_PARA_CERRAR = 2
+
+/** Cuántas lecturas seguidas falta cada sesión vista; vuelve a 0 cuando aparece. */
+function contarFaltas(previas, vistos, presentes) {
+  return Object.fromEntries(vistos.map(id => [id, presentes.has(id) ? 0 : (previas?.[id] ?? 0) + 1]))
+}
+
+const idasDe = faltan => Object.keys(faltan).filter(id => faltan[id] >= LECTURAS_PARA_CERRAR).sort()
+
 export function conversaciones(sesiones, ahoraMs, previas = []) {
   const porId = new Map(sesiones.map(s => [s.sesion, s]))
   const presentes = new Set(porId.keys())
@@ -121,19 +134,20 @@ export function conversaciones(sesiones, ahoraMs, previas = []) {
     const repos = { ...(previa?.repos ?? {}), ...g.repos }
     for (const id of g.par) if (presentes.has(id)) repos[id] = porId.get(id).repo ?? null
 
+    const faltan = contarFaltas(previa?.faltan, vistos, presentes)
     let hasta = null, motivo = null, cerradas = []
     if (previa?.hasta && !(ms(ultimo.cuando) > ms(previa.hasta))) {
       ({ hasta, motivo, cerradas } = previa)
     } else {
       const quieta = ms(ultimo.cuando) + MINUTOS_CONVERSA_QUIETA * MIN
-      const idas = vistos.filter(id => !presentes.has(id))
+      const idas = idasDe(faltan)
       if (ahoraMs >= quieta) { hasta = iso(quieta); motivo = 'quieta' }
       else if (idas.length) { hasta = iso(ahoraMs); motivo = 'cerro'; cerradas = idas }
     }
     salida.push({
       clave: previa?.clave ?? claveConversa(g.par[0], g.par[1], iso(desde)),
       par: g.par, a: g.par[0], b: g.par[1], desde: iso(desde), empezo, ultimo,
-      turno: ultimo.emisor === g.par[0] ? g.par[1] : g.par[0], hasta, motivo, cerradas, vistos, repos,
+      turno: ultimo.emisor === g.par[0] ? g.par[1] : g.par[0], hasta, motivo, cerradas, vistos, repos, faltan,
     })
   }
 
@@ -141,8 +155,12 @@ export function conversaciones(sesiones, ahoraMs, previas = []) {
   for (const p of previas) {
     if (usadas.has(p.clave)) continue
     if (p.hasta) { salida.push(p); continue }
-    const idas = p.vistos.filter(id => !presentes.has(id))
-    salida.push({ ...p, hasta: iso(ahoraMs), motivo: idas.length ? 'cerro' : 'quieta', cerradas: idas })
+    const faltan = contarFaltas(p.faltan, p.vistos, presentes)
+    const idas = idasDe(faltan)
+    const ausentes = p.vistos.filter(id => !presentes.has(id))
+    // Falta alguna, pero todavía no las lecturas que hacen falta: sigue como estaba
+    if (ausentes.length && !idas.length) { salida.push({ ...p, faltan }); continue }
+    salida.push({ ...p, faltan, hasta: iso(ahoraMs), motivo: idas.length ? 'cerro' : 'quieta', cerradas: idas })
   }
 
   return salida
@@ -182,6 +200,15 @@ export function debeAbrirseSola(conv, ctx) {
   if (ctx.focoEnCampo || ctx.arrastre) return 'no'
   if (ctx.descartadas.has(conv.clave)) return 'no'
   return 'abrir'
+}
+
+/**
+ * Quién se nombra primero en las etiquetas (pestañas, riel, fichas, anuncios): el lado izquierdo
+ * del título (`primero`, lo pone main.js con `ladoIzquierdo`), o quien empezó si no lo tiene.
+ * Así todas dicen el par en el mismo orden que el h1 (revisión de Delfina, 22/11).
+ */
+export function primeroDe(conv) {
+  return conv.primero ?? conv.empezo
 }
 
 /** La sesión de la mitad izquierda (13.3): la del proyecto de la vista anterior si es uno solo de los dos; si no, quien empezó. */
@@ -290,20 +317,20 @@ export function textoSub(conv, { ahoraMs, recienSola, vista, cuenta, siguiente, 
   return `${cabeza} · vuelve a ${vista} en ${s} s`
 }
 
-/** Nombre accesible de una ficha de la barra (5.9). Primero quien empezó. */
+/** Nombre accesible de una ficha de la barra (5.9). Primero el lado izquierdo (`primeroDe`). */
 export function textoFicha(conv, ahoraMs, nombre, { nuevo = false } = {}) {
-  const otro = otroDe(conv, conv.empezo)
-  return `Conversación de ${nombre(conv.empezo)} con ${nombre(otro)}, desde las ${horaCorta(conv.desde)}, último mensaje ${haceCorto(conv.ultimo.cuando, ahoraMs)}${nuevo ? ', mensaje nuevo' : ''}. Abrir`
+  const otro = otroDe(conv, primeroDe(conv))
+  return `Conversación de ${nombre(primeroDe(conv))} con ${nombre(otro)}, desde las ${horaCorta(conv.desde)}, último mensaje ${haceCorto(conv.ultimo.cuando, ahoraMs)}${nuevo ? ', mensaje nuevo' : ''}. Abrir`
 }
 
 /** Aviso en vivo, una vez, cuando empieza (12). */
 export function anuncioEmpieza(conv, nombre, sola) {
-  return `${nombre(conv.empezo)} y ${nombre(otroDe(conv, conv.empezo))} empezaron a conversar${sola ? ', se abrió la pantalla dividida' : ''}`
+  return `${nombre(primeroDe(conv))} y ${nombre(otroDe(conv, primeroDe(conv)))} empezaron a conversar${sola ? ', se abrió la pantalla dividida' : ''}`
 }
 
 /** Aviso en vivo, una vez, cuando termina la que se mira (12). */
 export function anuncioTermina(conv, nombre, vista) {
-  return `Terminó la conversación entre ${nombre(conv.empezo)} y ${nombre(otroDe(conv, conv.empezo))}. Vuelve a ${vista} en ${ESPERA_VUELTA_MS / SEG} segundos.`
+  return `Terminó la conversación entre ${nombre(primeroDe(conv))} y ${nombre(otroDe(conv, primeroDe(conv)))}. Vuelve a ${vista} en ${ESPERA_VUELTA_MS / SEG} segundos.`
 }
 
 /**
@@ -325,6 +352,8 @@ const pie = t => Math.round(t * 0.867)
 const coronilla = t => Math.round(t * 0.26)
 /** Claude queda a 16 px de la costura. */
 const MARGEN_CLAUDE = 16
+/** El rótulo de un subagente: centrado en su Avi, pero nunca afuera de su mitad. */
+const ANCHO_ROTULO = 64
 
 /** Una mitad: Claude, su antena, las ranuras del elenco (de afuera hacia Claude) y la pila. */
 function geometriaLado(izq, n) {
@@ -334,7 +363,7 @@ function geometriaLado(izq, n) {
   const afuera = izq ? D.borde : D.mitad - D.borde - D.sub
   const cerca = izq ? afuera + D.ranura : afuera - D.ranura
   const y = D.piso - pie(D.sub)
-  const ranura = x => ({ x, y, t: D.sub, destino: { x: x + D.sub / 2, y: y + coronilla(D.sub) }, rotulo: { x: x - 9, y: D.piso + 4, ancho: 64 } })
+  const ranura = x => ({ x, y, t: D.sub, destino: { x: x + D.sub / 2, y: y + coronilla(D.sub) }, rotulo: { x: Math.min(Math.max(x - 9, 0), D.mitad - ANCHO_ROTULO), y: D.piso + 4, ancho: ANCHO_ROTULO } })
   const xs = n === 0 ? [] : n === 1 ? [afuera] : n === 2 ? [afuera, cerca] : [cerca]
   return { claude, antena, luz: antena.x, ranuras: xs.map(ranura), pila: n > 2 ? ranura(afuera) : null }
 }

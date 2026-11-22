@@ -3,7 +3,7 @@
 // 5.7, 5.10), la geometría de la mitad (6) y la cuenta de la vuelta (10). Funciones puras de dividida.js.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import {
+import { LECTURAS_PARA_CERRAR, primeroDe,
   DIVIDIDA, MINUTOS_CONVERSA_QUIETA, ESPERA_VUELTA_MS, conversaciones, claveConversa, conversacionesNuevas, mensajesNuevos,
   convsVisibles, debeAbrirseSola, ladoIzquierdo, nombreLado, lineaConversa, textoTurno, textoCostura, textoUltimo, textoSub,
   textoFicha, haceCorto, duracionCorta, horaCorta, rastroConversa, geometriaDividida, cuentaVuelta, anuncioEmpieza, anuncioTermina,
@@ -86,26 +86,42 @@ test('termina a los 5 min sin mensajes: hasta = último + 5 min, motivo "quieta"
   assert.equal(d.hasta, null)
 })
 
-test('termina si una de las dos sesiones desaparece de la lectura: hasta = esa lectura, motivo "cerro"', () => {
+test('termina si una de las dos sesiones falta en 2 lecturas seguidas: hasta = la segunda, motivo "cerro"', () => {
+  assert.equal(LECTURAS_PARA_CERRAR, 2)
   const antes = conversaciones(unLado(), AHORA - 1500)
   const sinTienda = [ses('p', PAGOS, { conversa: [recibida('t', TIENDA, haceM(6), haceS(40))] })]
-  const [c] = conversaciones(sinTienda, AHORA, antes)
+  // La primera lectura sin ella todavía no la cierra (puede ser un archivo a medio escribir)
+  const [una] = conversaciones(sinTienda, AHORA, antes)
+  assert.equal(una.clave, antes[0].clave)
+  assert.deepEqual([una.hasta, una.motivo], [null, null])
+  const [c] = conversaciones(sinTienda, AHORA + 1500, [una])
   assert.equal(c.clave, antes[0].clave)
-  assert.equal(c.hasta, iso(AHORA))
+  assert.equal(c.hasta, iso(AHORA + 1500))
   assert.equal(c.motivo, 'cerro')
   assert.deepEqual(c.cerradas, ['t'])
-  // la lectura siguiente conserva el hasta de la lectura en que desapareció
-  const [d] = conversaciones(sinTienda, AHORA + 1500, [c])
-  assert.equal(d.hasta, iso(AHORA))
+  // la lectura siguiente conserva el hasta de la lectura en que se dio por ida
+  const [d] = conversaciones(sinTienda, AHORA + 3000, [c])
+  assert.equal(d.hasta, iso(AHORA + 1500))
 })
 
-test('si se va la sesión que publicaba, la conversación queda en memoria como cerrada', () => {
+test('una sesión que falta en una sola lectura y vuelve no cierra la conversación', () => {
   const antes = conversaciones(unLado(), AHORA - 1500)
-  const [c] = conversaciones([ses('t', TIENDA)], AHORA, antes)
+  const sinTienda = [ses('p', PAGOS, { conversa: [recibida('t', TIENDA, haceM(6), haceS(40))] })]
+  const [una] = conversaciones(sinTienda, AHORA, antes)
+  const [vuelve] = conversaciones(unLado(), AHORA + 1500, [una])
+  const [otraFalta] = conversaciones(sinTienda, AHORA + 3000, [vuelve])
+  assert.deepEqual([vuelve.hasta, otraFalta.hasta], [null, null])
+})
+
+test('si se va la sesión que publicaba, a la segunda lectura la conversación queda en memoria como cerrada', () => {
+  const antes = conversaciones(unLado(), AHORA - 1500)
+  const [una] = conversaciones([ses('t', TIENDA)], AHORA, antes)
+  assert.equal(una.hasta, null)
+  const [c] = conversaciones([ses('t', TIENDA)], AHORA + 1500, [una])
   assert.equal(c.clave, antes[0].clave)
   assert.equal(c.motivo, 'cerro')
   assert.deepEqual(c.cerradas, ['p'])
-  assert.equal(c.hasta, iso(AHORA))
+  assert.equal(c.hasta, iso(AHORA + 1500))
 })
 
 test('una sesión que nunca se vio (otra máquina) no cierra la conversación: es "sin datos"', () => {
@@ -386,6 +402,13 @@ test('geometría con 1 y 2 subagentes: la ranura de afuera primero, el destino d
   assert.deepEqual(dos.der.ranuras.map(r => r.x), [220, 158])
   assert.deepEqual(dos.izq.ranuras[1], { x: 68, y: 124, t: 46, destino: { x: 91, y: 136 }, rotulo: { x: 59, y: 168, ancho: 64 } })
   assert.equal(dos.izq.pila, null)
+  // El rótulo (64 de ancho) nunca se sale de su mitad de 272, ni en la ranura de afuera
+  for (const g of [uno, dos, geometriaDividida(3, 3)]) {
+    for (const r of [...g.izq.ranuras, ...g.der.ranuras, g.izq.pila, g.der.pila].filter(Boolean)) {
+      assert.ok(r.rotulo.x >= 0 && r.rotulo.x + r.rotulo.ancho <= 272, `rótulo en ${r.rotulo.x}`)
+    }
+  }
+  assert.deepEqual([dos.izq.ranuras[0].rotulo.x, dos.der.ranuras[0].rotulo.x], [0, 208])
 })
 
 test('geometría con 3 o más: un Avi en la ranura de Claude y la pila "+n" en la de afuera', () => {
@@ -479,4 +502,30 @@ test('esperaRespuesta: mandó el último y solo coordina, espera o piensa (para 
   assert.equal(esperaRespuesta(ses('p', PAGOS), conv, AHORA), false)
   assert.equal(esperaRespuesta(ses('t', TIENDA), { ...conv, hasta: haceS(1) }, AHORA), false)
   assert.equal(esperaRespuesta(undefined, conv, AHORA), false)
+})
+
+test('todas las etiquetas nombran el par en el orden del título: primero el lado izquierdo (`primero`)', async () => {
+  const { pestanas, fichasConversan } = await import('../src/divididaVista.js')
+  // Sin `primero` (nadie miraba uno de los dos), primero quien empezó: lo de antes
+  assert.equal(primeroDe(conv), conv.empezo)
+  const izqPagos = { ...conv, primero: 'p' }
+  assert.equal(primeroDe(izqPagos), 'p')
+  assert.match(textoFicha(izqPagos, AHORA, nombre), /^Conversación de api-pagos con tienda-web,/)
+  assert.equal(anuncioEmpieza(izqPagos, nombre, false), 'api-pagos y tienda-web empezaron a conversar')
+  assert.equal(anuncioTermina(izqPagos, nombre, 'api-pagos'), 'Terminó la conversación entre api-pagos y tienda-web. Vuelve a api-pagos en 60 segundos.')
+  const otra = { ...conv, clave: 'k2', a: 'a', b: 't', par: ['a', 't'], empezo: 'a', repos: { a: ADMIN, t: TIENDA } }
+  assert.match(pestanas([izqPagos, otra], { activa: izqPagos.clave, nuevas: new Set(), nombre }), /tabindex="0" data-accion="pest" data-clave="[^"]+"><span class="n">api-pagos<\/span>/)
+  const porId = new Map(unLado().map(s => [s.sesion, s]))
+  assert.match(fichasConversan([izqPagos], { ahoraMs: AHORA, porId, nombre, nuevas: new Set() }), /<b title="[^"]*">api-pagos<\/b><span title="[^"]*">⇄ tienda-web<\/span>/)
+})
+
+test('la ficha "Conversan" dice "ahora" en el primer minuto; después, cuánto lleva', async () => {
+  const { fichasConversan } = await import('../src/divididaVista.js')
+  const porId = new Map(unLado().map(s => [s.sesion, s]))
+  const dura = c => fichasConversan([c], { ahoraMs: AHORA, porId, nombre, nuevas: new Set() }).match(/<em aria-hidden="true" data-vivo>([^<]*)<\/em>/)[1]
+  assert.equal(dura({ ...conv, desde: haceS(0) }), 'ahora')
+  assert.equal(dura({ ...conv, desde: haceS(20) }), 'ahora')
+  assert.equal(dura({ ...conv, desde: haceS(59) }), 'ahora')
+  assert.equal(dura({ ...conv, desde: haceM(6) }), '6 min')
+  assert.equal(dura({ ...conv, hasta: haceS(10) }), 'terminó')
 })

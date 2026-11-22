@@ -38,7 +38,7 @@ import {
 } from './resumen.js'
 import * as movimientoResumen from './resumenMotion.js'
 import {
-  conversaciones, conversacionesNuevas, mensajesNuevos, convsVisibles, debeAbrirseSola, ladoIzquierdo, nombreLado, textoSub,
+  conversaciones, conversacionesNuevas, mensajesNuevos, convsVisibles, debeAbrirseSola, ladoIzquierdo, primeroDe, nombreLado, textoSub,
   geometriaDividida, cuentaVuelta, rastroConversa, anuncioEmpieza, anuncioTermina, esperaRespuesta, RECIEN_SOLA_MS, CONTESTO_MS, ESPERA_VUELTA_MS,
 } from './dividida.js'
 import { fichasConversan, riel, cabConversa, pestanas as pestanasConv, mitades, firmaMitades, puente, fichaUltimo } from './divididaVista.js'
@@ -624,6 +624,8 @@ function actualizarConversaciones(ahora) {
   const nuevas = conversacionesNuevas(d.conocidas, convs)
   const mensajes = mensajesNuevos(d.ultimos, convs)
   d.convs = convs
+  // Las etiquetas nombran el par en el orden del título: el lado izquierdo con el proyecto visto
+  for (const c of convs) c.primero = d.izq.get(c.clave) ?? ladoIzquierdo(c, d.clave ? d.vista?.repo : st.repo)
   d.conocidas = new Set(convs.map(c => c.clave))
   d.ultimos = new Map(convs.map(c => [c.clave, c.ultimo.cuando]))
   const pid = sesionesPorId()
@@ -929,7 +931,7 @@ function pintarDividida(ahora) {
   const sub = textoSub(actual, {
     ahoraMs: ahora, recienSola: d.origen === 'sola' && ahora - d.abiertaEn < RECIEN_SOLA_MS, vista: vistaN,
     cuenta: d.cuenta && { restante, pausada: d.dentro }, nombre: n,
-    siguiente: sigue ? `${nombreLado(sigue, sigue.empezo, pid)} ⇄ ${nombreLado(sigue, sigue.empezo === sigue.a ? sigue.b : sigue.a, pid)}` : null,
+    siguiente: sigue ? `${nombreLado(sigue, primeroDe(sigue), pid)} ⇄ ${nombreLado(sigue, primeroDe(sigue) === sigue.a ? sigue.b : sigue.a, pid)}` : null,
   })
   poner('#cab-conv', cabConversa(actual, izq, { nombre: n, sub }), `${actual.clave}|${izq}|${n(actual.a)}|${n(actual.b)}`)
   texto('#sub-c', sub)

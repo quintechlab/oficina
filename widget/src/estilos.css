@@ -1072,7 +1072,7 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .bt-p:active, body.pausa .bt-s
 }
 /* Zona de toque de 44 sobre los 34 dibujados */
 .volver::before { content: ""; position: absolute; inset: -5px 0 }
-.volver .n { display: inline-block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom }
+.volver .n { display: inline-block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; line-height: 1.4 }
 .volver:hover { border-color: var(--linea-hover); background: var(--s2) }
 .volver:active { transform: scale(.97) }
 .volver.ahora { border-color: var(--celeste); background: var(--celeste-osc); color: var(--celeste) }
@@ -1090,7 +1090,7 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .bt-p:active, body.pausa .bt-s
   transition: border-color var(--d-color) ease, transform var(--d-presion) ease;
 }
 .pest::before { content: ""; position: absolute; inset: -5px 0 }
-.pest .n { max-width: 140px; overflow: hidden; text-overflow: ellipsis }
+.pest .n { max-width: 140px; overflow: hidden; text-overflow: ellipsis; line-height: 1.3 }
 .pest i { font-style: normal; color: var(--celeste) }
 .pest:hover { border-color: var(--linea-hover) }
 .pest:active { transform: scale(.97) }

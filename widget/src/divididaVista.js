@@ -7,7 +7,7 @@
 import { avi, CLAUDE } from './avis.js'
 import { escapar, nombreProyecto, preguntasPendientes, tiempoSubagente, tituloActividad, plural } from './logica.js'
 import { ANIMO, colorProyecto, iniciales, estadoCorto, colorEstado, trazoHilo, subagentesVisibles, textoMas, prepararProyecto } from './tablero.js'
-import { DIVIDIDA, lineaConversa, textoTurno, textoCostura, textoUltimo, textoFicha, horaCorta, duracionCorta } from './dividida.js'
+import { DIVIDIDA, primeroDe, lineaConversa, textoTurno, textoCostura, textoUltimo, textoFicha, horaCorta, duracionCorta } from './dividida.js'
 
 /** El reloj de arena de 10 × 11 del chip "espera a …" (5.7). */
 const ARENA = '<svg class="arena" width="10" height="11" viewBox="0 0 10 12" focusable="false" aria-hidden="true"><path d="M1.5 1h7M1.5 11h7M2.5 1c0 3 5 3 5 5s-5 2-5 5M7.5 1c0 3-5 3-5 5"/></svg>'
@@ -35,10 +35,12 @@ export function fichasConversan(convs, { ahoraMs, porId, nombre: nombreDe, nueva
   if (!convs.length) return ''
   const fichas = convs.map(c => {
     const nombre = id => nombreDe(id, c)
-    const primero = c.empezo, otro = otroDe(c, primero)
+    const primero = primeroDe(c), otro = otroDe(c, primero)
     const pose = id => prepararLado(porId, id, ahoraMs)?.animo ?? 'esperando'
     const nuevo = nuevas.has(c.clave)
-    const dura = c.hasta ? 'terminó' : duracionCorta(ahoraMs - ms(c.desde))
+    // "ahora" en el primer minuto: "0 s" o "20 s" se leían raro (revisión de Delfina, 22/11)
+    const lleva = ahoraMs - ms(c.desde)
+    const dura = c.hasta ? 'terminó' : lleva < 60000 ? 'ahora' : duracionCorta(lleva)
     return `<li><button type="button" class="conv${c.hasta ? ' fin' : ''}" data-accion="conv" data-clave="${escapar(c.clave)}">`
       + `<span class="caras-c" aria-hidden="true">${avi(CLAUDE, pose(primero), 26)}${avi(CLAUDE, pose(otro), 26, { indice: 1 })}</span>`
       + `<span class="conv-t" aria-hidden="true"><b title="${escapar(c.repos[primero] ?? nombre(primero))}">${escapar(nombre(primero))}</b>`
@@ -61,7 +63,7 @@ export function riel(proyectos, convs, { ahoraMs, nombre: nombreDe, activa, nuev
   const conv = convs.map(c => {
     const es = c.clave === activa
     const nombre = id => nombreDe(id, c)
-    return `<li><button type="button" class="tok tok-cv${es ? ' activa' : ''}${c.hasta ? ' fin' : ''}" data-accion="conv" data-clave="${escapar(c.clave)}"${es ? ' aria-current="true"' : ''} title="${escapar(`${nombre(c.empezo)} ⇄ ${nombre(otroDe(c, c.empezo))}`)}">`
+    return `<li><button type="button" class="tok tok-cv${es ? ' activa' : ''}${c.hasta ? ' fin' : ''}" data-accion="conv" data-clave="${escapar(c.clave)}"${es ? ' aria-current="true"' : ''} title="${escapar(`${nombre(primeroDe(c))} ⇄ ${nombre(otroDe(c, primeroDe(c)))}`)}">`
       + `<span aria-hidden="true">⇄</span>${nuevas.has(c.clave) ? PUNTO : ''}<span class="oculto" data-vivo>${escapar(textoFicha(c, ahoraMs, nombre, { nuevo: nuevas.has(c.clave) }).replace(/\. Abrir$/, ''))}</span></button></li>`
   }).join('')
   const proy = proyectos.map((p, k) => {
@@ -100,9 +102,9 @@ export function pestanas(convs, { activa, nuevas, nombre: nombreDe }) {
   return `<div class="pestanas" role="tablist" aria-label="Conversaciones">${convs.map(c => {
     const es = c.clave === activa, nuevo = nuevas.has(c.clave)
     const nombre = id => nombreDe(id, c)
-    const otro = otroDe(c, c.empezo)
+    const otro = otroDe(c, primeroDe(c))
     return `<button type="button" class="pest" role="tab" aria-selected="${es}" aria-controls="split" tabindex="${es ? 0 : -1}" data-accion="pest" data-clave="${escapar(c.clave)}">`
-      + `<span class="n">${escapar(nombre(c.empezo))}</span><i aria-hidden="true">⇄</i><span class="oculto"> conversa con </span><span class="n">${escapar(nombre(otro))}</span>`
+      + `<span class="n">${escapar(nombre(primeroDe(c)))}</span><i aria-hidden="true">⇄</i><span class="oculto"> conversa con </span><span class="n">${escapar(nombre(otro))}</span>`
       + `${c.hasta ? '<em>terminó</em>' : ''}${nuevo ? `${PUNTO}<span class="oculto">, mensaje nuevo</span>` : ''}</button>`
   }).join('')}</div>`
 }
