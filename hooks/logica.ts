@@ -1,6 +1,6 @@
 // Funciones puras del mod "oficina": sin acceso al motor, fáciles de probar.
 
-import type { Ci, ComentarioPresencia, ItemPregunta, Miembro, Pregunta, Presencia, Proceso, RespuestaWidget, Subagente, Tarea } from '../types'
+import type { Ci, ComentarioPresencia, Conversa, ItemPregunta, Miembro, Pregunta, Presencia, Proceso, RespuestaWidget, Subagente, Tarea } from '../types'
 
 /** Horas máximas por talle, según el acuerdo (S: hasta medio día; M: hasta 2 días). */
 export const HORAS_POR_TALLE: Record<'S' | 'M', number> = { S: 4, M: 16 }
@@ -87,7 +87,23 @@ function normalizar(d: Partial<Presencia>, sesionPorDefecto: string): Presencia 
     ...(Array.isArray(d.preguntas) ? { preguntas: d.preguntas.filter(esPregunta) } : {}),
     // Campo de la v0.6
     ...(Array.isArray(d.procesos) ? { procesos: d.procesos.filter(esProceso) } : {}),
+    // Campo de la v0.8
+    ...(Array.isArray(d.conversa) ? { conversa: d.conversa.filter(esConversa) } : {}),
   }
+}
+
+function esConversa(c: unknown): c is Conversa {
+  const v = c as Partial<Conversa> | null
+  return (
+    !!v &&
+    typeof v.con === 'string' &&
+    (v.conRepo === null || typeof v.conRepo === 'string') &&
+    typeof v.desde === 'string' &&
+    (v.empezo === 'yo' || v.empezo === 'otro') &&
+    !!v.ultimo &&
+    (v.ultimo.de === 'yo' || v.ultimo.de === 'otro') &&
+    typeof v.ultimo.cuando === 'string'
+  )
 }
 
 function esProceso(p: unknown): p is Proceso {
@@ -700,4 +716,64 @@ export async function resultadoDelWidget(
  */
 export function puedeEscribirLocal(cerradas: ReadonlySet<string>, sesion: string): boolean {
   return !cerradas.has(sesion)
+}
+
+// ------------------------------------------------------------------ conversaciones entre sesiones (v0.8)
+
+/** Pasados estos minutos sin mensajes, la conversación terminó: el siguiente mensaje empieza otra. */
+export const MINUTOS_CONVERSA_QUIETA = 5
+/** Una conversación terminada se guarda estos minutos más, para el rastro "habló con…". */
+export const MINUTOS_CONVERSA_RASTRO = 30
+const MAX_CONVERSAS = 4
+
+/**
+ * Marca al final de un mensaje que sale hacia otra sesión: el id de esta sesión y su `repo`
+ * (codificado, puede traer espacios). SendMessage direcciona por el nombre de la sesión, nunca por
+ * su id: sin la marca, quien recibe no sabe con qué sesión habla. El mod de quien recibe la borra
+ * antes de que su modelo lea el mensaje.
+ */
+export function marcarMensaje(texto: string, de: { sesion: string; repo: string | null }): string {
+  return `${texto}\n\n[avis:${de.sesion}|${de.repo === null ? '-' : encodeURIComponent(de.repo)}]`
+}
+
+const MARCA_AVIS = /\s*\[avis:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\|([^\]\s]+)\]\s*$/i
+
+/** La marca de `marcarMensaje`, solo al final del texto. Devuelve el texto sin ella, o null si no hay. */
+export function leerMarca(texto: string): { texto: string; sesion: string; repo: string | null } | null {
+  const m = MARCA_AVIS.exec(texto)
+  if (!m || m.index === undefined) return null
+  let repo: string | null = null
+  if (m[2] !== '-') {
+    try {
+      repo = decodeURIComponent(m[2] as string)
+    } catch {
+      return null
+    }
+  }
+  return { texto: texto.slice(0, m.index), sesion: (m[1] as string).toLowerCase(), repo }
+}
+
+/**
+ * Anota un mensaje en la lista de conversaciones: el primero con esa sesión (o el primero después de
+ * 5 min de silencio) empieza una conversación nueva; los demás solo mueven el último. Una entrada
+ * por sesión y hasta 4: con más, se va la de último mensaje más viejo.
+ */
+export function registrarMensaje(
+  lista: readonly Conversa[],
+  m: { con: string; conRepo: string | null; de: 'yo' | 'otro'; cuando: string },
+): Conversa[] {
+  const previa = lista.find(c => c.con === m.con)
+  const quieta = MINUTOS_CONVERSA_QUIETA * 60000
+  const sigue = previa && Date.parse(m.cuando) - Date.parse(previa.ultimo.cuando) <= quieta
+  const nueva: Conversa = sigue
+    ? { ...previa, conRepo: m.conRepo, ultimo: { de: m.de, cuando: m.cuando } }
+    : { con: m.con, conRepo: m.conRepo, desde: m.cuando, empezo: m.de, ultimo: { de: m.de, cuando: m.cuando } }
+  const resto = lista.filter(c => c.con !== m.con)
+  return [...resto, nueva].sort((a, b) => Date.parse(a.ultimo.cuando) - Date.parse(b.ultimo.cuando)).slice(-MAX_CONVERSAS)
+}
+
+/** Las conversaciones que siguen: en curso, o terminadas hace menos de 30 min (terminó = 5 min sin mensajes). */
+export function podarConversas(lista: readonly Conversa[], ahoraMs: number): Conversa[] {
+  const vida = (MINUTOS_CONVERSA_QUIETA + MINUTOS_CONVERSA_RASTRO) * 60000
+  return lista.filter(c => ahoraMs - Date.parse(c.ultimo.cuando) <= vida)
 }

@@ -498,8 +498,6 @@ export type Conversa = {
   empezo: 'yo' | 'otro'
   /** El último mensaje: quién lo mandó y cuándo (ISO). */
   ultimo: { de: 'yo' | 'otro'; cuando: string }
-  /** Cuándo terminó (ISO). El mod la guarda 30 min después, como a los subagentes, para el rastro. */
-  hasta?: string | null
 }
 ```
 
@@ -507,7 +505,8 @@ export type Conversa = {
 - **`cuando` (ISO) en lugar de `hace`:** todos los tiempos del contrato son ISO (`desde`, `inicio`, `actualizado`, `procesos[].desde`) y el widget calcula lo relativo en cada lectura. Un `hace` quedaría viejo entre publicaciones (el mod publica por eventos; el widget lee cada 1,5 s).
 - **`conRepo`:** sin él, una conversación con una sesión de otra máquina, o cuyo archivo dejó de latir, no tendría nombre.
 - **`empezo`:** da el lado estable cuando la abrís desde otro proyecto (14).
-- **`hasta`:** sin él no hay "terminó hace 20 s" ni rastro.
+- **Sin `hasta` (cambio del mod, 22/11):** SendMessage no tiene un "fin". El widget deduce que terminó cuando pasan `MINUTOS_CONVERSA_QUIETA` (5) desde `ultimo.cuando` (`hasta` = `ultimo.cuando` + 5 min), o cuando una de las dos sesiones desaparece. El mod guarda la entrada 30 min más para el rastro y después la olvida; un mensaje después de 5 min de silencio empieza otra conversación (`desde` y `empezo` nuevos).
+- **Cómo lo sabe el mod (17):** SendMessage direcciona por el nombre de la sesión, nunca por su id. El mod agrega al final de cada mensaje que sale una marca `[avis:<id de sesión>|<repo>]` (`session.send`) y el de quien recibe la lee y la borra antes de que su modelo la vea (`session.receive`). Cada sesión anota solo los mensajes que **recibe** (`de: 'otro'`): quien manda no conoce el id del otro hasta que le contestan. Con la unión de los dos lados alcanza para el turno y el último mensaje; si solo una de las dos sesiones tiene el mod, se ve la mitad de la conversación.
 
 ### 13.2 Compatibilidad
 
@@ -517,7 +516,7 @@ export type Conversa = {
 ### 13.3 Lo que deduce el widget (puro, con tests)
 
 - **Clave:** el par sin orden `{sesion, con}` + el `desde` más antiguo de los dos lados.
-- **Unión de los dos lados:** si las dos sesiones publican la conversación, `desde` es el mínimo; `ultimo` es el de `cuando` más reciente, traducido a ids (`de: 'yo'` → quien publica; `'otro'` → `con`); `hasta` es el primero que no sea nulo. Si publica una sola, se usa esa.
+- **Unión de los dos lados:** si las dos sesiones publican la conversación, `desde` es el mínimo; `ultimo` es el de `cuando` más reciente, traducido a ids (`de: 'yo'` → quien publica; `'otro'` → `con`); `hasta` sale de `ultimo` (13.1). Si publica una sola, se usa esa.
 - **Turno:** le toca a la sesión que **no** mandó el último mensaje.
 - **Termina** también si una de las dos sesiones desaparece de la lectura (cerrada o sin latido): `hasta` = esa lectura, motivo "se cerró".
 - **Lado izquierdo:** el proyecto de la vista anterior si es uno de los dos; si no, la sesión que empezó (`empezo`). No cambia durante la conversación.
