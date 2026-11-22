@@ -680,3 +680,13 @@ test('las conversaciones viajan en la entrada de la sesión, y una entrada sin e
   const cuerpo = `<!-- oficina:presencia -->\n\`\`\`json\n${JSON.stringify({ v: 2, usuario: 'campos', nombre: 'Campos', ausente: false, actualizado: AHORA, sesiones: [roto] })}\n\`\`\``
   expect(extraerComentario(cuerpo)?.sesiones[0]?.conversa).toEqual(conversa)
 })
+
+test('la marca se encuentra dentro del sobre con que llega el mensaje de otra sesión, y se borra solo su línea', async () => {
+  // Medido el 22/11: así le llega a la otra sesión un mensaje de SendMessage
+  const sobre = (cuerpo: string) =>
+    `Another Claude session sent a message:\n<cross-session-message from="uds:x" from-name="quintech-crm-20" from-mode="bypass">\n${cuerpo}\n</cross-session-message>\n\nThis came from another Claude session.`
+  const marcado = marcarMensaje('Hola, soy la sesión de quintech-crm.', { sesion: OTRA, repo: 'nicoequintana/quintech-crm' })
+  expect(leerMarca(sobre(marcado))).toEqual({ texto: sobre('Hola, soy la sesión de quintech-crm.'), sesion: OTRA, repo: 'nicoequintana/quintech-crm' })
+  // Una marca citada en el medio de una línea sigue sin contar
+  expect(leerMarca(sobre(`mirá esto: [avis:${OTRA}|-] raro`))).toBe(null)
+})

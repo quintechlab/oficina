@@ -736,11 +736,16 @@ export function marcarMensaje(texto: string, de: { sesion: string; repo: string 
   return `${texto}\n\n[avis:${de.sesion}|${de.repo === null ? '-' : encodeURIComponent(de.repo)}]`
 }
 
-const MARCA_AVIS = /\s*\[avis:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\|([^\]\s]+)\]\s*$/i
+const MARCA_AVIS = /(?:\r?\n){0,2}^\[avis:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\|([^\]\s]+)\][ \t]*$/gim
 
-/** La marca de `marcarMensaje`, solo al final del texto. Devuelve el texto sin ella, o null si no hay. */
+/**
+ * La marca de `marcarMensaje`: la última que ocupa una línea entera. No siempre queda al final:
+ * el mensaje le llega a la otra sesión dentro de un sobre (`<cross-session-message …>` … `</…>` y
+ * una nota después, medido el 22/11). Devuelve el texto sin esa línea (ni la línea en blanco que la
+ * separaba), o null si no hay marca.
+ */
 export function leerMarca(texto: string): { texto: string; sesion: string; repo: string | null } | null {
-  const m = MARCA_AVIS.exec(texto)
+  const m = [...texto.matchAll(MARCA_AVIS)].pop()
   if (!m || m.index === undefined) return null
   let repo: string | null = null
   if (m[2] !== '-') {
@@ -750,7 +755,7 @@ export function leerMarca(texto: string): { texto: string; sesion: string; repo:
       return null
     }
   }
-  return { texto: texto.slice(0, m.index), sesion: (m[1] as string).toLowerCase(), repo }
+  return { texto: texto.slice(0, m.index) + texto.slice(m.index + m[0].length), sesion: (m[1] as string).toLowerCase(), repo }
 }
 
 /**
