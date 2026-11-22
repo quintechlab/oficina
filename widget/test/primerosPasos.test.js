@@ -249,6 +249,15 @@ test('después de instalar, la verificación de solo lectura decide y el texto d
   assert.equal(p.texto, 'oficina 0.6.0 · para tu usuario.')
 })
 
+test('después de prender el mod apagado, el texto dice que quedó prendido, no instalado', () => {
+  let ejec = alEvento(alEmpezar(SIN_EJEC, 'activar'), { accion: 'activar', paso: 'mod', estado: 'listo' }, AHORA)
+  ejec = trasRevision(ejec, revision())
+  const p = modelo(revision(), { ejec }).pasos.mod
+  assert.equal(p.estado, 'hecho')
+  assert.equal(p.titulo, 'El mod quedó prendido')
+  assert.equal(p.texto, 'oficina 0.6.0 · prendido en Claude Code.')
+})
+
 test('un error se queda hasta reintentar, salvo que la revisión muestre el paso hecho', () => {
   const ejec = alEvento(alEmpezar(SIN_EJEC, 'gh'), { accion: 'gh', paso: 'gh', estado: 'error', comando: 'winget install --id GitHub.cli -e', linea: 'Installer failed with exit code: 0x800704c7', detalle: '', red: false, permiso: true }, AHORA)
   const sigue = trasRevision(ejec, revision({ gh: false }))

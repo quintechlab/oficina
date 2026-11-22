@@ -91,7 +91,7 @@ Desde la versión 0.5 del mod, el globo también responde: tocás una opción (o
 
 1. Conseguir `Avis_<versión>_x64_es-ES.msi` (se arma con `npm run tauri build` dentro de `widget/`; queda en `widget/src-tauri/target/release/bundle/msi/`). También se arma un instalador `.exe` en `bundle/nsis/`, que instala solo para tu usuario.
 2. Abrirlo con doble clic y seguir los pasos. Queda en el menú Inicio como **Avis**.
-3. Necesita el mod **oficina 0.5 o posterior** en Claude Code (`claude plugin update oficina` y `/reload-plugins` en cada sesión abierta): sin eso no hay estado en vivo que mostrar ni respuestas desde el globo.
+3. Necesita el mod **oficina 0.5 o posterior** en Claude Code: sin eso no hay estado en vivo que mostrar ni respuestas desde el globo. El widget se encarga solo: lo instala si falta y lo actualiza una vez por día (ver "El mod, solo" abajo).
 
 El widget lee lo que escribe cada sesión en `%USERPROFILE%\.claude\oficina\sesiones`, deja las respuestas del globo en `%USERPROFILE%\.claude\oficina\respuestas` y anota un log de diagnóstico en `%USERPROFILE%\.claude\oficina\widget.log`. Posición y tamaño de la ventana se guardan en la carpeta de configuración de la app (`%APPDATA%\studio.quintech.oficina`).
 
@@ -102,10 +102,20 @@ El widget lee lo que escribe cada sesión en `%USERPROFILE%\.claude\oficina\sesi
 La primera vez, si falta algo, el widget muestra **Primeros pasos** en lugar del vacío: tres pasos para dejar Avis listo sin escribir comandos.
 
 1. **Claude Code**: si no está, te lleva a la guía oficial (Avis no lo instala).
-2. **Mod de Avis**: lo suma a Claude Code para tu usuario (`claude plugin marketplace add quintechlab/oficina` y `claude plugin install oficina@quintech`), o lo activa si está apagado.
+2. **Mod de Avis**: lo suma a Claude Code para tu usuario (`claude plugin marketplace add quintechlab/oficina` y `claude plugin install oficina@quintech`), o lo activa si está apagado. Normalmente ya lo instaló el widget solo (ver abajo).
 3. **GitHub**: instala GitHub CLI con winget si falta, conecta tu cuenta con el código de un solo uso de GitHub (permisos `repo`, `read:org` y `project`) y revisa que seas miembro de `quintechlab`.
 
-Cada paso corre solo cuando tocás su botón: abrir el asistente o "Volver a buscar" solo revisan qué hay (comandos de lectura), nada se instala solo y no hay tiempo que elija por vos. Con sesiones abiertas, un aviso del tablero ("Falta conectar GitHub · Ver →") y el ítem **Primeros pasos** de la bandeja lo vuelven a abrir; la × lo cierra sin hacer nada. El widget nunca guarda credenciales: usa la sesión de `gh`.
+Cada paso corre solo cuando tocás su botón (salvo instalar y actualizar el mod, abajo): abrir el asistente o "Volver a buscar" solo revisan qué hay (comandos de lectura), nada se instala solo y no hay tiempo que elija por vos. Con sesiones abiertas, un aviso del tablero ("Falta conectar GitHub · Ver →") y el ítem **Primeros pasos** de la bandeja lo vuelven a abrir; la × lo cierra sin hacer nada. El widget nunca guarda credenciales: usa la sesión de `gh`.
+
+### El mod, solo
+
+El widget se encarga del mod `oficina` sin que corras comandos: al arrancar y después una vez por día lo revisa (`claude plugin list --json`).
+
+- **Falta**: lo instala (`claude plugin marketplace add quintechlab/oficina` si falta el catálogo y `claude plugin install oficina@quintech`). Si tenés el asistente abierto, lo ves en el paso 2.
+- **Hay versión nueva**: `claude plugin marketplace update quintech` y `claude plugin update oficina@quintech`.
+- **Está apagado**: no lo prende solo. El tablero muestra "El mod está apagado · Prender" y lo prende con ese clic.
+
+Después de instalar o actualizar, el tablero avisa una vez: las sesiones abiertas toman la versión nueva al reiniciarse o con `/reload-plugins`. Sin red o si un comando falla, lo anota en `widget.log` y vuelve a probar en la revisión del día siguiente. Nunca corre mientras corre un paso de Primeros pasos.
 
 ### ¿En qué anda Claude? (IA local, opcional)
 

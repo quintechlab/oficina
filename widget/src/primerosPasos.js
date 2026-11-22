@@ -3,7 +3,8 @@
 // los textos, lo que falta, dónde vive, el aviso del tablero, el nombre de la muesca y los anuncios.
 // Lógica pura: la vista está en primerosPasosVista.js y lo que corre en
 // src-tauri/src/primeros_pasos.rs. Regla firme (10): cada paso corre solo con un clic; nada de acá
-// elige, corre ni avanza solo.
+// elige, corre ni avanza solo. La única excepción es del mod (#17): Rust lo instala si falta y lo
+// actualiza una vez por día sin clic (mod_auto.rs); apagado, no se prende solo ("Prender" es un clic).
 
 export const PASOS = [
   { id: 'claude', n: 1, nombre: 'Claude Code', corto: 'Claude' },
@@ -86,6 +87,10 @@ function estadoMod(r, e) {
   const m = r.mod ?? {}
   if (m.activo) {
     const ahora = e?.fase === 'hecho' && e.accion === 'mod'
+    // Prendido con el clic: ya estaba instalado, decir "instalado" confunde
+    if (e?.fase === 'hecho' && e.accion === 'activar') {
+      return { estado: 'hecho', pose: 'listo', chip: 'listo', titulo: 'El mod quedó prendido', texto: `oficina ${m.version} · prendido en Claude Code.` }
+    }
     return {
       estado: 'hecho', pose: 'listo', chip: 'listo', titulo: 'El mod quedó instalado',
       texto: ahora ? `oficina ${m.version} · para tu usuario.` : `Ya estaba instalado · oficina ${m.version}.`,
@@ -369,6 +374,37 @@ export function pendienteAviso(modelo) {
   if (id === 'mod') return 'instalar el mod'
   const e = modelo.pasos.gh.estado
   return e === 'noMiembro' || e === 'invitacion' ? `entrar a ${ORGANIZACION}` : 'conectar GitHub'
+}
+
+/**
+ * ¿El aviso del tablero es "El mod está apagado" con "Prender" (#17)? Solo si el primer paso que
+ * falta es el mod y está instalado pero apagado: no se prende solo, lo prende el clic.
+ */
+export function modApagado(modelo) {
+  if (!modelo.faltan) return false
+  const id = modelo.orden.find(x => modelo.pasos[x].estado !== 'hecho')
+  return id === 'mod' && modelo.pasos.mod.estado === 'apagado'
+}
+
+/**
+ * El aviso de una vez después de que Avis instaló o actualizó el mod solo (#17, `tomar_aviso_mod`):
+ * `{ tipo: 'instalo' | 'actualizo', version }`. Lo que no se entiende, null.
+ */
+export function textoAvisoMod(aviso) {
+  const v = aviso?.version
+  if (typeof v !== 'string' || !v) return null
+  if (aviso.tipo === 'actualizo') return `Avis actualizó el mod a la ${v}: las sesiones abiertas la toman al reiniciarse o con /reload-plugins`
+  if (aviso.tipo === 'instalo') return `Avis instaló el mod ${v}: las sesiones abiertas lo toman al reiniciarse o con /reload-plugins`
+  return null
+}
+
+/**
+ * Un evento `oficina://mod-auto` (#17): cuando Rust empieza a instalar el mod solo, el paso 2 pasa a
+ * correr como si se hubiera tocado su botón, y los avisos de `oficina://primeros-pasos` que siguen
+ * lo avanzan. Actualizar no toca el asistente.
+ */
+export function alModAuto(ejec, ev) {
+  return ev?.estado === 'empieza' && ev.accion === 'mod' ? alEmpezar(ejec, 'mod') : ejec
 }
 
 /** El nombre de la muesca suma lo que falta (3.5); la muesca no golpea por la configuración. */

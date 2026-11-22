@@ -3,6 +3,7 @@ mod diagnostico;
 mod equipo;
 mod preferencias;
 mod modelo;
+mod mod_auto;
 mod primeros_pasos;
 mod respuestas;
 mod sesiones;
@@ -703,6 +704,13 @@ fn correr_paso(app: AppHandle, paso: String) -> Result<(), String> {
 #[tauri::command]
 fn cancelar_paso() -> bool {
     primeros_pasos::TURNO.cancelar()
+}
+
+/// El aviso del mod automático (#17) que el tablero muestra una vez: `{ tipo: "instalo" | "actualizo",
+/// version, desde? }`, o nada. Tomarlo lo vacía.
+#[tauri::command]
+fn tomar_aviso_mod() -> Option<serde_json::Value> {
+    mod_auto::tomar_aviso()
 }
 
 /// Abre en el navegador una de las direcciones conocidas del asistente (nunca una que mande la ventana).
@@ -1445,6 +1453,15 @@ pub fn run() {
             let para_sondeo = handle.clone();
             let hilo = std::thread::Builder::new().name(String::from("oficina-puntero")).spawn(move || sondear_puntero(para_sondeo))?;
             *handle.state::<Estado>().sondeo.lock().unwrap() = Some(hilo.thread().clone());
+            // El mod automático (#17): instala el mod si falta y lo actualiza una vez por día, sin clic.
+            // Un solo hilo para toda la vida de la app: nunca hay dos revisiones a la vez
+            let para_mod = handle.clone();
+            let ruta_mod = ruta_preferencias(&handle);
+            std::thread::Builder::new().name(String::from("oficina-mod-auto")).spawn(move || {
+                mod_auto::vigilar(ruta_mod, |evento, v| {
+                    let _ = para_mod.emit(evento, v);
+                })
+            })?;
             // Clic en la notificación: mostrar la ventana
             let al_clic = handle.clone();
             let _ = handle.notification().on_action(move |_| mostrar(&al_clic));
@@ -1489,6 +1506,7 @@ pub fn run() {
             correr_paso,
             cancelar_paso,
             abrir_enlace,
+            tomar_aviso_mod,
             estado_resumen,
             descargar_modelo,
             cancelar_resumen,

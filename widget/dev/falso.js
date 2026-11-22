@@ -74,6 +74,8 @@
 //   &ppfalla=mod|gh|conectar  la primera vez ese paso falla (sin red, permiso de Windows o error de gh)
 //   &ppvence       el código de GitHub vence a los 5 s; sin esto, "autorizás" en el navegador a los 6 s
 //   &pplento       la revisión tarda 2 s (para ver "Revisando…")
+//   &modauto=instalo|actualizo  Avis instaló o actualizó el mod solo (#17): el aviso de una vez
+//   &modauto=solo  con ?pp=sinmod: a los 1,5 s Avis instala el mod solo (oficina://mod-auto) y avisa
 // Cada paso que corre avisa como Rust (oficina://primeros-pasos) y, si termina bien, cambia la
 // máquina falsa. El ítem de la bandeja se imita con window.__bandeja('oficina://primeros-pasos-abrir');
 // su texto queda en window.__menuPasos.
@@ -424,6 +426,10 @@
   })
   let relojesPaso = []
   let corriendo = null
+  // El mod automático (#17): el aviso pendiente que la ventana toma una vez (tomar_aviso_mod)
+  const modauto = url.get('modauto')
+  let avisoModPendiente = modauto === 'instalo' ? { tipo: 'instalo', version: '0.9.1' }
+    : modauto === 'actualizo' ? { tipo: 'actualizo', version: '0.9.1', desde: '0.9.0' } : null
   const despues = (ms, f) => relojesPaso.push(setTimeout(f, ms))
   const avisarPaso = (accion, cuerpo) => emitir('oficina://primeros-pasos', { accion, paso: ['mod', 'activar'].includes(accion) ? 'mod' : 'gh', ...cuerpo })
   const terminar = (accion, cuerpo) => { corriendo = null; relojesPaso = []; avisarPaso(accion, cuerpo) }
@@ -493,6 +499,17 @@
   let relojesRz = []
   let fallaRz = rz === 'fallo'
   let fallaDescarga = url.get('rzfalla') === 'descarga'
+  // ?pp=sinmod&modauto=solo: Avis instala el mod solo, como mod_auto.rs (el paso 2 corre sin clic)
+  if (modauto === 'solo' && maquina.claude && maquina.mod === 'ausente') {
+    setTimeout(() => {
+      if (corriendo) return
+      corriendo = 'mod'
+      emitir('oficina://mod-auto', { estado: 'empieza', accion: 'mod' })
+      correrFalso('mod')
+      setTimeout(() => { avisoModPendiente = { tipo: 'instalo', version: '0.9.1' }; emitir('oficina://mod-auto', { estado: 'aviso' }) }, 4000)
+    }, 1500)
+  }
+
   const emitirRz = (tipo, datos = {}) => emitir('oficina://resumen', { tipo, ...datos })
   const luegoRz = (ms, f) => relojesRz.push(setTimeout(f, ms))
   const pararRz = () => { relojesRz.forEach(clearTimeout); relojesRz = [] }
@@ -605,6 +622,7 @@
       return true
     },
     abrir_enlace: ({ cual }) => console.info('[navegador]', cual),
+    tomar_aviso_mod: () => { const a = avisoModPendiente; avisoModPendiente = null; return a },
     poner_bandeja: ({ texto }) => { document.title = texto },
     estado_menu: () => ({ arriba: true, avisar: true, pausa: url.has('pausa'), tamano: paso, acople, flotante }),
     leer_sesiones: () => {
