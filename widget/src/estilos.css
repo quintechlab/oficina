@@ -1066,7 +1066,7 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .bt-p:active, body.pausa .bt-s
 .cab .sub-c { margin-top: 2px; font: 500 11.5px/1.35 var(--f); color: var(--crema2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #marco.dividida .volver { display: inline-flex }
 .volver {
-  position: relative; flex: none; align-items: center; height: 34px; padding: 0 12px 0 10px; white-space: nowrap;
+  position: relative; flex: none; align-items: center; gap: 4px; height: 34px; padding: 0 12px 0 10px; white-space: nowrap;
   border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s1); color: var(--crema); font: 700 12.5px/1 var(--f); cursor: pointer;
   transition: background var(--d-color) ease, border-color var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
 }

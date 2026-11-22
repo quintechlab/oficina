@@ -468,3 +468,12 @@ test('vista: las fichas "Conversan" escapan lo que viene de la sesión y llevan 
   assert.match(h, /<i class="pt-n" aria-hidden="true"><\/i>/)
   assert.equal(fichasConversan([], { ahoraMs: AHORA, porId, nombre, nuevas: new Set() }), '')
 })
+
+test('esperaRespuesta: mandó el último y solo coordina, espera o piensa (para el festejo al recibir, 9.3)', async () => {
+  const { esperaRespuesta } = await import('../src/dividida.js')
+  assert.equal(esperaRespuesta(ses('t', TIENDA), conv, AHORA), true)
+  assert.equal(esperaRespuesta(ses('t', TIENDA, { actividad: 'editando pago.vue' }), conv, AHORA), false)
+  assert.equal(esperaRespuesta(ses('p', PAGOS), conv, AHORA), false)
+  assert.equal(esperaRespuesta(ses('t', TIENDA), { ...conv, hasta: haceS(1) }, AHORA), false)
+  assert.equal(esperaRespuesta(undefined, conv, AHORA), false)
+})

@@ -240,6 +240,15 @@ export function lineaConversa(s, conv, ahoraMs, nombre) {
   return hoy
 }
 
+/**
+ * ¿La sesión `s` espera la respuesta del otro? (5.5, línea 2): mandó el último mensaje de una
+ * conversación activa y solo coordina, espera o piensa. Si al llegar la respuesta esperaba, festeja (9.3).
+ */
+export function esperaRespuesta(s, conv, ahoraMs) {
+  if (!s || conv.hasta || conv.ultimo.emisor !== s.sesion) return false
+  return SOLO_ESPERA.has(animoSesion(s, ahoraMs))
+}
+
 /** El chip de turno de la mitad de `id` (5.7): `{ clase: 'lleno' | 'espera' | 'fin', texto }`. */
 export function textoTurno(conv, id, ahoraMs, nombre, { sinDatos = false } = {}) {
   if (sinDatos) return { clase: 'fin', texto: 'sin datos' }
@@ -297,14 +306,14 @@ export function anuncioTermina(conv, nombre, vista) {
 
 /**
  * El rastro de la tarjeta de una sesión (5.10), sin el "⇄" (lo pone la vista): la conversación
- * activa más reciente; si no hay, la terminada más reciente. null si no conversa.
+ * activa más reciente; si no hay, la terminada más reciente. null si no conversa. `nombre(id, conversación)`.
  */
 export function rastroConversa(s, convs, ahoraMs, nombre) {
   const suyas = convs.filter(c => c.a === s.sesion || c.b === s.sesion)
   if (!suyas.length) return null
   const activas = suyas.filter(c => !c.hasta).sort((x, y) => ms(y.ultimo.cuando) - ms(x.ultimo.cuando))
   const c = activas[0] ?? [...suyas].sort((x, y) => ms(y.hasta) - ms(x.hasta))[0]
-  const otro = nombre(otroDe(c, s.sesion))
+  const otro = nombre(otroDe(c, s.sesion), c)
   if (!c.hasta) return { clave: c.clave, texto: `conversa con ${otro} · ${duracionCorta(ahoraMs - ms(c.desde))}`, fin: false }
   return { clave: c.clave, texto: `habló con ${otro} · ${duracionCorta(ms(c.hasta) - ms(c.desde))} · terminó ${haceCorto(c.hasta, ahoraMs)}`, fin: true }
 }

@@ -29,11 +29,12 @@ function prepararLado(porId, id, ahoraMs) {
 /**
  * La sección "Conversan" de la barra lateral: una ficha por conversación, con las dos caras de
  * Claude quietas, quién con quién, la duración y el punto si tiene un mensaje nuevo sin abrir.
- * `ctx`: { ahoraMs, porId, nombre, nuevas }.
+ * `ctx`: { ahoraMs, porId, nombre ((id, conversación) → texto), nuevas }.
  */
-export function fichasConversan(convs, { ahoraMs, porId, nombre, nuevas }) {
+export function fichasConversan(convs, { ahoraMs, porId, nombre: nombreDe, nuevas }) {
   if (!convs.length) return ''
   const fichas = convs.map(c => {
+    const nombre = id => nombreDe(id, c)
     const primero = c.empezo, otro = otroDe(c, primero)
     const pose = id => prepararLado(porId, id, ahoraMs)?.animo ?? 'esperando'
     const nuevo = nuevas.has(c.clave)
@@ -55,10 +56,11 @@ export function fichasConversan(convs, { ahoraMs, porId, nombre, nuevas }) {
  * punto de estado. `ctx`: { ahoraMs, nombre, activa (clave del split), nuevas, origen (repo de la
  * vista anterior), animoMarca, estado ({ error, texto }) }.
  */
-export function riel(proyectos, convs, { ahoraMs, nombre, activa, nuevas, origen, animoMarca, estado }) {
+export function riel(proyectos, convs, { ahoraMs, nombre: nombreDe, activa, nuevas, origen, animoMarca, estado }) {
   const marca = `<div class="riel-marca" data-arrastre title="Arrastrá para mover o acoplar a un borde">${avi(CLAUDE, animoMarca, 34, { alt: `Claude, ${ANIMO[animoMarca] ?? animoMarca}` })}</div>`
   const conv = convs.map(c => {
     const es = c.clave === activa
+    const nombre = id => nombreDe(id, c)
     return `<li><button type="button" class="tok tok-cv${es ? ' activa' : ''}${c.hasta ? ' fin' : ''}" data-accion="conv" data-clave="${escapar(c.clave)}"${es ? ' aria-current="true"' : ''} title="${escapar(`${nombre(c.empezo)} ⇄ ${nombre(otroDe(c, c.empezo))}`)}">`
       + `<span aria-hidden="true">⇄</span>${nuevas.has(c.clave) ? PUNTO : ''}<span class="oculto" data-vivo>${escapar(textoFicha(c, ahoraMs, nombre, { nuevo: nuevas.has(c.clave) }).replace(/\. Abrir$/, ''))}</span></button></li>`
   }).join('')
@@ -69,7 +71,7 @@ export function riel(proyectos, convs, { ahoraMs, nombre, activa, nuevas, origen
     return `<button type="button" class="tok${es ? ' origen' : ''}" data-accion="ir" data-proy="${k}" aria-label="${escapar(etiqueta)}"${es ? ' aria-description="vista anterior"' : ''} title="${escapar(p.repo ?? p.nombre)}">`
       + `<span class="tok-ic" style="--c:${colorProyecto(p.nombre)}" aria-hidden="true">${escapar(iniciales(p.nombre))}</span>${pend ? '<span class="insig" aria-hidden="true">?</span>' : ''}</button>`
   }).join('')
-  const pie = `<div class="riel-pie"><i class="pt-r${estado.error ? ' error' : ''}" title="${escapar(estado.texto)}" aria-hidden="true"></i><span class="oculto" role="status">${escapar(estado.texto)}</span></div>`
+  const pie = `<div class="riel-pie"><i class="pt-r${estado.error ? ' error' : ''}" title="${escapar(estado.texto)}" aria-hidden="true"></i><span class="oculto" role="status" data-vivo>${escapar(estado.texto)}</span></div>`
   return `${marca}<ul class="riel-conv" aria-label="Conversaciones">${conv}</ul><hr><nav class="riel-proy" aria-label="Proyectos">${proy}</nav>${pie}`
 }
 
@@ -93,10 +95,11 @@ export function cabConversa(conv, izq, { nombre, sub }) {
 // ------------------------------------------------------------------ pestañas (5.4)
 
 /** Las pestañas con 2 o más conversaciones (si no, vacío). Foco itinerante: solo la activa con tabindex 0. */
-export function pestanas(convs, { activa, nuevas, nombre }) {
+export function pestanas(convs, { activa, nuevas, nombre: nombreDe }) {
   if (convs.length < 2) return ''
   return `<div class="pestanas" role="tablist" aria-label="Conversaciones">${convs.map(c => {
     const es = c.clave === activa, nuevo = nuevas.has(c.clave)
+    const nombre = id => nombreDe(id, c)
     const otro = otroDe(c, c.empezo)
     return `<button type="button" class="pest" role="tab" aria-selected="${es}" aria-controls="split" tabindex="${es ? 0 : -1}" data-accion="pest" data-clave="${escapar(c.clave)}">`
       + `<span class="n">${escapar(nombre(c.empezo))}</span><i aria-hidden="true">⇄</i><span class="oculto"> conversa con </span><span class="n">${escapar(nombre(otro))}</span>`
