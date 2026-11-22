@@ -1,6 +1,6 @@
 //! Preferencias del widget que sobreviven entre usos: el tamaño elegido en la bandeja, el borde
 //! donde está acoplada la muesca (docs/diseno/estilo-avis-ux.md, 7.5), la posición del tablero
-//! flotante y el monitor de la última vez (9.7).
+//! flotante, el monitor de la última vez (9.7) y la última revisión automática del mod (#17).
 //! Se guardan en `<carpeta de configuración de la app>/preferencias.json`.
 
 use std::path::Path;
@@ -43,11 +43,18 @@ struct Preferencias {
     acople: Option<Acople>,
     flotante: Option<Flotante>,
     monitor: Option<(f64, f64)>,
+    revision_mod: Option<RevisionMod>,
 }
 
 /// Lo guardado, ya leído y migrado (el tamaño de texto de la 0.2 pasa a número).
 fn leer_todo(ruta: &Path) -> Preferencias {
-    Preferencias { tamano: leer_tamano(ruta), acople: leer_acople(ruta), flotante: leer_flotante(ruta), monitor: leer_monitor(ruta) }
+    Preferencias {
+        tamano: leer_tamano(ruta),
+        acople: leer_acople(ruta),
+        flotante: leer_flotante(ruta),
+        monitor: leer_monitor(ruta),
+        revision_mod: leer_revision_mod(ruta),
+    }
 }
 
 /// Escribe el archivo entero con todas las preferencias.
@@ -57,7 +64,8 @@ fn escribir(ruta: &Path, p: Preferencias) -> Result<(), String> {
     }
     let flotante = p.flotante.map_or(Value::Null, |f| json!({ "x": fraccion(Some(f.x)), "y": fraccion(Some(f.y)) }));
     let monitor = p.monitor.map_or(Value::Null, |(x, y)| json!({ "x": x, "y": y }));
-    let valor = json!({ "tamano": p.tamano, "acople": valor_de_acople(p.acople), "flotante": flotante, "monitor": monitor });
+    let revision_mod = p.revision_mod.map_or(Value::Null, |r| json!({ "revisado": r.revisado, "fallo": r.fallo }));
+    let valor = json!({ "tamano": p.tamano, "acople": valor_de_acople(p.acople), "flotante": flotante, "monitor": monitor, "mod": revision_mod });
     std::fs::write(ruta, valor.to_string()).map_err(|e| e.to_string())
 }
 
@@ -110,6 +118,28 @@ pub fn guardar_monitor(ruta: &Path, punto: (f64, f64)) -> Result<(), String> {
         return Err(String::from("punto inválido"));
     }
     escribir(ruta, Preferencias { monitor: Some(punto), ..leer_todo(ruta) })
+}
+
+// ------------------------------------------------------------------ mod automático (#17)
+
+/// La última revisión automática del mod que corrió un comando (instalar o actualizar): cuándo, en
+/// milisegundos desde 1970, y si falló. Con eso se revisa una vez por día y no se insiste tras un error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RevisionMod {
+    pub revisado: i64,
+    pub fallo: bool,
+}
+
+/// La revisión guardada. Sin archivo, sin revisión o ilegible: ninguna (toca revisar).
+pub fn leer_revision_mod(ruta: &Path) -> Option<RevisionMod> {
+    let v = leer_valor(ruta)?;
+    let m = v.get("mod")?;
+    Some(RevisionMod { revisado: m.get("revisado")?.as_i64()?, fallo: m.get("fallo").and_then(Value::as_bool).unwrap_or(false) })
+}
+
+/// Guarda la revisión y conserva lo demás.
+pub fn guardar_revision_mod(ruta: &Path, revision: RevisionMod) -> Result<(), String> {
+    escribir(ruta, Preferencias { revision_mod: Some(revision), ..leer_todo(ruta) })
 }
 
 // ------------------------------------------------------------------ acople de la muesca (7.5)
@@ -423,6 +453,35 @@ mod tests {
         assert!(guardar_monitor(&r, (f64::INFINITY, 0.0)).is_err());
         fs::write(&r, r#"{"monitor":{"x":"a","y":1}}"#).unwrap();
         assert_eq!(leer_monitor(&r), None);
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn la_revision_del_mod_se_guarda_y_sobrevive_a_las_otras_preferencias() {
+        let r = ruta_temporal("revision-mod");
+        // Sin archivo: ninguna revisión (toca revisar)
+        assert_eq!(leer_revision_mod(&r), None);
+        guardar_tamano(&r, 150).unwrap();
+        guardar_revision_mod(&r, RevisionMod { revisado: 1_795_000_000_000, fallo: true }).unwrap();
+        assert_eq!(leer_revision_mod(&r), Some(RevisionMod { revisado: 1_795_000_000_000, fallo: true }));
+        assert_eq!(leer_tamano(&r), 150);
+        // Guardar cualquier otra preferencia no la borra
+        guardar_tamano(&r, 175).unwrap();
+        guardar_acople(&r, Some(Acople { borde: Borde::Abajo, lugar: 0.3 })).unwrap();
+        guardar_flotante(&r, Flotante { x: 0.2, y: 0.4 }).unwrap();
+        guardar_monitor(&r, (100.0, 200.0)).unwrap();
+        assert_eq!(leer_revision_mod(&r), Some(RevisionMod { revisado: 1_795_000_000_000, fallo: true }));
+        guardar_revision_mod(&r, RevisionMod { revisado: 1_795_100_000_000, fallo: false }).unwrap();
+        assert_eq!(leer_revision_mod(&r), Some(RevisionMod { revisado: 1_795_100_000_000, fallo: false }));
+        assert_eq!(leer_monitor(&r), Some((100.0, 200.0)));
+        assert_eq!(leer_flotante(&r), Some(Flotante { x: 0.2, y: 0.4 }));
+        // Lo que no se entiende es como no haber revisado
+        fs::write(&r, r#"{"mod":{"revisado":"ayer","fallo":false}}"#).unwrap();
+        assert_eq!(leer_revision_mod(&r), None);
+        fs::write(&r, r#"{"mod":{"revisado":1795000000000}}"#).unwrap();
+        assert_eq!(leer_revision_mod(&r), Some(RevisionMod { revisado: 1_795_000_000_000, fallo: false }));
+        fs::write(&r, r#"{"mod":null}"#).unwrap();
+        assert_eq!(leer_revision_mod(&r), None);
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 

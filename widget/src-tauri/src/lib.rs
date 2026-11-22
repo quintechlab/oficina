@@ -3,6 +3,7 @@ mod diagnostico;
 mod equipo;
 mod preferencias;
 mod modelo;
+mod mod_auto;
 mod primeros_pasos;
 mod respuestas;
 mod sesiones;

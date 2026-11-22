@@ -348,7 +348,7 @@ pub fn revisar() -> Value {
     r
 }
 
-fn revisar_claude(l: &Lugares) -> Value {
+pub fn revisar_claude(l: &Lugares) -> Value {
     let version = correr(Programa::Claude, &["--version"], l).ok().filter(|s| s.ok).and_then(|s| version_claude(&s.stdout));
     let sin_mod = json!({ "instalado": false, "activo": false, "version": Value::Null, "catalogo": false, "error": Value::Null });
     let estado_del_mod = if version.is_some() {
@@ -404,7 +404,9 @@ pub const EVENTO: &str = "oficina://primeros-pasos";
 /** Donde se pega el código de GitHub. */
 pub const URL_DISPOSITIVO: &str = "https://github.com/login/device";
 
-/// Lo que el usuario puede correr con un clic, y nada más (los argumentos son fijos).
+/// Lo que el usuario puede correr con un clic, y nada más (los argumentos son fijos). `Actualizar`
+/// no lo pide la ventana (`desde` no lo conoce): lo corre solo la revisión automática del mod (#17,
+/// mod_auto.rs), que también corre `Mod` sin clic cuando falta.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Accion {
     Mod,
@@ -412,6 +414,7 @@ pub enum Accion {
     Gh,
     Conectar,
     Permiso,
+    Actualizar,
 }
 
 impl Accion {
@@ -432,12 +435,13 @@ impl Accion {
             Accion::Gh => "gh",
             Accion::Conectar => "conectar",
             Accion::Permiso => "permiso",
+            Accion::Actualizar => "actualizar",
         }
     }
     /// El paso del asistente al que pertenece.
     pub fn paso(self) -> &'static str {
         match self {
-            Accion::Mod | Accion::Activar => "mod",
+            Accion::Mod | Accion::Activar | Accion::Actualizar => "mod",
             _ => "gh",
         }
     }
@@ -468,6 +472,12 @@ pub fn plan(accion: Accion, catalogo: bool) -> Vec<Orden> {
             p
         }
         Accion::Activar => vec![orden(Programa::Claude, &["plugin", "enable", MOD], "claude plugin enable oficina@quintech")],
+        // Revisión automática (#17): refresca el catálogo y actualiza si hay versión nueva. Sin -y: si el
+        // catálogo algún día declara un comando para instalar, la actualización se niega y queda anotada
+        Accion::Actualizar => vec![
+            orden(Programa::Claude, &["plugin", "marketplace", "update", CATALOGO, "--json"], "claude plugin marketplace update quintech"),
+            orden(Programa::Claude, &["plugin", "update", MOD, "--json"], "claude plugin update oficina@quintech"),
+        ],
         // Los dos --accept-* evitan que winget espere una respuesta sin consola: el clic en "Instalar
         // GitHub CLI", con la nota de la licencia a la vista, es la aceptación del usuario
         Accion::Gh => vec![orden(
@@ -583,6 +593,10 @@ impl Turno {
         self.cancelado.store(false, Ordering::SeqCst);
         self.matado.store(false, Ordering::SeqCst);
         Ok(())
+    }
+    /// ¿Hay un paso corriendo (de Primeros pasos o de la revisión automática del mod)?
+    pub fn ocupado(&self) -> bool {
+        self.corriendo.lock().unwrap_or_else(PoisonError::into_inner).is_some()
     }
     pub fn terminar(&self) {
         *self.hijo.lock().unwrap_or_else(PoisonError::into_inner) = None;
