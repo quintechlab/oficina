@@ -453,7 +453,8 @@ fn bajar_todo_avisa_el_progreso_del_plan_y_deja_la_marca_de_instalado() {
 #[test]
 fn solo_la_descarga_arma_un_cliente_para_internet() {
     // Nada sale a la red salvo la descarga (8.4.3): `agente_red` se define una vez y se usa una vez
-    let fuente = include_str!("modelo.rs");
+    // Sin depender de los finales de línea (un clon en Windows con autocrlf tiene CRLF)
+    let fuente = include_str!("modelo.rs").replace("\r\n", "\n");
     assert_eq!(fuente.matches("agente_red()").count(), 2);
     let uso = fuente.find("let agente = agente_red();").unwrap();
     let descargar = fuente.find("pub fn descargar(").unwrap();
@@ -700,4 +701,20 @@ fn la_carpeta_base_exige_una_ruta_completa() {
     assert_eq!(base_desde(Some(OsString::new())), None);
     assert_eq!(base_desde(None), None);
     assert_eq!(base_desde(Some(OsString::from("rel"))), None);
+}
+
+#[test]
+fn la_linea_de_diagnostico_dice_el_plan_cada_pieza_y_el_estado() {
+    let piezas = plan(Variante::Cuda);
+    let hecha = EstadoPieza { bytes: 1, bajado: 1, hecha: true, mal: false };
+    let falta = EstadoPieza { bytes: 10, bajado: 4, hecha: false, mal: false };
+    let linea = linea_diagnostico("estado", Variante::Cuda, &piezas, &[hecha, falta, hecha], EstadoModelo::Falta, false, true);
+    assert!(linea.starts_with("resumen estado: plan=cuda"), "{linea}");
+    assert!(linea.contains("llama-b12606-bin-win-cuda-12.4-x64.zip=hecha"), "{linea}");
+    assert!(linea.contains("cudart-llama-bin-win-cuda-12.4-x64.zip=falta(4/10)"), "{linea}");
+    assert!(linea.contains("Qwen3-4B-Instruct-2507-Q4_K_M.gguf=hecha"), "{linea}");
+    assert!(linea.ends_with("modelo=falta bajando=no instalado=si"), "{linea}");
+    // Una pieza que no mide lo que debe se ve como "mal"
+    let mal = EstadoPieza { bytes: 10, bajado: 0, hecha: false, mal: true };
+    assert!(linea_diagnostico("descarga", Variante::Cpu, &plan(Variante::Cpu), &[falta, mal], EstadoModelo::Roto, true, false).contains("=mal"));
 }

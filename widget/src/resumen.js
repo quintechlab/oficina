@@ -210,6 +210,17 @@ function recortar(t, tope = TOPES_RESUMEN.texto) {
  * tiene de qué elegir). Nunca archivos, usuario, nombre de la persona, nota, repo completo, equipo
  * ni respuestas. Topes: 12 sesiones, 6 subagentes y 4 procesos por sesión, 200 caracteres por texto.
  */
+/**
+ * Línea de diagnóstico al tocar el Avi (`widget.log`): lo que la UI creía antes (modelo, trabajo,
+ * estado) y lo que muestra después. Junto con la línea `resumen estado:` del motor dice por qué el
+ * globo ofreció descargar.
+ */
+export function lineaAbrir(antes, despues) {
+  const v = x => (x == null ? '?' : x)
+  return `resumen abrir: antes modelo=${v(antes?.modelo)} trabajo=${antes?.trabajo ?? '-'} estado=${v(antes?.estado)}; `
+    + `ahora estado=${v(despues?.estado)} trabajo=${despues?.trabajo ?? '-'}`
+}
+
 export function datosResumen(proyectos, ahoraMs) {
   const T = TOPES_RESUMEN
   let quedan = T.sesiones

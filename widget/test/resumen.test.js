@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import {
   ESTADOS_RESUMEN, TOPES_RESUMEN, MOTIVOS_FALLO, EVENTOS_BACKEND, ESPERA_PENSANDO_MS, resumenInicial, transicion,
   datosResumen, firmaResumen, textoPensando, formatoGB, formatoSegundos, formatoHora, limpiarTexto, partesTexto,
-  htmlTexto, contenidoResumen, anuncioResumen, vozAvi, colaResumen, duracionContando, contarPalabras, animoTexto,
+  htmlTexto, contenidoResumen, anuncioResumen, vozAvi, colaResumen, duracionContando, contarPalabras, animoTexto, lineaAbrir,
 } from '../src/resumen.js'
 import { agruparPorProyecto } from '../src/logica.js'
 
@@ -437,4 +437,13 @@ test('"Leyendo…" queda fijo con lo que se le pasó al modelo en el pedido', ()
 
 test('descargando sin progreso conocido (la firma lo pasa en null) no rompe', () => {
   assert.ok(contenidoResumen({ ...base, estado: 'descargando', progreso: null }).includes('Bajando el modelo'))
+})
+
+test('diagnóstico al abrir el globo: lo que creía la UI antes y lo que muestra después', () => {
+  const antes = { ...resumenInicial(), modelo: 'listo', trabajo: null, estado: 'cerrado' }
+  const despues = { ...antes, estado: 'pensando', trabajo: 'pensando' }
+  assert.equal(lineaAbrir(antes, despues), 'resumen abrir: antes modelo=listo trabajo=- estado=cerrado; ahora estado=pensando trabajo=pensando')
+  // Sin estado leído todavía (modelo null) se ve como "?"
+  const sinLeer = { ...resumenInicial(), modelo: null, estado: 'cerrado' }
+  assert.match(lineaAbrir(sinLeer, { ...sinLeer, estado: 'apagado' }), /antes modelo=\? .* ahora estado=apagado/)
 })

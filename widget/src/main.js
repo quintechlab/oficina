@@ -34,7 +34,7 @@ import { esqueleto, rotulo, pestanas, indicePestana, escena as escenaPasos, pie 
 import * as movimientoPasos from './primerosPasosMotion.js'
 import {
   resumenInicial, transicion as transicionResumen, datosResumen, contenidoResumen, anuncioResumen, vozAvi, colaResumen, cifrasDescarga,
-  duracionContando, contarPalabras, animoTexto, EVENTOS_BACKEND, ESPERA_PENSANDO_MS,
+  duracionContando, contarPalabras, animoTexto, EVENTOS_BACKEND, ESPERA_PENSANDO_MS, lineaAbrir,
 } from './resumen.js'
 import * as movimientoResumen from './resumenMotion.js'
 
@@ -1959,7 +1959,10 @@ async function tocarMarca() {
   if (st.resumen.estado !== 'cerrado') { despacharResumen({ tipo: 'cerrar' }); return }
   if (!st.resumen.trabajo) await leerEstadoResumen()
   st.resumenFoco = true
+  const antes = st.resumen
   despacharResumen({ tipo: 'abrir' })
+  // Diagnóstico: con la línea "resumen estado:" del motor, dice por qué ofreció descargar
+  registrar(lineaAbrir(antes, st.resumen))
 }
 
 marcaBoton.addEventListener('pointerdown', e => { toqueMarca = { x: e.screenX, y: e.screenY } })

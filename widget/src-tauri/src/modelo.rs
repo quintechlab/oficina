@@ -258,6 +258,35 @@ pub fn resumir_estado(piezas: &[EstadoPieza], instalado_antes: bool, roto_marcad
     (estado, bajado, total)
 }
 
+/// Línea de diagnóstico para `widget.log` (cuándo y por qué el motor cree que falta algo): el
+/// plan, cada pieza (`hecha`, `falta(bajado/bytes)` o `mal`) y el estado que sale. `que`: `estado`
+/// o `descarga`.
+pub fn linea_diagnostico(que: &str, variante: Variante, piezas: &[Pieza], estados: &[EstadoPieza], modelo: EstadoModelo, bajando: bool, instalado: bool) -> String {
+    let si_no = |b: bool| if b { "si" } else { "no" };
+    let detalle: Vec<String> = piezas
+        .iter()
+        .zip(estados)
+        .map(|(p, e)| {
+            let como = if e.hecha {
+                String::from("hecha")
+            } else if e.mal {
+                String::from("mal")
+            } else {
+                format!("falta({}/{})", e.bajado, e.bytes)
+            };
+            format!("{}={como}", p.archivo)
+        })
+        .collect();
+    format!(
+        "resumen {que}: plan={} {} modelo={} bajando={} instalado={}",
+        variante.carpeta(),
+        detalle.join(" "),
+        modelo.nombre(),
+        si_no(bajando),
+        si_no(instalado)
+    )
+}
+
 /// Cuánto falta bajar.
 pub fn faltan(bajado: u64, total: u64) -> u64 {
     total.saturating_sub(bajado)
@@ -948,7 +977,10 @@ impl Ia {
         let (variante, piezas) = self.plan_actual(&base);
         let estados: Vec<EstadoPieza> = piezas.iter().map(|p| mirar_pieza(&base, p)).collect();
         let bajando = Self::lock(&self.descarga).activa;
-        let (modelo, bajado, total) = resumir_estado(&estados, base.join(MARCA_INSTALADO).exists(), base.join(MARCA_ROTO).exists(), bajando);
+        let instalado = base.join(MARCA_INSTALADO).exists();
+        let (modelo, bajado, total) = resumir_estado(&estados, instalado, base.join(MARCA_ROTO).exists(), bajando);
+        // Diagnóstico: si el globo ofrece descargar con todo bajado, acá queda por qué
+        registrar(&linea_diagnostico("estado", variante, &piezas, &estados, modelo, bajando, instalado));
         let corriendo = Self::lock(&self.motor).as_mut().and_then(|m| matches!(m.proceso.try_wait(), Ok(None)).then_some((m.listo, m.arranque)));
         let motor = match corriendo {
             Some((true, _)) => "listo",
@@ -993,7 +1025,12 @@ impl Ia {
             let agente = agente_red();
             let cancelar = || Self::lock(&self.descarga).cancelar || self.apagado.load(Ordering::SeqCst);
             let fin = loop {
-                let (_, piezas) = self.plan_actual(&base);
+                let (variante, piezas) = self.plan_actual(&base);
+                // Diagnóstico: qué piezas ve antes de bajar (las que no están "hecha" se bajan)
+                let vistas: Vec<EstadoPieza> = piezas.iter().map(|p| mirar_pieza(&base, p)).collect();
+                let instalado = base.join(MARCA_INSTALADO).exists();
+                let (antes, _, _) = resumir_estado(&vistas, instalado, base.join(MARCA_ROTO).exists(), false);
+                registrar(&linea_diagnostico("descarga", variante, &piezas, &vistas, antes, true, instalado));
                 let mut ultimo: Option<Instant> = None;
                 let mut progreso = |bajado: u64, total: u64| {
                     let ahora = Instant::now();
