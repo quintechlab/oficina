@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avis · pantalla dividida cuando dos proyectos conversan (boceto)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Martian+Mono:wdth,wght@75..112.5,400..600&display=swap" rel="stylesheet">
+<style>
+/* Tokens: los de widget/src/estilos.css, sin cambios. El celeste pasa a ser el color de "entre proyectos" */
+:root {
+  --negro: #000; --s1: #0C0C0E; --s2: #141417; --s3: #1D1D21;
+  --linea: #25252A; --linea-hover: #36363C;
+  --crema: #F3EBD8; --crema2: #BDB5A4; --tenue: #8A8478;
+  --ambar: #F2B632; --ambar-osc: #1D1707; --pico: #E9A13B;
+  --violeta: #A58BFF; --celeste: #7FB3FF; --verde: #8FD694; --rosa: #E78FB3; --rojo: #FF7A6B;
+  --celeste-osc: #0B1524;
+  --f: "Manrope", "Segoe UI Variable", sans-serif;
+  --m: "Martian Mono", "Cascadia Mono", monospace;
+  --ease: cubic-bezier(.16, 1, .3, 1); --ease-cierra: cubic-bezier(.5, 0, .75, 0); --rebote: cubic-bezier(.34, 1.56, .64, 1);
+  --d-entrada: 620ms; --d-escalon: 65ms; --ciclo-msj: 2.8s;
+  --k: 1;
+}
+* { box-sizing: border-box; margin: 0; padding: 0 }
+body { background: #000; color: var(--crema); font: 500 14px/1.5 var(--f); padding: 0 10px 80px;
+  background-image: radial-gradient(900px 420px at 12% -8%, rgba(127,179,255,.09), transparent 70%), radial-gradient(700px 380px at 92% 4%, rgba(242,182,50,.07), transparent 70%); }
+.pagina { max-width: 1408px; margin: 0 auto }
+button { font: inherit; color: inherit; cursor: pointer }
+:focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px }
+.m { font-family: var(--m); font-stretch: 75% }
+
+/* Portada */
+.portada { display: flex; align-items: center; gap: 18px; padding: 36px 0 8px; flex-wrap: wrap }
+.portada .marca-p { display: flex; align-items: center; gap: 10px }
+.portada h1 { font: 800 44px/1 var(--f); letter-spacing: -.02em }
+.portada h1 em { font-style: normal; color: var(--celeste) }
+.portada .bajada { flex: 1 1 360px; color: var(--crema2); max-width: 680px }
+.portada .bajada b { color: var(--crema) }
+.aviso { font: 400 11px/1.6 var(--m); font-stretch: 75%; color: var(--tenue); padding: 4px 0 0; max-width: 980px }
+
+/* Controles: fijos arriba al bajar */
+.controles { position: sticky; top: 0; z-index: 20; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px 0; margin-top: 18px;
+  background: linear-gradient(#000 70%, rgba(0,0,0,0)); }
+.casos { display: flex; gap: 4px; flex-wrap: wrap; background: var(--s1); border: 1px solid var(--linea); border-radius: 999px; padding: 4px }
+.casos button { min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--crema2); font: 500 11px/1 var(--m); font-stretch: 75%; transition: background .2s, color .2s }
+.casos button:hover { color: var(--crema) }
+.casos button[aria-pressed="true"] { background: var(--celeste); color: #06101F }
+.ctl { min-height: 44px; min-width: 44px; padding: 0 16px; border-radius: 999px; background: var(--s2); border: 1px solid var(--linea); font: 500 11px/1 var(--m); font-stretch: 75%; transition: border-color .2s }
+.ctl:hover { border-color: var(--linea-hover) }
+
+/* Una opción */
+.opcion { display: grid; grid-template-columns: 648px 1fr; gap: 36px; padding: 40px 0 8px; border-top: 1px solid var(--linea); margin-top: 28px; align-items: start }
+.texto .num { font: 600 13px/1 var(--m); color: var(--celeste) }
+.texto h2 { font: 800 30px/1.1 var(--f); letter-spacing: -.01em; margin: 8px 0 14px }
+.texto h2 small { display: block; font: 500 13px/1.4 var(--m); font-stretch: 75%; color: var(--tenue); margin-top: 6px; letter-spacing: 0 }
+.texto ul { list-style: none; display: grid; gap: 8px; color: var(--crema2); font-size: 14px; max-width: 560px }
+.texto li { padding-left: 16px; position: relative }
+.texto li::before { content: ""; position: absolute; left: 0; top: .62em; width: 6px; height: 6px; border-radius: 2px; background: var(--celeste) }
+.texto li.costo::before { background: var(--rojo) }
+.datos { margin-top: 14px; font: 400 11px/1.6 var(--m); font-stretch: 75%; color: var(--tenue); max-width: 560px }
+.datos b { color: var(--crema2); font-weight: 500 }
+.leyenda { margin-top: 18px; background: var(--s1); border: 1px solid var(--linea); border-left: 3px solid var(--celeste); border-radius: 12px; padding: 14px 16px; max-width: 560px }
+.leyenda b { display: block; font: 500 10px/1 var(--m); font-stretch: 75%; letter-spacing: .1em; text-transform: uppercase; color: var(--celeste); margin-bottom: 8px }
+.leyenda p { color: var(--crema); font-size: 14px }
+
+/* El marco: el panel entero, 188 + 460 = 648 × 640 */
+.marco-k { width: calc(648px * var(--k)); height: calc(640px * var(--k)); overflow: hidden; border-radius: calc(26px * var(--k)) }
+.panel { width: 648px; height: 640px; display: flex; background: #000; border: 1px solid var(--linea); border-radius: 26px; overflow: hidden; position: relative; transform: scale(var(--k)); transform-origin: 0 0 }
+
+/* Barra lateral */
+.lado { width: 188px; flex: none; padding: 18px 12px 12px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid #101013 }
+.marca { display: flex; align-items: center; gap: 8px; margin-bottom: 14px }
+.marca b { display: block; font: 800 16px/1.1 var(--f) }
+.marca em { font: italic 500 11px/1.3 var(--m); font-stretch: 75%; color: var(--crema2) }
+.rot-l { font: 500 10px/1 var(--m); font-stretch: 75%; letter-spacing: .12em; text-transform: uppercase; color: var(--tenue); padding: 8px 6px 4px }
+.rot-l.cel { color: var(--celeste) }
+.proys, .convs { list-style: none; display: flex; flex-direction: column; gap: 3px }
+.pr { display: grid; grid-template-columns: 24px 1fr auto; gap: 9px; align-items: center; min-height: 40px; padding: 6px 8px; border-radius: 11px; font: 700 13px/1.25 var(--f); color: var(--crema) }
+.pr.sel { background: var(--ambar-osc); color: var(--ambar) }
+.pr.origen { box-shadow: inset 0 0 0 1px rgba(242,182,50,.28); color: var(--ambar) }
+.pr .k { font: 600 10.5px/1 var(--m); background: var(--s3); color: var(--crema2); border-radius: 6px; padding: 4px 6px }
+.pr.sel .k { background: #3A2C0A; color: var(--ambar) }
+.pr .cv { color: var(--celeste); font: 700 11px/1 var(--m); margin-left: 4px }
+.ini { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; font: 600 10px/1 var(--m); color: var(--c); background: color-mix(in srgb, var(--c) 14%, #0C0C0E) }
+.conv { position: relative; display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; min-height: 48px; padding: 6px 8px; border-radius: 12px; background: var(--celeste-osc); border: 1px solid rgba(127,179,255,.22) }
+.conv.activa { background: rgba(127,179,255,.14); border-color: rgba(127,179,255,.55) }
+.conv.fin { background: transparent; border-color: var(--linea); opacity: .62 }
+.conv .caras { position: relative; height: 26px }
+.conv .caras .avi { position: absolute; top: 0 }
+.conv b { display: block; font: 700 12px/1.2 var(--f) }
+.conv > div { min-width: 0 }
+.conv b, .conv span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.conv span { display: block; font: 500 11px/1.2 var(--f); color: var(--celeste) }
+.conv.fin span { color: var(--crema2) }
+.conv em { font: 500 9.5px/1 var(--m); font-stretch: 75%; font-style: normal; color: var(--crema2) }
+.conv .nuevo { position: absolute; right: 6px; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--celeste); box-shadow: 0 0 0 3px rgba(127,179,255,.2) }
+.pie-l { margin-top: auto; border-top: 1px solid var(--linea); padding: 10px 6px 0; font: 500 10px/1.5 var(--m); font-stretch: 75%; color: var(--tenue) }
+.pie-l b { display: block; letter-spacing: .12em; font-weight: 500 }
+/* Riel (opción A): la barra plegada */
+.lado.riel { width: 56px; padding: 18px 8px 12px; align-items: center; gap: 8px }
+.tok { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; position: relative }
+.tok .ini { width: 28px; height: 28px; border-radius: 8px }
+.tok.sel { background: var(--ambar-osc) }
+.tok.cv { background: var(--celeste-osc); border: 1px solid rgba(127,179,255,.3); color: var(--celeste); font: 700 15px/1 var(--f) }
+.tok.cv.activa { background: rgba(127,179,255,.18); border-color: var(--celeste) }
+.tok.cv.fin { opacity: .5 }
+.tok .nuevo { position: absolute; right: -2px; top: -2px; width: 9px; height: 9px; border-radius: 50%; background: var(--celeste); border: 2px solid #000 }
+.riel hr { width: 24px; border: 0; border-top: 1px solid var(--linea); margin: 4px 0 }
+
+/* Columna principal */
+.principal { flex: 1; min-width: 0; padding: 18px 15px 0 10px; position: relative }
+.cab { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px }
+.proy { font: 800 21px/1.1 var(--f) }
+.sub { font: 500 12.5px/1.45 var(--f); color: var(--crema2); margin-top: 4px }
+.iconos { display: flex; gap: 14px; color: var(--crema2); padding-top: 4px }
+.chips { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap }
+.chip { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 11px; border-radius: 999px; background: var(--s1); border: 1px solid var(--linea); font: 500 10px/1 var(--m); font-stretch: 75%; color: var(--crema2) }
+.chip i { width: 7px; height: 7px; border-radius: 50% }
+.chip b { font: 800 12.5px/1 var(--f); color: var(--crema) }
+.chip.cel { border-color: rgba(127,179,255,.35); color: var(--celeste) }
+
+/* Tarjeta escenario (port de la de hoy) */
+.tarjeta { background: var(--s1); border: 1px solid var(--linea); border-radius: 18px; padding: 12px 14px 4px; margin-bottom: 12px; position: relative }
+.meta { display: flex; align-items: center; gap: 8px }
+.tag { font: 500 10px/1 var(--m); font-stretch: 75%; background: var(--s3); color: var(--crema2); padding: 5px 7px; border-radius: 6px; white-space: nowrap }
+.rama { font: 800 14.5px/1.3 var(--f) }
+.lleva { margin-left: auto; font: 400 10.5px/1 var(--m); font-stretch: 75%; color: var(--tenue) }
+.linea { display: flex; align-items: center; gap: 6px; font: 700 12.5px/1.3 var(--f); color: var(--ambar); margin-top: 5px }
+.linea.cel { color: var(--celeste) }
+.punto { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent); flex: none }
+.rastro { font: 500 10px/1.3 var(--m); font-stretch: 75%; color: var(--celeste); opacity: .75; margin-top: 4px }
+.ver { margin-left: auto; min-height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--celeste); background: var(--celeste-osc); color: var(--celeste); font: 700 11.5px/1 var(--f) }
+.esc { position: relative; height: 146px; margin: 0 -2px }
+.esc.solo { height: 112px }
+.piso { position: absolute; left: -12px; right: -12px; top: 92px; height: 18px;
+  background: radial-gradient(120px 10px at 52px 6px, rgba(242,182,50,.20), transparent 70%), linear-gradient(90deg, transparent, #1E1E23 12%, #1E1E23 88%, transparent) 0 6px / 100% 1px no-repeat }
+.esc .avi, .esc-a .avi, .visita .avi { position: absolute }
+.rot { position: absolute; text-align: center; display: flex; flex-direction: column; gap: 1px }
+.rot b { font: 800 12px/1.25 var(--f); color: var(--ambar) }
+.rot span { font: 500 11px/1.25 var(--f); color: var(--crema2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 3px }
+.rot em { font: 500 9.5px/1.3 var(--m); font-stretch: 75%; font-style: normal }
+.va { color: var(--ambar) } .ok { color: var(--verde) }
+.hilos { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none }
+.hilos path { fill: none; stroke: var(--ambar); stroke-width: 1.4; stroke-dasharray: 2 5; stroke-linecap: round; opacity: .55 }
+.hilo-pt { position: absolute; left: 0; top: 0; width: 5px; height: 5px; border-radius: 50%; background: var(--ambar); offset-rotate: 0deg; opacity: 0; pointer-events: none }
+
+/* El puente entre proyectos: lo dibuja puentes() sobre todo el panel */
+.puente { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 3 }
+.puente .halo-p { fill: none; stroke: var(--celeste); stroke-width: 7; opacity: .1; stroke-linecap: round }
+.puente .cable { fill: none; stroke: var(--celeste); stroke-width: 1.6; stroke-dasharray: 2 5; stroke-linecap: round; opacity: .8 }
+.puente .cortado { fill: none; stroke: var(--tenue); stroke-width: 1.4; stroke-linecap: round; opacity: .45 }
+.msj { position: absolute; left: 0; top: 0; z-index: 4; width: 22px; height: 13px; border-radius: 7px; background: var(--celeste); offset-rotate: 0deg; offset-distance: 56%; pointer-events: none;
+  box-shadow: 0 0 0 3px rgba(127,179,255,.18), 0 0 14px rgba(127,179,255,.55);
+  background-image: radial-gradient(circle, #06101F 1.3px, transparent 1.6px); background-size: 6px 13px; background-position: 2px 0 }
+.llega { position: absolute; z-index: 4; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; border: 2px solid var(--celeste); opacity: 0; pointer-events: none }
+
+/* Opción A: mitades */
+.barra-c { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; min-height: 48px }
+.barra-c .t { flex: 1; min-width: 0 }
+.kick { font: 500 10px/1 var(--m); font-stretch: 75%; letter-spacing: .12em; text-transform: uppercase; color: var(--celeste) }
+.barra-c h3 { font: 800 19px/1.2 var(--f); margin-top: 5px; white-space: nowrap }
+.barra-c h3 i { font-style: normal; color: var(--celeste); margin: 0 6px }
+.barra-c .s { font: 500 11.5px/1.35 var(--f); color: var(--crema2); margin-top: 2px }
+.cerrar { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--linea); background: var(--s1); display: grid; place-items: center; color: var(--crema2) }
+.ahora { min-height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--celeste); background: var(--celeste-osc); color: var(--celeste); font: 700 11.5px/1 var(--f) }
+.drena { height: 2px; background: rgba(127,179,255,.15); border-radius: 2px; margin: -4px 0 10px; overflow: hidden }
+.drena i { display: block; height: 100%; background: var(--celeste); transform-origin: 0 50%; transform: scaleX(.66) }
+.pestanas { display: flex; gap: 6px; margin-bottom: 10px }
+.pest { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--linea); background: var(--s1); font: 700 11.5px/1 var(--f); color: var(--crema2) }
+.pest.activa { border-color: var(--celeste); color: var(--crema); background: var(--celeste-osc) }
+.pest i { font-style: normal; color: var(--celeste) }
+.pest .nuevo { width: 7px; height: 7px; border-radius: 50%; background: var(--celeste); box-shadow: 0 0 0 3px rgba(127,179,255,.2) }
+.split { display: grid; grid-template-columns: 1fr 16px 1fr; position: relative }
+.mitad { position: relative; min-width: 0 }
+.mh { padding: 0 2px; height: 66px }
+.mh-p { display: flex; align-items: center; gap: 8px; font: 800 17px/1.1 var(--f) }
+.mh-r { margin-top: 6px; display: flex; gap: 6px; align-items: center; font: 800 12.5px/1 var(--f); color: var(--crema2) }
+.mitad.der .mh { text-align: right } .mitad.der .mh-p, .mitad.der .mh-r, .mitad.der .linea { justify-content: flex-end }
+.esc-a { position: relative; height: 218px }
+.piso-a { position: absolute; left: 0; right: 0; top: 164px; height: 14px;
+  background: radial-gradient(90px 9px at var(--px) 6px, rgba(242,182,50,.2), transparent 70%), linear-gradient(90deg, transparent, #1E1E23 14%, #1E1E23 86%, transparent) 0 6px / 100% 1px no-repeat }
+.mitad.izq .piso-a { --px: 196px } .mitad.der .piso-a { --px: 76px }
+.turno { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 11px; border-radius: 999px; font: 500 10.5px/1 var(--m); font-stretch: 75%; border: 1px solid rgba(127,179,255,.4); color: var(--celeste) }
+.turno.lleno { background: rgba(127,179,255,.14); border-color: transparent; color: var(--crema) }
+.turno.apag { border-color: var(--linea); color: var(--crema2) }
+.mitad.der .pie-m { text-align: right }
+.costura { position: relative }
+.costura::before { content: ""; position: absolute; left: 7.5px; top: 4px; bottom: 4px; width: 1px; background: linear-gradient(transparent, rgba(127,179,255,.5) 25%, rgba(127,179,255,.5) 75%, transparent) }
+.costura .pild { position: absolute; left: 50%; top: 250px; transform: translateX(-50%); white-space: nowrap; font: 500 10px/1 var(--m); font-stretch: 75%; color: var(--celeste); background: #000; border: 1px solid rgba(127,179,255,.45); border-radius: 999px; padding: 6px 9px; z-index: 2 }
+.costura .pild.fin { color: var(--crema2); border-color: var(--linea-hover) }
+.lado.riel + .principal { display: flex; flex-direction: column; padding-bottom: 16px }
+.ficha-c { margin-top: auto; background: var(--s1); border: 1px solid var(--linea); border-radius: 14px; padding: 12px 14px; display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; align-items: center }
+.ficha-c p { font: 500 12.5px/1.4 var(--f); color: var(--crema2) }
+.ficha-c p b { color: var(--crema); font-weight: 700 }
+.ficha-c small { grid-column: 1 / -1; font: 400 10px/1.4 var(--m); font-stretch: 75%; color: var(--tenue) }
+
+/* Opción B: pisos */
+.atras { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px 0 10px; border-radius: 12px; border: 1px solid var(--linea); background: var(--s1); font: 700 12.5px/1 var(--f); color: var(--crema) }
+.cab-b { display: flex; align-items: center; gap: 12px; margin-bottom: 10px }
+.cab-b .t h3 { font: 800 17px/1.15 var(--f); white-space: nowrap }
+.cab-b .t h3 i { font-style: normal; color: var(--celeste); margin: 0 5px }
+.cab-b .t p { font: 500 11.5px/1.3 var(--f); color: var(--crema2) }
+.piso-c .meta .pn { display: flex; align-items: center; gap: 7px; font: 800 14.5px/1.2 var(--f) }
+.piso-c .meta .pn .ini { width: 20px; height: 20px; border-radius: 6px }
+.piso-c { margin-bottom: 0 }
+.entre { height: 46px; display: grid; place-items: center }
+.entre span { font: 500 10.5px/1 var(--m); font-stretch: 75%; color: var(--celeste); border: 1px solid rgba(127,179,255,.4); border-radius: 999px; padding: 7px 12px; background: #000 }
+.entre span.fin { color: var(--crema2); border-color: var(--linea-hover) }
+
+/* Opción C: llamada dentro de la tarjeta */
+.tarjeta.llam { border-color: rgba(127,179,255,.3) }
+.costura-c { position: absolute; left: 248px; top: 0; bottom: 6px; width: 1px; background: linear-gradient(transparent, rgba(127,179,255,.55) 20%, rgba(127,179,255,.55) 80%, transparent) }
+.nudo { position: absolute; left: 238px; top: 52px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #000; border: 1px solid var(--celeste); color: var(--celeste); font: 700 11px/1 var(--f); z-index: 2 }
+.visita { position: absolute; left: 258px; right: 0; top: 0; bottom: 6px; border-radius: 12px; background: linear-gradient(rgba(127,179,255,.07), rgba(127,179,255,.02)); border: 1px solid rgba(127,179,255,.18); overflow: hidden }
+.visita .vt { position: absolute; left: 8px; right: 8px; top: 94px; text-align: center }
+.visita .vt b { display: block; font: 800 12.5px/1.2 var(--f) }
+.visita .vt span { font: 500 9.5px/1.3 var(--m); font-stretch: 75%; color: var(--crema2) }
+.visita .vp { position: absolute; left: 0; right: 0; top: 114px; text-align: center; font: 500 9.5px/1.3 var(--m); font-stretch: 75%; color: var(--celeste) }
+.visita .mas1 { position: absolute; right: 8px; top: 8px; font: 600 10px/1 var(--m); color: var(--crema2); background: var(--s3); border-radius: 6px; padding: 4px 5px }
+.visita.fin { opacity: .45 }
+.sello { position: absolute; left: 50%; top: 52px; transform: translateX(-50%) rotate(-6deg); font: 600 11px/1 var(--m); color: var(--crema); border: 1.5px solid var(--crema2); border-radius: 6px; padding: 5px 8px; background: rgba(0,0,0,.6); z-index: 2; white-space: nowrap }
+
+/* Los Avis: copia de widget/src/avis.css */
+.avi { display: inline-block; width: var(--t, 64px); height: var(--t, 64px); flex: none; vertical-align: middle }
+.avi svg { width: 100%; height: 100%; overflow: visible; display: block }
+.avi .piel { fill: url(#gPiel) } .avi .sombreado { fill: #B9A780; opacity: .34 }
+.avi .brillo { fill: #fff; opacity: .72; filter: url(#fBlur) } .avi .pata { fill: #D6C8A6 }
+.avi .suelo { fill: url(#gSuelo) } .avi .contacto { fill: #000; opacity: .55 }
+.avi .ojo { fill: #1B1712 } .avi .luz { fill: #fff }
+.avi .trazo { stroke: #1B1712; stroke-width: 2.8; fill: none; stroke-linecap: round; stroke-linejoin: round }
+.avi .pico { fill: var(--pico) }
+.avi .cuerpo, .avi .ojos, .avi .mirada, .avi .mano, .avi .chispa, .avi .bulbo, .avi .halo, .avi .onda, .avi .p { transform-box: fill-box }
+.avi .cuerpo { transform-origin: 50% 100% } .avi .ojos { transform-origin: 50% 50% }
+.avi .e-escribiendo .mirada { transform: translateY(2.5px) }
+.avi .e-durmiendo .cuerpo { opacity: .86 }
+.avi .z { font: 800 13px var(--f); fill: var(--tenue) }
+.avi .onda { fill: none; stroke-width: 2; transform-origin: 50% 50%; opacity: .5 }
+
+/* Movimiento: solo transform y opacity. Quieto con prefers-reduced-motion o body.pausa */
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .avi .cuerpo { animation: respira 3.4s ease-in-out infinite var(--d, 0s) }
+  body:not(.pausa) .avi .ojos { animation: parpadea 4.8s infinite var(--d, 0s) }
+  body:not(.pausa) .avi .e-escribiendo .cuerpo { animation: teclea .34s ease-in-out infinite alternate }
+  body:not(.pausa) .avi .e-escribiendo .mano { animation: tecla .2s ease-in-out infinite alternate }
+  body:not(.pausa) .avi .e-escribiendo .mano.m2 { animation-delay: .1s }
+  body:not(.pausa) .avi .e-escribiendo .logo { animation: titila 1.6s ease-in-out infinite }
+  body:not(.pausa) .avi .e-leyendo .mirada { animation: mira 3.2s ease-in-out infinite var(--d, 0s) }
+  body:not(.pausa) .avi .e-pensando .p { animation: idea 2.4s ease-in-out infinite; opacity: 0 }
+  body:not(.pausa) .avi .e-pensando .p2 { animation-delay: .3s } body:not(.pausa) .avi .e-pensando .p3 { animation-delay: .6s }
+  body:not(.pausa) .avi .e-coordinando .onda { animation: onda 2.2s ease-out infinite }
+  body:not(.pausa) .avi .e-coordinando .onda.o2 { animation-delay: 1.1s }
+  body:not(.pausa) .avi .e-coordinando .bulbo, body:not(.pausa) .avi .e-coordinando .halo { animation: pulso 1.1s ease-in-out infinite alternate; transform-origin: 50% 50% }
+  body:not(.pausa) .avi .e-listo .cuerpo { animation: festeja 1s var(--rebote) infinite }
+  body:not(.pausa) .avi .e-listo .chispa { animation: chispa 1s ease-out infinite; transform-origin: 50% 50% }
+  body:not(.pausa) .hilo-pt { animation: viaja 1.8s cubic-bezier(.45, 0, .55, 1) infinite; animation-delay: calc(var(--k2, 0) * 600ms) }
+  /* El mensaje: cruza en 1,7 s y deja un anillo en quien lo recibe. En el widget, una vez por mensaje nuevo; acá en bucle */
+  body:not(.pausa) .msj { animation: cruza var(--ciclo-msj) cubic-bezier(.45, 0, .2, 1) infinite .55s; opacity: 0 }
+  body:not(.pausa) .llega { animation: anillo var(--ciclo-msj) ease-out infinite .55s }
+  /* Entradas de cada caso */
+  .entra-izq { animation: desdeIzq var(--d-entrada) var(--ease) both }
+  .entra-der { animation: desdeDer var(--d-entrada) var(--ease) both 65ms }
+  .entra-arr { animation: entra var(--d-entrada) var(--ease) both }
+  .entra-ab { animation: desdeAbajo var(--d-entrada) var(--ease) both 130ms }
+  .entra-esc { animation: entra var(--d-entrada) var(--ease) both calc(var(--i, 0) * 65ms) }
+  .costura.entra-cos::before, .costura-c.entra-cos { animation: cose .5s var(--ease) both .2s }
+  .entra-vis { animation: desdeDer var(--d-entrada) var(--ease) both .1s }
+  .entra-riel { animation: riel .45s var(--ease) both }
+  .entra-conv { animation: llegaConv .7s var(--rebote) both .25s }
+  .puente { animation: aparece .45s var(--ease) both .45s }
+  body:not(.pausa) .drena i { animation: drena 8s linear both }
+  body:not(.pausa) .conv .nuevo, body:not(.pausa) .pest .nuevo, body:not(.pausa) .tok .nuevo { animation: titila 1.4s ease-in-out infinite }
+  .vuelta { animation: vuelve .55s var(--ease) both }
+}
+@media (prefers-reduced-motion: reduce) { .msj { opacity: 1 } }
+body.pausa .msj { opacity: 1; animation: none }
+@keyframes cruza { 0% { offset-distance: 0%; opacity: 0; transform: scale(.5) } 8% { opacity: 1; transform: scale(1) } 60% { offset-distance: 100%; opacity: 1; transform: scale(1) } 68%, 100% { offset-distance: 100%; opacity: 0; transform: scale(.6) } }
+@keyframes anillo { 0%, 56% { opacity: 0; transform: scale(.4) } 62% { opacity: .95; transform: scale(.7) } 100% { opacity: 0; transform: scale(2.3) } }
+@keyframes viaja { 0% { offset-distance: 0%; opacity: 0 } 12%, 85% { opacity: 1 } 100% { offset-distance: 100%; opacity: 0 } }
+@keyframes entra { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
+@keyframes desdeIzq { from { opacity: 0; transform: translateX(-40px) } to { opacity: 1; transform: none } }
+@keyframes desdeDer { from { opacity: 0; transform: translateX(40px) } to { opacity: 1; transform: none } }
+@keyframes desdeAbajo { from { opacity: 0; transform: translateY(40px) } to { opacity: 1; transform: none } }
+@keyframes cose { from { transform: scaleY(0); opacity: 0 } to { transform: scaleY(1); opacity: 1 } }
+@keyframes riel { from { opacity: 0; transform: translateX(-24px) } to { opacity: 1; transform: none } }
+@keyframes llegaConv { from { opacity: 0; transform: translateX(-16px) scale(.94) } to { opacity: 1; transform: none } }
+@keyframes aparece { from { opacity: 0 } to { opacity: 1 } }
+@keyframes drena { from { transform: scaleX(1) } to { transform: scaleX(0) } }
+@keyframes vuelve { from { opacity: 0; transform: scale(.97) } to { opacity: 1; transform: none } }
+@keyframes respira { 0%, 100% { transform: scale(1, 1) } 50% { transform: scale(1.03, .965) } }
+@keyframes parpadea { 0%, 91%, 97%, 100% { transform: scaleY(1) } 94% { transform: scaleY(.08) } }
+@keyframes teclea { from { transform: translateY(0) } to { transform: translateY(1.5px) scale(1.01, .99) } }
+@keyframes tecla { from { transform: translateY(0) } to { transform: translateY(-3px) } }
+@keyframes titila { 0%, 100% { opacity: 1 } 50% { opacity: .45 } }
+@keyframes mira { 0%, 100% { transform: translateX(-3px) translateY(2px) } 50% { transform: translateX(3px) translateY(2px) } }
+@keyframes idea { 0% { opacity: 0; transform: translateY(4px) } 30%, 70% { opacity: 1; transform: none } 100% { opacity: 0; transform: translateY(-3px) } }
+@keyframes onda { from { transform: scale(.5); opacity: .9 } to { transform: scale(1.9); opacity: 0 } }
+@keyframes pulso { from { transform: scale(1) } to { transform: scale(1.18) } }
+@keyframes festeja { 0%, 100% { transform: translateY(0) scale(1, 1) } 20% { transform: scale(1.08, .9) } 50% { transform: translateY(-10px) scale(.95, 1.06) } 75% { transform: scale(1.04, .96) } }
+@keyframes chispa { 0% { transform: scale(0); opacity: 1 } 60% { transform: scale(1.1); opacity: 1 } 100% { transform: scale(.6); opacity: 0 } }
+
+@media (max-width: 1180px) { .opcion { grid-template-columns: 1fr; gap: 20px } .opcion .marco-k { margin: 0 auto } }
+@media (max-width: 700px) {
+  :root { --k: .52 }
+  .portada h1 { font-size: 34px }
+  .texto h2 { font-size: 24px }
+  /* Celular: una sola línea fija arriba; los casos se deslizan de costado y pausar queda como ícono */
+  .controles { flex-wrap: nowrap; gap: 6px; padding: 8px 0 }
+  .casos { flex: 1; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none }
+  .casos button { padding: 0 10px; white-space: nowrap; flex: none }
+  .ctl { padding: 0; width: 44px; flex: none }
+  #pausar .larga { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%) }
+  #pausar::before { content: "❚❚"; font-size: 10px; letter-spacing: -1px }
+  #pausar[aria-pressed="true"]::before { content: "▶" }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <radialGradient id="gPiel" cx="36%" cy="28%" r="78%"><stop offset="0" stop-color="#FFFCF4"/><stop offset=".42" stop-color="#F5EDDC"/><stop offset=".8" stop-color="#E1D4B6"/><stop offset="1" stop-color="#CBBB97"/></radialGradient>
+  <radialGradient id="gSuelo" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#F2B632" stop-opacity=".22"/><stop offset="1" stop-color="#F2B632" stop-opacity="0"/></radialGradient>
+  <filter id="fBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.7"/></filter>
+</defs></svg>
+
+<main class="pagina">
+  <div class="portada">
+    <div class="marca-p"><span id="marca"></span><h1>Avis <em>⇄</em> pantalla dividida</h1></div>
+    <p class="bajada"><b>Cuando dos sesiones de proyectos distintos se hablan para una tarea.</b> Tres caminos, los mismos siete casos. Recorrelos con los botones (o ← →): los tres paneles cambian juntos.</p>
+  </div>
+  <p class="aviso">Marco = panel entero, 648 × 640 (barra 188 + columna 460). Los mensajes entre proyectos van en celeste; los hilos a subagentes siguen en ámbar. Avis nunca muestra qué se dicen: solo con quién, desde cuándo, quién mandó el último y hace cuánto. Acá el mensaje viaja en bucle; en el widget viaja una vez por mensaje nuevo. Proyectos, ramas y tareas: datos de ejemplo.</p>
+  <div class="controles">
+    <div class="casos" role="group" aria-label="Caso que muestran los tres paneles" id="casos"></div>
+    <button class="ctl" type="button" id="ant" aria-label="Caso anterior">←</button>
+    <button class="ctl" type="button" id="sig" aria-label="Caso siguiente">→</button>
+    <button class="ctl" type="button" id="pausar" aria-pressed="false"><span class="larga">Pausar animaciones</span></button>
+  </div>
+  <div id="opciones"></div>
+</main>
+
+<script>
+/* ---------- Los Avis: port literal de widget/src/avis.js (svgAvi) ---------- */
+const ATRAS = {
+  antena: c => `<path d="M60 38V19" stroke="#CDBE9C" stroke-width="3.2" stroke-linecap="round"/><circle class="halo" cx="60" cy="14" r="9.5" fill="${c}" opacity=".22"/><circle class="bulbo" cx="60" cy="14" r="5.4" fill="${c}"/><circle cx="58.2" cy="12.3" r="1.7" fill="#fff" opacity=".85"/>`,
+  gata: c => `<path d="M30 58L33 25L56 39Z" fill="url(#gPiel)"/><path d="M90 58L87 25L64 39Z" fill="url(#gPiel)"/><path d="M35.5 45L37 31.5L47.5 39Z" fill="${c}" opacity=".9"/><path d="M84.5 45L83 31.5L72.5 39Z" fill="${c}" opacity=".9"/>`,
+  raton: c => `<circle cx="32" cy="41" r="14" fill="url(#gPiel)"/><circle cx="88" cy="41" r="14" fill="url(#gPiel)"/><circle cx="30.5" cy="39.5" r="7.5" fill="${c}" opacity=".8"/><circle cx="89.5" cy="39.5" r="7.5" fill="${c}" opacity=".8"/>`,
+  brote: c => `<path d="M60 37Q57 26 61 18" stroke="#78B078" stroke-width="2.8" fill="none" stroke-linecap="round"/><path d="M61 20Q70 8 81 15Q72 25 61 20Z" fill="${c}"/><path d="M59.5 26Q50 16 41 22Q50 31 59.5 26Z" fill="${c}" opacity=".75"/>`,
+  mono: c => `<circle cx="22" cy="70" r="10.5" fill="url(#gPiel)"/><circle cx="98" cy="70" r="10.5" fill="url(#gPiel)"/><circle cx="21" cy="70" r="5.2" fill="${c}" opacity=".75"/><circle cx="99" cy="70" r="5.2" fill="${c}" opacity=".75"/>`,
+  copete: c => `<g class="copete"><path d="M56 38Q50 24 60 18Q56 28 64 36Z" fill="${c}"/><path d="M62 37Q64 26 74 25Q67 30 67 38Z" fill="${c}" opacity=".85"/></g>`,
+}
+const FRENTE = { mono: c => `<path d="M49 40Q57 24 71 34Q62 31 58 41Q55 36 49 40Z" fill="${c}"/>` }
+const OJOS = {
+  base: `<ellipse class="ojo" cx="49" cy="70" rx="4.5" ry="5.8"/><ellipse class="ojo" cx="71" cy="70" rx="4.5" ry="5.8"/><circle class="luz" cx="50.7" cy="67.6" r="1.5"/><circle class="luz" cx="72.7" cy="67.6" r="1.5"/>`,
+  cerrados: `<path class="trazo" d="M44.5 71Q49 75 53.5 71M66.5 71Q71 75 75.5 71"/>`,
+  feliz: `<path class="trazo" d="M44.5 72.5Q49 65.5 53.5 72.5M66.5 72.5Q71 65.5 75.5 72.5"/>`,
+}
+const ojosDe = p => p === 'durmiendo' ? OJOS.cerrados : p === 'listo' ? OJOS.feliz : OJOS.base
+function efectos(p, c) {
+  switch (p) {
+    case 'escribiendo': return `<ellipse cx="60" cy="79" rx="24" ry="8" fill="${c}" opacity=".14"/><rect x="35" y="80" width="50" height="21" rx="4.5" fill="#1C1C21" stroke="#34343B" stroke-width="1.2"/><circle class="logo" cx="60" cy="90.5" r="2.8" fill="${c}"/><rect x="28" y="100" width="64" height="5" rx="2.5" fill="#2A2A31"/><ellipse class="mano" cx="43" cy="81" rx="5.5" ry="3.8" fill="#EFE6D2"/><ellipse class="mano m2" cx="77" cy="81" rx="5.5" ry="3.8" fill="#EFE6D2"/>`
+    case 'leyendo': return `<path d="M60 84Q50 79 39 83V100Q50 96 60 101Z" fill="#A58BFF"/><path d="M60 84Q70 79 81 83V100Q70 96 60 101Z" fill="#8C70F0"/><path d="M44 88Q50 86 56 88M44 92Q50 90 56 92M64 88Q70 86 76 88" stroke="#E9E2FF" stroke-width="1.3" fill="none" opacity=".7"/><ellipse cx="44" cy="84" rx="5" ry="3.6" fill="#EFE6D2"/><ellipse cx="76" cy="84" rx="5" ry="3.6" fill="#EFE6D2"/>`
+    case 'pensando': return `<circle class="p" cx="88" cy="36" r="3" fill="#F3EBD8"/><circle class="p p2" cx="96" cy="25" r="4.2" fill="#F3EBD8"/><circle class="p p3" cx="106" cy="12" r="5.6" fill="#F3EBD8"/>`
+    case 'coordinando': return `<circle class="onda" cx="60" cy="14" r="11" stroke="${c}"/><circle class="onda o2" cx="60" cy="14" r="11" stroke="${c}"/>`
+    case 'listo': return `<g class="chispa"><path d="M100 30l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="${c}"/></g>`
+    default: return ''
+  }
+}
+function svgAvi({ pj, color: c }, p) {
+  return `<svg viewBox="0 0 120 120" class="e-${p}" aria-hidden="true" focusable="false"><ellipse class="suelo" cx="60" cy="104" rx="42" ry="9"/><ellipse class="contacto" cx="60" cy="104" rx="26" ry="3.6"/><g class="cuerpo">${ATRAS[pj]?.(c) ?? ''}<ellipse class="pata" cx="47" cy="101" rx="8.5" ry="4.4"/><ellipse class="pata" cx="73" cy="101" rx="8.5" ry="4.4"/><path class="piel" d="M60 34C84 34 97 52 97 74C97 92 81 102 60 102C39 102 23 92 23 74C23 52 36 34 60 34Z"/><path class="sombreado" d="M25 80C30 95 90 95 95 80C92 99 28 99 25 80Z"/><ellipse class="brillo" cx="43" cy="49" rx="11" ry="5.6" transform="rotate(-30 43 49)"/><ellipse cx="37" cy="81" rx="6.8" ry="3.5" fill="${c}" opacity=".36"/><ellipse cx="83" cy="81" rx="6.8" ry="3.5" fill="${c}" opacity=".36"/><g class="mirada"><g class="ojos">${ojosDe(p)}</g></g><path class="pico" d="M56 78.5Q60 85.5 64 78.5Q60 76.8 56 78.5Z"/>${FRENTE[pj]?.(c) ?? ''}</g>${efectos(p, c)}</svg>`
+}
+const PJ = {
+  Claude: { pj: 'antena', color: '#F2B632' }, Base: { pj: 'copete', color: '#F2B632' },
+  Delfina: { pj: 'mono', color: '#E78FB3' }, Mateo: { pj: 'raton', color: '#7FB3FF' },
+  'Lía': { pj: 'gata', color: '#A58BFF' }, Bruno: { pj: 'brote', color: '#8FD694' },
+}
+let n = 0
+const avi = (nombre, pose, t, x, y, extra = '') => `<span class="avi" ${extra} style="--t:${t}px;--d:-${((n++ * .83) % 3.3).toFixed(2)}s;${x != null ? `left:${x}px;top:${y}px` : ''}" aria-hidden="true">${svgAvi(PJ[nombre], pose)}</span>`
+const pie = t => Math.round(t * .867)
+const hiloD = (bx, by, tx, ty) => `M${bx} ${by} Q${(bx + tx) / 2} ${Math.min(by, ty) - 24} ${tx} ${ty}`
+const pt = (d, k) => `<i class="hilo-pt" style="offset-path:path('${d}');--k2:${k}" aria-hidden="true"></i>`
+const ancla = (id, lado, forma = '', dir = '', fin = false) => `data-ancla="${id}${lado}"` + (lado === 'a' ? ` data-forma="${forma}" data-dir="${dir}" data-fin="${fin ? 1 : 0}"` : '')
+
+/* ---------- Datos de ejemplo ---------- */
+const COLOR = { 'tienda-web': '#F2B632', 'api-pagos': '#7FB3FF', 'panel-admin': '#8FD694', 'fuera de un repositorio': '#8A8478' }
+const PROY = [['tienda-web', 2], ['api-pagos', 1], ['panel-admin', 1], ['fuera de un repositorio', 1]]
+const S = {
+  t1: { proy: 'tienda-web', tarea: '#21 · M', rama: 'feat/21-envios', lleva: '1 h 12 min', subs: [
+    { n: 'Delfina', t: 'boceto de envíos', pose: 'escribiendo', est: 'escribe 4m' },
+    { n: 'Mateo', t: 'mapea checkout.js', pose: 'leyendo', est: 'lee 1m' }] },
+  a1: { proy: 'api-pagos', tarea: '#9 · S', rama: 'feat/9-tarifas', lleva: '38 min', subs: [
+    { n: 'Bruno', t: 'tests de tarifas', pose: 'escribiendo', est: 'escribe 2m' }] },
+  t2: { proy: 'tienda-web', tarea: '#18 · S', rama: 'feat/18-checkout', lleva: '22 min', subs: [] },
+  p1: { proy: 'panel-admin', tarea: 'sin tarea', rama: 'main', lleva: '3 h 05 min', subs: [
+    { n: 'Lía', t: 'revisa permisos', pose: 'leyendo', est: 'lee 3m' }] },
+}
+/* Estado de cada conversación por caso. a = quien empezó, b = el otro. dir: hacia dónde va el último mensaje */
+const C1 = {
+  aparece:  { dir: 'ab', dura: 'hace 3 s', ultimo: 'tienda-web → api-pagos · hace 3 s',
+    a: { pose: 'pensando', linea: 'ahora · le escribió a api-pagos', cel: true, turno: 'espera a api-pagos · 3 s' },
+    b: { pose: 'escribiendo', linea: 'ahora · editando tarifas.ts', turno: 'le toca a api-pagos', lleno: true } },
+  pregunta: { dir: 'ab', dura: '6 min', ultimo: 'tienda-web → api-pagos · hace 40 s',
+    a: { pose: 'pensando', linea: 'esperando a api-pagos · 40 s', cel: true, turno: 'espera a api-pagos · 40 s' },
+    b: { pose: 'escribiendo', linea: 'ahora · editando tarifas.ts', turno: 'le toca a api-pagos', lleno: true } },
+  responde: { dir: 'ba', dura: '7 min', ultimo: 'api-pagos → tienda-web · hace 2 s',
+    a: { pose: 'listo', linea: 'ahora · api-pagos le contestó', cel: true, turno: 'le toca a tienda-web', lleno: true },
+    b: { pose: 'leyendo', linea: 'ahora · corriendo tests', turno: 'contestó · hace 2 s' } },
+  termina:  { dir: '', fin: true, dura: '8 min', ultimo: 'terminó hace 20 s',
+    a: { pose: 'escribiendo', linea: 'ahora · editando envios.js', turno: 'terminó · hace 20 s', apag: true },
+    b: { pose: 'leyendo', linea: 'ahora · corriendo tests', turno: 'terminó · hace 20 s', apag: true } },
+}
+C1.dos = C1.pregunta
+const C2 = { dir: 'ba', dura: '1 min', ultimo: 'panel-admin → tienda-web · hace 15 s',
+  a: { pose: 'escribiendo', linea: 'ahora · editando pago.vue', turno: 'le toca a tienda-web', lleno: true },
+  b: { pose: 'pensando', linea: 'esperando a tienda-web · 15 s', cel: true, turno: 'espera a tienda-web · 15 s' } }
+
+const CASOS = [
+  ['antes', '1 · Antes'], ['aparece', '2 · Empiezan a hablar'], ['pregunta', '3 · tienda-web pregunta'],
+  ['responde', '4 · api-pagos responde'], ['dos', '5 · Dos a la vez'], ['termina', '6 · Termina'], ['vuelve', '7 · Vuelta'],
+]
+
+/* ---------- Piezas compartidas ---------- */
+const X = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>`
+const iconos = `<div class="iconos" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 1.5h4M5.5 1.5v4L3.5 8h7l-2-2.5v-4M7 8v4.5"/></svg>${X}</div>`
+const reloj = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#A58BFF" stroke-width="1.5"><circle cx="6" cy="6" r="4.8"/><path d="M6 3.4V6l1.8 1.2" stroke-linecap="round"/></svg>`
+const reloArena = `<svg width="10" height="11" viewBox="0 0 10 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1.5 1h7M1.5 11h7M2.5 1c0 3 5 3 5 5s-5 2-5 5M7.5 1c0 3-5 3-5 5"/></svg>`
+const ini = p => `<i class="ini" style="--c:${COLOR[p]}">${p === 'fuera de un repositorio' ? '·' : p[0]}</i>`
+
+function lado({ sel = 'tienda-web', origen = false, convs = [], badges = [] } = {}) {
+  const cv = convs.map(c => `<li class="conv${c.activa ? ' activa' : ''}${c.fin ? ' fin' : ''}${c.entra ? ' entra-conv' : ''}"><span class="caras">${avi('Claude', 'esperando', 26, 0, 0)}${avi('Claude', 'esperando', 26, 10, 2)}</span><div><b>${c.a}</b><span>⇄ ${c.b}</span></div><em>${c.fin ? 'terminó' : c.dura}</em>${c.nuevo ? '<i class="nuevo" aria-label="mensaje nuevo"></i>' : ''}</li>`).join('')
+  return `<aside class="lado"><div class="marca">${avi('Base', 'esperando', 40)}<div><b>Avis</b><em>5 sesiones abiertas</em></div></div>
+    ${convs.length ? `<p class="rot-l cel">Conversan</p><ul class="convs">${cv}</ul>` : ''}
+    <p class="rot-l">Proyectos</p>
+    <ul class="proys">${PROY.map(([p, k]) => `<li class="pr${p === sel ? (origen ? ' origen' : ' sel') : ''}">${ini(p)}<span>${p}${badges.includes(p) ? '<span class="cv" title="conversa con otro proyecto">⇄</span>' : ''}</span><b class="k">${k}</b></li>`).join('')}</ul>
+    <div class="pie-l"><b>EQUIPO</b>actualizado 10:31 · cada 1,5 s</div></aside>`
+}
+function riel({ convs = [] } = {}) {
+  return `<aside class="lado riel entra-riel">${avi('Base', 'esperando', 34)}
+    ${convs.map(c => `<span class="tok cv${c.activa ? ' activa' : ''}${c.fin ? ' fin' : ''}" title="${c.a} ⇄ ${c.b}">⇄${c.nuevo ? '<i class="nuevo"></i>' : ''}</span>`).join('')}
+    <hr>${PROY.map(([p]) => `<span class="tok${p === 'tienda-web' ? ' sel' : ''}" title="${p}">${ini(p)}</span>`).join('')}</aside>`
+}
+const panel = (aside, principal) => `<div class="panel">${aside}<div class="principal">${principal}</div><svg class="puente" aria-hidden="true"></svg></div>`
+const turnoChip = e => `<span class="turno${e.lleno ? ' lleno' : ''}${e.apag ? ' apag' : ''}">${e.turno.startsWith('espera') ? reloArena : ''}${e.turno}</span>`
+
+/* Escenario de hoy (port de tablero.js): Claude de 96 y subagentes de 58 */
+function escenario(s, pose, attr = '') {
+  const F = 98, cS = 96, cL = 2, cT = F - pie(cS), X0 = 110, sS = 58
+  if (!s.subs.length) return `<div class="esc solo"><div class="piso"></div>${avi('Claude', pose, cS, cL, cT, attr)}</div>`
+  const SW = Math.min(112, Math.floor(298 / s.subs.length))
+  let h = `<div class="piso"></div>` + avi('Claude', pose, cS, cL, cT, attr), hs = '', pts = ''
+  s.subs.forEach((u, k) => {
+    const x = X0 + k * SW, L = x + (SW - sS) / 2, T = F - pie(sS)
+    h += avi(u.n, u.pose, sS, L, T)
+    h += `<div class="rot" style="left:${x}px;top:${F + 3}px;width:${SW}px"><b>${u.n}</b><span>${u.t}</span><em class="${u.ok ? 'ok' : 'va'}">${u.est}</em></div>`
+    if (!u.ok) { const d = hiloD(cL + cS / 2, cT + 11, L + sS / 2, T + 15); hs += `<path d="${d}"/>`; pts += pt(d, k) }
+  })
+  return `<div class="esc">${h}${hs ? `<svg class="hilos" aria-hidden="true">${hs}</svg>${pts}` : ''}</div>`
+}
+function tarjeta(s, { pose, linea, cel, rastro, ver, attr = '', i = 0 }) {
+  return `<article class="tarjeta entra-esc" style="--i:${i}"><div class="meta"><span class="tag">${s.tarea}</span><b class="rama">${s.rama}</b><span class="lleva">${s.lleva}</span></div>
+    <p class="linea${cel ? ' cel' : ''}"><i class="punto"></i>${linea}${ver ? `<button class="ver" type="button">Ver conversación</button>` : ''}</p>${rastro ? `<p class="rastro">⇄ ${rastro}</p>` : ''}${escenario(s, pose, attr)}</article>`
+}
+const chips = (extra = '') => `<div class="chips"><span class="chip"><i style="background:var(--ambar)"></i><b>3</b>trabajando</span><span class="chip"><i style="background:var(--verde)"></i><b>0</b>terminados</span><span class="chip">${reloj}<b>1 h 12 m</b>lleva</span>${extra}</div>`
+const cabTienda = `<div class="cab"><div><p class="proy">tienda-web</p><p class="sub">2 sesiones · 2 subagentes trabajando</p></div>${iconos}</div>`
+
+/* Vista normal de tienda-web (antes / vuelta), con variantes por opción */
+function normal({ rastro, ver, vuelta } = {}) {
+  return `<div class="${vuelta ? 'vuelta' : ''}">${cabTienda}${chips()}
+    ${tarjeta(S.t1, { pose: 'coordinando', linea: ver ? 'ahora · le escribió a api-pagos' : 'ahora · coordinando el equipo', cel: ver, rastro, ver })}
+    ${tarjeta(S.t2, { pose: 'escribiendo', linea: 'ahora · editando pago.vue', i: 1 })}</div>`
+}
+
+/* ---------- Opción A · Partida: se abre sola y toma todo el panel ---------- */
+function mitadA(s, lado, e, attr) {
+  const izq = lado === 'izq', cx = izq ? 136 : 16, CT = 164 - pie(120), ST = 164 - pie(46)
+  let h = `<div class="piso-a"></div>` + avi('Claude', e.pose, 120, cx, CT, attr), hs = '', pts = ''
+  s.subs.forEach((u, k) => {
+    const x = izq ? 6 + k * 62 : 214 - (s.subs.length - 1 - k) * 62
+    h += avi(u.n, u.pose, 46, x, ST)
+    h += `<div class="rot" style="left:${x - 9}px;top:168px;width:64px"><b>${u.n}</b><em class="va">${u.est}</em></div>`
+    const d = hiloD(cx + 60, CT + 14, x + 23, ST + 12); hs += `<path d="${d}"/>`; pts += pt(d, k)
+  })
+  return `<div class="mitad ${lado} ${izq ? 'entra-izq' : 'entra-der'}">
+    <header class="mh"><p class="mh-p">${izq ? ini(s.proy) + s.proy : s.proy + ini(s.proy)}</p><p class="mh-r"><span class="tag">${s.tarea}</span>${s.rama}</p><p class="linea${e.cel ? ' cel' : ''}"><i class="punto"></i>${e.linea}</p></header>
+    <div class="esc-a">${h}${hs ? `<svg class="hilos" aria-hidden="true">${hs}</svg>${pts}` : ''}</div>
+    <div class="pie-m">${turnoChip(e)}</div></div>`
+}
+function A(caso) {
+  if (caso === 'antes') return panel(lado(), normal())
+  if (caso === 'vuelve') return panel(lado(), normal({ rastro: 'habló con api-pagos · 8 min · terminó hace 1 min', vuelta: true }))
+  const e = C1[caso], dos = caso === 'dos', fin = !!e.fin
+  const convs = [{ a: 'tienda-web', b: 'api-pagos', activa: true, fin }].concat(dos ? [{ a: 'tienda-web', b: 'panel-admin', nuevo: true }] : [])
+  const sub = caso === 'aparece' ? 'Se abrió sola · ✕ vuelve a tienda-web' : fin ? 'Terminó hace 20 s · vuelve a tienda-web en 40 s' : `Conversan desde las 10:24 · ${e.dura}`
+  const barra = `<div class="barra-c entra-arr"><div class="t"><p class="kick">Conversación</p><h3>tienda-web<i>⇄</i>api-pagos</h3><p class="s">${sub}</p></div>${fin ? '<button class="ahora" type="button">Volver ahora</button>' : ''}<button class="cerrar" type="button" aria-label="Cerrar la conversación y volver a tienda-web">${X}</button></div>`
+  const pest = dos ? `<div class="pestanas"><button class="pest activa" type="button">tienda-web <i>⇄</i> api-pagos</button><button class="pest" type="button">tienda-web <i>⇄</i> panel-admin<span class="nuevo" aria-label="mensaje nuevo"></span></button></div>` : ''
+  const flecha = e.dir === 'ab' ? '→' : '←'
+  const split = `<div class="split">${mitadA(S.t1, 'izq', e.a, ancla(1, 'a', 'arco', e.dir, fin))}<div class="costura entra-cos"><span class="pild${fin ? ' fin' : ''}">${fin ? 'terminó' : `${flecha} ${e.ultimo.split(' · ')[1]}`}</span></div>${mitadA(S.a1, 'der', e.b, ancla(1, 'b'))}</div>`
+  const ficha = `<div class="ficha-c entra-ab"><p>Último: <b>${e.ultimo}</b></p><span class="lleva">desde 10:24</span><small>Avis ve quién habla y cuándo, nunca qué se dicen.</small></div>`
+  return panel(riel({ convs }), barra + (fin ? '<div class="drena" aria-hidden="true"><i></i></div>' : '') + pest + split + ficha)
+}
+
+/* ---------- Opción B · Pisos: entrada en la barra, la abrís vos ---------- */
+function pisoB(s, e, attr, cls) {
+  return `<article class="tarjeta piso-c ${cls}"><div class="meta"><span class="pn">${ini(s.proy)}${s.proy}</span><span class="tag">${s.tarea}</span><span class="lleva">${s.rama}</span></div>
+    <p class="linea${e.cel ? ' cel' : ''}"><i class="punto"></i>${e.linea}</p>${escenario(s, e.pose, attr)}</article>`
+}
+function B(caso) {
+  if (caso === 'antes') return panel(lado(), normal())
+  if (caso === 'aparece') return panel(lado({ convs: [{ a: 'tienda-web', b: 'api-pagos', dura: '3 s', entra: true }] }), normal({ ver: true }))
+  if (caso === 'vuelve') return panel(lado({ convs: [{ a: 'tienda-web', b: 'api-pagos', fin: true }] }), normal({ rastro: 'habló con api-pagos · terminó hace 1 min', vuelta: true }))
+  const e = C1[caso], dos = caso === 'dos', fin = !!e.fin
+  const convs = [{ a: 'tienda-web', b: 'api-pagos', dura: e.dura, activa: true, fin }].concat(dos ? [{ a: 'tienda-web', b: 'panel-admin', dura: '1 min', nuevo: true }] : [])
+  const cab = `<div class="cab-b entra-arr"><button class="atras" type="button" aria-label="Volver a tienda-web">‹ tienda-web</button><div class="t"><h3>tienda-web<i>⇄</i>api-pagos</h3><p>${fin ? 'terminó hace 20 s' : `conversan desde las 10:24 · ${e.dura}`}</p></div></div>`
+  const flecha = e.dir === 'ab' ? '↓' : '↑'
+  const entre = `<div class="entre"><span class="${fin ? 'fin' : ''}">${fin ? 'terminó · el cable se corta' : `${flecha} ${e.ultimo}`}</span></div>`
+  return panel(lado({ origen: true, convs }), cab + pisoB(S.t1, e.a, ancla(1, 'a', 'lado', e.dir, fin), 'entra-arr') + entre + pisoB(S.a1, e.b, ancla(1, 'b'), 'entra-ab'))
+}
+
+/* ---------- Opción C · Llamada: la tarjeta de la sesión se parte ---------- */
+function escLlamada(s, otro, e, id, entra) {
+  const F = 98, cS = 96, cx = 140, cT = F - pie(cS), sS = 46
+  let h = `<div class="piso"></div>` + avi('Claude', e.a.pose, cS, cx, cT, ancla(id, 'a', 'arco', e.dir, e.fin)), hs = '', pts = ''
+  s.subs.forEach((u, k) => {
+    const x = 6 + k * 64, T = F - pie(sS)
+    h += avi(u.n, u.pose, sS, x, T)
+    h += `<div class="rot" style="left:${x - 9}px;top:${F + 3}px;width:64px"><b>${u.n}</b><em class="va">${u.est}</em></div>`
+    const d = hiloD(cx + 48, cT + 11, x + 23, T + 12); hs += `<path d="${d}"/>`; pts += pt(d, k)
+  })
+  const vis = `<div class="visita${e.fin ? ' fin' : ''}${entra ? ' entra-vis' : ''}"><div class="vt" title="${otro.proy} · ${otro.rama}"><b>${otro.proy}</b></div>${avi('Claude', e.b.pose, 78, 34, 92 - pie(78), ancla(id, 'b'))}${otro.subs.length ? `<span class="mas1" title="${otro.subs.length} subagente trabajando">+${otro.subs.length}</span>` : ''}<p class="vp">${e.fin ? '' : e.b.turno}</p></div>`
+  return `<div class="esc">${h}${hs ? `<svg class="hilos" aria-hidden="true">${hs}</svg>${pts}` : ''}<i class="costura-c${entra ? ' entra-cos' : ''}"></i>${vis}${e.fin ? '<span class="sello">colgó · hace 20 s</span>' : `<span class="nudo" aria-hidden="true">⇄</span>`}</div>`
+}
+function tarjetaLlamada(s, otro, e, id, { entra, i = 0 } = {}) {
+  return `<article class="tarjeta llam entra-esc" style="--i:${i}"><div class="meta"><span class="tag">${s.tarea}</span><b class="rama">${s.rama}</b><span class="lleva">${s.lleva}</span></div>
+    <p class="linea${e.a.cel ? ' cel' : ''}"><i class="punto"></i>${e.a.linea}</p>${escLlamada(s, otro, e, id, entra)}</article>`
+}
+function C(caso) {
+  if (caso === 'antes') return panel(lado(), normal())
+  if (caso === 'vuelve') return panel(lado(), normal({ rastro: 'habló con api-pagos · terminó hace 1 min', vuelta: true }))
+  const e = C1[caso], dos = caso === 'dos'
+  const conv = `<span class="chip cel"><b style="color:var(--celeste)">${dos ? 2 : 1}</b>${dos ? 'conversaciones' : 'conversación'}</span>`
+  const t2 = dos ? tarjetaLlamada(S.t2, S.p1, C2, 2, { i: 1 }) : tarjeta(S.t2, { pose: 'escribiendo', linea: 'ahora · editando pago.vue', i: 1 })
+  return panel(lado({ badges: e.fin ? [] : ['api-pagos'].concat(dos ? ['panel-admin'] : []) }),
+    cabTienda + chips(e.fin ? '' : conv) + tarjetaLlamada(S.t1, S.a1, e, 1, { entra: caso === 'aparece' }) + t2)
+}
+
+/* ---------- Textos de cada opción ---------- */
+const OPCIONES = [
+  { num: 'A', nombre: 'Partida', lema: 'se abre sola y toma todo el panel', fn: A,
+    nota: ['La barra se pliega a un riel de 56 y quedan dos mitades de 272, con los dos Claude de 120 cara a cara sobre la costura.',
+      'Es la pantalla dividida literal y la de más protagonismo; el ✕ siempre devuelve a lo que mirabas.'],
+    costo: 'Interrumpe: se abre aunque estés mirando otro proyecto (o solo late la ficha del riel; queda a decidir).',
+    datos: 'con (id de sesión), desde, último {de, hace}. El turno se deduce del último. El widget recuerda la vista anterior para volver.',
+    ley: {
+      antes: 'Panel normal en tienda-web. Nada cambia hasta que dos sesiones empiezan a hablar.',
+      aparece: 'Se abre sola: la barra se pliega a un riel y las dos mitades entran desde los costados mientras la costura se cose de arriba abajo.',
+      pregunta: 'El mensaje cruza la costura de izquierda a derecha y deja un anillo en api-pagos. tienda-web piensa y espera; api-pagos tiene el turno.',
+      responde: 'La respuesta vuelve de derecha a izquierda; tienda-web festeja al recibirla y el turno pasa a ella.',
+      dos: 'Dos pestañas arriba y dos fichas ⇄ en el riel. La otra pestaña late cuando le llega un mensaje; se mira una por vez.',
+      termina: 'El cable se apaga y la costura dice "terminó". Vuelve sola a tienda-web en 60 s (la línea se vacía) o con "Volver ahora".',
+      vuelve: 'Riel y mitades se juntan de nuevo en tienda-web; la tarjeta guarda un rastro: "habló con api-pagos".' } },
+  { num: 'B', nombre: 'Pisos', lema: 'entrada en la barra; la abrís vos', fn: B,
+    nota: ['La barra queda y suma una sección "Conversan"; la columna de 460 se parte arriba y abajo con las tarjetas escenario de hoy, unidas por un cable a la izquierda.',
+      'Reusa la tarjeta tal cual (escenario, Avis de 58, hilos): la que menos dibujo nuevo pide y la que nunca te mueve sin permiso.'],
+    costo: 'Hay que tocar para verla: si no mirás la barra, la conversación pasa sin que la veas.',
+    datos: 'lo mismo que A. El widget guarda 5 min las terminadas para la entrada "terminó".',
+    ley: {
+      antes: 'Panel normal en tienda-web. Nada cambia hasta que dos sesiones empiezan a hablar.',
+      aparece: 'No se abre sola: llega una entrada a "Conversan" con un pequeño rebote y la tarjeta ofrece "Ver conversación". Lo que mirabas no se mueve.',
+      pregunta: 'Con un clic: arriba quien preguntó, abajo quien responde. El mensaje baja por el cable desde los pies de un Claude hasta la antena del otro.',
+      responde: 'El mensaje sube. tienda-web sigue marcada con un borde en la barra: es de donde viniste y adonde vuelve "‹".',
+      dos: 'Dos entradas en la barra; la segunda trae el punto de mensaje nuevo. Un clic cambia de conversación.',
+      termina: 'El cable se corta y los pisos quedan quietos hasta que salís. La entrada queda 5 min como "terminó" y se va.',
+      vuelve: '"‹ tienda-web" pliega los pisos y vuelve la vista normal; la entrada terminada sigue un rato, apagada.' } },
+  { num: 'C', nombre: 'Llamada', lema: 'la tarjeta de la sesión se parte', fn: C,
+    nota: ['No hay modo nuevo: la tarjeta de la sesión que conversa se parte y la otra sesión entra como visita, como en una videollamada.',
+      'Ve varias conversaciones a la vez y nunca te saca del proyecto que mirabas; en la barra, ⇄ marca a los proyectos del otro lado.'],
+    costo: 'La visita es chica (Claude de 78, subagentes como "+1") y la tarjeta crece en información.',
+    datos: 'lo mismo que A, más rama y pose de la otra sesión (ya llegan en los datos de esa sesión).',
+    ley: {
+      antes: 'Panel normal en tienda-web. Nada cambia hasta que dos sesiones empiezan a hablar.',
+      aparece: 'Sin cambiar de vista: se cose una costura en la tarjeta y la visita de api-pagos entra por la derecha.',
+      pregunta: 'Los dos Claude quedan cara a cara sobre la costura; el mensaje salta por arriba hacia api-pagos.',
+      responde: 'Salta de vuelta y tienda-web festeja. En api-pagos se ve la misma llamada, espejada.',
+      dos: 'Cada sesión parte su propia tarjeta: las dos conversaciones se ven a la vez, sin pestañas. El chip celeste las cuenta.',
+      termina: 'La visita se apaga con "colgó" y se va sola al minuto.',
+      vuelve: 'La tarjeta vuelve a ser entera y deja el rastro "habló con api-pagos".' } },
+]
+
+/* ---------- Puentes: miden dónde quedaron los Claude y tiran el cable celeste ---------- */
+function pos(el, raiz) {
+  let x = 0, y = 0, e = el
+  while (e && e !== raiz) { x += e.offsetLeft; y += e.offsetTop; const p = e.offsetParent; if (p && p !== raiz) { x += p.clientLeft; y += p.clientTop } e = p }
+  return { x, y }
+}
+function puentes() {
+  document.querySelectorAll('.panel').forEach(p => {
+    const svg = p.querySelector('.puente'); svg.innerHTML = ''
+    p.querySelectorAll('.msj, .llega').forEach(e => e.remove())
+    p.querySelectorAll('[data-forma]').forEach(a => {
+      const id = a.dataset.ancla.slice(0, -1), b = p.querySelector(`[data-ancla="${id}b"]`)
+      const ta = a.offsetWidth, tb = b.offsetWidth, oa = pos(a, p), ob = pos(b, p)
+      const ant = (o, t) => ({ x: o.x + t / 2, y: o.y + t * 14 / 120 }), pies = (o, t) => ({ x: o.x + t / 2, y: o.y + t * 104 / 120 })
+      let d, dr, A1, B1
+      if (a.dataset.forma === 'lado') {
+        A1 = pies(oa, ta); B1 = ant(ob, tb)
+        d = `M${A1.x} ${A1.y} C${A1.x - 54} ${A1.y + 40} ${B1.x - 54} ${B1.y - 50} ${B1.x} ${B1.y}`
+        dr = `M${B1.x} ${B1.y} C${B1.x - 54} ${B1.y - 50} ${A1.x - 54} ${A1.y + 40} ${A1.x} ${A1.y}`
+      } else {
+        A1 = ant(oa, ta); B1 = ant(ob, tb)
+        const h = Math.abs(B1.x - A1.x) > 220 ? 50 : 20, my = Math.min(A1.y, B1.y) - h, mx = (A1.x + B1.x) / 2
+        d = `M${A1.x} ${A1.y} Q${mx} ${my} ${B1.x} ${B1.y}`; dr = `M${B1.x} ${B1.y} Q${mx} ${my} ${A1.x} ${A1.y}`
+      }
+      if (a.dataset.fin === '1') { svg.innerHTML += `<path class="cortado" d="${d}" pathLength="100" stroke-dasharray="38 24 38"/>`; return }
+      svg.innerHTML += `<path class="halo-p" d="${d}"/><path class="cable" d="${d}"/>`
+      const dir = a.dataset.dir, ruta = dir === 'ba' ? dr : d, dest = dir === 'ba' ? A1 : B1
+      p.insertAdjacentHTML('beforeend', `<i class="msj" style="offset-path:path('${ruta}')" aria-hidden="true"></i><i class="llega" style="left:${dest.x}px;top:${dest.y}px" aria-hidden="true"></i>`)
+    })
+  })
+}
+
+/* ---------- Armado y controles ---------- */
+let actual = 0
+document.getElementById('marca').innerHTML = avi('Base', 'esperando', 56)
+document.getElementById('casos').innerHTML = CASOS.map(([id, t], i) => `<button type="button" data-i="${i}" aria-pressed="${i === 0}">${t}</button>`).join('')
+document.getElementById('opciones').innerHTML = OPCIONES.map(o => `<section class="opcion" aria-labelledby="op${o.num}">
+  <div class="marco-k" role="img" data-op="${o.num}"></div>
+  <div class="texto"><span class="num">Opción ${o.num}</span><h2 id="op${o.num}">${o.nombre}<small>${o.lema}</small></h2>
+    <ul><li>${o.nota[0]}</li><li>${o.nota[1]}</li><li class="costo">${o.costo}</li></ul>
+    <p class="datos"><b>Datos del mod:</b> ${o.datos}</p>
+    <div class="leyenda"><b data-caso></b><p aria-live="polite" data-ley></p></div></div></section>`).join('')
+
+function pintar() {
+  const [id, t] = CASOS[actual]
+  document.querySelectorAll('#casos button').forEach((b, i) => b.setAttribute('aria-pressed', i === actual))
+  OPCIONES.forEach(o => {
+    const m = document.querySelector(`[data-op="${o.num}"]`)
+    m.innerHTML = o.fn(id)
+    m.setAttribute('aria-label', `Opción ${o.num}, ${o.nombre}: ${o.ley[id]}`)
+    const sec = m.closest('.opcion')
+    sec.querySelector('[data-caso]').textContent = t
+    sec.querySelector('[data-ley]').textContent = o.ley[id]
+  })
+  puentes()
+}
+document.getElementById('casos').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { actual = +b.dataset.i; pintar() } })
+document.getElementById('ant').addEventListener('click', () => { actual = (actual + CASOS.length - 1) % CASOS.length; pintar() })
+document.getElementById('sig').addEventListener('click', () => { actual = (actual + 1) % CASOS.length; pintar() })
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea')) return
+  if (e.key === 'ArrowRight') { actual = (actual + 1) % CASOS.length; pintar() }
+  if (e.key === 'ArrowLeft') { actual = (actual + CASOS.length - 1) % CASOS.length; pintar() }
+})
+document.getElementById('pausar').addEventListener('click', e => {
+  const p = document.body.classList.toggle('pausa')
+  e.currentTarget.setAttribute('aria-pressed', p)
+  e.currentTarget.querySelector('.larga').textContent = p ? 'Reanudar animaciones' : 'Pausar animaciones'
+})
+pintar()
+document.fonts.ready.then(puentes)
+</script>
+</body>
+</html>
