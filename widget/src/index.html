@@ -27,6 +27,8 @@
             <b class="marca-n">Avis</b>
             <span class="estado" id="marca-estado"></span>
           </div>
+          <!-- Pantalla dividida (docs/diseno/dividida-ux.md 5.9): una ficha por conversación entre sesiones, solo si hay -->
+          <section class="conversan-s" id="conversan" aria-labelledby="h-conversan" hidden></section>
           <nav class="proyectos" aria-labelledby="h-proyectos">
             <h2 class="oculto" id="h-proyectos">Proyectos</h2>
             <div id="proyectos"></div>
@@ -37,12 +39,17 @@
             <p class="pie-w" id="pie" role="status"></p>
           </section>
         </aside>
+        <!-- El riel de 56 de la pantalla dividida (dividida-ux.md 5.1): en lugar de la barra mientras dos sesiones conversan -->
+        <aside class="riel" id="riel"></aside>
         <main class="principal">
           <header class="cab">
             <div class="cab-t" data-arrastre title="Arrastrá para mover o acoplar a un borde">
               <h1 id="titulo"></h1>
               <p id="subtitulo"></p>
             </div>
+            <!-- Encabezado de la conversación (dividida-ux.md 5.2): kick, título y sub, y la salida "‹ vista anterior" -->
+            <div class="cab-c-t" id="cab-conv" data-arrastre title="Arrastrá para mover o acoplar a un borde"></div>
+            <button type="button" class="volver" id="volver" data-accion="volver"></button>
             <div class="controles">
               <button type="button" class="tb" data-accion="pin" aria-pressed="true" aria-label="Siempre arriba" title="Siempre arriba">
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2h5M6.5 2v4.2L4.5 8.5h7L9.5 6.2V2M8 8.5V14"/></svg>
@@ -54,9 +61,19 @@
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
               </button>
             </div>
+            <!-- La cuenta de la vuelta (dividida-ux.md 9.4): una barra de 2 px que se vacía en 60 s -->
+            <span class="drena" id="drena" aria-hidden="true"><i></i></span>
           </header>
           <div id="vacio-avi" class="vacio-avi" hidden></div>
           <div id="otro"></div>
+          <!-- Pantalla dividida: pestañas (2 o más conversaciones), las dos mitades con su puente y la ficha "Último" -->
+          <div id="pestanas"></div>
+          <section class="split" id="split" aria-labelledby="h-split">
+            <h2 class="oculto" id="h-split">Las dos sesiones</h2>
+            <div class="split-g" id="split-g"></div>
+            <div id="puente"></div>
+          </section>
+          <div class="ficha-u" id="ficha-u"></div>
           <div id="w-globo"></div>
           <!-- "¿En qué anda Claude?": el globo del Avi de la marca (resumen-ia-ux.md 3.2), entre la pregunta y la hoja de primeros pasos -->
           <section id="resumen" aria-labelledby="h-resumen"></section>

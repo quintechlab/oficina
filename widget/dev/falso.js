@@ -51,6 +51,17 @@
 // pointer-events: none en el iframe (el escritorio de vista.html recibe el clic). window.__puntero
 // dice el último punto visto y si estaba adentro.
 // Hay una hoja con todos los Avis en todas las poses en dev/avis.html.
+// Pantalla dividida (#13, docs/diseno/dividida-ux.md): tienda-web y api-pagos conversan; se ve api-pagos.
+//   ?dividida=antes     las dos sesiones, sin conversación (caso 1)
+//   ?dividida=aparece   a los 2,5 s tienda-web le escribe a api-pagos: se abre sola y cruza la pastilla (caso 2)
+//   ?dividida=pregunta  tienda-web le escribió hace 40 s: se abre sola, api-pagos tiene el turno (caso 3)
+//   ?dividida=responde  como pregunta, y a los 7 s api-pagos contesta: cruza de vuelta y tienda-web festeja (caso 4)
+//   ?dividida=dos       como pregunta, y a los 6 s panel-admin habla con tienda-web: pestaña nueva con punto;
+//                       a los 12 s otro mensaje en esa la hace latir (caso 5, ramas largas)
+//   ?dividida=termina   se abre y a los ~6 s termina (5 min sin mensajes): cable cortado y cuenta de 60 s (caso 6)
+//   ?dividida=vuelve    como termina, con la cuenta acortada a 6 s: vuelve a la vista anterior (caso 7)
+//   ?dividida=otro      conversan tienda-web y panel-admin mientras mirás api-pagos: solo late la ficha (3.2)
+//   ?dividida=sindatos  api-pagos habla con una sesión que no se ve desde esta máquina: mitad "sin datos" (8)
 // Primeros pasos (#10, docs/diseno/bienvenida-ux.md): sin ?pp la máquina está lista (el widget de
 // siempre). Con ?pp, lo que falta:
 //   ?pp=nada       sin Claude Code ni GitHub CLI (winget sí)
@@ -247,6 +258,55 @@
     if (url.get('estado') === 'reposo') {
       for (const s of SESIONES) { s.agentes = s.agentes.filter(a => a.estado !== 'trabajando'); s.actividad = 'esperándote' }
     }
+  }
+
+  // ?dividida: dos sesiones que conversan (docs/diseno/dividida-ux.md 7). Se suman tienda-web y
+  // api-pagos (y panel-admin en "dos" y "otro"); el primer proyecto a la vista es api-pagos (orden
+  // alfabético). La conversación aparece en la segunda o tercera lectura (~2,5 s), así es "nueva".
+  // Cada sesión anota solo los mensajes que recibe (de: 'otro'), como el mod v0.8.
+  const dividida = url.get('dividida')
+  if (dividida === 'vuelve') window.__esperaVuelta = 6000
+  if (dividida) {
+    const base = (sesion, repo, rama, tarea, extra = {}) => ({
+      v: 1, sesion, usuario: 'nicoequintana', nombre: 'Quintana', estado: 'trabajando', repo, rama, tarea, nota: null,
+      inicio: hace(70), tareaDesde: hace(70), actualizado: hace(0), archivos: [], actividad: 'esperándote', puedeResponder: true, agentes: [], ...extra,
+    })
+    SESIONES.push(
+      base('ses-tienda', 'quintechlab/tienda-web', dividida === 'dos' ? 'feat/18-checkout-con-mercado-pago-y-cuotas' : 'feat/18-checkout', 18, {
+        agentes: [sub('d1', 'Delfina', 'pantalla de pago', 'trabajando', { desde: hace(4) }), sub('d2', 'Lucas', 'tests del checkout', 'listo', { hasta: hace(6) })],
+      }),
+      base('ses-pagos', 'quintechlab/api-pagos', 'feat/7-webhooks', 7, {
+        actividad: 'leyendo webhooks.ts',
+        agentes: [
+          sub('d3', 'Ramiro', 'mapear la API', 'trabajando', { tipo: 'Explore', desde: hace(3) }),
+          sub('d4', 'Inés', 'revisar firmas', 'trabajando', { desde: hace(2) }),
+          sub('d5', 'Camila', 'docs del webhook', 'listo', { hasta: hace(5) }),
+        ],
+      }),
+    )
+    if (dividida === 'dos' || dividida === 'otro') SESIONES.push(base('ses-admin', 'quintechlab/panel-admin', 'main', null, { actividad: 'editando roles.vue' }))
+    if (dividida === 'sindatos') SESIONES.splice(SESIONES.findIndex(s => s.sesion === 'ses-tienda'), 1)
+  }
+  /** Momento `ms` después de abrir la vista (ISO). */
+  const a = ms => new Date(ahora + ms).toISOString()
+  const recibida = (con, conRepo, desde, cuando) => ({ con, conRepo, desde, empezo: 'otro', ultimo: { de: 'otro', cuando } })
+  /** Las conversaciones de ?dividida según el tiempo que pasó desde que se abrió la vista. */
+  const conDividida = lista => {
+    if (!dividida || dividida === 'antes') return lista
+    const t = Date.now() - ahora
+    const ses = id => lista.find(s => s.sesion === id)
+    const pone = (id, entrada) => { const s = ses(id); if (s) s.conversa = [...(s.conversa ?? []), entrada] }
+    if (t < 2500) return lista
+    const tienda = 'quintechlab/tienda-web', pagos = 'quintechlab/api-pagos', admin = 'quintechlab/panel-admin'
+    if (dividida === 'aparece') pone('ses-pagos', recibida('ses-tienda', tienda, a(2500), a(2500)))
+    if (dividida === 'pregunta' || dividida === 'responde' || dividida === 'dos') pone('ses-pagos', recibida('ses-tienda', tienda, hace(6), a(-40000)))
+    if (dividida === 'responde' && t >= 7000) pone('ses-tienda', recibida('ses-pagos', pagos, a(7000), a(7000)))
+    if (dividida === 'dos' && t >= 6000) pone('ses-admin', recibida('ses-tienda', tienda, a(6000), a(t >= 12000 ? 12000 : 6000)))
+    // Termina a los ~6 s: el último mensaje fue hace casi 5 min
+    if (dividida === 'termina' || dividida === 'vuelve') pone('ses-pagos', recibida('ses-tienda', tienda, hace(8), a(-5 * 60000 + 6000)))
+    if (dividida === 'otro') pone('ses-admin', recibida('ses-tienda', tienda, a(2500), a(2500)))
+    if (dividida === 'sindatos') pone('ses-pagos', recibida('ses-campos', tienda, hace(2), a(-15000)))
+    return lista
   }
 
   let paso = PASOS.includes(Number(url.get('zoom'))) ? Number(url.get('zoom')) : 100
@@ -544,7 +604,7 @@
       if (url.has('cargando')) return new Promise(() => {})
       if (url.has('error') && lecturas > 1) throw new Error('acceso denegado a sesiones (falso)')
       if (url.has('poses')) return sesionesPoses()
-      return url.has('vacio') ? [] : sinTomadas()
+      return url.has('vacio') ? [] : conDividida(sinTomadas())
     },
     leer_equipo: () => url.has('sinequipo') ? { comentarios: [], yo: 'nicoequintana', error: 'gh: no autenticado (falso)' } : EQUIPO,
     geometria: () => ({ ...ventana, area: area(), libres }),

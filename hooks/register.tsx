@@ -7,7 +7,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { ComentarioPresencia, Info, Miembro, Pr, Pregunta, Presencia, Proceso, Subagente, Tarea } from '../types'
+import type { ComentarioPresencia, Conversa, Info, Miembro, Pr, Pregunta, Presencia, Proceso, Subagente, Tarea } from '../types'
 import {
   actividadDesdeHerramienta,
   carreraConDialogo,
@@ -24,6 +24,10 @@ import {
   esActividadEnEspera,
   preguntaDesdeEntrada,
   latidoLocal,
+  leerMarca,
+  marcarMensaje,
+  podarConversas,
+  registrarMensaje,
   puedeEscribirLocal,
   ciDesdeRollup,
   choques,
@@ -87,6 +91,8 @@ const subagentes = new Map<string, Subagente>()
 const preguntas = new Map<string, Pregunta>()
 /** Procesos en segundo plano de esta sesión que todavía no avisaron que terminaron (v0.6), por id de tarea. */
 const procesos = new Map<string, Proceso>()
+/** Conversaciones con otras sesiones (v0.8), armadas con los mensajes que llegan con la marca de Avis. */
+let conversa: Conversa[] = []
 let publicacionPendiente: Timer | null = null
 let cola: Promise<void> = Promise.resolve()
 const ESPERA_PUBLICACION_MS = 15000
@@ -225,6 +231,8 @@ async function publicar($: EngineInterface, forzar = false, ausente?: boolean): 
     puedeResponder: true,
     // Desde la v0.6: los procesos en segundo plano que la sesión espera (los de más de 2 h se olvidan)
     procesos: podarVivos(ahoraMs),
+    // Desde la v0.8: con qué otras sesiones habla (nunca qué se dicen)
+    conversa: (conversa = podarConversas(conversa, ahoraMs)),
   }
   await escribirEstadoLocal($, p)
   // Sin cambios de fondo desde la última vez: no gastar llamadas (el latido igual publica cada 5 min)
@@ -244,6 +252,23 @@ async function carpetaLocal($: EngineInterface): Promise<string | null> {
 }
 
 /** Archivo donde el widget deja la respuesta a una pregunta (`respuestas/<id de la pregunta>.json`). */
+/**
+ * Un mensaje que llegó de otra sesión (v0.8): si trae la marca de Avis, anota la conversación,
+ * publica sin esperar al debounce (el widget hace cruzar el mensaje cuando lo ve) y devuelve el texto
+ * sin la marca; null si no trae marca. Un mensaje de esta misma sesión (a uno de sus subagentes) solo
+ * pierde la marca: no es una conversación.
+ */
+async function recibirMarca($: EngineInterface, texto: string): Promise<string | null> {
+  const marca = leerMarca(texto)
+  if (!marca) return null
+  if (marca.sesion !== (await $.session.id())) {
+    const cuando = new Date(await $.clock.now()).toISOString()
+    conversa = registrarMensaje(conversa, { con: marca.sesion, conRepo: marca.repo, de: 'otro', cuando })
+    cola = cola.then(() => publicar($)).catch(() => undefined)
+  }
+  return marca.texto
+}
+
 async function rutaRespuesta($: EngineInterface, id: string): Promise<string | null> {
   const carpeta = await carpetaLocal($)
   if (!carpeta || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) return null
@@ -628,6 +653,12 @@ export const register: Register = (on, options) => {
   // sesión queda libre o adentro del turno en curso). `session.receive` no sirve: ahí llegan los
   // eventos de un relay o un disparador, no los avisos de las tareas locales. El prompt pasa tal cual.
   on('prompt.submit', async ($, e, next) => {
+    // El mensaje de otra sesión llega también como prompt (v0.8): si `session.receive` no borró la
+    // marca, se la borra acá. Si ya la borró, no queda marca y no se anota dos veces.
+    if (e.origin.kind === 'peer' || e.origin.kind === 'peer-send-message') {
+      const texto = await recibirMarca($, e.text)
+      if (texto !== null) return next({ ...e, text: texto })
+    }
     if (e.origin.kind === 'task-notification') {
       try {
         for (const aviso of avisosDeTareas(e.text)) if (tareaTerminada(aviso.estado)) quitarProceso($, aviso.id)
@@ -714,6 +745,21 @@ export const register: Register = (on, options) => {
         cola = cola.then(() => publicar($)).catch(() => undefined)
       }
     }
+  }).catch((_$, e, next) => next(e))
+
+  // ---- Conversaciones entre sesiones (v0.8). SendMessage direcciona por el nombre de la sesión, nunca
+  // por su id: el mensaje que sale lleva una marca con el id y el repo de esta sesión, y el mod de
+  // quien lo recibe la lee y la borra antes de que su modelo lo lea. Sin el mod del otro lado, la
+  // marca queda visible al final del mensaje y no pasa nada más.
+  on('session.send', async ($, e, next) => {
+    const sesion = await $.session.id()
+    const repo = ultimaLocal?.repo ?? (await leerLocal($)).repo
+    return next({ ...e, text: marcarMensaje(e.text, { sesion, repo }) })
+  }).catch((_$, e, next) => next(e))
+
+  on('session.receive', async ($, e, next) => {
+    const texto = await recibirMarca($, e.text)
+    return next(texto === null ? e : { ...e, text: texto })
   }).catch((_$, e, next) => next(e))
 
   on('session.end', async ($, e, next) => {

@@ -2,6 +2,11 @@ import { expect, test } from 'claude-code/testing'
 
 import type { ComentarioPresencia, Miembro, Pregunta, Presencia } from '../types'
 import {
+  leerMarca,
+  marcarMensaje,
+  MINUTOS_CONVERSA_QUIETA,
+  podarConversas,
+  registrarMensaje,
   archivosDesdeStatus,
   archivosEnComun,
   choques,
@@ -613,4 +618,75 @@ test('sin git, el proyecto es siempre el nombre de la carpeta abierta: nada qued
   expect(proyectoDesdeCarpeta('', casa)).toBe(null)
   // Lo de antes sigue igual: con git manda el repo (o su carpeta si no tiene remoto)
   expect(proyectoDesdeRepo('C:/x/central-nucleo-main', null)).toBe('local/central-nucleo-main')
+})
+
+// ------------------------------------------------------------------ conversaciones entre sesiones (v0.8)
+
+const OTRA = '0b7c1e2a-9d3f-4a51-8c6e-2f4d5a6b7c8d'
+
+test('la marca de un mensaje entre sesiones va y vuelve, y el texto queda como estaba', async () => {
+  const marcado = marcarMensaje('¿Ya está el endpoint de pagos?', { sesion: OTRA, repo: 'quintechlab/api-pagos' })
+  expect(leerMarca(marcado)).toEqual({ texto: '¿Ya está el endpoint de pagos?', sesion: OTRA, repo: 'quintechlab/api-pagos' })
+  // Sin repositorio, o con una carpeta con espacios, también vuelve igual
+  expect(leerMarca(marcarMensaje('hola', { sesion: OTRA, repo: null }))).toEqual({ texto: 'hola', sesion: OTRA, repo: null })
+  expect(leerMarca(marcarMensaje('hola', { sesion: OTRA, repo: 'mis cosas/año' }))?.repo).toBe('mis cosas/año')
+})
+
+test('un mensaje sin marca, o con la marca en el medio, no es de una sesión con Avis', async () => {
+  expect(leerMarca('hola, sin marca')).toBe(null)
+  expect(leerMarca(`antes [avis:${OTRA}|-] después`)).toBe(null)
+  expect(leerMarca('[avis:no es un id|-]')).toBe(null)
+})
+
+test('el primer mensaje de otra sesión abre la conversación; los siguientes solo mueven el último', async () => {
+  const t1 = '2026-11-22T13:00:00.000Z'
+  const t2 = '2026-11-22T13:01:30.000Z'
+  const una = registrarMensaje([], { con: OTRA, conRepo: 'quintechlab/api-pagos', de: 'otro', cuando: t1 })
+  expect(una).toEqual([{ con: OTRA, conRepo: 'quintechlab/api-pagos', desde: t1, empezo: 'otro', ultimo: { de: 'otro', cuando: t1 } }])
+  const dos = registrarMensaje(una, { con: OTRA, conRepo: 'quintechlab/api-pagos', de: 'otro', cuando: t2 })
+  expect(dos).toEqual([{ con: OTRA, conRepo: 'quintechlab/api-pagos', desde: t1, empezo: 'otro', ultimo: { de: 'otro', cuando: t2 } }])
+})
+
+test('pasados 5 minutos sin mensajes, el siguiente empieza otra conversación con la misma sesión', async () => {
+  const t1 = Date.parse('2026-11-22T13:00:00.000Z')
+  const t2 = new Date(t1 + (MINUTOS_CONVERSA_QUIETA * 60000 + 1000)).toISOString()
+  const una = registrarMensaje([], { con: OTRA, conRepo: null, de: 'yo', cuando: new Date(t1).toISOString() })
+  const otra = registrarMensaje(una, { con: OTRA, conRepo: null, de: 'otro', cuando: t2 })
+  expect(otra).toEqual([{ con: OTRA, conRepo: null, desde: t2, empezo: 'otro', ultimo: { de: 'otro', cuando: t2 } }])
+})
+
+test('hasta 4 conversaciones: con una quinta se olvida la de último mensaje más viejo', async () => {
+  let lista = [] as ReturnType<typeof registrarMensaje>
+  for (let i = 0; i < 5; i++) lista = registrarMensaje(lista, { con: `s${i}`, conRepo: null, de: 'otro', cuando: `2026-11-22T13:0${i}:00.000Z` })
+  expect(lista.map(c => c.con)).toEqual(['s1', 's2', 's3', 's4'])
+})
+
+test('una conversación se olvida 30 minutos después de quedar quieta', async () => {
+  const lista = [
+    { con: 'vieja', conRepo: null, desde: '2026-11-22T12:00:00.000Z', empezo: 'otro' as const, ultimo: { de: 'otro' as const, cuando: '2026-11-22T12:20:00.000Z' } },
+    { con: 'nueva', conRepo: null, desde: '2026-11-22T12:50:00.000Z', empezo: 'yo' as const, ultimo: { de: 'otro' as const, cuando: '2026-11-22T12:59:00.000Z' } },
+  ]
+  // 13:00: la vieja quedó quieta a las 12:25 y pasaron más de 30 min; la nueva sigue
+  expect(podarConversas(lista, Date.parse('2026-11-22T13:00:00.000Z')).map(c => c.con)).toEqual(['nueva'])
+})
+
+test('las conversaciones viajan en la entrada de la sesión, y una entrada sin ellas se sigue leyendo', async () => {
+  const ahora = Date.parse(AHORA)
+  const conversa = [{ con: OTRA, conRepo: 'quintechlab/api-pagos', desde: AHORA, empezo: 'otro' as const, ultimo: { de: 'otro' as const, cuando: AHORA } }]
+  expect(extraerComentario(envolverComentario(ponerSesion(null, presencia({ conversa }), ahora)))?.sesiones[0]?.conversa).toEqual(conversa)
+  // Lo que publica la v0.7 no trae el campo; una mal formada se descarta
+  expect(extraerComentario(envolverComentario(ponerSesion(null, presencia({}), ahora)))?.sesiones[0]?.conversa).toBe(undefined)
+  const roto = { ...presencia({}), conversa: [{ con: 3 }, conversa[0], null] }
+  const cuerpo = `<!-- oficina:presencia -->\n\`\`\`json\n${JSON.stringify({ v: 2, usuario: 'campos', nombre: 'Campos', ausente: false, actualizado: AHORA, sesiones: [roto] })}\n\`\`\``
+  expect(extraerComentario(cuerpo)?.sesiones[0]?.conversa).toEqual(conversa)
+})
+
+test('la marca se encuentra dentro del sobre con que llega el mensaje de otra sesión, y se borra solo su línea', async () => {
+  // Medido el 22/11: así le llega a la otra sesión un mensaje de SendMessage
+  const sobre = (cuerpo: string) =>
+    `Another Claude session sent a message:\n<cross-session-message from="uds:x" from-name="quintech-crm-20" from-mode="bypass">\n${cuerpo}\n</cross-session-message>\n\nThis came from another Claude session.`
+  const marcado = marcarMensaje('Hola, soy la sesión de quintech-crm.', { sesion: OTRA, repo: 'nicoequintana/quintech-crm' })
+  expect(leerMarca(sobre(marcado))).toEqual({ texto: sobre('Hola, soy la sesión de quintech-crm.'), sesion: OTRA, repo: 'nicoequintana/quintech-crm' })
+  // Una marca citada en el medio de una línea sigue sin contar
+  expect(leerMarca(sobre(`mirá esto: [avis:${OTRA}|-] raro`))).toBe(null)
 })

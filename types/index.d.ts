@@ -35,6 +35,25 @@ export type Presencia = {
   puedeResponder?: boolean
   /** Procesos en segundo plano de la sesión (Bash con run_in_background) que todavía no avisaron que terminaron. Desde la v0.6. */
   procesos?: Proceso[]
+  /** Conversaciones con otras sesiones (SendMessage) que esta sesión recibió hace poco. Desde la v0.8. */
+  conversa?: Conversa[]
+}
+
+/**
+ * Una conversación con otra sesión, vista desde los mensajes que esta sesión recibió. Nunca lleva
+ * el contenido. Cuándo terminó lo deduce el widget (5 min sin mensajes, o la otra sesión se fue).
+ */
+export type Conversa = {
+  /** Id de la otra sesión ($.session.id() de la otra), sacado de la marca de su mensaje. */
+  con: string
+  /** El `repo` que publica la otra sesión, para nombrarla aunque su presencia no se vea. */
+  conRepo: string | null
+  /** Cuándo empezó (ISO). */
+  desde: string
+  /** Quién mandó el primer mensaje. */
+  empezo: 'yo' | 'otro'
+  /** El último mensaje: quién lo mandó y cuándo (ISO). */
+  ultimo: { de: 'yo' | 'otro'; cuando: string }
 }
 
 /** Un proceso en segundo plano lanzado por la sesión. */

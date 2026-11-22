@@ -3,7 +3,7 @@
 // la bandeja y los avisos. Cada parte se redibuja solo si cambió lo que muestra, para no cortar
 // las animaciones.
 
-import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, escapar, reposoPermitido, superaUmbral } from './logica.js'
+import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, escapar, reposoPermitido, superaUmbral, animoSesion } from './logica.js'
 import { companeros } from './equipo.js'
 import { iconoBandeja, textoInsignia } from './bandeja.js'
 import {
@@ -37,6 +37,12 @@ import {
   duracionContando, contarPalabras, animoTexto, EVENTOS_BACKEND, ESPERA_PENSANDO_MS, lineaAbrir,
 } from './resumen.js'
 import * as movimientoResumen from './resumenMotion.js'
+import {
+  conversaciones, conversacionesNuevas, mensajesNuevos, convsVisibles, debeAbrirseSola, ladoIzquierdo, primeroDe, pausaVuelta, nombreLado, textoSub,
+  geometriaDividida, cuentaVuelta, rastroConversa, anuncioEmpieza, anuncioTermina, esperaRespuesta, RECIEN_SOLA_MS, CONTESTO_MS, ESPERA_VUELTA_MS,
+} from './dividida.js'
+import { fichasConversan, riel, cabConversa, pestanas as pestanasConv, mitades, firmaMitades, puente, fichaUltimo } from './divididaVista.js'
+import * as movimientoDividida from './divididaMotion.js'
 
 const INTERVALO_MS = 1500
 const INTERVALO_EQUIPO_MS = 60000
@@ -172,6 +178,23 @@ const st = {
   },
   // ---- "¿En qué anda Claude?" (docs/diseno/resumen-ia-ux.md): cada descarga y cada resumen, solo con un clic
   /** El globo del resumen (3.3): lo maneja `transicion` (resumen.js). */
+  /** El último HTML de lo que se pinta con `ponerVivo` (para reescribir en su lugar lo que cambia con el tiempo). */
+  htmlVivo: {},
+  /**
+   * Pantalla dividida (docs/diseno/dividida-ux.md 14): la conversación del split (`clave`, null en la
+   * vista normal), el lado izquierdo fijado por conversación, la vista anterior ({ repo, scroll,
+   * nombre }), si se abrió sola o con un clic, las que cerraste (no se reabren solas), las conocidas
+   * (null antes de la primera lectura), las de la última lectura, los puntos y latidos pendientes, las
+   * retiradas (su ficha se fue con la vuelta), las que esperan una transición, la cuenta de la vuelta.
+   */
+  dividida: {
+    clave: null, izq: new Map(), vista: null, origen: null, abiertaEn: 0,
+    descartadas: new Set(), conocidas: null, convs: [], ultimos: new Map(),
+    nuevas: new Set(), latir: new Map(), retiradas: new Set(), pendientes: new Set(), terminadas: new Set(),
+    cruces: [], congelaHasta: 0, cuenta: null, relojCuenta: null, dentro: false, animando: false,
+    // La vista de desarrollo puede acortar la cuenta (window.__esperaVuelta, ver dev/falso.js)
+    esperaVuelta: Number(window.__esperaVuelta) || ESPERA_VUELTA_MS,
+  },
   resumen: resumenInicial(),
   /** El usuario abrió el globo: el foco va a su primer `data-foco` al dibujarse (10). */
   resumenFoco: false,
@@ -213,10 +236,10 @@ function actualizarTiempos(raiz, html) {
  * tiempo se reescribe en su lugar). Después de redibujar, los subagentes nuevos entran solos y las
  * tarjetas que no se ven se pausan.
  */
-function pintarEscenas(proyecto, preparadas, ahora) {
+function pintarEscenas(proyecto, preparadas, ahora, rastros) {
   const raiz = $('#sesiones')
-  const html = sesiones(preparadas, ahora)
-  const firma = firmaEscenas(proyecto.repo, preparadas)
+  const html = sesiones(preparadas, ahora, rastros)
+  const firma = firmaEscenas(proyecto.repo, preparadas, rastros)
   const ids = idsDeEscena(proyecto.repo, preparadas)
   if (st.firmas['#sesiones'] === firma && html !== st.htmlEscenas && !actualizarTiempos(raiz, html)) st.firmas['#sesiones'] = null
   if (poner('#sesiones', html, firma)) {
@@ -340,7 +363,14 @@ const muescaAvi = montarMarca($('#muesca-avi'), { escala: Number(window.__escala
  * Si cambia cuál quiere el puntero, la zona se vuelve a mandar (`mirada`, 9).
  */
 function verAvis() {
-  marca.visible(!st.fuera && !st.mini && (!st.acople || st.vista), !!st.acople)
+  // En la pantalla dividida el riel lleva a Claude de 34 sin juegos: el motor de la marca no corre (5.1)
+  marca.visible(!st.fuera && !st.mini && (!st.acople || st.vista) && !st.dividida.clave, !!st.acople)
+  // Lo de la dividida que corre con WAAPI (un cruce, un latido) termina si el panel deja de verse, y
+  // la cuenta de la vuelta se pausa (10.2)
+  if (st.dividida.clave) {
+    if (!panelSeVe()) movimientoDividida.detener()
+    revisarCuenta(Date.now())
+  }
   // El globo del resumen no se anima mientras no se ve (resumen-ia-ux.md 9.2): lo que corría termina de una
   if (!resumenALaVista()) movimientoResumen.terminar()
   muescaAvi.visible(!!st.acople && !st.vista && !st.fuera && !st.mini && !document.body.classList.contains('pildora') && !st.arrastre?.activo, true)
@@ -364,6 +394,8 @@ function pintar() {
   pintarPie()
   pintarEquipo(ahora)
   pintarMuesca(ahora, pp.faltan)
+  // Sin sesiones no hay conversación que mirar: la dividida se suelta sin animación (8, vacío)
+  if (!st.proyectos.length && st.dividida.clave) soltarDividida()
 
   if (!st.proyectos.length && forma === 'escenario') {
     // Sin tablero y con algo pendiente: el escenario de primeros pasos en lugar del vacío (3.2)
@@ -398,7 +430,9 @@ function pintar() {
     $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
   }
   // El aviso de primeros pasos va debajo del de pregunta; con la hoja abierta no hace falta (3.5)
-  poner('#otro', avisoOtroProyecto(st.proyectos, i) + (hoja ? '' : avisoAsistente(pp)))
+  // En la dividida el aviso es de una pregunta en cualquier proyecto, también los dos que conversan (5.3)
+  const enDividida = !!st.dividida.clave
+  poner('#otro', avisoOtroProyecto(st.proyectos, enDividida ? -1 : i) + (hoja || enDividida ? '' : avisoAsistente(pp)))
 
   const preparadas = prepararProyecto(proyecto, ahora)
   const c = conteos(preparadas, ahora)
@@ -406,7 +440,10 @@ function pintar() {
   $('#titulo').title = proyecto.repo ?? proyecto.nombre
   texto('#subtitulo', lineaEncabezado(preparadas, c))
   poner('#conteos', chips(c))
-  pintarEscenas(proyecto, preparadas, ahora)
+  // El rastro de las sesiones que conversan con otra (dividida-ux.md 5.10)
+  const pid = sesionesPorId()
+  const rastros = new Map(preparadas.map(({ s }) => [s.sesion, rastroConversa(s, st.dividida.convs, ahora, (id, c) => nombreLado(c, id, pid))]).filter(([, r]) => r))
+  pintarEscenas(proyecto, preparadas, ahora, rastros)
 
   const pend = pendientesVisibles(proyecto)
   if (st.activa >= pend.length) st.activa = 0
@@ -446,6 +483,7 @@ function pintar() {
     entrada()
     entradaEscenas(document.querySelectorAll('#sesiones > .ses'))
   }
+  pintarDividida(ahora)
 }
 
 /**
@@ -519,8 +557,470 @@ async function leer() {
   } catch (e) {
     st.error = `No se pudieron leer las sesiones: ${e}`
   }
+  // Error de lectura: quedan los últimos datos y los tiempos siguen corriendo desde los ISO (8)
+  const abrir = actualizarConversaciones(Date.now())
   pintar()
+  for (const clave of abrir) abrirConversacion(clave, 'sola')
 }
+
+// ------------------------------------------------------------------ pantalla dividida (docs/diseno/dividida-ux.md)
+
+/** Las sesiones de la última lectura, por id. */
+const sesionesPorId = () => new Map(st.sesiones.map(s => [s.sesion, s]))
+const $$ = s => [...document.querySelectorAll(s)]
+
+/**
+ * ¿Se está mirando el panel? (3.1, regla 2, y 3.3): flotante y visible, o acoplada con el panel
+ * abierto; ni en la tira, ni escondida, ni con la hoja de primeros pasos (esconde las sesiones).
+ */
+function panelSeVe() {
+  return !st.fuera && !st.mini && (!st.acople || st.vista) && st.pp.forma !== 'hoja' && st.proyectos.length > 0
+}
+
+/** La conversación que muestra el split, o null en la vista normal. */
+function convActual() {
+  const d = st.dividida
+  return d.clave ? d.convs.find(c => c.clave === d.clave) ?? null : null
+}
+
+/** Pone el HTML si cambió su firma; si no, reescribe en su lugar los textos vivos y los `title`. */
+function ponerVivo(sel, html, firma) {
+  if (st.firmas[sel] === firma && st.htmlVivo[sel] !== html && !actualizarTiempos($(sel), html)) st.firmas[sel] = null
+  st.htmlVivo[sel] = html
+  return poner(sel, html, firma)
+}
+
+/** ¿Se abre sola esta conversación nueva? (3.1) */
+function aperturaSola(conv) {
+  const proyecto = st.proyectos.find(p => p.repo === st.repo)
+  const pend = proyecto ? pendientesVisibles(proyecto) : []
+  return debeAbrirseSola(conv, {
+    nueva: true, panelVisible: panelSeVe(), proyectoVisto: st.repo, divididaAbierta: !!st.dividida.clave,
+    preguntaDesplegada: pend.length > 0 && !st.plegado,
+    enviando: Object.values(st.envios).some(e => e.estado === 'enviando'),
+    focoEnCampo: !!document.activeElement?.closest?.('input, textarea, select, [contenteditable="true"]'),
+    arrastre: !!st.arrastre, descartadas: st.dividida.descartadas, transicion: st.transicion,
+  })
+}
+
+/** Una conversación que no se abrió sola: su ficha entra y su punto late 3 veces (3.2), y se anuncia una vez. */
+function soloLate(conv, pid) {
+  const d = st.dividida
+  d.nuevas.add(conv.clave)
+  d.latir.set(conv.clave, { veces: 3, entra: true })
+  anunciar(anuncioEmpieza(conv, id => nombreLado(conv, id, pid), false))
+}
+
+/**
+ * Después de cada lectura (3): las conversaciones con sus dos lados unidos; las nuevas (se abren
+ * solas, esperan una transición o solo late su ficha); los mensajes nuevos (cruzan si se ve el split;
+ * si no, la ficha late una vez); las que esperaban a que terminara una transición. Devuelve las
+ * claves que hay que abrir solas (a lo sumo una).
+ */
+function actualizarConversaciones(ahora) {
+  const d = st.dividida
+  const antes = new Map(d.convs.map(c => [c.clave, c]))
+  const convs = conversaciones(st.sesiones, ahora, d.convs)
+  const nuevas = conversacionesNuevas(d.conocidas, convs)
+  const mensajes = mensajesNuevos(d.ultimos, convs)
+  d.convs = convs
+  // Las etiquetas nombran el par en el orden del título: el lado izquierdo con el proyecto visto
+  for (const c of convs) c.primero = d.izq.get(c.clave) ?? ladoIzquierdo(c, d.clave ? d.vista?.repo : st.repo)
+  d.conocidas = new Set(convs.map(c => c.clave))
+  d.ultimos = new Map(convs.map(c => [c.clave, c.ultimo.cuando]))
+  const pid = sesionesPorId()
+  const abrir = []
+  for (const c of nuevas) {
+    const r = aperturaSola(c)
+    if (r === 'abrir' && !abrir.length) {
+      abrir.push(c.clave)
+      anunciar(anuncioEmpieza(c, id => nombreLado(c, id, pid), true))
+    } else if (r === 'esperar') d.pendientes.add(c.clave)
+    else soloLate(c, pid)
+  }
+  for (const k of [...d.pendientes]) {
+    if (nuevas.some(c => c.clave === k)) continue
+    const c = convs.find(x => x.clave === k)
+    const r = c ? aperturaSola(c) : 'no'
+    if (r === 'esperar') continue
+    d.pendientes.delete(k)
+    if (r === 'abrir' && !abrir.length) {
+      abrir.push(k)
+      anunciar(anuncioEmpieza(c, id => nombreLado(c, id, pid), true))
+    } else if (c) soloLate(c, pid)
+  }
+  for (const k of mensajes) {
+    if (k === d.clave) {
+      // El split se ve: la pastilla cruza y los textos esperan a que llegue (9.3)
+      if (panelSeVe() && hayMovimiento()) {
+        d.cruces.push({ clave: k, antes: antes.get(k) })
+        d.congelaHasta = Infinity
+      }
+    } else if (!abrir.includes(k)) {
+      d.nuevas.add(k)
+      if (!d.latir.has(k)) d.latir.set(k, { veces: 1 })
+    }
+  }
+  return abrir
+}
+
+/** Al terminar una transición de ventana se vuelven a evaluar las que esperaban (3.1, regla 8). */
+function revisarPendientesDividida() {
+  if (!st.dividida.pendientes.size) return
+  const abrir = actualizarConversaciones(Date.now())
+  pintar()
+  for (const clave of abrir) abrirConversacion(clave, 'sola')
+}
+
+/**
+ * Abre la dividida en `clave` (9.1): sola (3.1) o con un clic en una ficha (3.4). Guarda la vista
+ * anterior, fija el lado izquierdo y conserva el foco (12): si estaba en la barra, al mismo proyecto
+ * del riel; si estaba en la columna, al botón "‹"; con un clic, a la conversación activa del riel.
+ * Con la dividida ya abierta, solo cambia de pestaña.
+ */
+async function abrirConversacion(clave, origen) {
+  const d = st.dividida
+  const conv = d.convs.find(c => c.clave === clave)
+  if (!conv || d.animando || st.animando) return
+  if (d.clave) { mostrarPestana(clave); return }
+  const proyecto = st.proyectos.find(p => p.repo === st.repo)
+  d.vista = { repo: st.repo, scroll: $('.principal').scrollTop, nombre: proyecto?.nombre ?? '' }
+  d.origen = origen
+  d.abiertaEn = Date.now()
+  if (!d.izq.has(clave)) d.izq.set(clave, ladoIzquierdo(conv, st.repo))
+  const enfocado = document.activeElement
+  const focoBarra = enfocado?.closest?.('.lado')
+  const focoProyecto = enfocado?.closest?.('.lado [data-proy]')?.dataset.proy
+  const focoColumna = enfocado?.closest?.('.principal')
+  d.nuevas.delete(clave)
+  d.latir.delete(clave)
+  d.retiradas.delete(clave)
+  d.cuenta = null
+  d.cruces = []
+  d.congelaHasta = 0
+  d.animando = true
+  const izq = d.izq.get(clave)
+  try {
+    await movimientoDividida.abrirDividida($('#marco'), () => {
+      d.clave = clave
+      $('#marco').classList.add('dividida')
+      for (const sel of ['#riel', '#cab-conv', '#pestanas', '#split-g', '#puente', '#ficha-u']) st.firmas[sel] = null
+      pintar()
+      $('.principal').scrollTop = 0
+      if (origen === 'clic') $('#riel .tok-cv.activa')?.focus()
+      else if (focoProyecto != null) ($(`#riel [data-proy="${focoProyecto}"]`) ?? $('#riel .tok.origen'))?.focus()
+      else if (focoBarra) $('#riel .tok.origen')?.focus()
+      else if (focoColumna) $('#volver').focus()
+    }, { desdeDerecha: conv.empezo !== izq })
+  } catch (e) {
+    registrar(`dividida: ${e}`)
+  } finally {
+    d.animando = false
+  }
+  verAvis()
+  programarAjuste()
+  // Si el último mensaje es de hace menos de 10 s, la pastilla cruza al terminar de abrir (9.1)
+  const ahora = convActual()
+  if (ahora && !ahora.hasta && Date.now() - Date.parse(ahora.ultimo.cuando) < CONTESTO_MS && panelSeVe()) cruzarAhora(ahora, null)
+}
+
+/**
+ * Suelta la dividida sin animación (sin sesiones, o la conversación se olvidó): el estado vuelve a
+ * la vista normal. No pinta: lo hace quien llama.
+ */
+function soltarDividida() {
+  const d = st.dividida
+  clearTimeout(d.relojCuenta)
+  movimientoDividida.detener()
+  movimientoDividida.quitarDrena($('#drena'))
+  if (d.vista && st.proyectos.some(p => p.repo === d.vista.repo)) st.repo = d.vista.repo
+  Object.assign(d, { clave: null, vista: null, origen: null, cuenta: null, cruces: [], congelaHasta: 0 })
+  $('#marco').classList.remove('dividida')
+  verAvis()
+}
+
+/**
+ * Vuelve a la vista anterior (9.5): al terminar la cuenta, con "Volver ahora", con "‹", con Esc o
+ * con un proyecto del riel (`repo`). Cerrarla antes de que termine la descarta (no se reabre sola,
+ * 10.4); una terminada se va con la vuelta (5.9). El foco, si estaba en la dividida, va al proyecto
+ * de la vista anterior en la barra (12).
+ */
+async function cerrarConversacion({ descartar = false, repo } = {}) {
+  const d = st.dividida
+  if (!d.clave || d.animando || st.animando) return
+  const conv = convActual()
+  if (descartar && conv && !conv.hasta) d.descartadas.add(d.clave)
+  if (conv?.hasta) d.retiradas.add(d.clave)
+  const vista = d.vista
+  const destino = repo !== undefined ? repo : vista?.repo
+  const focoAdentro = !!document.activeElement?.closest?.('.riel, .principal')
+  clearTimeout(d.relojCuenta)
+  movimientoDividida.detener()
+  d.animando = true
+  try {
+    await movimientoDividida.cerrarDividida($('#marco'), () => {
+      movimientoDividida.quitarDrena($('#drena'))
+      Object.assign(d, { clave: null, vista: null, origen: null, cuenta: null, cruces: [], congelaHasta: 0 })
+      $('#marco').classList.remove('dividida')
+      if (destino !== undefined && st.proyectos.some(p => p.repo === destino)) st.repo = destino
+      st.activa = 0
+      pintar()
+      $('.principal').scrollTop = repo === undefined ? (vista?.scroll ?? 0) : 0
+      if (focoAdentro) $('#proyectos .pj.activo')?.focus()
+    })
+  } catch (e) {
+    registrar(`dividida: ${e}`)
+  } finally {
+    d.animando = false
+  }
+  verAvis()
+  programarAjuste()
+}
+
+/** Muestra otra conversación en el split, como su pestaña (5.4 y 9.6). */
+function mostrarPestana(clave) {
+  const d = st.dividida
+  if (!d.clave || clave === d.clave) return
+  const conv = d.convs.find(c => c.clave === clave)
+  if (!conv) return
+  const orden = convsVisibles(d.convs, Date.now(), d.retiradas).map(c => c.clave)
+  const direccion = Math.sign(orden.indexOf(clave) - orden.indexOf(d.clave)) || 1
+  if (!d.izq.has(clave)) d.izq.set(clave, ladoIzquierdo(conv, d.vista?.repo))
+  clearTimeout(d.relojCuenta)
+  movimientoDividida.detener()
+  movimientoDividida.quitarDrena($('#drena'))
+  Object.assign(d, { clave, cuenta: null, cruces: [], congelaHasta: 0 })
+  d.nuevas.delete(clave)
+  d.latir.delete(clave)
+  for (const sel of ['#cab-conv', '#split-g', '#puente', '#ficha-u']) st.firmas[sel] = null
+  pintar()
+  movimientoDividida.cambiarPestana($('#split'), direccion)
+}
+
+/**
+ * Un mensaje nuevo en la conversación que se ve (9.3): la pastilla cruza desde quien manda y, al
+ * llegar, cambian los textos (fundido) y quien esperaba festeja una vez. `antes`: la conversación de
+ * la lectura anterior (para saber si quien recibe esperaba).
+ */
+function cruzarAhora(conv, antes) {
+  const d = st.dividida
+  const izq = d.izq.get(conv.clave)
+  const { cable } = geometriaDividida(0, 0)
+  const desdeIzq = conv.ultimo.emisor === izq
+  const recibe = conv.turno
+  const esperaba = antes ? esperaRespuesta(sesionesPorId().get(recibe), antes, Date.now()) : false
+  movimientoDividida.cruzarMensaje($('#split'), {
+    d: desdeIzq ? cable.d : cable.dInverso,
+    llega: desdeIzq ? cable.llegaB : cable.llegaA,
+    alCambiar: () => {
+      d.congelaHasta = 0
+      pintar()
+      movimientoDividida.fundido($$('#split-g .turno, #split-g .pild, #split-g .mh .linea, #ficha-u .u-t'))
+      if (!esperaba) return
+      const el = $(`#split-g [data-claude="${CSS.escape(recibe)}"]`)
+      el?.classList.add('recibe')
+      setTimeout(() => el?.classList.remove('recibe'), 1000)
+    },
+  })
+}
+
+/**
+ * La cuenta de la vuelta (10): 60 s desde que termina la conversación que se mira, solo con el panel
+ * a la vista; en pausa con el puntero sobre la columna o el foco adentro. Si se cerraron las dos
+ * sesiones, la vuelta es inmediata (8). La barra de 2 px la sigue.
+ */
+function revisarCuenta(ahora, actual = convActual()) {
+  const d = st.dividida
+  clearTimeout(d.relojCuenta)
+  if (!actual?.hasta) {
+    d.cuenta = null
+    movimientoDividida.quitarDrena($('#drena'))
+    return
+  }
+  if (actual.motivo === 'cerro' && actual.cerradas.length >= 2) { setTimeout(vueltaAutomatica, 0); return }
+  revisarDentro()
+  const corre = panelSeVe() && !d.dentro && !d.animando
+  d.cuenta = cuentaVuelta(d.cuenta, { corre, ahoraMs: ahora, totalMs: d.esperaVuelta })
+  if (d.cuenta.terminada) { setTimeout(vueltaAutomatica, 0); return }
+  movimientoDividida.drena($('#drena'), { restante: d.cuenta.restante, total: d.esperaVuelta, corre })
+  if (corre) d.relojCuenta = setTimeout(pintar, d.cuenta.restante + 30)
+}
+
+/**
+ * Terminó la cuenta: si queda otra conversación activa, el split pasa a esa (8); si no, vuelve a la
+ * vista anterior.
+ */
+async function vueltaAutomatica() {
+  const d = st.dividida
+  const actual = convActual()
+  if (!actual || d.animando || st.animando) return
+  const sigue = convsVisibles(d.convs, Date.now(), d.retiradas).find(c => c.clave !== actual.clave && !c.hasta)
+  d.retiradas.add(actual.clave)
+  if (sigue) mostrarPestana(sigue.clave)
+  else await cerrarConversacion()
+}
+
+/** El puntero sobre la columna o el foco adentro de la dividida pausan la cuenta (10.3). */
+const dentroDividida = { puntero: false }
+function revisarDentro() {
+  const d = st.dividida
+  const el = document.activeElement
+  const dentro = pausaVuelta({
+    puntero: dentroDividida.puntero,
+    ventanaActiva: document.hasFocus(),
+    focoAdentro: !!el?.closest?.('#marco.dividida .riel, #marco.dividida .principal'),
+    focoTeclado: !!el?.matches?.(':focus-visible'),
+  })
+  if (dentro === d.dentro) return
+  d.dentro = dentro
+  if (d.clave) pintar()
+}
+
+/** Late lo que esperaba a verse (9.2): las fichas nuevas, los mensajes sin abrir y las pestañas. */
+function latirPendientes() {
+  const d = st.dividida
+  if (!d.latir.size || !panelSeVe()) return
+  const lugares = d.clave ? ['#riel', '#pestanas'] : ['#conversan']
+  for (const [clave, { veces, entra }] of d.latir) {
+    for (const lugar of lugares) {
+      const b = $(`${lugar} [data-clave="${CSS.escape(clave)}"]`)
+      if (b) movimientoDividida.latirFicha(b.querySelector('.pt-n'), veces, { entra: entra && lugar === '#conversan' ? b.closest('li') : null })
+    }
+  }
+  d.latir.clear()
+}
+
+/**
+ * La parte de la dividida de cada `pintar()`: las fichas "Conversan" de la barra y, con la dividida
+ * abierta, el riel, el encabezado, las pestañas, las mitades, el puente y la ficha "Último". Cada
+ * parte se redibuja solo si cambió su firma (sin el tiempo); lo que pasa con el tiempo se reescribe
+ * en su lugar. Mientras cruza un mensaje, las mitades esperan a que llegue (9.3).
+ */
+function pintarDividida(ahora) {
+  const d = st.dividida
+  const pid = sesionesPorId()
+  const nombre = (id, c) => nombreLado(c, id, pid)
+  const actual = convActual()
+  if (d.clave && !actual) { soltarDividida(); pintar(); return }
+  let visibles = convsVisibles(d.convs, ahora, d.retiradas)
+  if (actual && !visibles.includes(actual)) visibles = [...visibles, actual].sort((x, y) => Date.parse(x.desde) - Date.parse(y.desde))
+  const animoDe = id => (pid.has(id) ? animoSesion(pid.get(id), ahora) : '-')
+
+  // Fichas "Conversan" de la barra (5.9)
+  const htmlF = fichasConversan(visibles, { ahoraMs: ahora, porId: pid, nombre, nuevas: d.nuevas })
+  $('#conversan').hidden = !htmlF
+  const focoF = document.activeElement?.closest?.('#conversan [data-clave]')?.dataset.clave
+  const firmaF = visibles.map(c => [c.clave, !!c.hasta, d.nuevas.has(c.clave), animoDe(c.a), animoDe(c.b)].join(':')).join('/')
+  if (ponerVivo('#conversan', htmlF, firmaF) && focoF) $(`#conversan [data-clave="${CSS.escape(focoF)}"]`)?.focus()
+
+  if (!actual) { latirPendientes(); return }
+  const izq = d.izq.get(actual.clave)
+  const n = id => nombreLado(actual, id, pid)
+  const vistaN = d.vista?.nombre ?? ''
+
+  // Riel (5.1)
+  const textoPie = st.error ?? `actualizado ${st.actualizado ? horaLocal(st.actualizado.getTime()) : '—'} · cada 1,5 s`
+  const focoR = document.activeElement?.closest?.('#riel [data-clave], #riel [data-proy]')
+  const firmaR = [
+    st.proyectos.map(p => `${p.repo}:${p.sesiones.length}:${preguntasPendientes(p).length}`).join(','),
+    visibles.map(c => `${c.clave}:${!!c.hasta}:${d.nuevas.has(c.clave)}`).join(','), d.clave, d.vista?.repo, animoMarca(st.proyectos, ahora), !!st.error,
+  ].join('/')
+  const htmlR = riel(st.proyectos, visibles, { ahoraMs: ahora, nombre, activa: d.clave, nuevas: d.nuevas, origen: d.vista?.repo, animoMarca: animoMarca(st.proyectos, ahora), estado: { error: !!st.error, texto: textoPie } })
+  if (ponerVivo('#riel', htmlR, firmaR) && focoR) {
+    const sel = focoR.dataset.clave != null ? `[data-clave="${CSS.escape(focoR.dataset.clave)}"]` : `[data-proy="${focoR.dataset.proy}"]`
+    $(`#riel ${sel}`)?.focus()
+  }
+
+  // Encabezado (5.2): el título por conversación; el sub y la salida, en su lugar
+  const restante = d.cuenta ? (d.cuenta.desde == null ? d.cuenta.restante : Math.max(0, d.cuenta.restante - (ahora - d.cuenta.desde))) : null
+  const sigue = visibles.find(c => c.clave !== actual.clave && !c.hasta)
+  const sub = textoSub(actual, {
+    ahoraMs: ahora, recienSola: d.origen === 'sola' && ahora - d.abiertaEn < RECIEN_SOLA_MS, vista: vistaN,
+    cuenta: d.cuenta && { restante, pausada: d.dentro }, nombre: n,
+    siguiente: sigue ? `${nombreLado(sigue, primeroDe(sigue), pid)} ⇄ ${nombreLado(sigue, primeroDe(sigue) === sigue.a ? sigue.b : sigue.a, pid)}` : null,
+  })
+  poner('#cab-conv', cabConversa(actual, izq, { nombre: n, sub }), `${actual.clave}|${izq}|${n(actual.a)}|${n(actual.b)}`)
+  texto('#sub-c', sub)
+  const volver = $('#volver')
+  const fin = !!actual.hasta
+  if (volver.dataset.firma !== `${fin}|${vistaN}`) {
+    volver.dataset.firma = `${fin}|${vistaN}`
+    volver.innerHTML = fin ? 'Volver ahora' : `‹ <span class="n">${escapar(vistaN)}</span>`
+    volver.classList.toggle('ahora', fin)
+    volver.setAttribute('aria-label', `${fin ? 'Volver ahora a' : 'Volver a'} ${vistaN}`)
+  }
+
+  // Pestañas (5.4), solo con 2 o más
+  const focoP = document.activeElement?.closest?.('#pestanas [data-clave]')?.dataset.clave
+  const firmaP = visibles.map(c => `${c.clave}:${!!c.hasta}:${d.nuevas.has(c.clave)}`).join(',') + `|${d.clave}`
+  if (ponerVivo('#pestanas', pestanasConv(visibles, { activa: d.clave, nuevas: d.nuevas, nombre }), firmaP) && focoP) {
+    $(`#pestanas [data-clave="${CSS.escape(focoP)}"]`)?.focus()
+  }
+  const split = $('#split')
+  if (visibles.length > 1) split.setAttribute('role', 'tabpanel')
+  else split.removeAttribute('role')
+
+  // Las mitades, la costura, el puente y la ficha "Último" (5.5 a 5.8)
+  const der = actual.a === izq ? actual.b : actual.a
+  const nSub = id => (pid.get(id)?.agentes ?? []).length
+  const geo = geometriaDividida(nSub(izq), nSub(der))
+  const ctx = { ahoraMs: ahora, porId: pid, nombre: n }
+  if (ahora >= d.congelaHasta) {
+    ponerVivo('#split-g', mitades(actual, izq, ctx, geo), firmaMitades(actual, izq, ctx))
+    ponerVivo('#ficha-u', fichaUltimo(actual, ctx), `${actual.clave}|${fin}`)
+  }
+  const puenteNuevo = poner('#puente', puente(geo, fin && d.terminadas.has(actual.clave)), `${actual.clave}|${izq}`)
+  if (fin && !d.terminadas.has(actual.clave)) {
+    // Termina (9.4): el cable se corta una vez; si se abrió ya terminada, sin animación
+    d.terminadas.add(actual.clave)
+    if (puenteNuevo) $('#puente .puente')?.classList.add('fin')
+    else movimientoDividida.terminar(split)
+    anunciar(anuncioTermina(actual, n, vistaN))
+  }
+
+  // Los cruces que esperaban a que se pintara el split (9.3)
+  const cruces = d.cruces
+  d.cruces = []
+  for (const { clave, antes } of cruces) if (clave === actual.clave && panelSeVe()) cruzarAhora(actual, antes)
+  if (!cruces.length && d.congelaHasta === Infinity) d.congelaHasta = 0
+
+  revisarCuenta(ahora, actual)
+  latirPendientes()
+}
+
+/**
+ * Teclado en la dividida (12): Esc vuelve (una capa por vez: acoplada, el Esc siguiente cierra la
+ * muesca); dentro de las pestañas, ← → mueven el foco (itinerante) entre ellas; las ← → globales de
+ * cambio de proyecto no actúan. Devuelve true si la tecla fue suya.
+ */
+function teclaDividida(e) {
+  const d = st.dividida
+  if (!d.clave) return false
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    cerrarConversacion({ descartar: true })
+    return true
+  }
+  const pest = e.target.closest?.('#pestanas [role="tab"]')
+  if (pest && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    e.preventDefault()
+    const tabs = $$('#pestanas [role="tab"]')
+    const sig = tabs[(tabs.indexOf(pest) + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length]
+    for (const t of tabs) t.tabIndex = t === sig ? 0 : -1
+    sig.focus()
+    return true
+  }
+  return e.key === 'ArrowLeft' || e.key === 'ArrowRight'
+}
+
+$('.principal').addEventListener('pointerenter', () => { dentroDividida.puntero = true; revisarDentro() })
+$('.principal').addEventListener('pointerleave', () => { dentroDividida.puntero = false; revisarDentro() })
+document.addEventListener('focusin', revisarDentro)
+document.addEventListener('focusout', () => setTimeout(revisarDentro, 0))
+// Si el puntero sale de la ventana entera de golpe, puede no pasar por el borde de la columna
+document.documentElement.addEventListener('pointerleave', () => { dentroDividida.puntero = false; revisarDentro() })
+window.addEventListener('focus', revisarDentro)
+window.addEventListener('blur', revisarDentro)
 
 // ------------------------------------------------------------------ responder desde el globo
 
@@ -761,6 +1261,24 @@ document.addEventListener('click', async e => {
     if (b.getAttribute('aria-disabled') !== 'true') await accionPasos(a, b)
     return
   }
+  if (a === 'conv') {
+    // Una ficha "Conversan" de la barra o del riel abre la dividida en esa conversación (3.4)
+    abrirConversacion(b.dataset.clave, 'clic')
+    return
+  }
+  if (a === 'pest') { mostrarPestana(b.dataset.clave); return }
+  if (a === 'volver') {
+    // "‹ vista anterior" o "Volver ahora" (5.2); antes de que termine, la descarta (10.4)
+    cerrarConversacion({ descartar: true })
+    return
+  }
+  if (a === 'ir' && st.dividida.clave) {
+    // Un proyecto del riel, o el aviso de una pregunta (5.3): sale de la dividida hacia ese proyecto
+    const p = st.proyectos[+b.dataset.proy]
+    if (b.closest('#otro')) { st.plegado = false; st.firmas.clavesGlobo = null }
+    if (p) cerrarConversacion({ descartar: true, repo: p.repo })
+    return
+  }
   if (a === 'ir') {
     // El aviso de una pregunta en otro proyecto cierra la hoja de primeros pasos (3.2)
     if (b.closest('#otro')) st.pp.abierto = false
@@ -865,6 +1383,7 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { st.plegado = true; pintar(); $('[data-accion="ver"]')?.focus(); return }
   }
   if (teclaPasos(e)) return
+  if (teclaDividida(e)) return
   // Fuera de la pregunta, Esc cierra la muesca aunque esté fijada y devuelve el foco a la muesca (7.2)
   if (e.key === 'Escape' && st.acople && st.muesca.abierta) { e.preventDefault(); evento({ tipo: 'esc' }); return }
   if (st.mini || e.target.closest?.('input, textarea, summary, #pp, #resumen')) return
@@ -1219,6 +1738,8 @@ async function transicion(fn) {
     st.transicion = false
     if (st.acople) sincronizar()
     programarAjuste()
+    // Las conversaciones que esperaban a que terminara la transición se vuelven a evaluar (3.1, regla 8)
+    revisarPendientesDividida()
   }
 }
 
