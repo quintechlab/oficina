@@ -410,3 +410,61 @@ test('cuenta de la vuelta: 60 s que corren solo mientras corre, se pausan sin re
   c = cuentaVuelta(c, { corre: true, ahoraMs: 141000 })
   assert.deepEqual(c, { restante: 0, desde: null, pausada: false, terminada: true })
 })
+
+// ------------------------------------------------------------------ vista (divididaVista.js)
+
+const texto = h => h.replace(/<[^>]+>/g, '')
+
+test('vista: la mitad sin datos usa conRepo, "no se ve desde esta máquina", Claude al 60 % y el chip "sin datos"', async () => {
+  const { mitad } = await import('../src/divididaVista.js')
+  const porId = new Map([['p', ses('p', PAGOS)]])
+  const h = mitad(conv, 't', { ahoraMs: AHORA, porId, nombre, geo: geometriaDividida(0, 0).der, lado: 'der' })
+  assert.match(h, /class="mitad der sin"/)
+  assert.match(h, /<span class="mh-n">tienda-web<\/span>/)
+  assert.match(h, /no se ve desde esta máquina/)
+  assert.match(h, /esc-claude dorm-c/)
+  assert.match(h, /<span class="turno fin"><span data-vivo>sin datos<\/span><\/span>/)
+  assert.doesNotMatch(h, /class="elenco"/)
+})
+
+test('vista: la mitad con datos lleva la línea de la conversación con "⇄", el chip y Claude en su sitio', async () => {
+  const { mitad } = await import('../src/divididaVista.js')
+  const porId = new Map(unLado().map(s => [s.sesion, s]))
+  const geo = geometriaDividida(0, 0)
+  const h = mitad(conv, 't', { ahoraMs: AHORA, porId, nombre, geo: geo.izq, lado: 'izq' })
+  assert.match(h, /<p class="linea cv" style="--c:var\(--celeste\)" title="⇄ esperando a api-pagos · 40 s"><span class="cv-m" aria-hidden="true">⇄<\/span><span data-vivo>esperando a api-pagos · 40 s<\/span><\/p>/)
+  assert.match(h, /<span class="turno espera"><svg class="arena"/)
+  assert.match(h, /style="left:136px;top:60px"/)
+  assert.match(h, /--t:120px/)
+})
+
+test('vista: el h1 se oye "tienda-web conversa con api-pagos"; con el mismo proyecto, "· 2 sesiones conversan"', async () => {
+  const { cabConversa } = await import('../src/divididaVista.js')
+  assert.equal(texto(cabConversa(conv, 't', { nombre, sub: 'x' }).match(/<h1[^>]*>(.*)<\/h1>/)[1]), 'tienda-web⇄ conversa con api-pagos')
+  assert.match(cabConversa(conv, 't', { nombre, sub: 'x' }), /<span class="flecha-c" aria-hidden="true">⇄<\/span><span class="oculto"> conversa con <\/span>/)
+  const mismo = { ...conv, repos: { p: TIENDA, t: TIENDA } }
+  assert.equal(texto(cabConversa(mismo, 't', { nombre, sub: 'x' }).match(/<h1[^>]*>(.*)<\/h1>/)[1]), 'tienda-web · 2 sesiones conversan')
+})
+
+test('vista: pestañas solo con 2 o más, la activa con aria-selected y tabindex 0, el punto con ", mensaje nuevo"', async () => {
+  const { pestanas } = await import('../src/divididaVista.js')
+  assert.equal(pestanas([conv], { activa: conv.clave, nuevas: new Set(), nombre }), '')
+  const otra = { ...conv, clave: 'k2', a: 'a', b: 't', par: ['a', 't'], empezo: 'a', repos: { a: ADMIN, t: TIENDA } }
+  const h = pestanas([conv, otra], { activa: conv.clave, nuevas: new Set(['k2']), nombre })
+  assert.match(h, /role="tablist"/)
+  assert.match(h, /aria-selected="true" aria-controls="split" tabindex="0" data-accion="pest" data-clave="[^"]+"><span class="n">tienda-web/)
+  assert.match(h, /aria-selected="false" aria-controls="split" tabindex="-1" data-accion="pest" data-clave="k2">.*<i class="pt-n" aria-hidden="true"><\/i><span class="oculto">, mensaje nuevo<\/span>/)
+})
+
+test('vista: las fichas "Conversan" escapan lo que viene de la sesión y llevan el punto si son nuevas', async () => {
+  const { fichasConversan } = await import('../src/divididaVista.js')
+  const malo = id => (id === 't' ? '<b>x</b>' : 'api-pagos')
+  const porId = new Map(unLado().map(s => [s.sesion, s]))
+  const h = fichasConversan([conv], { ahoraMs: AHORA, porId, nombre: malo, nuevas: new Set([conv.clave]) })
+  assert.doesNotMatch(h, /<b>x<\/b>/)
+  assert.match(h, /&lt;b&gt;x&lt;\/b&gt;/)
+  assert.match(h, /<h2 class="rot-c" id="h-conversan">Conversan<\/h2>/)
+  assert.match(h, /data-accion="conv"/)
+  assert.match(h, /<i class="pt-n" aria-hidden="true"><\/i>/)
+  assert.equal(fichasConversan([], { ahoraMs: AHORA, porId, nombre, nuevas: new Set() }), '')
+})

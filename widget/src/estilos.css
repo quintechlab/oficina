@@ -59,6 +59,13 @@
      y los hilos. No es --alto-escenario (ese es de primeros pasos) */
   --ancho-escena: 408px; --alto-esc: 146px; --alto-esc-solo: 118px; --alto-conteo: 26px;
   --d-viaje: 1800ms; --cada-hilo: 600ms;
+  /* Pantalla dividida (dividida-ux.md 15): todo sale de --celeste y --negro. Las posiciones salen de
+     DIVIDIDA (dividida.js), no de acá */
+  --celeste-osc: #0B1524; --celeste-velo: rgba(127, 179, 255, .14); --celeste-velo-f: rgba(127, 179, 255, .18);
+  --celeste-borde-t: rgba(127, 179, 255, .22); --celeste-borde-s: rgba(127, 179, 255, .30);
+  --celeste-borde: rgba(127, 179, 255, .40); --celeste-borde-f: rgba(127, 179, 255, .45);
+  --ancho-riel: 56px; --ancho-principal-d: 592px; --mitad: 272px; --costura: 26px; --alto-esc-d: 218px;
+  --d-cruza: 1680ms; --d-anillo: 1230ms; --d-cose: 500ms; --d-riel: 450ms; --espera-vuelta: 60s;
 
   /* 3.4 radios */
   --r-ventana: 26px; --r-panel: 26px; --r-muesca: 22px; --r-hombro: 16px; --r-tarjeta: 18px;
@@ -432,6 +439,8 @@ button.op:active { transform: scale(.985) }
 
 /* El texto largo no estira la ventana: el ancho lo dan el escenario, los chips y el mínimo */
 #otro, #w-globo, .conteos, .ses-cab, .ses > .linea, .compa-t, .fila-t, .pie-w, .lado-pie { contain: inline-size }
+/* Las piezas de una línea de la pantalla dividida tampoco empujan el ancho del tablero */
+.rastro, .cab-c-t, .mh, .conv-t, .ficha-u { contain: inline-size }
 
 /* ------------------------------------------------------------------ tira mini (4.6): 400 × 56
    Un elemento adentro de la ventana del área (9.7), abajo a la derecha o donde se la soltó: --qx, --qy */
@@ -1003,3 +1012,194 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .bt-p:active, body.pausa .bt-s
 @keyframes ida { from { transform: translateX(-110%) } to { transform: translateX(310%) } }
 @keyframes punto { 0%, 100% { opacity: .25; transform: translateY(0) } 40% { opacity: 1; transform: translateY(-2px) } }
 @keyframes esqueleto { from { transform: translateX(-100%) } to { transform: translateX(200%) } }
+
+/* ------------------------------------------------------------------ pantalla dividida (docs/diseno/dividida-ux.md)
+   Cuando dos sesiones conversan, la barra se pliega a un riel de 56 y la columna (592) se parte en
+   dos mitades de 272 con una costura de 26: el tablero mide lo mismo (4.1). Lo de la vista normal
+   queda display: none (sus bucles no corren). Las posiciones salen de DIVIDIDA (dividida.js) */
+.riel, .cab-c-t, .volver, .drena, #pestanas, .split, .ficha-u { display: none }
+#marco.dividida .lado, #marco.dividida .cab-t, #marco.dividida #w-globo, #marco.dividida #resumen, #marco.dividida #pp,
+#marco.dividida .conteos, #marco.dividida .sesiones, #marco.dividida #vacio-avi { display: none }
+#marco.dividida .principal { width: var(--ancho-principal-d) }
+
+/* Riel (5.1): columna centrada; los proyectos con su scroll */
+#marco.dividida .riel {
+  width: var(--ancho-riel); flex: none; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: var(--e-4);
+  padding-top: var(--e-3); overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: transparent transparent;
+}
+.riel:hover { scrollbar-color: var(--linea-hover) transparent }
+.riel > * { flex: none }
+.riel :focus-visible { outline-offset: -2px }
+.riel-marca { width: 44px; height: 44px; display: grid; place-items: center; cursor: grab; user-select: none }
+.riel-marca > * { pointer-events: none }
+.riel-conv, .riel-proy { display: flex; flex-direction: column; align-items: center; gap: var(--e-4); list-style: none }
+.riel-conv:empty { display: none }
+.riel-proy { flex: 0 1 auto; min-height: 44px; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; padding: 3px 0 }
+.riel hr { width: 24px; border: 0; border-top: 1px solid var(--linea); margin: var(--e-2) 0 }
+.tok {
+  position: relative; width: 44px; height: 44px; flex: none; display: grid; place-items: center;
+  border: 0; border-radius: 12px; background: transparent; color: var(--crema2); cursor: pointer;
+  transition: background var(--d-color) ease, border-color var(--d-color) ease, transform var(--d-presion) ease;
+}
+.tok:hover { background: var(--s2) }
+.tok:active { transform: scale(.97) }
+.tok.origen { box-shadow: inset 0 0 0 1px rgba(242, 182, 50, .28) }
+.tok-ic { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); font: 500 10px/1 var(--m) }
+.insig { position: absolute; right: -3px; top: -3px; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--negro); background: var(--ambar); color: var(--negro); font: 600 10px/1 var(--m) }
+.tok-cv { border: 1px solid var(--celeste-borde-s); background: var(--celeste-osc); color: var(--celeste); font: 700 15px/1 var(--f) }
+.tok-cv:hover { background: var(--celeste-osc); border-color: var(--celeste-borde-f) }
+.tok-cv.activa { background: var(--celeste-velo-f); border-color: var(--celeste) }
+.tok-cv.fin { background: transparent; border-color: var(--linea); color: var(--crema2) }
+.tok .pt-n { position: absolute; right: -2px; top: -2px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--negro); background: var(--celeste) }
+.riel-pie { margin-top: auto; padding: var(--e-4) 0 var(--e-2); display: grid; place-items: center }
+.pt-r { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--crema2) }
+.pt-r.error { background: var(--rojo) }
+
+/* Encabezado de la conversación (5.2): el mismo .cab sticky; los controles de ventana no cambian */
+#marco.dividida .cab { align-items: center; min-height: 62px }
+#marco.dividida .cab-c-t { display: block; flex: 1; min-width: 0; cursor: grab; user-select: none }
+.cab-c-t > * { pointer-events: none }
+.cab .kick { margin: 0; font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--celeste) }
+.cab .h1-c { display: flex; min-width: 0; margin-top: 5px; font: 800 19px/1.2 var(--f); letter-spacing: -.02em; color: var(--crema); white-space: nowrap; overflow: hidden }
+.h1-c .n { min-width: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis }
+.flecha-c { flex: none; margin: 0 6px; color: var(--celeste) }
+.cab .sub-c { margin-top: 2px; font: 500 11.5px/1.35 var(--f); color: var(--crema2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#marco.dividida .volver { display: inline-flex }
+.volver {
+  position: relative; flex: none; align-items: center; height: 34px; padding: 0 12px 0 10px; white-space: nowrap;
+  border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s1); color: var(--crema); font: 700 12.5px/1 var(--f); cursor: pointer;
+  transition: background var(--d-color) ease, border-color var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
+}
+/* Zona de toque de 44 sobre los 34 dibujados */
+.volver::before { content: ""; position: absolute; inset: -5px 0 }
+.volver .n { display: inline-block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom }
+.volver:hover { border-color: var(--linea-hover); background: var(--s2) }
+.volver:active { transform: scale(.97) }
+.volver.ahora { border-color: var(--celeste); background: var(--celeste-osc); color: var(--celeste) }
+.volver.ahora:hover { background: var(--celeste-velo-f) }
+#marco.dividida .drena.ve { display: block }
+.drena { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(127, 179, 255, .15); pointer-events: none }
+.drena i { display: block; height: 100%; background: var(--celeste); transform-origin: 0 50% }
+
+/* Pestañas (5.4): una fila; si no entran, scroll horizontal fino */
+#marco.dividida #pestanas:not(:empty) { display: block }
+.pestanas { display: flex; gap: 6px; padding: 5px 0; margin: -5px 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: var(--linea-hover) transparent }
+.pest {
+  position: relative; flex: none; display: inline-flex; align-items: center; gap: 6px; min-width: 140px; height: 34px; padding: 0 12px;
+  border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s1); color: var(--crema2); font: 700 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
+  transition: border-color var(--d-color) ease, transform var(--d-presion) ease;
+}
+.pest::before { content: ""; position: absolute; inset: -5px 0 }
+.pest .n { max-width: 140px; overflow: hidden; text-overflow: ellipsis }
+.pest i { font-style: normal; color: var(--celeste) }
+.pest:hover { border-color: var(--linea-hover) }
+.pest:active { transform: scale(.97) }
+.pest[aria-selected="true"] { border-color: var(--celeste); background: var(--celeste-osc); color: var(--crema) }
+.pest em { font: 500 10px/1 var(--m); font-style: normal; color: var(--crema2) }
+.pest .pt-n, .conv .pt-n { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--celeste); box-shadow: 0 0 0 3px rgba(127, 179, 255, .2) }
+
+/* Las dos mitades y la costura (5.5 y 5.6): 272 + 26 + 272 */
+#marco.dividida .split { display: block; position: relative }
+.split-g { display: grid; grid-template-columns: var(--mitad) var(--costura) var(--mitad) }
+.mitad { position: relative; min-width: 0 }
+.mh { height: 66px; padding: 0 2px }
+.mh-p { display: flex; align-items: center; gap: 8px; min-width: 0; font: 800 17px/1.1 var(--f); letter-spacing: -.02em }
+.mh-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.mh-ic { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 7px; background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); font: 500 10px/1 var(--m); font-stretch: 75%; letter-spacing: 0 }
+.mh-r { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 6px }
+.mh-r b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 12.5px/1 var(--f); color: var(--crema2) }
+.mh .linea { margin-top: 5px; line-height: 1.3 }
+.linea .cv-m { flex: none; color: var(--celeste) }
+.mitad.der .mh { text-align: right }
+.mitad.der .mh-p { flex-direction: row-reverse }
+.mitad.der .mh-r, .mitad.der .mh .linea { justify-content: flex-end }
+.esc-d { position: relative; width: var(--mitad); height: var(--alto-esc-d) }
+.piso-d {
+  position: absolute; left: 0; right: 0; top: 164px; height: 14px; pointer-events: none;
+  background: radial-gradient(90px 9px at var(--lx, 136px) 6px, rgba(242, 182, 50, .20), transparent 70%),
+    linear-gradient(90deg, transparent, #1E1E23 14%, #1E1E23 86%, transparent) 0 6px / 100% 1px no-repeat;
+}
+.esc-claude.dorm-c .avi { opacity: .6 }
+.sub-d { position: absolute; width: 46px; height: 46px }
+.sub-d .fig { position: absolute; left: 0; top: 0; line-height: 0 }
+.sub-d.dorm .avi { opacity: .6 }
+.rotulo-d { position: absolute; display: flex; flex-direction: column; gap: 1px; text-align: center; white-space: nowrap }
+.rotulo-d b { overflow: hidden; text-overflow: ellipsis; font: 800 12px/1.25 var(--f); color: var(--c) }
+.rotulo-d em { overflow: hidden; text-overflow: ellipsis; font: 500 10px/1.3 var(--m); font-style: normal; color: var(--ce, var(--ambar)) }
+.rotulo-d span:not(.oculto) { font: 500 11px/1.25 var(--f); color: var(--crema2) }
+.mas-d { position: absolute; width: 46px; height: 46px }
+.pila-d { position: absolute; inset: 0; display: grid; place-items: center; border: 1px dashed var(--linea-hover); border-radius: var(--r-ficha); font: 800 15px/1 var(--f); color: var(--crema) }
+.pie-m { height: 28px }
+.mitad.der .pie-m { text-align: right }
+/* Chip de turno (5.7): lleno a quien le toca; con borde a quien espera */
+.turno { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border: 1px solid transparent; border-radius: var(--r-pildora); font: 500 10.5px/1 var(--m); white-space: nowrap }
+.turno.lleno { background: var(--celeste-velo); color: var(--crema) }
+.turno.espera { border-color: var(--celeste-borde); color: var(--celeste) }
+.turno.fin { border-color: var(--linea); color: var(--crema2) }
+.arena { flex: none; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round }
+.costura { position: relative }
+.costura::before { content: ""; position: absolute; left: 12.5px; top: 4px; bottom: 4px; width: 1px; transform-origin: 50% 0; background: linear-gradient(transparent, rgba(127, 179, 255, .5) 25%, rgba(127, 179, 255, .5) 75%, transparent) }
+.pild { position: absolute; left: 50%; top: 250px; z-index: 2; transform: translateX(-50%); padding: 6px 9px; white-space: nowrap; border: 1px solid var(--celeste-borde-f); border-radius: var(--r-pildora); background: var(--negro); color: var(--celeste); font: 500 10px/1 var(--m) }
+.pild.fin { border-color: var(--linea-hover); color: var(--crema2) }
+
+/* Puente, mensaje y anillo (5.8): el cable no se mueve; la pastilla cruza una vez por mensaje */
+.puente { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; overflow: visible; pointer-events: none }
+.puente path { fill: none; stroke-linecap: round }
+.puente .halo-p { stroke: var(--celeste); stroke-width: 7; opacity: .1 }
+.puente .cable { stroke: var(--celeste); stroke-width: 1.6; stroke-dasharray: 2 5; opacity: .8 }
+.puente .cortado { stroke: var(--tenue); stroke-width: 1.4; stroke-dasharray: 38 24 38; opacity: 0 }
+.puente.fin .halo-p, .puente.fin .cable { opacity: 0 }
+.puente.fin .cortado { opacity: .45 }
+.msj {
+  position: absolute; left: 0; top: 0; z-index: 4; width: 22px; height: 13px; border-radius: 7px; offset-rotate: 0deg; opacity: 0; pointer-events: none;
+  background: radial-gradient(circle, #06101F 1.3px, transparent 1.6px) 2px 0 / 6px 13px var(--celeste);
+  box-shadow: 0 0 0 3px rgba(127, 179, 255, .18), 0 0 14px rgba(127, 179, 255, .55);
+}
+.llega { position: absolute; left: 0; top: 0; z-index: 4; width: 26px; height: 26px; margin: -13px 0 0 -13px; border: 2px solid var(--celeste); border-radius: 50%; opacity: 0; pointer-events: none }
+
+/* Ficha "Último" (4.2), abajo de la columna */
+#marco.dividida .ficha-u { display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; align-items: center; margin-top: auto; padding: 12px 14px; border: 1px solid var(--linea); border-radius: var(--r-cuadro); background: var(--s1) }
+.u-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 12.5px/1.4 var(--f); color: var(--crema2) }
+.u-t b { font-weight: 700; color: var(--crema) }
+.u-d { font: var(--t-mono); color: var(--tenue); white-space: nowrap }
+.ficha-u small { grid-column: 1 / -1; font: 400 10px/1.4 var(--m); color: var(--tenue) }
+
+/* Fichas "Conversan" de la barra (5.9): entre la marca y Proyectos */
+.rot-c { display: block; padding: 8px 6px 4px; font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--celeste) }
+.conversan { display: flex; flex-direction: column; gap: 3px; list-style: none }
+.conv {
+  position: relative; width: 100%; display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; min-height: 48px; padding: 6px 8px;
+  border: 1px solid var(--celeste-borde-t); border-radius: 12px; background: var(--celeste-osc); text-align: left; cursor: pointer;
+  transition: border-color var(--d-color) ease, transform var(--d-presion) ease;
+}
+.conv:hover { border-color: var(--celeste-borde-f) }
+.conv:active { transform: scale(.97) }
+.conv.fin { border-color: var(--linea); background: transparent }
+.caras-c { position: relative; width: 34px; height: 28px }
+.caras-c .avi { position: absolute; left: 0; top: 0 }
+.caras-c .avi + .avi { left: 10px; top: 2px }
+.conv-t { min-width: 0 }
+.conv-t b, .conv-t span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.conv-t b { font: 700 12px/1.2 var(--f); color: var(--crema) }
+.conv-t span { font: 500 11px/1.2 var(--f); color: var(--celeste) }
+.conv.fin .conv-t span { color: var(--crema2) }
+.conv em { font: 500 10px/1 var(--m); font-style: normal; color: var(--crema2) }
+.conv .pt-n { position: absolute; right: 6px; top: 6px }
+
+/* Rastro en la tarjeta escenario (5.10): la tarjeta crece 17 px */
+.ses > .rastro { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 10px/1.3 var(--m); color: var(--celeste) }
+.ses > .rastro.fin { color: var(--crema2) }
+.rastro-m { color: var(--celeste) }
+
+/* Movimiento reducido y "Pausar animaciones" (9.8): sin pastilla ni anillo (lo dicen la flecha y la
+   ficha "Último"); la barra de la cuenta no se ve (la cuenta sigue y la dice el sub) */
+@media (prefers-reduced-motion: reduce) {
+  .msj, .llega { display: none }
+  .drena { visibility: hidden }
+  .tok, .volver, .pest, .conv { transition: none }
+}
+body.pausa .msj, body.pausa .llega { display: none }
+body.pausa .drena { visibility: hidden }
+
+/* Las piezas mono de la pantalla dividida, Martian Mono angosta: al final, por la misma razón que la lista de arriba */
+.ses > .rastro, .rot-c, .conv em, .tok-ic, .insig, .cab .kick, .pest em, .rotulo-d em, .turno, .pild, .u-d, .ficha-u small { font-stretch: 75% }
