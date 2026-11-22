@@ -28,9 +28,9 @@ import {
 import * as movimientoMuesca from './muescaMotion.js'
 import {
   PASOS as PASOS_PP, modeloAsistente, formaAsistente, nombreMuesca, alEmpezar, alEvento, trasRevision, anuncioCambio,
-  retieneAbierta, fijaAlSoltar, navegar, visibleInicial,
+  retieneAbierta, fijaAlSoltar, navegar, visibleInicial, alModAuto, textoAvisoMod,
 } from './primerosPasos.js'
-import { esqueleto, rotulo, pestanas, indicePestana, escena as escenaPasos, pie as piePasos, avisoAsistente } from './primerosPasosVista.js'
+import { esqueleto, rotulo, pestanas, indicePestana, escena as escenaPasos, pie as piePasos, avisoAsistente, avisoMod } from './primerosPasosVista.js'
 import * as movimientoPasos from './primerosPasosMotion.js'
 import {
   resumenInicial, transicion as transicionResumen, datosResumen, contenidoResumen, anuncioResumen, vozAvi, colaResumen, cifrasDescarga,
@@ -160,6 +160,8 @@ const st = {
     promesa: null,
     /** Lo que corre o corrió en cada paso (`alEmpezar` y `alEvento`, primerosPasos.js). */
     ejec: { claude: null, mod: null, gh: null },
+    /** El aviso de una vez del mod automático (#17, `tomar_aviso_mod`): se va con su clic. */
+    avisoMod: null,
     /** Abierto a pedido (bandeja, "Ver →" o porque el usuario ya tocó una acción). */
     abierto: false,
     /** Cerrado con la × en esta ejecución: solo en memoria (3.2). */
@@ -454,7 +456,7 @@ function pintar() {
   // El aviso de primeros pasos va debajo del de pregunta; con la hoja abierta no hace falta (3.5)
   // En la dividida el aviso es de una pregunta en cualquier proyecto, también los dos que conversan (5.3)
   const enDividida = !!st.dividida.clave
-  poner('#otro', avisoOtroProyecto(st.proyectos, enDividida ? -1 : i) + (hoja || enDividida ? '' : avisoAsistente(pp)))
+  poner('#otro', avisoOtroProyecto(st.proyectos, enDividida ? -1 : i) + (hoja || enDividida ? '' : avisoAsistente(pp) + avisoMod(st.pp.avisoMod)))
 
   const preparadas = prepararProyecto(proyecto, ahora)
   const c = conteos(preparadas, ahora)
@@ -2329,6 +2331,32 @@ function alEventoPaso(payload) {
   pintar()
 }
 
+/**
+ * Un evento del mod automático (`oficina://mod-auto`, #17): una instalación sola que empieza se ve
+ * en el paso 2 como si se hubiera tocado su botón; un aviso nuevo se toma una vez de Rust.
+ */
+function alEventoModAuto(payload) {
+  st.pp.ejec = alModAuto(st.pp.ejec, payload)
+  if (payload?.estado === 'aviso') tomarAvisoMod()
+  pintar()
+}
+
+/** Toma el aviso pendiente del mod automático (al arrancar y con cada evento "aviso"). */
+async function tomarAvisoMod() {
+  try {
+    const aviso = await invocar('tomar_aviso_mod')
+    const texto = textoAvisoMod(aviso)
+    if (!texto) return
+    st.pp.avisoMod = aviso
+    anunciar(texto)
+    // La versión nueva ya está: el asistente la lee sin pasar los pasos a "Revisando"
+    revisarPasos({ aLaVista: false })
+    pintar()
+  } catch (e) {
+    registrar(`mod automático: ${e}`)
+  }
+}
+
 /** "Copiar …": un clic copia; el botón dice "Copiado ✓" 1,6 s sin redibujar la escena (5.3). */
 async function copiar(b) {
   try {
@@ -2356,6 +2384,13 @@ async function accionPasos(a, b) {
     case 'pp-cancelar': await invocar('cancelar_paso').catch(e => registrar(`cancelar: ${e}`)); break
     case 'pp-abrir': await invocar('abrir_enlace', { cual: b.dataset.valor }).catch(e => registrar(`enlace: ${e}`)); break
     case 'pp-copiar': await copiar(b); break
+    case 'pp-mod-visto': {
+      // El aviso de una vez se va; el foco pasa al aviso que quede, si hay
+      st.pp.avisoMod = null
+      pintar()
+      $('#otro .aviso')?.focus()
+      break
+    }
   }
 }
 
@@ -2696,6 +2731,9 @@ async function iniciar() {
     // Primeros pasos: el ítem de la bandeja abre el asistente (3.5) y cada paso que corre avisa (9.5)
     escuchar('oficina://primeros-pasos-abrir', () => abrirAsistente({ foco: true }))
     escuchar('oficina://primeros-pasos', ev => alEventoPaso(ev.payload))
+    // El mod automático (#17): la instalación sola que empieza y el aviso de una vez
+    escuchar('oficina://mod-auto', ev => alEventoModAuto(ev.payload))
+    tomarAvisoMod()
     // El resumen (resumen-ia-ux.md 8.2): un solo evento con `tipo`; solo avanza lo que ya se pidió
     escuchar('oficina://resumen', ev => alEventoResumen(ev.payload))
     // Al arrancar se lee qué hay del modelo (solo lectura, sin red); nunca en el ciclo de 1,5 s

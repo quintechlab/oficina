@@ -6,7 +6,7 @@
 import { avi, PERSONAJE_BASE } from './avis.js'
 import { escapar } from './logica.js'
 import { iniciales } from './tablero.js'
-import { PASOS, ORGANIZACION, pendienteAviso, deletrear } from './primerosPasos.js'
+import { PASOS, ORGANIZACION, pendienteAviso, deletrear, modApagado, textoAvisoMod } from './primerosPasos.js'
 
 const X = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
 const VISTO = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="visto" d="M3.5 8.5l3 3 6-7"/></svg>'
@@ -163,8 +163,26 @@ export function pie(anterior, siguiente) {
  * en "saluda" y lo primero que falta. Vacío si no falta nada.
  */
 export function avisoAsistente(modelo) {
+  // El mod apagado no se prende solo (#17): "Prender" corre activar con el clic
+  if (modApagado(modelo)) {
+    return `<button type="button" class="aviso pp-aviso" data-accion="pp-correr" data-valor="activar" aria-label="El mod está apagado. Prender">`
+      + `${avi(PERSONAJE_BASE, 'durmiendo', 28)}<span>El mod está <b>apagado</b></span><span class="ir">Prender</span></button>`
+  }
   const falta = pendienteAviso(modelo)
   if (!falta) return ''
   return `<button type="button" class="aviso pp-aviso" data-accion="pp-ver" aria-label="Primeros pasos: falta ${escapar(falta)}. Ver">`
     + `${avi(PERSONAJE_BASE, 'saluda', 28)}<span>Falta <b>${escapar(falta)}</b></span><span class="ir">Ver →</span></button>`
+}
+
+/**
+ * El aviso de una vez después de que Avis instaló o actualizó el mod solo (#17): la misma píldora
+ * del tablero; su clic lo cierra ("Entendido"). Sin aviso, ''.
+ */
+export function avisoMod(aviso) {
+  const texto = textoAvisoMod(aviso)
+  if (!texto) return ''
+  const v = escapar(aviso.version)
+  const visible = escapar(texto).replace(v, `<b>${v}</b>`)
+  return `<button type="button" class="aviso pp-aviso" data-accion="pp-mod-visto" aria-label="${escapar(texto)}. Entendido">`
+    + `${avi(PERSONAJE_BASE, 'listo', 28)}<span>${visible}</span><span class="ir">Entendido</span></button>`
 }
