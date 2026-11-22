@@ -38,7 +38,7 @@ import {
 } from './resumen.js'
 import * as movimientoResumen from './resumenMotion.js'
 import {
-  conversaciones, conversacionesNuevas, mensajesNuevos, convsVisibles, debeAbrirseSola, ladoIzquierdo, primeroDe, nombreLado, textoSub,
+  conversaciones, conversacionesNuevas, mensajesNuevos, convsVisibles, debeAbrirseSola, ladoIzquierdo, primeroDe, pausaVuelta, nombreLado, textoSub,
   geometriaDividida, cuentaVuelta, rastroConversa, anuncioEmpieza, anuncioTermina, esperaRespuesta, RECIEN_SOLA_MS, CONTESTO_MS, ESPERA_VUELTA_MS,
 } from './dividida.js'
 import { fichasConversan, riel, cabConversa, pestanas as pestanasConv, mitades, firmaMitades, puente, fichaUltimo } from './divididaVista.js'
@@ -838,6 +838,7 @@ function revisarCuenta(ahora, actual = convActual()) {
     return
   }
   if (actual.motivo === 'cerro' && actual.cerradas.length >= 2) { setTimeout(vueltaAutomatica, 0); return }
+  revisarDentro()
   const corre = panelSeVe() && !d.dentro && !d.animando
   d.cuenta = cuentaVuelta(d.cuenta, { corre, ahoraMs: ahora, totalMs: d.esperaVuelta })
   if (d.cuenta.terminada) { setTimeout(vueltaAutomatica, 0); return }
@@ -863,8 +864,13 @@ async function vueltaAutomatica() {
 const dentroDividida = { puntero: false }
 function revisarDentro() {
   const d = st.dividida
-  const foco = document.hasFocus() && !!document.activeElement?.closest?.('#marco.dividida .riel, #marco.dividida .principal')
-  const dentro = dentroDividida.puntero || foco
+  const el = document.activeElement
+  const dentro = pausaVuelta({
+    puntero: dentroDividida.puntero,
+    ventanaActiva: document.hasFocus(),
+    focoAdentro: !!el?.closest?.('#marco.dividida .riel, #marco.dividida .principal'),
+    focoTeclado: !!el?.matches?.(':focus-visible'),
+  })
   if (dentro === d.dentro) return
   d.dentro = dentro
   if (d.clave) pintar()
@@ -1011,6 +1017,8 @@ $('.principal').addEventListener('pointerenter', () => { dentroDividida.puntero 
 $('.principal').addEventListener('pointerleave', () => { dentroDividida.puntero = false; revisarDentro() })
 document.addEventListener('focusin', revisarDentro)
 document.addEventListener('focusout', () => setTimeout(revisarDentro, 0))
+// Si el puntero sale de la ventana entera de golpe, puede no pasar por el borde de la columna
+document.documentElement.addEventListener('pointerleave', () => { dentroDividida.puntero = false; revisarDentro() })
 window.addEventListener('focus', revisarDentro)
 window.addEventListener('blur', revisarDentro)
 

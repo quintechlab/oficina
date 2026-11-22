@@ -529,3 +529,15 @@ test('la ficha "Conversan" dice "ahora" en el primer minuto; después, cuánto l
   assert.equal(dura({ ...conv, desde: haceM(6) }), '6 min')
   assert.equal(dura({ ...conv, hasta: haceS(10) }), 'terminó')
 })
+
+test('la vuelta se pausa con el puntero sobre la columna o con el foco de teclado adentro, solo con la ventana activa', async () => {
+  const { pausaVuelta } = await import('../src/dividida.js')
+  const base = { puntero: false, ventanaActiva: true, focoAdentro: false, focoTeclado: false }
+  assert.equal(pausaVuelta(base), false)
+  assert.equal(pausaVuelta({ ...base, puntero: true }), true)
+  assert.equal(pausaVuelta({ ...base, focoAdentro: true, focoTeclado: true }), true)
+  // El foco que quedó adentro por un clic, o porque se abrió sola, no la frena
+  assert.equal(pausaVuelta({ ...base, focoAdentro: true, focoTeclado: false }), false)
+  // Con la ventana en segundo plano (escribís en otra), el foco no cuenta
+  assert.equal(pausaVuelta({ ...base, ventanaActiva: false, focoAdentro: true, focoTeclado: true }), false)
+})

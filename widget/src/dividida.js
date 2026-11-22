@@ -387,6 +387,15 @@ export function geometriaDividida(nIzq, nDer) {
 }
 
 /**
+ * ¿Se pausa la vuelta? (10.3) Con el puntero sobre la columna, o con el foco de teclado adentro de
+ * la dividida y la ventana activa. El foco que quedó adentro por un clic, o porque la dividida se
+ * abrió sola, no cuenta: la frenaba para siempre (prueba real del 22/11).
+ */
+export function pausaVuelta({ puntero, ventanaActiva, focoAdentro, focoTeclado }) {
+  return puntero || (ventanaActiva && focoAdentro && focoTeclado)
+}
+
+/**
  * La cuenta de la vuelta (10), pura: `c` (la anterior, o null) y si tiene que correr ahora (`corre`:
  * el panel se ve y ni el puntero ni el foco están adentro). Devuelve { restante, desde, pausada,
  * terminada }; pausada no reinicia.
