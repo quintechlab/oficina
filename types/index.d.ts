@@ -81,7 +81,14 @@ export type Subagente = {
   estado: 'trabajando' | 'listo' | 'fallo'
   /** Cuándo terminó (ISO), o null mientras trabaja. */
   hasta: string | null
+  /** Qué hace ahora, según su última herramienta ("editando tablero.js"); null al terminar. Desde la v0.9. */
+  actividad?: string | null
+  /** Sus últimos pasos (hasta 5), del más viejo al más nuevo. Desde la v0.9. */
+  pasos?: Paso[]
 }
+
+/** Un paso de un subagente: la actividad de una herramienta y cuándo la usó. */
+export type Paso = { texto: string; cuando: string }
 
 export type OpcionPregunta = { etiqueta: string; descripcion: string }
 

@@ -27,6 +27,8 @@ import {
   mapaNombres,
   NOMBRES_INVENTADOS,
   nombreSubagente,
+  anotarPaso,
+  MAX_PASOS,
   podarSubagentes,
   ponerSesion,
   preguntaDesdeEntrada,
@@ -689,4 +691,42 @@ test('la marca se encuentra dentro del sobre con que llega el mensaje de otra se
   expect(leerMarca(sobre(marcado))).toEqual({ texto: sobre('Hola, soy la sesión de quintech-crm.'), sesion: OTRA, repo: 'nicoequintana/quintech-crm' })
   // Una marca citada en el medio de una línea sigue sin contar
   expect(leerMarca(sobre(`mirá esto: [avis:${OTRA}|-] raro`))).toBe(null)
+})
+
+// ------------------------------------------------------------------ detalle del subagente (v0.9)
+
+const SUB = { id: 'a1', nombre: 'Camila', inventado: false, tipo: 'general-purpose', tarea: 'rediseño del header', desde: '2026-11-12T16:57:00.000Z', estado: 'trabajando' as const, hasta: null }
+
+test('cada herramienta de un subagente es lo que hace ahora y suma un paso', async () => {
+  const uno = anotarPaso(SUB, 'leyendo main.js', '2026-11-12T16:58:00.000Z')
+  expect(uno.actividad).toBe('leyendo main.js')
+  expect(uno.pasos).toEqual([{ texto: 'leyendo main.js', cuando: '2026-11-12T16:58:00.000Z' }])
+  const dos = anotarPaso(uno, 'editando tablero.js', '2026-11-12T16:59:00.000Z')
+  expect(dos.actividad).toBe('editando tablero.js')
+  expect(dos.pasos?.map(p => p.texto)).toEqual(['leyendo main.js', 'editando tablero.js'])
+  // Lo demás del subagente no cambia
+  expect({ ...dos, actividad: undefined, pasos: undefined }).toEqual({ ...SUB, actividad: undefined, pasos: undefined })
+})
+
+test('se guardan solo los últimos 5 pasos', async () => {
+  let s = SUB as ReturnType<typeof anotarPaso>
+  for (let i = 1; i <= MAX_PASOS + 2; i++) s = anotarPaso(s, `corriendo paso ${i}`, `2026-11-12T17:0${i}:00.000Z`)
+  expect(s.pasos?.map(p => p.texto)).toEqual(['corriendo paso 3', 'corriendo paso 4', 'corriendo paso 5', 'corriendo paso 6', 'corriendo paso 7'])
+})
+
+test('la misma herramienta dos veces seguidas es un solo paso, con la hora de la última', async () => {
+  const uno = anotarPaso(SUB, 'leyendo main.js', '2026-11-12T16:58:00.000Z')
+  const dos = anotarPaso(uno, 'leyendo main.js', '2026-11-12T16:58:30.000Z')
+  expect(dos.pasos).toEqual([{ texto: 'leyendo main.js', cuando: '2026-11-12T16:58:30.000Z' }])
+})
+
+test('la actividad y los pasos de un subagente viajan en la entrada, y un subagente sin ellos se sigue leyendo', async () => {
+  const ahora = Date.parse(AHORA)
+  const conDetalle = { ...SUB, actividad: 'editando tablero.js', pasos: [{ texto: 'editando tablero.js', cuando: '2026-11-12T16:59:00.000Z' }] }
+  const leida = extraerComentario(envolverComentario(ponerSesion(null, presencia({ agentes: [conDetalle, SUB] }), ahora)))?.sesiones[0]
+  expect(leida?.agentes).toEqual([conDetalle, SUB])
+  // Un paso mal formado se descarta; los demás quedan
+  const roto = { ...presencia({}), agentes: [{ ...SUB, pasos: [{ texto: 3 }, { texto: 'ok', cuando: AHORA }, null] }] }
+  const cuerpo = `<!-- oficina:presencia -->\n\`\`\`json\n${JSON.stringify({ v: 2, usuario: 'campos', nombre: 'Campos', ausente: false, actualizado: AHORA, sesiones: [roto] })}\n\`\`\``
+  expect(extraerComentario(cuerpo)?.sesiones[0]?.agentes?.[0]?.pasos).toEqual([{ texto: 'ok', cuando: AHORA }])
 })

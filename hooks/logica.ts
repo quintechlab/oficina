@@ -1,6 +1,6 @@
 // Funciones puras del mod "oficina": sin acceso al motor, fáciles de probar.
 
-import type { Ci, ComentarioPresencia, Conversa, ItemPregunta, Miembro, Pregunta, Presencia, Proceso, RespuestaWidget, Subagente, Tarea } from '../types'
+import type { Ci, ComentarioPresencia, Conversa, Paso, ItemPregunta, Miembro, Pregunta, Presencia, Proceso, RespuestaWidget, Subagente, Tarea } from '../types'
 
 /** Horas máximas por talle, según el acuerdo (S: hasta medio día; M: hasta 2 días). */
 export const HORAS_POR_TALLE: Record<'S' | 'M', number> = { S: 4, M: 16 }
@@ -83,7 +83,7 @@ function normalizar(d: Partial<Presencia>, sesionPorDefecto: string): Presencia 
     archivos: Array.isArray(d.archivos) ? d.archivos.filter(a => typeof a === 'string').slice(0, 40) : [],
     // Campos de la v0.4: una entrada publicada por una versión anterior no los trae
     ...(typeof d.actividad === 'string' ? { actividad: d.actividad } : {}),
-    ...(Array.isArray(d.agentes) ? { agentes: d.agentes.filter(esSubagente) } : {}),
+    ...(Array.isArray(d.agentes) ? { agentes: d.agentes.filter(esSubagente).map(limpiarPasos) } : {}),
     ...(Array.isArray(d.preguntas) ? { preguntas: d.preguntas.filter(esPregunta) } : {}),
     // Campo de la v0.6
     ...(Array.isArray(d.procesos) ? { procesos: d.procesos.filter(esProceso) } : {}),
@@ -109,6 +109,16 @@ function esConversa(c: unknown): c is Conversa {
 function esProceso(p: unknown): p is Proceso {
   const q = p as Partial<Proceso> | null
   return !!q && typeof q.id === 'string' && typeof q.descripcion === 'string' && typeof q.desde === 'string'
+}
+
+/** Un subagente con `pasos` mal formados se lee igual: se descartan los pasos rotos. */
+function limpiarPasos(s: Subagente): Subagente {
+  return Array.isArray(s.pasos) ? { ...s, pasos: s.pasos.filter(esPaso) } : s
+}
+
+function esPaso(p: unknown): p is Paso {
+  const q = p as Partial<Paso> | null
+  return !!q && typeof q.texto === 'string' && typeof q.cuando === 'string'
 }
 
 function esSubagente(s: unknown): s is Subagente {
@@ -331,6 +341,19 @@ export function latidoLocal(ultima: Presencia | null, ahoraIso: string): Presenc
 }
 
 const MAX_SUBAGENTES = 8
+/** Cuántos pasos de cada subagente se guardan para su detalle. */
+export const MAX_PASOS = 5
+
+/**
+ * Anota una herramienta del subagente: pasa a ser lo que hace ahora y suma un paso (la misma
+ * actividad dos veces seguidas es un solo paso, con la hora de la última). Quedan los últimos 5.
+ */
+export function anotarPaso(sub: Subagente, texto: string, cuando: string): Subagente {
+  const previos = sub.pasos ?? []
+  const ultimo = previos[previos.length - 1]
+  const pasos = ultimo && ultimo.texto === texto ? [...previos.slice(0, -1), { texto, cuando }] : [...previos, { texto, cuando }]
+  return { ...sub, actividad: texto, pasos: pasos.slice(-MAX_PASOS) }
+}
 
 /** Los que trabajan siempre quedan; los terminados, durante un rato. Como mucho 8. */
 export function podarSubagentes(lista: readonly Subagente[], ahoraMs: number): Subagente[] {

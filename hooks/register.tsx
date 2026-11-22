@@ -14,6 +14,7 @@ import {
   resultadoDelWidget,
   vigilarRespuesta,
   nombreSubagente,
+  anotarPaso,
   podarSubagentes,
   idProcesoDesdeResultado,
   procesoDesdeEntrada,
@@ -694,7 +695,7 @@ export const register: Register = (on, options) => {
     const sub = e.agentId !== undefined ? subagentes.get(e.agentId) : undefined
     if (sub) {
       const hasta = new Date(await $.clock.now()).toISOString()
-      subagentes.set(sub.id, { ...sub, estado: e.reason === 'answer' ? 'listo' : 'fallo', hasta })
+      subagentes.set(sub.id, { ...sub, estado: e.reason === 'answer' ? 'listo' : 'fallo', hasta, actividad: null })
       publicarPronto($)
     } else if (e.agentId === undefined) {
       // Terminó el turno: espera sus procesos en segundo plano, si hay, o tu mensaje
@@ -707,6 +708,12 @@ export const register: Register = (on, options) => {
   on('tool.call', async ($, e, next) => {
     const entrada = e as unknown as Readonly<Record<string, unknown>>
     if (e.agentId === undefined) actividad = actividadDesdeHerramienta(e.tool, entrada)
+    // Desde la v0.9: lo que hace cada subagente y sus últimos pasos, para su detalle en el widget
+    const sub = e.agentId !== undefined ? subagentes.get(e.agentId) : undefined
+    if (sub) {
+      subagentes.set(sub.id, anotarPaso(sub, actividadDesdeHerramienta(e.tool, entrada), new Date(await $.clock.now()).toISOString()))
+      publicarPronto($)
+    }
     const pregunta =
       e.tool === 'AskUserQuestion' && e.tool_use_id
         ? preguntaDesdeEntrada(entrada, e.tool_use_id, e.agentId ?? null, new Date(await $.clock.now()).toISOString())
