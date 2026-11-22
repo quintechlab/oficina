@@ -149,12 +149,14 @@ test('escenario con 5 o más: 3 Avis por orden de lanzamiento y la pila "+n" sol
   ])
   assert.equal(cuenta(h, /<li class="sub/g), 3)
   // Los que trabajan quedan afuera de la pila, en el orden en que se lanzaron
-  assert.deepEqual([...h.matchAll(/<li class="sub[^>]*><span class="fig"[^>]*>[\s\S]*?<b>([^<]+)<\/b>/g)].map(m => m[1]), ['Delfina', 'Mateo', 'Lía'])
+  assert.deepEqual([...h.matchAll(/<li class="sub[^>]*><button[^>]*><span class="fig"[^>]*>[\s\S]*?<b>([^<]+)<\/b>/g)].map(m => m[1]), ['Delfina', 'Mateo', 'Lía'])
+  // Cada uno de los 3 es un botón que despliega su detalle (#14)
+  assert.equal(cuenta(h, /<button type="button" class="sub-boton"/g), 3)
   const mas = '2 subagentes más: Bruno — tarea de Bruno (listo); Tomás — tarea de Tomás (listo)'
   // No es un control: sin botón, sin tabindex; el texto completo en title y oculto para lectores
   assert.match(h, new RegExp(`<li class="mas" style="left:332px;width:74px;--j:3" title="${mas.replace(/[()]/g, '\\$&')}">`))
   assert.match(h, /<li class="mas"[\s\S]*?<span class="rotulo" aria-hidden="true"><b>\+2<\/b><span>terminados<\/span><\/span><span class="oculto">2 subagentes más: [^<]*<\/span><\/li>/)
-  assert.doesNotMatch(h, /<button|tabindex/)
+  assert.doesNotMatch(h.slice(h.indexOf('<li class="mas"')), /<button|tabindex/)
   // Las cabecitas de la pila: Avis de 36 durmiendo
   assert.equal(cuenta(h, /<span class="avi" style="--t:36px;[^"]*" aria-hidden="true"><svg viewBox="0 0 120 120" class="e-durmiendo"/g), 2)
 })
@@ -423,4 +425,56 @@ test('la firma de las escenas cambia si aparece o termina un rastro, no con el t
   assert.notEqual(firmaEscenas(p.repo, prep, activo('6 min')), firmaEscenas(p.repo, prep))
   assert.equal(firmaEscenas(p.repo, prep, activo('6 min')), firmaEscenas(p.repo, prep, activo('7 min')))
   assert.notEqual(firmaEscenas(p.repo, prep, new Map([['a', { clave: 'k', texto: 'x', fin: true }]])), firmaEscenas(p.repo, prep, activo('6 min')))
+})
+
+// ------------------------------------------------------------------ detalle del subagente (#14)
+
+const conPasos = (id, nombre, estado) => sub(id, nombre, estado, {
+  actividad: estado === 'trabajando' ? 'editando tablero.js' : null,
+  pasos: [{ texto: 'leyendo main.js', cuando: hace(6) }, { texto: 'editando tablero.js', cuando: hace(1) }],
+})
+
+test('cada Avi del escenario es un botón que despliega su detalle, cerrado por defecto', () => {
+  const s = { sesion: 'a', repo: 'q/oficina', rama: 'main', inicio: hace(42), actualizado: hace(0), agentes: [conPasos('1', 'Camila', 'trabajando')] }
+  const [p] = agruparPorProyecto([s])
+  const h = sesiones(prepararProyecto(p, AHORA), AHORA)
+  assert.match(h, /<button type="button" class="sub-boton" data-accion="sub" data-sesion="a" data-id="1" aria-expanded="false">/)
+  assert.doesNotMatch(h, /det-sub/)
+})
+
+test('con un subagente abierto, la tarjeta suma su detalle debajo del escenario: tarea, ahora y los pasos del más nuevo al más viejo', () => {
+  const s = { sesion: 'a', repo: 'q/oficina', rama: 'main', inicio: hace(42), actualizado: hace(0), agentes: [conPasos('1', 'Camila', 'trabajando'), sub('2', 'Lucas', 'trabajando')] }
+  const [p] = agruparPorProyecto([s])
+  const h = sesiones(prepararProyecto(p, AHORA), AHORA, new Map(), { sesion: 'a', id: '1' })
+  assert.match(h, /data-id="1" aria-expanded="true" aria-controls="det-a-1">/)
+  assert.match(h, /data-id="2" aria-expanded="false">/)
+  assert.match(h, /<\/div><div class="det-sub" id="det-a-1" role="region" aria-label="Qué hace Camila"/)
+  assert.match(h, /<p class="det-tarea">tarea de Camila<\/p>/)
+  assert.match(h, /<p class="det-ahora"><span class="det-rot">ahora<\/span> <span>editando tablero.js<\/span><\/p>/)
+  assert.match(h, /<li><span>editando tablero.js<\/span><time data-vivo>hace 1 min<\/time><\/li><li><span>leyendo main.js<\/span><time data-vivo>hace 6 min<\/time><\/li>/)
+  // Otra sesión no despliega nada
+  assert.doesNotMatch(sesiones(prepararProyecto(p, AHORA), AHORA, new Map(), { sesion: 'b', id: '1' }), /det-sub/)
+})
+
+test('el detalle de un subagente sin pasos lo explica, y uno que ya no está no despliega nada', () => {
+  const s = { sesion: 'a', repo: 'q/oficina', rama: 'main', inicio: hace(42), actualizado: hace(0), agentes: [sub('1', 'Lucas', 'trabajando')] }
+  const [p] = agruparPorProyecto([s])
+  const prep = prepararProyecto(p, AHORA)
+  assert.match(sesiones(prep, AHORA, new Map(), { sesion: 'a', id: '1' }), /<p class="det-vacio">el mod de esta sesión no manda los pasos: actualizalo<\/p>/)
+  assert.doesNotMatch(sesiones(prep, AHORA, new Map(), { sesion: 'a', id: '9' }), /det-sub/)
+})
+
+test('la firma de las escenas cambia al abrir un detalle o sumar un paso, no con el tiempo de los pasos', () => {
+  const agentes = [conPasos('1', 'Camila', 'trabajando')]
+  const firma = (ag, abierto) => {
+    const [p] = agruparPorProyecto([{ sesion: 'a', repo: 'q/oficina', rama: 'main', inicio: hace(42), actualizado: hace(0), agentes: ag }])
+    return firmaEscenas(p.repo, prepararProyecto(p, AHORA), new Map(), abierto)
+  }
+  const abierto = { sesion: 'a', id: '1' }
+  assert.equal(firma(agentes, null), firma(agentes))
+  assert.notEqual(firma(agentes, abierto), firma(agentes))
+  const otroPaso = [{ ...agentes[0], pasos: [...agentes[0].pasos, { texto: 'corriendo npm test', cuando: hace(0) }] }]
+  assert.notEqual(firma(otroPaso, abierto), firma(agentes, abierto))
+  const masTarde = [{ ...agentes[0], pasos: agentes[0].pasos.map(p => ({ ...p, cuando: hace(0) })) }]
+  assert.equal(firma(masTarde, abierto), firma(agentes, abierto))
 })

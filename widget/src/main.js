@@ -62,6 +62,8 @@ window.addEventListener('unhandledrejection', e => registrar(`error: promesa rec
 
 const st = {
   sesiones: [],
+  /** El subagente con el detalle desplegado en su tarjeta (#14): { sesion, id }, o null. Uno por vez. */
+  detalleSub: null,
   proyectos: [],
   /** Proyecto elegido, por repositorio: si aparece uno nuevo, la selección no salta. */
   repo: undefined,
@@ -236,10 +238,30 @@ function actualizarTiempos(raiz, html) {
  * tiempo se reescribe en su lugar). Después de redibujar, los subagentes nuevos entran solos y las
  * tarjetas que no se ven se pausan.
  */
+/**
+ * Abre (`nuevo`) o pliega (null) el detalle de un subagente y redibuja; el foco queda en el botón
+ * del Avi `foco` (el de la tarjeta redibujada).
+ */
+function alternarDetalle(nuevo, foco) {
+  st.detalleSub = nuevo
+  pintar()
+  const sel = `.sub-boton[data-sesion="${CSS.escape(foco.sesion)}"][data-id="${CSS.escape(foco.id)}"]`
+  document.querySelector(sel)?.focus({ preventScroll: true })
+  const det = document.querySelector('.det-sub')
+  if (!nuevo || !det) return
+  // La entrada corre solo al abrir; los redibujos por un paso nuevo no la repiten
+  det.classList.add('entra')
+  // Se saca cuando terminó todo: el detalle (560 ms) y el último paso de la escalera (180 + 620 ms)
+  setTimeout(() => det.classList.remove('entra'), 900)
+  det.scrollIntoView({ block: 'nearest' })
+}
+
 function pintarEscenas(proyecto, preparadas, ahora, rastros) {
   const raiz = $('#sesiones')
-  const html = sesiones(preparadas, ahora, rastros)
-  const firma = firmaEscenas(proyecto.repo, preparadas, rastros)
+  // Un detalle abierto de una sesión que ya no está en este proyecto se olvida
+  if (st.detalleSub && !preparadas.some(({ s }) => s.sesion === st.detalleSub.sesion)) st.detalleSub = null
+  const html = sesiones(preparadas, ahora, rastros, st.detalleSub)
+  const firma = firmaEscenas(proyecto.repo, preparadas, rastros, st.detalleSub)
   const ids = idsDeEscena(proyecto.repo, preparadas)
   if (st.firmas['#sesiones'] === firma && html !== st.htmlEscenas && !actualizarTiempos(raiz, html)) st.firmas['#sesiones'] = null
   if (poner('#sesiones', html, firma)) {
@@ -1267,6 +1289,12 @@ document.addEventListener('click', async e => {
     return
   }
   if (a === 'pest') { mostrarPestana(b.dataset.clave); return }
+  if (a === 'sub') {
+    // El Avi de un subagente despliega su detalle debajo del escenario; otro clic lo pliega (#14)
+    const { sesion, id } = b.dataset
+    alternarDetalle(st.detalleSub?.sesion === sesion && st.detalleSub?.id === id ? null : { sesion, id }, { sesion, id })
+    return
+  }
   if (a === 'volver') {
     // "‹ vista anterior" o "Volver ahora" (5.2); antes de que termine, la descarta (10.4)
     cerrarConversacion({ descartar: true })
@@ -1383,6 +1411,12 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { st.plegado = true; pintar(); $('[data-accion="ver"]')?.focus(); return }
   }
   if (teclaPasos(e)) return
+  // Esc con el foco en una tarjeta pliega el detalle abierto del subagente y el foco vuelve a su Avi (#14)
+  if (e.key === 'Escape' && st.detalleSub && e.target.closest?.('#sesiones')) {
+    e.preventDefault()
+    alternarDetalle(null, st.detalleSub)
+    return
+  }
   if (teclaDividida(e)) return
   // Fuera de la pregunta, Esc cierra la muesca aunque esté fijada y devuelve el foco a la muesca (7.2)
   if (e.key === 'Escape' && st.acople && st.muesca.abierta) { e.preventDefault(); evento({ tipo: 'esc' }); return }

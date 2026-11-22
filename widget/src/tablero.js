@@ -4,6 +4,7 @@
 // todo texto que viene de una sesión se escapa.
 
 import { avi, CLAUDE } from './avis.js'
+import { detalleSubagente } from './detalleSub.js'
 import {
   animoSesion, animoSubagente, personajeDeNombre, tiempoSubagente, textoActividad, tituloActividad,
   preguntasPendientes, escapar, tiempoRelativo, nombreProyecto, FUERA_DE_REPO,
@@ -67,9 +68,27 @@ export function firmaTablero(preparadas) {
  * reescribe en su lugar (los `data-vivo`), sin redibujar ni reiniciar los bucles ni los hilos.
  * `rastros` (sesión → rastro, dividida-ux.md 5.10): cuenta si hay rastro y si terminó, no su texto.
  */
-export function firmaEscenas(repo, preparadas, rastros = new Map()) {
+export function firmaEscenas(repo, preparadas, rastros = new Map(), abierto = null) {
   const r = preparadas.map(({ s }) => rastros.get(s.sesion)).filter(Boolean).map(x => `${x.clave}:${x.fin ? 'fin' : 'activa'}`)
-  return `${repo}/${firmaTablero(preparadas)}${r.length ? `#${r.join(',')}` : ''}`
+  return `${repo}/${firmaTablero(preparadas)}${r.length ? `#${r.join(',')}` : ''}${firmaDetalle(preparadas, abierto)}`
+}
+
+/**
+ * El detalle abierto (#14) cuenta en la firma con lo que hace y los textos de sus pasos, no con sus
+ * horas: el "hace 2 min" de cada paso se reescribe en su lugar.
+ */
+function firmaDetalle(preparadas, abierto) {
+  const a = subAbierto(preparadas, abierto)
+  if (!a) return ''
+  return `@${abierto.sesion}|${a.id}|${a.estado}|${a.actividad ?? ''}|${(a.pasos ?? []).map(p => p.texto).join('>')}|${Array.isArray(a.pasos)}`
+}
+
+/** El subagente abierto, solo si tiene ficha en el escenario de su sesión (la pila "+n" no es un control). */
+function subAbierto(preparadas, abierto) {
+  if (!abierto) return null
+  const p = preparadas.find(({ s }) => s.sesion === abierto.sesion)
+  if (!p) return null
+  return subagentesVisibles(p.sub, { conMas: CON_PILA }).visibles.find(a => a.id === abierto.id) ?? null
 }
 
 /** Color de la línea de estado y del estado de un subagente (dirección, tabla 5.4). */
@@ -269,15 +288,36 @@ export function estadoCorto(a, ahoraMs) {
  * y estado corto). El estado completo y el tipo de un nombre inventado van en el `title` y en texto
  * oculto. Dormido se atenúa solo el Avi (estilos.css), nunca el texto. `j`: orden en la entrada.
  */
-function figuraSub(a, ahoraMs, indice, ranura, j) {
+function figuraSub(a, ahoraMs, indice, ranura, j, sesion, abierto) {
   const estado = `${textoEstado(a)} · ${tiempoSubagente(a, ahoraMs)}`
   const tipo = a.inventado && a.tipo ? ` (${a.tipo})` : ''
   const titulo = `${a.nombre}${tipo} — ${a.tarea} (${estado})`
   return `<li class="sub${a.animo === 'durmiendo' ? ' dorm' : ''}" style="left:${ranura.x}px;width:${ranura.ancho}px;--c:${a.color};--ce:${colorEstado(estadoLista(a))};--j:${j}" title="${escapar(titulo)}" data-id="${escapar(a.id)}">`
+    // El Avi y su rótulo son un botón que despliega el detalle debajo del escenario (#14)
+    + `<button type="button" class="sub-boton" data-accion="sub" data-sesion="${escapar(sesion)}" data-id="${escapar(a.id)}" aria-expanded="${abierto}"${abierto ? ` aria-controls="${idDetalle(sesion, a.id)}"` : ''}>`
     + `<span class="fig" style="left:${ranura.avi.x - ranura.x}px">${avi(a, a.animo, ESCENA.sub, { indice })}</span>`
     + `<span class="rotulo"><b>${escapar(a.nombre)}${tipo ? `<span class="oculto">${escapar(tipo)}</span>` : ''}</b>`
     + `<span class="tarea">${escapar(a.tarea)}</span>`
-    + `<em aria-hidden="true" data-vivo>${escapar(estadoCorto(a, ahoraMs))}</em><span class="oculto" data-vivo>${escapar(estado)}</span></span></li>`
+    + `<em aria-hidden="true" data-vivo>${escapar(estadoCorto(a, ahoraMs))}</em><span class="oculto" data-vivo>${escapar(estado)}</span></span></button></li>`
+}
+
+const idDetalle = (sesion, id) => escapar(`det-${sesion}-${id}`)
+
+/**
+ * El detalle de un subagente (#14), debajo del escenario de su tarjeta: nombre, tipo, estado y
+ * tiempo; la tarea completa; qué hace ahora (solo trabajando) y sus últimos pasos, del más nuevo al
+ * más viejo. La flecha de arriba apunta a su Avi (`--flecha`, desde el borde del escenario).
+ */
+function detalle(a, ahoraMs, sesion, flecha) {
+  const d = detalleSubagente(a, ahoraMs)
+  const ahora = d.ahora ? `<p class="det-ahora"><span class="det-rot">ahora</span> <span>${escapar(d.ahora)}</span></p>` : ''
+  const pasos = d.pasos.length
+    ? `<ol class="det-pasos">${d.pasos.map(p => `<li><span>${escapar(p.texto)}</span><time data-vivo>${escapar(p.hace)}</time></li>`).join('')}</ol>`
+    : `<p class="det-vacio">${escapar(d.vacio)}</p>`
+  return `<div class="det-sub" id="${idDetalle(sesion, a.id)}" role="region" aria-label="${escapar(`Qué hace ${d.nombre}`)}" style="--c:${a.color};--ce:${colorEstado(estadoLista(a))};--flecha:${flecha}px">`
+    + `<p class="det-cab"><b>${escapar(d.nombre)}</b><span class="det-tipo">${escapar(d.tipo ?? '')}</span><span class="det-estado">${escapar(d.estado)} · <span data-vivo>${escapar(d.tiempo)}</span></span></p>`
+    + `<p class="det-tarea">${escapar(d.tarea)}</p>${ahora}`
+    + `<p class="det-rot">últimos pasos</p>${pasos}</div>`
 }
 
 /**
@@ -299,7 +339,7 @@ function pilaMas(ocultos, pila, j) {
  * El escenario de una sesión (5.1): el piso, Claude de 96 con su antena, el elenco y los hilos de
  * coordinación hacia los que trabajan (5.5). Sin subagentes, más bajo y "sin subagentes".
  */
-function escena(animo, sub, ahoraMs, base) {
+function escena(animo, sub, ahoraMs, base, sesion = '', abiertoId = null) {
   const { visibles, ocultos, resto } = subagentesVisibles(sub, { conMas: CON_PILA })
   const g = geometriaEscena(visibles.length + (resto ? 1 : 0), { pila: resto })
   const piso = '<div class="piso" aria-hidden="true"></div>'
@@ -307,7 +347,7 @@ function escena(animo, sub, ahoraMs, base) {
   if (!sub.length) return `<div class="esc solo">${piso}${claude}<p class="esc-nada">sin subagentes</p></div>`
   const hilos = visibles.map((a, j) => a.estado === 'trabajando' && { d: trazoHilo(g.foco, g.ranuras[j].destino), id: a.id }).filter(Boolean)
   if (resto && ocultos.some(a => a.estado === 'trabajando')) hilos.push({ d: trazoHilo(g.foco, g.pila.destino), id: 'pila' })
-  const elenco = visibles.map((a, j) => figuraSub(a, ahoraMs, base + 1 + j, g.ranuras[j], j)).join('') + (resto ? pilaMas(ocultos, g.pila, visibles.length) : '')
+  const elenco = visibles.map((a, j) => figuraSub(a, ahoraMs, base + 1 + j, g.ranuras[j], j, sesion, a.id === abiertoId)).join('') + (resto ? pilaMas(ocultos, g.pila, visibles.length) : '')
   const trazos = hilos.length ? `<svg class="hilos" aria-hidden="true">${hilos.map(h => `<path d="${h.d}" data-id="${escapar(h.id)}"/>`).join('')}</svg>` : ''
   const puntos = hilos.map((h, k) => `<i class="hilo-pt" style="offset-path:path('${h.d}');--k:${k}" data-id="${escapar(h.id)}" aria-hidden="true"></i>`).join('')
   return `<div class="esc">${piso}${claude}<ul class="elenco" aria-label="Subagentes">${elenco}</ul>${trazos}${puntos}</div>`
@@ -327,7 +367,7 @@ function rastro(r) {
   return `<p class="rastro${r.fin ? ' fin' : ''}" title="${escapar(`⇄ ${r.texto}`)}"><span class="rastro-m" aria-hidden="true">⇄</span> <span data-vivo>${escapar(r.texto)}</span></p>`
 }
 
-function tarjeta({ s, animo, sub }, ahoraMs, k, r) {
+function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto) {
   const base = k * AVIS_POR_TARJETA
   const tag = s.tarea ? `<span class="tag">#${escapar(s.tarea)}</span>` : '<span class="tag sin">sin tarea</span>'
   const titulo = s.rama ? `<b${s.tarea ? '' : ' class="sin"'} title="${escapar(s.rama)}">${escapar(s.rama)}</b>` : ''
@@ -335,7 +375,8 @@ function tarjeta({ s, animo, sub }, ahoraMs, k, r) {
   return `<article class="ses"><div class="ses-cab"><h3 class="ses-tit">${tag}${titulo}</h3>${lleva}</div>`
     + `<p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span><span data-vivo>${escapar(textoActividad(s, ahoraMs))}</span></p>`
     + rastro(r)
-    + escena(animo, sub, ahoraMs, base)
+    + escena(animo, sub, ahoraMs, base, s.sesion, abierto?.sesion === s.sesion ? abierto.id : null)
+    + detalleAbierto({ s, sub }, ahoraMs, abierto)
     + '</article>'
 }
 
@@ -343,8 +384,18 @@ function tarjeta({ s, animo, sub }, ahoraMs, k, r) {
  * Las tarjetas de sesión del proyecto, en el orden de `agruparPorProyecto`. `rastros`: sesión →
  * rastro de su conversación con otra sesión (`rastroConversa` de dividida.js), si tiene.
  */
-export function sesiones(preparadas, ahoraMs, rastros = new Map()) {
-  return preparadas.map((p, k) => tarjeta(p, ahoraMs, k, rastros.get(p.s.sesion))).join('')
+export function sesiones(preparadas, ahoraMs, rastros = new Map(), abierto = null) {
+  return preparadas.map((p, k) => tarjeta(p, ahoraMs, k, rastros.get(p.s.sesion), abierto)).join('')
+}
+
+/** El detalle de la tarjeta, si su subagente abierto tiene ficha; la flecha va al centro de su Avi. */
+function detalleAbierto(p, ahoraMs, abierto) {
+  const a = subAbierto([p], abierto)
+  if (!a) return ''
+  const { visibles, resto } = subagentesVisibles(p.sub, { conMas: CON_PILA })
+  const g = geometriaEscena(visibles.length + (resto ? 1 : 0), { pila: resto })
+  const ranura = g.ranuras[visibles.indexOf(a)]
+  return detalle(a, ahoraMs, p.s.sesion, ranura.avi.x + ESCENA.sub / 2)
 }
 
 /** El Avi de Claude de 120 del vacío (`durmiendo`) o de la carga (`esperando`): está solo, lleva nombre. */

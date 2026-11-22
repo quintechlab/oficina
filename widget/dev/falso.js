@@ -120,10 +120,18 @@
       inicio: hace(42), tareaDesde: hace(42), actualizado: hace(0), archivos: [], actividad: 'lanzando Delfina',
       puedeResponder: true,
       agentes: [
-        sub('a1', 'Delfina', 'bocetos del tablero', 'trabajando', { desde: hace(4) }),
+        // Con actividad y pasos (#14): al hacer clic en su Avi se despliega el detalle
+        sub('a1', 'Delfina', 'bocetos del tablero', 'trabajando', {
+          desde: hace(4), actividad: 'editando dividida-ux.md',
+          pasos: [
+            { texto: 'leyendo estilo-avis-ux.md', cuando: hace(4) }, { texto: 'buscando .esc', cuando: hace(3) },
+            { texto: 'leyendo tablero.js', cuando: hace(2) }, { texto: 'corriendo npx http-server dev', cuando: hace(1) },
+            { texto: 'editando dividida-ux.md', cuando: hace(0) },
+          ],
+        }),
         sub('a2', 'Ramiro', 'mapear el widget', 'trabajando', { tipo: 'Explore', desde: hace(2) }),
         sub('a3', 'Pixel', 'tests de la sala', 'trabajando', { inventado: true, tipo: 'general-purpose', desde: hace(1) }),
-        sub('a4', 'Inés', 'revisar la CSP', 'fallo', { hasta: hace(3) }),
+        sub('a4', 'Inés', 'revisar la CSP', 'fallo', { hasta: hace(3), actividad: null, pasos: [{ texto: 'leyendo tauri.conf.json', cuando: hace(5) }, { texto: 'corriendo cargo test', cuando: hace(3) }] }),
         sub('a5', 'Camila', 'copy del aviso', 'listo', { hasta: hace(5) }),
       ],
     },
