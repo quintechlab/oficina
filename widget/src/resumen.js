@@ -221,6 +221,19 @@ export function lineaAbrir(antes, despues) {
     + `ahora estado=${v(despues?.estado)} trabajo=${despues?.trabajo ?? '-'}`
 }
 
+/** Lo que se le dice al modelo de una sesión quieta: sin pendientes (el tablero dice "esperando tu mensaje"). */
+export const ACTIVIDAD_QUIETA = 'quieta: terminó lo que estaba haciendo, no hay nada pendiente'
+
+/**
+ * La actividad de una sesión para el modelo: la del tablero, salvo una sesión que solo terminó su
+ * turno ("esperando tu mensaje"), que va como quieta sin pendientes. Así el resumen no inventa que
+ * algo espera una respuesta tuya; lo único pendiente son las preguntas, que van aparte.
+ */
+export function actividadParaResumen(s, ahoraMs) {
+  const quieta = s?.actividad === 'esperándote' && !(s.preguntas ?? []).length
+  return quieta ? ACTIVIDAD_QUIETA : textoActividad(s, ahoraMs)
+}
+
 export function datosResumen(proyectos, ahoraMs) {
   const T = TOPES_RESUMEN
   let quedan = T.sesiones
@@ -230,8 +243,9 @@ export function datosResumen(proyectos, ahoraMs) {
     const sesiones = p.sesiones.slice(0, quedan).map(s => ({
       tarea: s.tarea ?? null,
       rama: s.rama ? recortar(s.rama) : null,
-      actividad: recortar(textoActividad(s, ahoraMs)),
-      lleva: tiempoRelativo(s.inicio ?? s.actualizado, ahoraMs),
+      actividad: recortar(actividadParaResumen(s, ahoraMs)),
+      // Cuánto hace que se abrió la sesión (no cuánto hace que espera algo)
+      abierta_hace: tiempoRelativo(s.inicio ?? s.actualizado, ahoraMs),
       subagentes: (s.agentes ?? []).slice(0, T.subagentes).map(a => ({
         nombre: recortar(a.nombre), tarea: recortar(a.tarea), estado: a.estado, desde: tiempoSubagente(a, ahoraMs),
       })),
@@ -248,7 +262,7 @@ export function datosResumen(proyectos, ahoraMs) {
 
 /** Firma de los datos sin los tiempos relativos: el paso de los minutos no dispara "Cambió algo". */
 export function firmaResumen(datos) {
-  return JSON.stringify(datos, (k, v) => (k === 'lleva' || k === 'desde' ? undefined : v))
+  return JSON.stringify(datos, (k, v) => (k === 'abierta_hace' || k === 'desde' ? undefined : v))
 }
 
 /** "Leyendo 3 sesiones, 2 subagentes y 1 proceso": cuenta lo que se le pasa y omite los ceros. */

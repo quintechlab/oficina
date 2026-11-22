@@ -8,6 +8,7 @@ import {
   ESTADOS_RESUMEN, TOPES_RESUMEN, MOTIVOS_FALLO, EVENTOS_BACKEND, ESPERA_PENSANDO_MS, resumenInicial, transicion,
   datosResumen, firmaResumen, textoPensando, formatoGB, formatoSegundos, formatoHora, limpiarTexto, partesTexto,
   htmlTexto, contenidoResumen, anuncioResumen, vozAvi, colaResumen, duracionContando, contarPalabras, animoTexto, lineaAbrir,
+  actividadParaResumen, ACTIVIDAD_QUIETA,
 } from '../src/resumen.js'
 import { agruparPorProyecto } from '../src/logica.js'
 
@@ -226,7 +227,7 @@ test('datos permitidos: sesiones, actividad, subagentes, procesos y el texto de 
   assert.equal(ses.tarea, 11)
   assert.equal(ses.rama, 'feat/11-resumen-ia')
   assert.equal(ses.actividad, 'ahora · te hace una pregunta')
-  assert.equal(ses.lleva, '42 min')
+  assert.equal(ses.abierta_hace, '42 min')
   assert.deepEqual(ses.subagentes.map(a => [a.nombre, a.tarea, a.estado]), [['Delfina', 'tarea de Delfina', 'trabajando'], ['Ramiro', 'tarea de Ramiro', 'listo']])
   assert.equal(ses.subagentes[0].desde, '4 min')
   assert.deepEqual(ses.procesos, [{ descripcion: 'npm run dev', desde: '3 min' }])
@@ -446,4 +447,15 @@ test('diagnóstico al abrir el globo: lo que creía la UI antes y lo que muestra
   // Sin estado leído todavía (modelo null) se ve como "?"
   const sinLeer = { ...resumenInicial(), modelo: null, estado: 'cerrado' }
   assert.match(lineaAbrir(sinLeer, { ...sinLeer, estado: 'apagado' }), /antes modelo=\? .* ahora estado=apagado/)
+})
+
+test('una sesión que solo terminó su turno va al modelo como quieta, sin pendientes', () => {
+  const quieta = { actividad: 'esperándote', preguntas: [], actualizado: '2026-11-21T10:00:00Z' }
+  assert.equal(actividadParaResumen(quieta, Date.parse('2026-11-22T03:00:00Z')), ACTIVIDAD_QUIETA)
+  assert.doesNotMatch(ACTIVIDAD_QUIETA, /esperando tu mensaje/)
+  // Con una pregunta, manda lo del tablero (la pregunta es lo único pendiente)
+  const conPregunta = { ...quieta, preguntas: [{ id: 'q', items: [{ pregunta: '¿Sí?' }] }] }
+  assert.notEqual(actividadParaResumen(conPregunta, Date.now()), ACTIVIDAD_QUIETA)
+  // Una sesión trabajando sigue diciendo lo que hace, como el tablero
+  assert.match(actividadParaResumen({ actividad: 'editando main.js', actualizado: new Date().toISOString() }, Date.now()), /editando main\.js/)
 })
