@@ -1,6 +1,6 @@
 // Funciones puras del mod "oficina": sin acceso al motor, fáciles de probar.
 
-import type { Ci, ComentarioPresencia, Conversa, Paso, ItemPregunta, Miembro, Pregunta, Presencia, Proceso, RespuestaWidget, Subagente, Tarea } from '../types'
+import type { Ci, ComentarioPresencia, Conversa, Paso, ItemPregunta, Miembro, OrdenConsumida, OrdenWidget, Pregunta, Presencia, Proceso, RespuestaWidget, ResultadoOrden, Subagente, Tarea } from '../types'
 
 /** Horas máximas por talle, según el acuerdo (S: hasta medio día; M: hasta 2 días). */
 export const HORAS_POR_TALLE: Record<'S' | 'M', number> = { S: 4, M: 16 }
@@ -730,6 +730,54 @@ export async function resultadoDelWidget(
     // El widget ve el archivo sin marcar y lo borra; la respuesta igual llega al modelo
   }
   return { result: { questions, answers } }
+}
+
+// ------------------------------------------------------------------ órdenes del widget (v0.10)
+
+/** Cada cuánto la sesión mira si el widget le dejó una orden. */
+export const MS_ENTRE_ORDENES = 1000
+/** Una orden más vieja que esto se descarta: así nunca se ejecuta tarde. */
+export const MAX_EDAD_ORDEN_MS = 120000
+/** Tolerancia para un reloj adelantado: una orden de más adelante que esto se descarta. */
+export const MAX_FUTURO_ORDEN_MS = 60000
+/** Largo máximo del texto de un mensaje. */
+export const MAX_TEXTO_ORDEN = 10000
+
+const ID_ORDEN = /^[a-z0-9]{1,64}$/
+
+/** El id de la orden si es válido, o null: con él se responde aunque la orden se descarte. */
+export function idDeOrden(datos: unknown): string | null {
+  const id = datos && typeof datos === 'object' ? (datos as { id?: unknown }).id : undefined
+  return typeof id === 'string' && ID_ORDEN.test(id) ? id : null
+}
+
+/**
+ * Valida el archivo de orden que dejó el widget antes de ejecutar algo. Solo vale una orden de
+ * este formato, creada después de que arrancó la sesión y hace menos de 120 s (o hasta 60 s en el
+ * futuro, por relojes desparejos). Cualquier otra cosa se descarta con su motivo.
+ */
+export function validarOrden(datos: unknown, t: { arranqueMs: number; ahoraMs: number }): { orden: OrdenWidget } | { error: string } {
+  if (!datos || typeof datos !== 'object') return { error: 'no es un objeto' }
+  const d = datos as Record<string, unknown>
+  if (d.v !== 1 || d.origen !== 'widget') return { error: 'formato desconocido' }
+  const id = idDeOrden(d)
+  if (!id) return { error: 'id inválido' }
+  if (d.tipo !== 'mensaje' && d.tipo !== 'frenar') return { error: 'tipo desconocido' }
+  const creadaMs = typeof d.creada === 'string' ? Date.parse(d.creada) : Number.NaN
+  if (Number.isNaN(creadaMs)) return { error: 'sin fecha de creación' }
+  if (creadaMs < t.arranqueMs) return { error: 'anterior al arranque de la sesión' }
+  if (t.ahoraMs - creadaMs > MAX_EDAD_ORDEN_MS) return { error: 'demasiado vieja' }
+  if (creadaMs - t.ahoraMs > MAX_FUTURO_ORDEN_MS) return { error: 'en el futuro' }
+  const creada = d.creada as string
+  if (d.tipo === 'frenar') return { orden: { v: 1, origen: 'widget', id, tipo: 'frenar', creada } }
+  if (typeof d.texto !== 'string' || d.texto.trim() === '') return { error: 'mensaje vacío' }
+  if (d.texto.length > MAX_TEXTO_ORDEN) return { error: 'mensaje demasiado largo' }
+  return { orden: { v: 1, origen: 'widget', id, tipo: 'mensaje', texto: d.texto, creada } }
+}
+
+/** Lo que el mod deja en el archivo de la orden al procesarla. */
+export function ordenConsumida(id: string | null, resultado: ResultadoOrden, cuando: string, motivo?: string): OrdenConsumida {
+  return { v: 1, id, consumida: true, resultado, ...(motivo !== undefined ? { motivo } : {}), cuando }
 }
 
 /**

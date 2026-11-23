@@ -5,6 +5,7 @@
 
 import { avi, CLAUDE } from './avis.js'
 import { detalleSubagente } from './detalleSub.js'
+import { barraControl, puedeControlar } from './control.js'
 import {
   animoSesion, animoSubagente, personajeDeNombre, tiempoSubagente, textoActividad, tituloActividad,
   preguntasPendientes, escapar, tiempoRelativo, nombreProyecto, FUERA_DE_REPO,
@@ -70,7 +71,9 @@ export function firmaTablero(preparadas) {
  */
 export function firmaEscenas(repo, preparadas, rastros = new Map(), abierto = null) {
   const r = preparadas.map(({ s }) => rastros.get(s.sesion)).filter(Boolean).map(x => `${x.clave}:${x.fin ? 'fin' : 'activa'}`)
-  return `${repo}/${firmaTablero(preparadas)}${r.length ? `#${r.join(',')}` : ''}${firmaDetalle(preparadas, abierto)}`
+  // Las sesiones con la barra de control (#19); su borrador, botones y línea se actualizan en su lugar
+  const c = preparadas.filter(({ s }) => puedeControlar(s)).map(({ s }) => s.sesion)
+  return `${repo}/${firmaTablero(preparadas)}${r.length ? `#${r.join(',')}` : ''}${c.length ? `~${c.join(',')}` : ''}${firmaDetalle(preparadas, abierto)}`
 }
 
 /**
@@ -367,7 +370,7 @@ function rastro(r) {
   return `<p class="rastro${r.fin ? ' fin' : ''}" title="${escapar(`⇄ ${r.texto}`)}"><span class="rastro-m" aria-hidden="true">⇄</span> <span data-vivo>${escapar(r.texto)}</span></p>`
 }
 
-function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto) {
+function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto, control) {
   const base = k * AVIS_POR_TARJETA
   const tag = s.tarea ? `<span class="tag">#${escapar(s.tarea)}</span>` : '<span class="tag sin">sin tarea</span>'
   const titulo = s.rama ? `<b${s.tarea ? '' : ' class="sin"'} title="${escapar(s.rama)}">${escapar(s.rama)}</b>` : ''
@@ -377,15 +380,17 @@ function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto) {
     + rastro(r)
     + escena(animo, sub, ahoraMs, base, s.sesion, abierto?.sesion === s.sesion ? abierto.id : null)
     + detalleAbierto({ s, sub }, ahoraMs, abierto)
+    + barraControl(s, control?.[s.sesion], ahoraMs)
     + '</article>'
 }
 
 /**
  * Las tarjetas de sesión del proyecto, en el orden de `agruparPorProyecto`. `rastros`: sesión →
  * rastro de su conversación con otra sesión (`rastroConversa` de dividida.js), si tiene.
+ * `control`: sesión → estado de su barra de control (#19: borrador, confirmación, orden pendiente).
  */
-export function sesiones(preparadas, ahoraMs, rastros = new Map(), abierto = null) {
-  return preparadas.map((p, k) => tarjeta(p, ahoraMs, k, rastros.get(p.s.sesion), abierto)).join('')
+export function sesiones(preparadas, ahoraMs, rastros = new Map(), abierto = null, control = {}) {
+  return preparadas.map((p, k) => tarjeta(p, ahoraMs, k, rastros.get(p.s.sesion), abierto, control)).join('')
 }
 
 /** El detalle de la tarjeta, si su subagente abierto tiene ficha; la flecha va al centro de su Avi. */
