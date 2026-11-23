@@ -1239,3 +1239,49 @@ p.det-rot { margin-top: var(--e-5) }
   body:not(.pausa) .det-sub.entra .det-pasos li:nth-child(5) { animation-delay: 180ms }
 }
 @keyframes despliega { from { opacity: 0; transform: translateY(-6px) scale(.98) } }
+
+/* ------------------------------------------------------------------ barra de control (#19)
+   Al pie de cada tarjeta (D1), con las piezas de siempre: el campo de "Otra respuesta", el botón
+   primario ámbar y el secundario. Frenar lleva el cuadrado de detener en --rojo y, al pedir el
+   segundo clic (D2), se pinta de --rojo entero. La línea de abajo reserva su alto: el resultado
+   aparece sin empujar las tarjetas. main.js cambia botones y línea en su lugar, nunca el campo */
+.ctl { width: var(--ancho-escena); margin: var(--e-6) 0 0 }
+.ctl-fila { display: flex; align-items: flex-end; gap: var(--e-3) }
+.ctl-in {
+  flex: 1; min-width: 0; min-height: 32px; max-height: 112px; padding: 7px var(--e-5);
+  field-sizing: content; resize: none; overflow-y: auto;
+  background: var(--negro); color: var(--crema); border: 1px solid var(--linea); border-radius: var(--r-campo);
+  font: 600 13px/16px var(--f); outline: none; transition: border-color var(--d-color) ease;
+}
+.ctl-in::placeholder { color: var(--tenue); font-weight: 500 }
+.ctl-in:hover { border-color: var(--linea-hover) }
+.ctl-in:focus { border-color: var(--ambar) }
+/* 2 px de foco (6.3): el borde ámbar más un píxel de sombra, sin mover nada */
+.ctl-in:focus-visible { box-shadow: 0 0 0 1px var(--ambar) }
+.ctl .btn { flex: none; padding: 0 var(--e-6); transition: transform var(--d-presion) ease, filter var(--d-color) ease, opacity var(--d-color) ease, background-color var(--d-color) ease, color var(--d-color) ease }
+/* Enviar en reposo sin ámbar: la luz fuerte del tablero queda para cuando hay algo que mandar */
+.ctl-env:disabled { opacity: 1; background: var(--s3); color: var(--tenue) }
+/* Ancho fijo: "¿Frenar? Sí" no corre Enviar ni achica el campo */
+.ctl-frenar { position: relative; min-width: 96px; justify-content: center }
+.ctl-frenar::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--rojo) }
+.ctl-frenar.confirma { background: var(--rojo); color: var(--negro) }
+.ctl-frenar.confirma::before { display: none }
+.ctl-frenar.confirma:focus-visible { outline-color: var(--crema) }
+.ctl-est { display: flex; align-items: baseline; gap: var(--e-3); min-height: 13px; margin-top: var(--e-2); font: var(--t-mono-s); font-stretch: 75% }
+.ctl-cola { flex: none; padding: 1px var(--e-3); border: 1px solid color-mix(in srgb, var(--ambar) 45%, transparent); border-radius: var(--r-tag); background: var(--ambar-osc); color: var(--ambar) }
+.ctl-res { min-width: 0; color: var(--crema2); overflow-wrap: anywhere }
+.ctl-res[data-tono="ok"] { color: var(--verde) }
+.ctl-res[data-tono="error"] { color: var(--rojo) }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .ctl-res.nueva, body:not(.pausa) .ctl-frenar.nueva { animation: asoma 240ms ease both }
+  /* La confirmación de Frenar se vacía en sus 3 s (D2); un redibujo sigue desde --ya */
+  body:not(.pausa) .ctl-frenar.confirma::after {
+    content: ""; position: absolute; left: var(--e-6); right: var(--e-6); bottom: 5px; height: 2px; border-radius: 1px;
+    background: color-mix(in srgb, var(--negro) 45%, transparent); transform-origin: left;
+    animation: drena 3000ms linear var(--ya, 0ms) both;
+  }
+}
+@keyframes drena { to { transform: scaleX(0) } }
+@media (prefers-reduced-motion: reduce) {
+  .ctl-in, .ctl .btn { transition: none }
+}

@@ -15,6 +15,10 @@ import {
   prepararProyecto, firmaEscenas, sesiones, carasMini, companero, firmaCompanero,
   barraProyectos, animoMarca, estadoMarca, figuraVacio, conteos, chips, lineaEncabezado, colorProyecto,
 } from './tablero.js'
+import {
+  vistaBarra, clicFrenar, validarTexto, teclaControl, lineaResultado, lineaError, pasoOrden,
+  borradorTrasOrden, lineaAlEscribir, MS_CONFIRMAR_FRENAR, MS_SONDEO_ORDEN, MS_LINEA,
+} from './control.js'
 import { globo, avisoOtroProyecto, quienPregunta, anuncioPregunta } from './pregunta.js'
 import { defsAvis } from './avis.js'
 import { entrada, cambioProyecto, hayMovimiento } from './tableroMotion.js'
@@ -64,6 +68,14 @@ const st = {
   sesiones: [],
   /** El subagente con el detalle desplegado en su tarjeta (#14): { sesion, id }, o null. Uno por vez. */
   detalleSub: null,
+  /**
+   * Barra de control de cada sesión (#19), por id de sesión: `borrador` (lo escrito, así un redibujo
+   * no lo pierde), `confirmaHasta` (Frenar pidiendo el segundo clic), `pendiente` { tipo, desde }
+   * mientras la sesión no toma la orden y `linea` { texto, tono, desde } con lo que pasó.
+   */
+  control: {},
+  /** El IME está componiendo una palabra en una barra: las escenas no se redibujan hasta que termine. */
+  componiendo: false,
   proyectos: [],
   /** Proyecto elegido, por repositorio: si aparece uno nuevo, la selección no salta. */
   repo: undefined,
@@ -262,16 +274,173 @@ function pintarEscenas(proyecto, preparadas, ahora, rastros) {
   const raiz = $('#sesiones')
   // Un detalle abierto de una sesión que ya no está en este proyecto se olvida
   if (st.detalleSub && !preparadas.some(({ s }) => s.sesion === st.detalleSub.sesion)) st.detalleSub = null
-  const html = sesiones(preparadas, ahora, rastros, st.detalleSub)
+  const html = sesiones(preparadas, ahora, rastros, st.detalleSub, st.control)
   const firma = firmaEscenas(proyecto.repo, preparadas, rastros, st.detalleSub)
   const ids = idsDeEscena(proyecto.repo, preparadas)
+  const foco = focoEnBarra()
+  // Mientras el IME compone una palabra en una barra no se redibuja: se cortaría la composición
+  if (foco && st.componiendo) return
   if (st.firmas['#sesiones'] === firma && html !== st.htmlEscenas && !actualizarTiempos(raiz, html)) st.firmas['#sesiones'] = null
   if (poner('#sesiones', html, firma)) {
     marcarNuevos(raiz, novedades(st.idsEscena, ids))
     vigilarEscenas($('.principal'))
+    // La barra se redibujó con el borrador guardado: el foco y el cursor vuelven a donde estaban
+    devolverFoco(foco)
   }
   st.htmlEscenas = html
   st.idsEscena = ids
+  refrescarBarras(ahora)
+}
+
+// ------------------------------------------------------------------ barra de control (#19)
+// Mandarle un mensaje a Claude o frenar el turno desde la tarjeta. Solo un clic o un Enter del
+// usuario escribe una orden; nada se manda solo ni por tiempo. Frenar pide un segundo clic (D2).
+
+/** Estado de la barra de una sesión (se crea vacío). */
+const ctl = sesion => (st.control[sesion] ??= {})
+
+const barraDe = sesion => document.querySelector(`#sesiones .ctl[data-sesion="${CSS.escape(sesion)}"]`)
+
+/** Dónde está el foco, si está en una barra: su sesión, el control y, en el campo, el cursor. */
+function focoEnBarra() {
+  const el = document.activeElement
+  const barra = el?.closest?.('#sesiones .ctl')
+  if (!barra || !el.dataset.rol) return null
+  const f = { sesion: barra.dataset.sesion, rol: el.dataset.rol }
+  if (el.tagName === 'TEXTAREA') Object.assign(f, { ini: el.selectionStart, fin: el.selectionEnd, dir: el.selectionDirection, scroll: el.scrollTop })
+  return f
+}
+
+/** Devuelve el foco tras un redibujo; si su botón ya no se puede usar, el foco va al campo. */
+function devolverFoco(f) {
+  const barra = f && barraDe(f.sesion)
+  if (!barra) return
+  const el = barra.querySelector(`[data-rol="${f.rol}"]`)
+  const destino = !el || el.hidden || el.disabled ? barra.querySelector('[data-rol="in"]') : el
+  destino.focus({ preventScroll: true })
+  if (destino === el && f.ini != null) {
+    el.setSelectionRange(f.ini, f.fin, f.dir)
+    el.scrollTop = f.scroll
+  }
+}
+
+/** Reinicia la entrada suave de un elemento (la línea del resultado que cambia). */
+function reanimar(el) {
+  el.classList.remove('nueva')
+  void el.offsetWidth
+  el.classList.add('nueva')
+}
+
+/**
+ * Pone en su lugar lo que cambia de una barra (botones, cola y línea) sin tocar el campo: lo escrito,
+ * el cursor y el foco quedan. Si el foco estaba en un botón que se deshabilita o se esconde, pasa al campo.
+ */
+function refrescarBarra(barra, ahora = Date.now()) {
+  const sesion = barra.dataset.sesion
+  const s = st.sesiones.find(x => x.sesion === sesion)
+  if (!s) return
+  const v = vistaBarra(s, st.control[sesion], ahora)
+  const [campo, env, fr, res] = ['in', 'env', 'frenar', 'res'].map(r => barra.querySelector(`[data-rol="${r}"]`))
+  const cola = barra.querySelector('.ctl-cola')
+  const enfocado = document.activeElement
+  const ui = ctl(sesion)
+  env.disabled = !v.puedeEnviar
+  fr.hidden = !v.frenar.visible
+  // Frenar entra suave cuando la sesión empieza a trabajar (también si la tarjeta se redibujó)
+  if (v.frenar.visible && ui.frenarVisible === false) reanimar(fr)
+  ui.frenarVisible = v.frenar.visible
+  fr.disabled = v.ocupada
+  // La barrita de la confirmación arranca llena cuando el botón pasa a confirmar
+  if (v.frenar.confirma && !fr.classList.contains('confirma')) fr.style.removeProperty('--ya')
+  fr.classList.toggle('confirma', v.frenar.confirma)
+  if (fr.textContent !== v.frenar.etiqueta) fr.textContent = v.frenar.etiqueta
+  if (fr.getAttribute('aria-label') !== v.frenar.nombre) fr.setAttribute('aria-label', v.frenar.nombre)
+  cola.hidden = !v.cola
+  if (cola.textContent !== (v.cola ?? '')) cola.textContent = v.cola ?? ''
+  const texto = v.linea?.texto ?? ''
+  if (res.textContent !== texto) {
+    res.textContent = texto
+    res.dataset.tono = v.linea?.tono ?? ''
+    if (texto) reanimar(res)
+  }
+  if ((enfocado === env || enfocado === fr) && (enfocado.disabled || enfocado.hidden)) campo.focus({ preventScroll: true })
+}
+
+function refrescarBarras(ahora = Date.now()) {
+  for (const barra of document.querySelectorAll('#sesiones .ctl')) refrescarBarra(barra, ahora)
+}
+
+/** Un clic en Frenar: el primero pide confirmar por 3 s (vuelve solo); el segundo frena. */
+function tocarFrenar(sesion) {
+  const ui = ctl(sesion)
+  if (ui.pendiente) return
+  const ahora = Date.now()
+  const r = clicFrenar(ui, ahora)
+  ui.confirmaHasta = r.confirmaHasta
+  clearTimeout(ui.reloj)
+  if (r.frenar) { ordenar(sesion, 'frenar'); return }
+  refrescarBarras(ahora)
+  ui.reloj = setTimeout(() => refrescarBarras(), MS_CONFIRMAR_FRENAR + 20)
+}
+
+/** Pone el borrador de una sesión y su campo, solo si cambió (así no se mueve el cursor de lo escrito). */
+function ponerBorrador(sesion, valor) {
+  const ui = ctl(sesion)
+  if (ui.borrador === valor) return
+  ui.borrador = valor
+  const campo = barraDe(sesion)?.querySelector('[data-rol="in"]')
+  if (campo && campo.value !== valor) campo.value = valor
+}
+
+/**
+ * Escribe la orden (`mensaje` con el borrador, o `frenar`) y la sigue cada 500 ms: la sesión la toma
+ * y la reescribe con su resultado; a los 10 s sin tomarla se borra para que no se ejecute tarde. El
+ * mensaje nunca se pierde: el campo se vacía solo si el mod confirma `enviado` o `en-cola`
+ * (`borradorTrasOrden`); con cualquier otro final lo escrito queda.
+ */
+async function ordenar(sesion, tipo) {
+  const ui = ctl(sesion)
+  if (ui.pendiente || !tauri?.core) return
+  const borrador = ui.borrador
+  let texto = null
+  if (tipo === 'mensaje') {
+    const v = validarTexto(borrador)
+    if (v.error) return
+    texto = v.texto
+  }
+  ui.pendiente = { tipo, desde: Date.now() }
+  ui.linea = null
+  refrescarBarras()
+  let id
+  try {
+    id = await invocar('ordenar', { sesion, tipo, texto })
+  } catch (e) {
+    registrar(`orden ${tipo} a ${sesion}: no se escribió (${e})`)
+    ui.pendiente = null
+    ui.linea = { ...lineaError(tipo, e), desde: Date.now() }
+    if (tipo === 'mensaje') ponerBorrador(sesion, borradorTrasOrden({ resultado: 'error', enviado: borrador, actual: ui.borrador }))
+    refrescarBarras()
+    return
+  }
+  registrar(`orden ${tipo} ${id} a ${sesion}`)
+  const desde = Date.now()
+  for (;;) {
+    await new Promise(r => setTimeout(r, MS_SONDEO_ORDEN))
+    const estado = await invocar('estado_orden', { sesion, id }).catch(() => ({ estado: 'pendiente' }))
+    const paso = pasoOrden(estado, Date.now() - desde)
+    if (paso === 'esperar') continue
+    // Leída (la sesión no la borra) o sin tomar a los 10 s: se borra; si no está, no se toca nada
+    if (paso !== 'perdida') await invocar('borrar_orden', { sesion }).catch(() => {})
+    const resultado = paso === 'listo' ? estado.resultado : paso
+    registrar(`orden ${tipo} ${id} a ${sesion} -> ${resultado}${estado?.motivo ? ` (${estado.motivo})` : ''}`)
+    ui.pendiente = null
+    ui.linea = { ...lineaResultado({ tipo, resultado, motivo: estado?.motivo }), desde: Date.now() }
+    if (tipo === 'mensaje') ponerBorrador(sesion, borradorTrasOrden({ resultado, enviado: borrador, actual: ui.borrador }))
+    refrescarBarras()
+    // La línea se va sola; el ciclo de 1,5 s la saca, esto la saca a tiempo si la ventana está quieta
+    setTimeout(() => refrescarBarras(), MS_LINEA + 20)
+    return
+  }
 }
 
 const insignia = n => n ? `<span class="pend" aria-label="${n} ${n === 1 ? 'pregunta pendiente' : 'preguntas pendientes'}">${n} ?</span>` : ''
@@ -1297,6 +1466,9 @@ document.addEventListener('click', async e => {
     alternarDetalle(st.detalleSub?.sesion === sesion && st.detalleSub?.id === id ? null : { sesion, id }, { sesion, id })
     return
   }
+  // La barra de control (#19): cada botón hace solo lo suyo, y solo con el clic
+  if (a === 'ctl-enviar') { if (!b.disabled) ordenar(b.dataset.sesion, 'mensaje'); return }
+  if (a === 'ctl-frenar') { if (!b.disabled) tocarFrenar(b.dataset.sesion); return }
   if (a === 'volver') {
     // "‹ vista anterior" o "Volver ahora" (5.2); antes de que termine, la descarta (10.4)
     cerrarConversacion({ descartar: true })
@@ -1391,7 +1563,17 @@ document.addEventListener('toggle', e => {
 // El texto de "Otra respuesta" se guarda mientras se escribe, así un redibujo no lo borra
 document.addEventListener('input', e => {
   if (e.target.id === 'g-otra-in') st.textoOtra = e.target.value
+  // Lo escrito en una barra de control se guarda por sesión: el redibujo lo vuelve a poner (#19)
+  if (e.target.matches?.('#sesiones .ctl-in')) {
+    const ui = ctl(e.target.dataset.sesion)
+    ui.borrador = e.target.value
+    // Un error queda hasta que el usuario escribe o manda otra orden
+    ui.linea = lineaAlEscribir(ui.linea)
+    refrescarBarra(e.target.closest('.ctl'))
+  }
 })
+document.addEventListener('compositionstart', e => { if (e.target.matches?.('.ctl-in')) st.componiendo = true })
+document.addEventListener('compositionend', () => { st.componiendo = false })
 
 document.addEventListener('keydown', e => {
   // Esc con el foco en el globo del resumen o en el Avi y el globo abierto: lo cierra y el foco vuelve
@@ -1400,6 +1582,21 @@ document.addEventListener('keydown', e => {
     e.preventDefault()
     despacharResumen({ tipo: 'cerrar' })
     marcaBoton.focus()
+    return
+  }
+  // Barra de control (#19, D4): Enter envía, Shift+Enter hace línea nueva, nada mientras compone el IME.
+  // Las demás teclas son del campo; Esc sigue de largo (pliega el detalle o la muesca, como en todo campo)
+  if (e.target.matches?.('#sesiones .ctl-in')) {
+    if (teclaControl(e) === 'enviar') { e.preventDefault(); ordenar(e.target.dataset.sesion, 'mensaje'); return }
+    if (e.key !== 'Escape') return
+  }
+  // Esc en "¿Frenar? Sí" deja de pedir confirmación, sin frenar
+  if (e.key === 'Escape' && e.target.matches?.('#sesiones .ctl-frenar.confirma')) {
+    e.preventDefault()
+    const ui = ctl(e.target.dataset.sesion)
+    ui.confirmaHasta = null
+    clearTimeout(ui.reloj)
+    refrescarBarras()
     return
   }
   // Teclas del globo (boceto): 1–9 eligen con el foco en el globo, Enter envía el texto, Esc pliega

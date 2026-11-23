@@ -14,6 +14,10 @@
 //   ?envio=ya     la pregunta desaparece sin tomar el archivo: "Ya se respondió en Claude."
 //   ?envio=error  el comando responder falla: "Respondé en Claude…" al instante
 //   (sin ?envio, el archivo queda pendiente y a los 5 s pide responder en Claude)
+//   ?sincontrol   las sesiones no aceptan órdenes (mod anterior a la v0.10): sin barra de control (#19)
+//   ?orden=muda|fallo|error  la orden de la barra: la sesión nunca la toma ("La sesión no respondió"
+//                 a los 10 s), no pudo hacerla, o el comando ordenar falla. Sin ?orden la toma en 1,2 s
+//                 (en cola si la sesión trabaja; frenar la deja esperándote)
 //   ?procesos     central-nucleo espera dos procesos en segundo plano (pose "proceso", v0.6)
 //   ?escena=dos   oficina con 2 subagentes (uno trabaja, uno terminó); ?escena=doble: oficina con dos
 //                 sesiones de un subagente cada una (panel-avis-ux.md, casos A y C del boceto). Sin
@@ -206,6 +210,36 @@
   /** Preguntas que el falso da por tomadas (?envio=listo) o respondidas en Claude (?envio=ya). */
   const tomadas = new Set()
   const sinTomadas = () => SESIONES.map(s => ({ ...s, preguntas: (s.preguntas ?? []).filter(p => !tomadas.has(p.id)) }))
+
+  // Barra de control (#19): las sesiones aceptan órdenes (mod v0.10). oficina trabaja (Frenar se ve),
+  // central-nucleo espera tu mensaje y catalogo tiene un mensaje en cola ("en cola").
+  if (!url.has('sincontrol')) {
+    for (const s of SESIONES) Object.assign(s, { puedeControlar: true, enTurno: s.actividad !== 'esperándote' })
+    SESIONES.find(s => s.sesion === 'ses-catalogo').enCola = 1
+  }
+  /** Órdenes del falso, por sesión: { id, tipo, consumida, resultado, motivo }. */
+  const ordenesFalsas = new Map()
+  /** Como el mod: un mensaje a una sesión que trabaja queda en cola; frenar la deja esperándote. */
+  const tomarOrden = (sesion, orden) => {
+    if (ordenesFalsas.get(sesion) !== orden) return
+    const s = SESIONES.find(x => x.sesion === sesion)
+    const trabaja = !!s && s.actividad !== 'esperándote'
+    orden.consumida = true
+    if (url.get('orden') === 'fallo') Object.assign(orden, { resultado: 'fallo', motivo: 'el motor no lo aceptó (falso)' })
+    else if (orden.tipo === 'frenar') {
+      orden.resultado = trabaja ? 'frenado' : 'sin-turno'
+      if (trabaja) {
+        s.actividad = 'esperándote'
+        s.enTurno = false
+        // enCola no vuelve a 0: el mod lo pone en 0 recién cuando arranca el turno siguiente
+        s.agentes = (s.agentes ?? []).map(a => (a.estado === 'trabajando' ? { ...a, estado: 'listo', hasta: new Date().toISOString() } : a))
+      }
+    } else {
+      orden.resultado = trabaja ? 'en-cola' : 'enviado'
+      if (trabaja) s.enCola = (s.enCola ?? 0) + 1
+      else Object.assign(s, { actividad: 'pensando', enTurno: true })
+    }
+  }
 
   /**
    * ?poses: una sesión por estado de Claude y un equipo con todo el elenco. "Listo" y "falló"
@@ -687,6 +721,23 @@
     },
     estado_respuesta: ({ id }) => (url.get('envio') === 'listo' && tomadas.has(id) ? 'consumida' : 'pendiente'),
     borrar_respuesta: () => null,
+    // Órdenes (#19): según ?orden, la sesión la toma en 1,2 s, nunca (muda), no pudo (fallo) o el comando falla (error)
+    ordenar: ({ sesion, tipo, texto }) => {
+      console.info('[ordenar]', JSON.stringify({ sesion, tipo, texto }))
+      const previa = ordenesFalsas.get(sesion)
+      if (url.get('orden') === 'error' || (previa && !previa.consumida)) throw 'todavía hay una orden pendiente'
+      const id = Array.from({ length: 16 }, () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)]).join('')
+      const orden = { id, tipo, consumida: false }
+      ordenesFalsas.set(sesion, orden)
+      if (url.get('orden') !== 'muda') setTimeout(() => tomarOrden(sesion, orden), 1200)
+      return id
+    },
+    estado_orden: ({ sesion, id }) => {
+      const o = ordenesFalsas.get(sesion)
+      if (!o || o.id !== id) return { estado: 'ausente' }
+      return o.consumida ? { estado: 'consumida', resultado: o.resultado, motivo: o.motivo ?? null } : { estado: 'pendiente' }
+    },
+    borrar_orden: ({ sesion }) => { ordenesFalsas.delete(sesion) },
   }
 
   /** Imita un evento del menú de la bandeja, p. ej. __bandeja('oficina://acoplar', 'derecha'). */

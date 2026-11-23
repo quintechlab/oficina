@@ -4,6 +4,7 @@ mod equipo;
 mod preferencias;
 mod modelo;
 mod mod_auto;
+mod ordenes;
 mod primeros_pasos;
 mod respuestas;
 mod sesiones;
@@ -986,6 +987,28 @@ fn borrar_respuesta(id: String) -> Result<(), String> {
     respuestas::borrar_respuesta(&carpeta_de_respuestas()?, &id)
 }
 
+fn carpeta_de_ordenes() -> Result<std::path::PathBuf, String> {
+    ordenes::carpeta_ordenes().ok_or_else(|| String::from("no se conoce la carpeta del usuario"))
+}
+
+/// Deja una orden para una sesión (#19): `mensaje` (con `texto`) o `frenar`. Devuelve su id. Solo
+/// se llama desde un clic o un Enter del usuario: el widget nunca ordena por su cuenta.
+#[tauri::command]
+fn ordenar(sesion: String, tipo: String, texto: Option<String>) -> Result<String, String> {
+    ordenes::escribir_orden(&carpeta_de_ordenes()?, &sesion, &tipo, texto.as_deref(), chrono::Utc::now())
+}
+
+/// `{ estado: "pendiente" | "ausente" }` o `{ estado: "consumida", resultado, motivo }`.
+#[tauri::command]
+fn estado_orden(sesion: String, id: String) -> Result<serde_json::Value, String> {
+    ordenes::estado_orden(&carpeta_de_ordenes()?, &sesion, &id)
+}
+
+#[tauri::command]
+fn borrar_orden(sesion: String) -> Result<(), String> {
+    ordenes::borrar_orden(&carpeta_de_ordenes()?, &sesion)
+}
+
 /// Una línea en el log de diagnóstico (clics del globo, envíos y errores del frontend).
 #[tauri::command]
 fn registrar(linea: String) {
@@ -1500,6 +1523,9 @@ pub fn run() {
             responder,
             estado_respuesta,
             borrar_respuesta,
+            ordenar,
+            estado_orden,
+            borrar_orden,
             registrar,
             revisar_primeros_pasos,
             menu_primeros_pasos,
