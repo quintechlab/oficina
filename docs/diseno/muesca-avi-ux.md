@@ -11,7 +11,7 @@
 
 - **Qué:** la muesca acoplada cerrada pasa a ser la ventana de una oficina chiquita. El Avi de Claude, de 66 px, se asoma por el borde interior como por un alféizar: antena, cara y mejillas. Todo el estado lo dice él.
 - **Para qué:** que la muesca tenga cara y se lea a un metro: si te mira, está libre; si mira para abajo con la cara iluminada, trabaja; si se agarra del borde con un "!", te pregunta.
-- **Acción principal:** la de siempre: abrir el panel (hover de 180 ms, clic, Enter o Espacio). Nada nuevo toma clics.
+- **Acción principal:** abrir el panel con un clic, Enter o Espacio (#21, 23/11: el hover ya no abre y sacar el mouse ya no cierra; cierran el clic afuera, Esc u otro clic en la muesca, salvo "Mantener abierta" para el clic afuera). El hover solo hace reaccionar al Avi. Nada nuevo toma clics.
 - **Regla de oro:** la mascota nunca compite con el trabajo ni con la pregunta. En el borde de la pantalla está siempre a la vista: se mueve poco, en ráfagas cortas, y se aquieta solo.
 - **Vara:** `webs portfolio/brasa-noble`. 60 fps en un equipo medio con zoom de 200 %, nada que corra cuando no se ve.
 

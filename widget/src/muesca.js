@@ -1,6 +1,6 @@
 // La muesca acoplable (docs/diseno/estilo-avis-ux.md, sección 7): imán, lugar a lo largo del borde,
 // rectángulos de la ventana cerrada (la muesca) y abierta (el tablero entero pegado al borde),
-// recorte de la apertura, estado y nombre de la muesca, abrir y cerrar con el mouse y el teclado, y
+// recorte de la apertura, estado y nombre de la muesca, abrir y cerrar con el clic y el teclado, y
 // cuándo golpea una pregunta. Lógica pura: medidas en px lógicos de la pantalla (los de Tauri).
 
 import { avi, CLAUDE } from './avis.js'
@@ -21,8 +21,6 @@ export const HOLGURA = 8
 export const MARGEN_PANEL = 8
 /** Fracción máxima del área que ocupa el panel abierto hacia el centro (la misma que el tablero flotante). */
 const FRACCION_MAXIMA = 0.9
-export const ESPERA_ABRIR = 180
-export const ESPERA_CERRAR = 650
 export const CADA_GOLPE = 90000
 /** Píldora flotante al arrastrar la muesca lejos de los bordes (7.3), en tamaño 100 %. */
 export const PILDORA = { ancho: 184, alto: 48 }
@@ -350,71 +348,46 @@ export function contenidoPildora(e) {
 // ------------------------------------------------------------------ abrir y cerrar (7.2)
 
 /**
- * Estado de la muesca acoplada: abierta, fijada ("Mantener abierta"), si el hover puede abrir
- * (`armado`: después de cerrar, hasta que el mouse salga una vez), si el mouse está encima y qué
- * espera hay programada. `efecto` y `foco` son lo que la ventana tiene que hacer después del evento.
+ * Estado de la muesca acoplada: abierta y fijada ("Mantener abierta"). `efecto` y `foco` son lo que
+ * la ventana tiene que hacer después del evento. El mouse encima no abre ni cierra (#21): solo el
+ * Avi de la muesca lo mira y reacciona, y eso no pasa por acá.
  */
-export const ESTADO_INICIAL = Object.freeze({ abierta: false, fija: false, armado: true, dentro: false, espera: null, efecto: null, foco: null })
+export const ESTADO_INICIAL = Object.freeze({ abierta: false, fija: false, efecto: null, foco: null })
+
+const cerrada = (e, foco) => ({ ...e, abierta: false, fija: false, efecto: 'cerrar', foco })
 
 /**
- * Un evento de la muesca: `entra` y `sale` (mouse), `tiempo` (venció la espera `que`), `clic`
- * (clic, Enter o Espacio sobre la muesca, o "Mostrar Avis"), `esc` o `cerrar` (cierra aunque
- * esté fijada) y `fijar`. Cualquier otro evento (el golpe, la luz) no cambia nada: llamar la
+ * Un evento de la muesca (#21: abre solo con un clic):
+ * - `clic`: abre y lleva el foco al proyecto activo; abierta, solo el foco ("Mostrar Avis", el
+ *   asistente o la notificación nunca la cierran).
+ * - `alternar`: clic, Enter o Espacio sobre la muesca; cerrada abre como `clic`, abierta cierra.
+ * - `afuera`: clic fuera del panel o la ventana pierde el foco; cierra salvo fijada, sin mover el foco.
+ * - `esc` o `cerrar` (la ×): cierran aunque esté fijada, la desfijan y el foco vuelve a la muesca.
+ * - `fijar`: alterna "Mantener abierta"; fijar con la muesca cerrada la abre, soltar no la cierra.
+ * Cualquier otro evento (el mouse que entra o sale, el golpe, la luz) no cambia nada: llamar la
  * atención nunca abre ni responde.
  */
 export function siguiente(estado, evento) {
   const e = { ...estado, efecto: null, foco: null }
   switch (evento.tipo) {
-    case 'entra':
-      e.dentro = true
-      if (e.abierta) { if (e.espera?.que === 'cerrar') e.espera = null }
-      else if (e.armado && !e.espera) e.espera = { que: 'abrir', ms: ESPERA_ABRIR }
-      return e
-    case 'sale':
-      e.dentro = false
-      e.armado = true
-      if (e.espera?.que === 'abrir') e.espera = null
-      if (e.abierta && !e.fija) e.espera = { que: 'cerrar', ms: ESPERA_CERRAR }
-      return e
-    case 'tiempo':
-      if (evento.que !== e.espera?.que) return e
-      e.espera = null
-      if (evento.que === 'abrir' && !e.abierta) { e.abierta = true; e.efecto = 'abrir' }
-      if (evento.que === 'cerrar' && e.abierta && !e.fija) { e.abierta = false; e.armado = false; e.efecto = 'cerrar' }
-      return e
     case 'clic':
-      e.espera = null
       if (!e.abierta) { e.abierta = true; e.efecto = 'abrir' }
       e.foco = 'proyecto'
       return e
+    case 'alternar':
+      return e.abierta ? cerrada(e, 'muesca') : siguiente(estado, { tipo: 'clic' })
+    case 'afuera':
+      return e.abierta && !e.fija ? cerrada(e, null) : e
     case 'esc':
     case 'cerrar':
-      if (!e.abierta) return e
-      return { ...e, abierta: false, fija: false, armado: false, espera: null, efecto: 'cerrar', foco: 'muesca' }
+      return e.abierta ? cerrada(e, 'muesca') : e
     case 'fijar':
       e.fija = !e.fija
-      if (e.fija) {
-        e.espera = null
-        if (!e.abierta) { e.abierta = true; e.efecto = 'abrir' }
-      } else if (e.abierta && !e.dentro) {
-        e.espera = { que: 'cerrar', ms: ESPERA_CERRAR }
-      }
+      if (e.fija && !e.abierta) { e.abierta = true; e.efecto = 'abrir' }
       return e
     default:
       return e
   }
-}
-
-/**
- * El evento de la muesca para un aviso de la zona (`dentro`, del sondeo de Rust o del DOM), o null
- * si la muesca ya lo sabe. Rust avisa el estado real con cada zona nueva aunque no haya cambiado:
- * "adentro" entra solo si la muesca no lo sabía (al arrancar con el puntero encima, el hover abre);
- * "afuera" sale si no lo sabía o si la muesca está sin armar, así un reacople con el puntero lejos
- * deja el hover listo para la primera entrada.
- */
-export function eventoZona(estado, dentro) {
-  if (dentro) return estado.dentro ? null : 'entra'
-  return !estado.dentro && estado.armado ? null : 'sale'
 }
 
 // ------------------------------------------------------------------ redimensionar sin parpadeo (9.6)
