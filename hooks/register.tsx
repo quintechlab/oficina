@@ -7,11 +7,15 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { ComentarioPresencia, Conversa, Info, Miembro, Pr, Pregunta, Presencia, Proceso, Subagente, Tarea } from '../types'
+import type { ComentarioPresencia, Conversa, Info, Miembro, OrdenWidget, Pr, Pregunta, Presencia, Proceso, ResultadoOrden, Subagente, Tarea } from '../types'
 import {
   actividadDesdeHerramienta,
   carreraConDialogo,
   resultadoDelWidget,
+  validarOrden,
+  idDeOrden,
+  ordenConsumida,
+  MS_ENTRE_ORDENES,
   vigilarRespuesta,
   nombreSubagente,
   anotarPaso,
@@ -103,6 +107,17 @@ let ultimaLocal: Presencia | null = null
 const cerradasLocal = new Set<string>()
 /** Cada cuánto se renueva la hora del archivo local (el widget descarta lo que no late en 2 min). */
 const LATIDO_LOCAL_MS = 30000
+// Órdenes del widget (v0.10): mandarle un mensaje a Claude o frenar el turno en curso.
+/** El turno del hilo principal que corre ahora (el id de su `turn.start`), o null si la sesión está libre. */
+let turnoEnCurso: string | null = null
+/** Mensajes del widget que esperan a que termine el turno en curso. */
+let enCola = 0
+/** Desde cuándo vale una orden: el arranque de la sesión (o del /clear). */
+let arranqueOrdenesMs = 0
+/** Ids de órdenes ya procesadas, y contenidos de archivos inválidos ya descartados: nada se hace dos veces. */
+const ordenesVistas = new Set<string>()
+let vigilandoOrdenes = false
+let timerOrdenes: Timer | null = null
 
 // ------------------------------------------------------------------ gh
 async function gh($: EngineInterface, args: readonly string[], cwd?: string): Promise<string> {
@@ -234,6 +249,10 @@ async function publicar($: EngineInterface, forzar = false, ausente?: boolean): 
     procesos: podarVivos(ahoraMs),
     // Desde la v0.8: con qué otras sesiones habla (nunca qué se dicen)
     conversa: (conversa = podarConversas(conversa, ahoraMs)),
+    // Desde la v0.10: el widget le puede mandar mensajes y frenarla (archivo en ~/.claude/oficina/ordenes)
+    puedeControlar: true,
+    enCola,
+    enTurno: turnoEnCurso !== null,
   }
   await escribirEstadoLocal($, p)
   // Sin cambios de fondo desde la última vez: no gastar llamadas (el latido igual publica cada 5 min)
@@ -285,12 +304,120 @@ function esperarCortable($: EngineInterface, ms: number, senal: AbortSignal): Pr
   })
 }
 
+// ------------------------------------------------------------------ órdenes del widget (v0.10)
+
+/** Archivo donde el widget deja una orden para la sesión `sesion` (`ordenes/<id de la sesión>.json`). */
+async function rutaOrden($: EngineInterface, sesion: string): Promise<string | null> {
+  const carpeta = await carpetaLocal($)
+  if (!carpeta || !/^[A-Za-z0-9_-]{1,128}$/.test(sesion)) return null
+  return `${carpeta.replace(/\/sesiones$/, '')}/ordenes/${sesion}.json`
+}
+
+/** Mira cada segundo si el widget dejó una orden para esta sesión, hasta que la sesión termina. */
+function vigilarOrdenes($: EngineInterface): void {
+  if (vigilandoOrdenes) return
+  vigilandoOrdenes = true
+  const vuelta = (): void => {
+    if (!vigilandoOrdenes) return
+    try {
+      timerOrdenes = $.clock.after(MS_ENTRE_ORDENES, () => {
+        timerOrdenes = null
+        void revisarOrden($)
+          .catch(() => undefined)
+          .then(vuelta)
+      })
+    } catch {
+      vigilandoOrdenes = false
+    }
+  }
+  vuelta()
+}
+
+function dejarDeVigilarOrdenes(): void {
+  vigilandoOrdenes = false
+  timerOrdenes?.cancel()
+  timerOrdenes = null
+}
+
+/**
+ * Lee la orden de esta sesión y, si es nueva y válida, la ejecuta; después reescribe el archivo con
+ * el resultado para el widget. Solo el archivo con el id propio: nunca la orden de otra sesión.
+ */
+async function revisarOrden($: EngineInterface): Promise<void> {
+  const ruta = await rutaOrden($, await $.session.id())
+  if (!ruta) return
+  const texto = await $.fs.read(ruta).then(t => String(t)).catch(() => null)
+  if (texto === null || ordenesVistas.has(`archivo:${texto}`)) return
+  let datos: unknown = null
+  try {
+    datos = JSON.parse(texto)
+  } catch {
+    datos = null
+  }
+  if (datos && typeof datos === 'object' && (datos as { consumida?: unknown }).consumida === true) return
+  const id = idDeOrden(datos)
+  if (id && ordenesVistas.has(`id:${id}`)) return
+  const ahoraMs = await $.clock.now()
+  const v = validarOrden(datos, { arranqueMs: arranqueOrdenesMs, ahoraMs })
+  let resultado: { resultado: ResultadoOrden; motivo?: string }
+  if ('error' in v) {
+    // Anotada por su contenido: si el archivo no cambia, no se reescribe en cada vuelta
+    ordenesVistas.add(`archivo:${texto}`)
+    resultado = { resultado: 'descartada', motivo: v.error }
+  } else {
+    ordenesVistas.add(`id:${v.orden.id}`)
+    resultado = await ejecutarOrden($, v.orden)
+  }
+  const cuando = new Date(await $.clock.now()).toISOString()
+  await $.fs.write(ruta, JSON.stringify(ordenConsumida(id, resultado.resultado, cuando, resultado.motivo))).catch(() => undefined)
+}
+
+/** Ejecuta una orden válida. Nunca tira: un rechazo del motor es un resultado `fallo`. */
+async function ejecutarOrden($: EngineInterface, orden: OrdenWidget): Promise<{ resultado: ResultadoOrden; motivo?: string }> {
+  if (orden.tipo === 'mensaje') {
+    // El motor lo encola y arranca su turno cuando la sesión queda libre (D3: "Entra al terminar").
+    // `asUser`: Claude lo lee como palabras del usuario, sin el marco del mod (decisión del 22/11)
+    void $.prompt.submit({ text: orden.texto, asUser: true }).catch(err => {
+      try {
+        $.ui.log(`oficina: no se pudo enviar el mensaje del widget (${err instanceof Error ? err.message : String(err)})`, { to: 'debug' })
+      } catch {
+        // Registrar nunca rompe la sesión
+      }
+    })
+    if (turnoEnCurso === null) return { resultado: 'enviado' }
+    enCola += 1
+    cola = cola.then(() => publicar($)).catch(() => undefined)
+    return { resultado: 'en-cola' }
+  }
+  const turnId = turnoEnCurso
+  if (turnId === null) return { resultado: 'sin-turno' }
+  try {
+    await $.turn.abort({ turnId })
+  } catch (err) {
+    return { resultado: 'fallo', motivo: err instanceof Error ? err.message : String(err) }
+  }
+  if (turnoEnCurso === turnId) turnoEnCurso = null
+  actividad = actividadEnEspera(procesos.size)
+  cola = cola.then(() => publicar($)).catch(() => undefined)
+  return { resultado: 'frenado' }
+}
+
 /** Escribe el estado de esta sesión en un archivo propio; el widget lee la carpeta entera. */
 async function escribirEstadoLocal($: EngineInterface, p: Presencia, cerrada = false): Promise<void> {
   const carpeta = await carpetaLocal($)
   if (!carpeta || !puedeEscribirLocal(cerradasLocal, p.sesion)) return
   if (!cerrada) ultimaLocal = p
   await $.fs.write(`${carpeta}/${p.sesion}.json`, JSON.stringify({ ...p, cerrada }, null, 2)).catch(() => undefined)
+}
+
+/**
+ * Escribe al instante en el archivo local si hay un turno que frenar (v0.10), sin git ni GitHub:
+ * el botón Frenar del widget no puede esperar al debounce de 15 s de la publicación.
+ */
+async function escribirTurnoLocal($: EngineInterface): Promise<void> {
+  if (!ultimaLocal) return
+  const ahora = new Date(await $.clock.now()).toISOString()
+  await escribirEstadoLocal($, { ...ultimaLocal, actividad, enCola, enTurno: turnoEnCurso !== null, actualizado: ahora })
 }
 
 /** Renueva la hora del archivo local sin consultar git ni GitHub. */
@@ -559,6 +686,9 @@ export const register: Register = (on, options) => {
     await $.command.register({ name: 'avis', description: 'Avis de Quintech: quién trabaja en qué', argumentHint })
     await $.command.register({ name: 'oficina', description: 'Lo mismo que /avis (nombre anterior)', argumentHint })
     const resultado = await next(e)
+    // Desde la v0.10: las órdenes del widget, solo las creadas desde ahora
+    arranqueOrdenesMs = await $.clock.now()
+    vigilarOrdenes($)
     // Sin panel en la sesión (pedido del usuario, 22/11: "ahora lo voy a ver todo desde avis"): el mod
     // solo publica lo que muestra el widget de escritorio Avis
     void arrancar($)
@@ -686,7 +816,14 @@ export const register: Register = (on, options) => {
   on('turn.start', async ($, e, next) => {
     if (e.agentId === undefined) {
       actividad = 'pensando'
-      publicarPronto($)
+      // v0.10: el turno que el widget puede frenar. El que arranca es el del mensaje encolado (o uno
+      // nuevo): la cola se vacía, y se publica sin esperar para que la tarjeta deje de decir "en cola"
+      turnoEnCurso = e.turnId
+      const habiaEnCola = enCola > 0
+      enCola = 0
+      if (habiaEnCola) cola = cola.then(() => publicar($)).catch(() => undefined)
+      else publicarPronto($)
+      await escribirTurnoLocal($).catch(() => undefined)
     }
     return next(e)
   })
@@ -699,8 +836,10 @@ export const register: Register = (on, options) => {
       publicarPronto($)
     } else if (e.agentId === undefined) {
       // Terminó el turno: espera sus procesos en segundo plano, si hay, o tu mensaje
+      turnoEnCurso = null
       actividad = actividadEnEspera(procesos.size)
       publicarPronto($)
+      await escribirTurnoLocal($).catch(() => undefined)
     }
     return next(e)
   })
@@ -773,6 +912,12 @@ export const register: Register = (on, options) => {
     // Solo la entrada de esta sesión. Tras un /clear la sesión nueva vuelve a publicar en el próximo latido.
     await retirar($, e.sessionId).catch(() => undefined)
     await cerrarEstadoLocal($, e.sessionId)
+    // Órdenes del widget: tras un /clear o un /resume el proceso sigue con otro id (sin session.start)
+    // y la vigilancia sigue con ese, desde cero; cualquier otro fin la para
+    turnoEnCurso = null
+    enCola = 0
+    if (e.reason === 'clear' || e.reason === 'resume') arranqueOrdenesMs = await $.clock.now().catch(() => arranqueOrdenesMs)
+    else dejarDeVigilarOrdenes()
     return next(e)
   })
 

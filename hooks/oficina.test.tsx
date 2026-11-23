@@ -1,4 +1,6 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
+import type { On } from 'claude-code'
 
 import type { ComentarioPresencia, Miembro, Pregunta, Presencia } from '../types'
 import {
@@ -50,6 +52,9 @@ import {
   actividadEnEspera,
   esActividadEnEspera,
   HORAS_PROCESO,
+  validarOrden,
+  MAX_EDAD_ORDEN_MS,
+  MS_ENTRE_ORDENES,
 } from './logica'
 
 const PANE = {
@@ -729,4 +734,274 @@ test('la actividad y los pasos de un subagente viajan en la entrada, y un subage
   const roto = { ...presencia({}), agentes: [{ ...SUB, pasos: [{ texto: 3 }, { texto: 'ok', cuando: AHORA }, null] }] }
   const cuerpo = `<!-- oficina:presencia -->\n\`\`\`json\n${JSON.stringify({ v: 2, usuario: 'campos', nombre: 'Campos', ausente: false, actualizado: AHORA, sesiones: [roto] })}\n\`\`\``
   expect(extraerComentario(cuerpo)?.sesiones[0]?.agentes?.[0]?.pasos).toEqual([{ texto: 'ok', cuando: AHORA }])
+})
+
+// ------------------------------------------------------------------ órdenes del widget (v0.10)
+
+const ARRANQUE = Date.parse('2026-11-22T13:00:00.000Z')
+const enIso = (ms: number) => new Date(ms).toISOString()
+const orden = (extra: Record<string, unknown>) => ({ v: 1, origen: 'widget', id: 'k3j9x0a1b2c3d4e5', tipo: 'mensaje', texto: 'Seguí con los tests', creada: enIso(ARRANQUE + 5000), ...extra })
+const tiempos = { arranqueMs: ARRANQUE, ahoraMs: ARRANQUE + 10000 }
+const errorDe = (r: ReturnType<typeof validarOrden>) => ('error' in r ? r.error : null)
+
+test('orden del widget: un mensaje y un frenar válidos se aceptan', async () => {
+  expect(validarOrden(orden({}), tiempos)).toEqual({ orden: orden({}) })
+  const frenar = { v: 1, origen: 'widget', id: 'abc123', tipo: 'frenar', creada: enIso(ARRANQUE + 5000) }
+  expect(validarOrden(frenar, tiempos)).toEqual({ orden: frenar })
+  // Justo en el límite de edad todavía vale
+  const tarde = { arranqueMs: ARRANQUE, ahoraMs: ARRANQUE + 200000 }
+  expect(errorDe(validarOrden(orden({ creada: enIso(tarde.ahoraMs - MAX_EDAD_ORDEN_MS) }), tarde))).toBe(null)
+})
+
+test('orden del widget: un formato desconocido se descarta', async () => {
+  expect(errorDe(validarOrden(null, tiempos))).not.toBe(null)
+  expect(errorDe(validarOrden('texto', tiempos))).not.toBe(null)
+  expect(errorDe(validarOrden(orden({ v: 2 }), tiempos))).not.toBe(null)
+  expect(errorDe(validarOrden(orden({ origen: 'otro' }), tiempos))).not.toBe(null)
+  expect(errorDe(validarOrden(orden({ creada: 'no es fecha' }), tiempos))).not.toBe(null)
+})
+
+test('orden del widget: un id fuera de [a-z0-9]{1,64} se descarta', async () => {
+  for (const id of ['', 'ABC', '../x', 'a'.repeat(65), 7, undefined]) expect(errorDe(validarOrden(orden({ id }), tiempos))).not.toBe(null)
+  expect(errorDe(validarOrden(orden({ id: 'a'.repeat(64) }), tiempos))).toBe(null)
+})
+
+test('orden del widget: un tipo desconocido se descarta', async () => {
+  expect(errorDe(validarOrden(orden({ tipo: 'borrar' }), tiempos))).not.toBe(null)
+  expect(errorDe(validarOrden(orden({ tipo: undefined }), tiempos))).not.toBe(null)
+})
+
+test('orden del widget: un mensaje vacío, en blanco, largo o sin texto se descarta', async () => {
+  for (const texto of ['', '   \n ', 'x'.repeat(10001), 3, undefined]) expect(errorDe(validarOrden(orden({ texto }), tiempos))).not.toBe(null)
+  expect(errorDe(validarOrden(orden({ texto: 'x'.repeat(10000) }), tiempos))).toBe(null)
+})
+
+test('orden del widget: una orden anterior al arranque de la sesión se descarta', async () => {
+  expect(errorDe(validarOrden(orden({ creada: enIso(ARRANQUE - 1000) }), tiempos))).not.toBe(null)
+})
+
+test('orden del widget: una orden de más de 120 s se descarta', async () => {
+  const ahoraMs = ARRANQUE + 200000
+  expect(errorDe(validarOrden(orden({ creada: enIso(ahoraMs - MAX_EDAD_ORDEN_MS - 1) }), { arranqueMs: ARRANQUE, ahoraMs }))).not.toBe(null)
+})
+
+test('orden del widget: una orden de más de 60 s en el futuro se descarta', async () => {
+  expect(errorDe(validarOrden(orden({ creada: enIso(tiempos.ahoraMs + 61000) }), tiempos))).not.toBe(null)
+  expect(errorDe(validarOrden(orden({ creada: enIso(tiempos.ahoraMs + 59000) }), tiempos))).toBe(null)
+})
+
+const CASA = String.raw`C:\Users\prueba`
+const SESION = 'ses-prueba-1'
+const RUTA_ORDEN = `C:/Users/prueba/.claude/oficina/ordenes/${SESION}.json`
+const RUTA_LOCAL = `C:/Users/prueba/.claude/oficina/sesiones/${SESION}.json`
+
+/**
+ * Una sesión abierta con el mod: reloj, archivos y motor de mentira. Sin `gh` (cada consulta a
+ * GitHub falla), así lo único que se publica es el archivo local, que es lo que lee el widget.
+ */
+async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean } = {}) {
+  const reloj = mock.clock(on, { now: ARRANQUE })
+  mock.env(on, { USERPROFILE: CASA })
+  mock.store(on, { yo: { login: 'nicoequintana', nombre: 'Quintana' } })
+  const archivos = new Map<string, string>()
+  const escrituras: string[] = []
+  const enviados: string[] = []
+  const abortados: string[] = []
+  const comoUsuario: boolean[] = []
+  let idActual = SESION
+  on('session.id', () => ({ value: idActual }))
+  on('session.cwd', () => ({ value: 'C:/proyectos/demo' }))
+  on('session.repo', () => ({ value: null }))
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: 'sin gh en la prueba' } }) as never)
+  on('command.register', (_, e) => ({ value: { command: e.name } }) as never)
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  // El motor entrega las rutas con la barra de la plataforma: se comparan siempre con "/"
+  const barras = (ruta: string) => ruta.replace(/\\/g, '/')
+  on('fs.read', (_, e) => {
+    const texto = archivos.get(barras(e.path))
+    if (texto === undefined) throw new Error('no existe')
+    return { value: texto }
+  })
+  on('fs.write', (_, e) => {
+    archivos.set(barras(e.path), e.text)
+    escrituras.push(barras(e.path))
+    return { value: undefined }
+  })
+  on('prompt.submit', (_, e) => {
+    enviados.push(e.text)
+    comoUsuario.push(e.origin.kind === 'plugin' && e.origin.asUser === true)
+    return { text: e.text }
+  })
+  on('turn.abort', (_, e) => {
+    if (opciones.abortarFalla) return { deny: `${e.turnId} no es el turno en curso` } as never
+    abortados.push(e.turnId)
+    return { value: undefined }
+  })
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  on('turn.complete', (_, e) => ({ text: e.answer }))
+  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
+  await $.session.start({ cwd: 'C:/proyectos/demo', surface: 'desktop', isInteractive: true })
+  await reloj.settle()
+  const leer = (ruta: string) => JSON.parse(archivos.get(ruta) ?? 'null') as Record<string, unknown> | null
+  return {
+    reloj,
+    archivos,
+    escrituras,
+    enviados,
+    comoUsuario,
+    abortados,
+    /** El widget deja una orden y pasa una vuelta de la vigilancia. */
+    ordenar: async (extra: Record<string, unknown>) => {
+      archivos.set(RUTA_ORDEN, JSON.stringify(orden({ creada: enIso(reloj.now()), ...extra })))
+      await reloj.advance(MS_ENTRE_ORDENES)
+    },
+    resultado: () => leer(RUTA_ORDEN),
+    presencia: () => leer(RUTA_LOCAL),
+    empezarTurno: (turnId: string, agentId?: string) => $.turn.start({ text: '', turnId, ...(agentId ? { agentId } : {}) }),
+    terminarTurno: (turnId: string) =>
+      $.turn.complete({ answer: 'listo', durationMs: 10, isAborted: false, turnId, reason: 'answer', index: 0, toolUses: 0 } as never),
+    /** Termina la sesión con `reason`; tras /clear o /resume el proceso sigue con el id `nuevo`. */
+    terminarSesion: async (reason: string, nuevo: string) => {
+      await $.session.end({ reason, sessionId: idActual } as never)
+      idActual = nuevo
+      await reloj.settle()
+    },
+  }
+}
+
+for (const reason of ['clear', 'resume']) {
+  test(`tras /${reason} el proceso sigue con otro id y las órdenes a ese id se toman`, async ($, on) => {
+    const s = await abrirSesion($, on)
+    await s.terminarSesion(reason, 'ses-prueba-2')
+    const ruta = RUTA_ORDEN.replace(SESION, 'ses-prueba-2')
+    s.archivos.set(ruta, JSON.stringify(orden({ creada: enIso(s.reloj.now()) })))
+    await s.reloj.advance(MS_ENTRE_ORDENES)
+    expect(s.enviados).toEqual(['Seguí con los tests'])
+    expect((JSON.parse(s.archivos.get(ruta) ?? 'null') as Record<string, unknown>)?.resultado).toBe('enviado')
+  })
+}
+
+test('cualquier otro fin de sesión deja de tomar órdenes', async ($, on) => {
+  const s = await abrirSesion($, on)
+  await s.terminarSesion('logout', SESION)
+  await s.ordenar({})
+  expect(s.enviados).toEqual([])
+})
+
+test('la presencia de la sesión dice que acepta órdenes del widget, sin nada en cola', async ($, on) => {
+  const s = await abrirSesion($, on)
+  expect(s.presencia()?.puedeControlar).toBe(true)
+  expect(s.presencia()?.enCola).toBe(0)
+})
+
+test('el archivo local dice al instante si hay un turno del hilo principal que frenar', async ($, on) => {
+  const s = await abrirSesion($, on)
+  expect(s.presencia()?.enTurno).toBe(false)
+  // Sin esperar al debounce de 15 s: el botón Frenar del widget depende de esto
+  await s.empezarTurno('t1')
+  expect(s.presencia()?.enTurno).toBe(true)
+  expect(s.presencia()?.actividad).toBe('pensando')
+  await s.terminarTurno('t1')
+  expect(s.presencia()?.enTurno).toBe(false)
+  expect(s.presencia()?.actividad).toBe('esperándote')
+  // El turno de un subagente no es el que se frena
+  await s.empezarTurno('ts', 'agente-1')
+  expect(s.presencia()?.enTurno).toBe(false)
+})
+
+test('un mensaje con la sesión libre se envía con el texto exacto', async ($, on) => {
+  const s = await abrirSesion($, on)
+  await s.ordenar({ texto: '  Seguí con los tests\nporfa  ' })
+  expect(s.enviados).toEqual(['  Seguí con los tests\nporfa  '])
+  // Decisión del usuario (22/11): "Sí, como mío": Claude lo lee como palabras del usuario, sin el marco del mod
+  expect(s.comoUsuario).toEqual([true])
+  expect(s.resultado()).toEqual({ v: 1, id: 'k3j9x0a1b2c3d4e5', consumida: true, resultado: 'enviado', cuando: enIso(s.reloj.now()) })
+})
+
+test('un mensaje con un turno en curso entra en cola, y la cola vuelve a 0 con el siguiente turno', async ($, on) => {
+  const s = await abrirSesion($, on)
+  await s.empezarTurno('t1')
+  await s.ordenar({})
+  expect(s.enviados).toEqual(['Seguí con los tests'])
+  expect(s.resultado()?.resultado).toBe('en-cola')
+  expect(s.presencia()?.enCola).toBe(1)
+  // Termina el turno y arranca el del mensaje encolado
+  await s.terminarTurno('t1')
+  await s.empezarTurno('t2')
+  await s.reloj.settle()
+  expect(s.presencia()?.enCola).toBe(0)
+})
+
+test('frenar con un turno en curso lo corta con su id, y la sesión queda esperándote', async ($, on) => {
+  const s = await abrirSesion($, on)
+  await s.empezarTurno('t7')
+  await s.ordenar({ tipo: 'frenar', texto: undefined })
+  expect(s.abortados).toEqual(['t7'])
+  expect(s.resultado()?.resultado).toBe('frenado')
+  expect(s.presencia()?.actividad).toBe('esperándote')
+  // Ya no hay turno: otro frenar no corta nada
+  await s.ordenar({ id: 'otra1', tipo: 'frenar', texto: undefined })
+  expect(s.abortados).toEqual(['t7'])
+  expect(s.resultado()?.resultado).toBe('sin-turno')
+})
+
+test('frenar sin turno en curso no corta nada (el turno de un subagente no cuenta)', async ($, on) => {
+  const s = await abrirSesion($, on)
+  await s.empezarTurno('ts', 'agente-1')
+  await s.ordenar({ tipo: 'frenar', texto: undefined })
+  expect(s.abortados).toEqual([])
+  expect(s.resultado()?.resultado).toBe('sin-turno')
+})
+
+test('si el motor rechaza el frenar, la orden queda como fallo con su motivo', async ($, on) => {
+  const s = await abrirSesion($, on, { abortarFalla: true })
+  await s.empezarTurno('t1')
+  await s.ordenar({ tipo: 'frenar', texto: undefined })
+  expect(s.resultado()?.resultado).toBe('fallo')
+  expect(String(s.resultado()?.motivo)).toContain('t1')
+})
+
+test('una orden inválida se descarta una sola vez con su motivo, y sin id válido va con id null', async ($, on) => {
+  const s = await abrirSesion($, on)
+  const invalida = JSON.stringify(orden({ id: 'NO VALE', texto: '', creada: enIso(ARRANQUE) }))
+  s.archivos.set(RUTA_ORDEN, invalida)
+  await s.reloj.advance(MS_ENTRE_ORDENES)
+  expect(s.enviados).toEqual([])
+  const r = s.resultado()
+  expect(r?.resultado).toBe('descartada')
+  expect(r?.id).toBe(null)
+  expect(typeof r?.motivo).toBe('string')
+  // Si el mismo archivo inválido vuelve a aparecer, no se reescribe en cada vuelta
+  s.archivos.set(RUTA_ORDEN, invalida)
+  const antes = s.escrituras.filter(p => p === RUTA_ORDEN).length
+  await s.reloj.advance(MS_ENTRE_ORDENES * 3)
+  expect(s.escrituras.filter(p => p === RUTA_ORDEN).length).toBe(antes)
+  // Una vieja (de antes de que arrancara la sesión) trae id: se descarta con su id
+  await s.ordenar({ id: 'vieja1', creada: enIso(ARRANQUE - 1000) })
+  expect(s.resultado()?.resultado).toBe('descartada')
+  expect(s.resultado()?.id).toBe('vieja1')
+})
+
+test('una orden consumida o con un id ya procesado no se ejecuta dos veces', async ($, on) => {
+  const s = await abrirSesion($, on)
+  await s.ordenar({})
+  expect(s.enviados.length).toBe(1)
+  // El mismo id otra vez, sin consumir: no se manda de nuevo ni se toca el archivo
+  await s.ordenar({})
+  expect(s.enviados.length).toBe(1)
+  expect(s.resultado()?.consumida).toBe(undefined)
+  // Un archivo ya consumido tampoco
+  s.archivos.set(RUTA_ORDEN, JSON.stringify({ v: 1, id: 'nueva1', consumida: true, resultado: 'enviado', cuando: enIso(s.reloj.now()) }))
+  await s.reloj.advance(MS_ENTRE_ORDENES * 2)
+  expect(s.enviados.length).toBe(1)
+})
+
+test('lo de antes sigue: al terminar el turno la sesión publica que te espera', async ($, on) => {
+  const s = await abrirSesion($, on)
+  await s.empezarTurno('t1')
+  await s.terminarTurno('t1')
+  // La publicación de la actividad espera su tanda de 15 s, como siempre
+  await s.reloj.advance(15000)
+  expect(s.presencia()?.actividad).toBe('esperándote')
+  expect(s.presencia()?.puedeResponder).toBe(true)
 })

@@ -37,6 +37,12 @@ export type Presencia = {
   procesos?: Proceso[]
   /** Conversaciones con otras sesiones (SendMessage) que esta sesión recibió hace poco. Desde la v0.8. */
   conversa?: Conversa[]
+  /** Esta sesión acepta órdenes del widget de escritorio (archivo en ~/.claude/oficina/ordenes): siempre true. Desde la v0.10. */
+  puedeControlar?: boolean
+  /** Mensajes del widget que esperan a que termine el turno en curso (vuelve a 0 cuando arranca el siguiente). Desde la v0.10. */
+  enCola?: number
+  /** Hay un turno del hilo principal en curso que el widget puede frenar; el archivo local lo escribe al instante. Desde la v0.10. */
+  enTurno?: boolean
 }
 
 /**
@@ -112,6 +118,30 @@ export type RespuestaWidget = {
   answers: Record<string, string>
   /** Preguntas respondidas con texto libre. */
   libres?: string[]
+}
+
+/**
+ * Una orden del widget a una sesión (v0.10), en `~/.claude/oficina/ordenes/<id de la sesión>.json`:
+ * mandarle un mensaje a Claude o frenar el turno en curso.
+ */
+export type OrdenWidget =
+  | { v: 1; origen: 'widget'; id: string; tipo: 'mensaje'; texto: string; creada: string }
+  | { v: 1; origen: 'widget'; id: string; tipo: 'frenar'; creada: string }
+
+/** Cómo terminó una orden del widget. */
+export type ResultadoOrden = 'enviado' | 'en-cola' | 'frenado' | 'sin-turno' | 'fallo' | 'descartada'
+
+/** Lo que el mod deja en el archivo de la orden al procesarla; el widget lo lee y borra el archivo. */
+export type OrdenConsumida = {
+  v: 1
+  /** Id de la orden, o null si el archivo no traía uno válido. */
+  id: string | null
+  consumida: true
+  resultado: ResultadoOrden
+  /** Solo si se descartó o falló. */
+  motivo?: string
+  /** Cuándo se procesó (ISO). */
+  cuando: string
 }
 
 /** Una llamada a AskUserQuestion pendiente (puede traer varias preguntas). */
