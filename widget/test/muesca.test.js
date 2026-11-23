@@ -4,10 +4,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  BORDES, IMAN, HOMBRO, LUZ, HOLGURA, MARGEN_PANEL, ESPERA_ABRIR, ESPERA_CERRAR, CADA_GOLPE, PILDORA,
+  BORDES, IMAN, HOMBRO, LUZ, HOLGURA, MARGEN_PANEL, CADA_GOLPE, PILDORA,
   esHorizontal, bordeCercano, lugarDe, lugarAjustado, rectMuesca, rectPanel, recorte, cajaArrastre, rectLuz, relativo,
   estadoMuesca, ESTADO_INICIAL, siguiente, tocaGolpe, dentroDe, posicionFlotante, contenidoMuesca, contenidoPildora,
-  disposicionAcoplada, ventanaDeArea, mismoRect, zonaInteractiva, MARGEN_ZONA, eventoZona, TAM_MUESCA, tamMuescaDe, figuraMuesca, planVentana, secuenciaVelo, ASIENTO_VELO_MS, REAPARECE_MS,
+  disposicionAcoplada, ventanaDeArea, mismoRect, zonaInteractiva, MARGEN_ZONA, TAM_MUESCA, tamMuescaDe, figuraMuesca, planVentana, secuenciaVelo, ASIENTO_VELO_MS, REAPARECE_MS,
   disposicionFlotante, disposicionTira, transformEntre, plegadoHacia, anclaHacia, fueraDelBorde,
 } from '../src/muesca.js'
 import { esquinaTira, tamanoMini } from '../src/tamano.js'
@@ -19,14 +19,12 @@ const caja = (x, y, ancho = 0, alto = 0) => ({ x, y, ancho, alto })
 
 // ------------------------------------------------------------------ imán (7.3)
 
-test('las constantes son las de la dirección: imán de 20, hombros de 16, esperas de 180 y 650 ms, golpe cada 90 s', () => {
+test('las constantes son las de la dirección: imán de 20, hombros de 16, golpe cada 90 s', () => {
   assert.deepEqual(BORDES, ['arriba', 'derecha', 'abajo', 'izquierda'])
   assert.equal(IMAN, 20)
   assert.equal(HOMBRO, 16)
   assert.equal(LUZ, 12)
   assert.equal(MARGEN_PANEL, 8)
-  assert.equal(ESPERA_ABRIR, 180)
-  assert.equal(ESPERA_CERRAR, 650)
   assert.equal(CADA_GOLPE, 90000)
   assert.ok(HOLGURA >= 8, 'la ventana deja lugar al golpe (6 px) y al hover (2 px)')
   assert.ok(esHorizontal('arriba') && esHorizontal('abajo') && !esHorizontal('derecha') && !esHorizontal('izquierda'))
@@ -432,51 +430,19 @@ test('adentro de la muesca: armazón decorativo con #muesca-avi, dos manos, glob
 
 const correr = (eventos, desde = ESTADO_INICIAL) => eventos.reduce((e, ev) => siguiente(e, typeof ev === 'string' ? { tipo: ev } : ev), desde)
 
-test('mouse encima: espera 180 ms y abre sin tomar el foco', () => {
-  const e = correr(['entra'])
-  assert.equal(e.abierta, false)
-  assert.deepEqual(e.espera, { que: 'abrir', ms: ESPERA_ABRIR })
-  const abierta = siguiente(e, { tipo: 'tiempo', que: 'abrir' })
-  assert.equal(abierta.abierta, true)
-  assert.equal(abierta.efecto, 'abrir')
-  assert.equal(abierta.foco, null)
-})
-
-test('el mouse sale antes de los 180 ms: no abre', () => {
-  const e = correr(['entra', 'sale'])
-  assert.equal(e.espera, null)
-  assert.equal(siguiente(e, { tipo: 'tiempo', que: 'abrir' }).abierta, false)
-})
-
-test('mouse afuera 650 ms cierra; si vuelve antes, se cancela', () => {
-  const abierta = correr(['entra', { tipo: 'tiempo', que: 'abrir' }])
-  const saliendo = siguiente(abierta, { tipo: 'sale' })
-  assert.deepEqual(saliendo.espera, { que: 'cerrar', ms: ESPERA_CERRAR })
-  const cerrada = siguiente(saliendo, { tipo: 'tiempo', que: 'cerrar' })
-  assert.equal(cerrada.abierta, false)
-  assert.equal(cerrada.efecto, 'cerrar')
-  const volvio = siguiente(saliendo, { tipo: 'entra' })
-  assert.equal(volvio.espera, null)
-  assert.equal(siguiente(volvio, { tipo: 'tiempo', que: 'cerrar' }).abierta, true)
-})
-
-test('después de cerrar no vuelve a abrir por hover hasta que el mouse salga una vez', () => {
-  const cerrada = correr(['entra', { tipo: 'tiempo', que: 'abrir' }, 'sale', { tipo: 'tiempo', que: 'cerrar' }])
-  const otraVez = siguiente(cerrada, { tipo: 'entra' })
-  assert.equal(otraVez.espera, null)
-  const armada = correr(['sale', 'entra'], cerrada)
-  assert.deepEqual(armada.espera, { que: 'abrir', ms: ESPERA_ABRIR })
-})
-
-test('"Mantener abierta": el mouse afuera no cierra', () => {
-  const fija = correr(['entra', { tipo: 'tiempo', que: 'abrir' }, 'fijar', 'sale'])
-  assert.equal(fija.fija, true)
-  assert.equal(fija.espera, null)
-  assert.equal(fija.abierta, true)
-  // Al soltarla con el mouse afuera, vuelve a cerrar a los 650 ms
-  const suelta = siguiente(fija, { tipo: 'fijar' })
-  assert.equal(suelta.fija, false)
-  assert.deepEqual(suelta.espera, { que: 'cerrar', ms: ESPERA_CERRAR })
+test('el mouse entra y sale de la muesca: no abre ni cierra (#21)', () => {
+  // Cerrada, pasar el mouse no abre (solo el Avi reacciona, fuera de este estado)
+  for (const tipo of ['entra', 'sale']) {
+    const e = siguiente(ESTADO_INICIAL, { tipo })
+    assert.equal(e.abierta, false, tipo)
+    assert.equal(e.efecto, null, tipo)
+  }
+  // Abierta, sacar el mouse ya no la cierra
+  const abierta = siguiente(ESTADO_INICIAL, { tipo: 'clic' })
+  const salio = correr(['sale', 'entra', 'sale'], abierta)
+  assert.equal(salio.abierta, true)
+  assert.equal(salio.efecto, null)
+  assert.equal('espera' in salio, false, 'sin esperas programadas: nada abre ni cierra solo')
 })
 
 test('clic, Enter o Espacio sobre la muesca: abre y lleva el foco al proyecto activo', () => {
@@ -495,8 +461,50 @@ test('Esc cierra aunque esté fijada, la desfija y devuelve el foco a la muesca'
   assert.equal(otra.efecto, null)
 })
 
+test('"Mostrar Avis" o el asistente con el panel ya abierto: no lo cierran, llevan el foco al proyecto', () => {
+  const e = correr(['clic', 'clic'])
+  assert.equal(e.abierta, true)
+  assert.equal(e.efecto, null)
+  assert.equal(e.foco, 'proyecto')
+})
+
+test('otro clic en la muesca (o Enter/Espacio) la cierra; cerrada, la abre como el clic (#21)', () => {
+  const abierta = siguiente(ESTADO_INICIAL, { tipo: 'alternar' })
+  assert.deepEqual({ abierta: abierta.abierta, efecto: abierta.efecto, foco: abierta.foco }, { abierta: true, efecto: 'abrir', foco: 'proyecto' })
+  const cerrada = siguiente(abierta, { tipo: 'alternar' })
+  assert.deepEqual({ abierta: cerrada.abierta, efecto: cerrada.efecto, foco: cerrada.foco }, { abierta: false, efecto: 'cerrar', foco: 'muesca' })
+})
+
+test('clic afuera o la ventana pierde el foco: cierra sin mover el foco (#21)', () => {
+  const abierta = siguiente(ESTADO_INICIAL, { tipo: 'clic' })
+  const e = siguiente(abierta, { tipo: 'afuera' })
+  assert.deepEqual({ abierta: e.abierta, fija: e.fija, efecto: e.efecto, foco: e.foco }, { abierta: false, fija: false, efecto: 'cerrar', foco: null })
+  // Cerrada, un clic afuera no hace nada
+  const otra = siguiente(e, { tipo: 'afuera' })
+  assert.equal(otra.abierta, false)
+  assert.equal(otra.efecto, null)
+})
+
+test('"Mantener abierta": un clic afuera no la cierra; Esc sí (#21)', () => {
+  const fija = correr(['clic', 'fijar', 'afuera', 'sale'])
+  assert.equal(fija.fija, true)
+  assert.equal(fija.abierta, true)
+  assert.equal(fija.efecto, null)
+  const esc = siguiente(fija, { tipo: 'esc' })
+  assert.equal(esc.abierta, false)
+  assert.equal(esc.fija, false)
+})
+
+test('"Mantener abierta" con la muesca cerrada la abre; soltarla no la cierra hasta un clic afuera', () => {
+  const fija = siguiente(ESTADO_INICIAL, { tipo: 'fijar' })
+  assert.deepEqual({ abierta: fija.abierta, fija: fija.fija, efecto: fija.efecto }, { abierta: true, fija: true, efecto: 'abrir' })
+  const suelta = siguiente(fija, { tipo: 'fijar' })
+  assert.deepEqual({ abierta: suelta.abierta, fija: suelta.fija, efecto: suelta.efecto }, { abierta: true, fija: false, efecto: null })
+  assert.equal(siguiente(suelta, { tipo: 'afuera' }).abierta, false)
+})
+
 test('el golpe o cualquier otro evento no abre ni cierra la muesca', () => {
-  for (const tipo of ['golpe', 'luz', 'pregunta', 'nada']) {
+  for (const tipo of ['golpe', 'luz', 'pregunta', 'tiempo', 'nada']) {
     const e = siguiente(ESTADO_INICIAL, { tipo })
     assert.equal(e.abierta, false, tipo)
     assert.equal(e.efecto, null, tipo)
@@ -525,47 +533,6 @@ test('dentroDe: el puntero dentro de un rectángulo (borde derecho y de abajo af
   assert.equal(dentroDe({ x: 109, y: 49 }, r), true)
   assert.equal(dentroDe({ x: 110, y: 20 }, r), false)
   assert.equal(dentroDe(null, r), false)
-})
-
-// ------------------------------------------------------------------ avisos del sondeo (9.6)
-
-test('aviso del sondeo: el puntero ya sobre la muesca al arrancar abre con el primer aviso', () => {
-  // Sin evento previo del DOM: el primer aviso "adentro" es una entrada y el hover programa abrir
-  assert.equal(eventoZona(ESTADO_INICIAL, true), 'entra')
-  const e = siguiente(ESTADO_INICIAL, { tipo: eventoZona(ESTADO_INICIAL, true) })
-  assert.deepEqual(e.espera, { que: 'abrir', ms: ESPERA_ABRIR })
-})
-
-test('aviso del sondeo: lo que la muesca ya sabe no se repite (DOM y Rust avisan lo mismo)', () => {
-  const adentro = siguiente(ESTADO_INICIAL, { tipo: 'entra' })
-  assert.equal(eventoZona(adentro, true), null)
-  const afuera = siguiente(adentro, { tipo: 'sale' })
-  assert.equal(eventoZona(afuera, false), null)
-  // Abierta y saliendo: un segundo "afuera" no reinicia la espera de cerrar
-  const abierta = { ...siguiente(ESTADO_INICIAL, { tipo: 'clic' }), dentro: false }
-  const saliendo = siguiente(abierta, { tipo: 'sale' })
-  assert.equal(eventoZona(saliendo, false), null)
-})
-
-test('aviso del sondeo: tras reacoplar sin armar, "afuera" vuelve a armar el hover en un solo paso', () => {
-  // acoplarA deja la muesca sin armar; el puntero está lejos: el aviso afuera la arma, y la primera
-  // entrada ya abre (antes hacían falta dos)
-  const reacoplada = { ...ESTADO_INICIAL, armado: false }
-  assert.equal(eventoZona(reacoplada, false), 'sale')
-  const armada = siguiente(reacoplada, { tipo: 'sale' })
-  assert.equal(armada.armado, true)
-  assert.deepEqual(siguiente(armada, { tipo: eventoZona(armada, true) }).espera, { que: 'abrir', ms: ESPERA_ABRIR })
-  // Con el puntero encima al reacoplar (soltó la muesca ahí), no abre sola: hay que salir una vez
-  const encima = siguiente(reacoplada, { tipo: eventoZona(reacoplada, true) })
-  assert.equal(encima.espera, null)
-  assert.equal(encima.abierta, false)
-})
-
-test('aviso del sondeo: después de Esc no reabre con el puntero encima, y salir la vuelve a armar', () => {
-  const abierta = siguiente(siguiente(ESTADO_INICIAL, { tipo: 'entra' }), { tipo: 'clic' })
-  const cerrada = siguiente(abierta, { tipo: 'esc' })
-  assert.equal(eventoZona(cerrada, true), null)
-  assert.equal(siguiente(cerrada, { tipo: eventoZona(cerrada, false) }).armado, true)
 })
 
 // ------------------------------------------------------------------ redimensionar sin parpadeo (9.6)

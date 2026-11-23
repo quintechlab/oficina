@@ -27,7 +27,7 @@ import { montarMarca } from './marcaMotion.js'
 import {
   esHorizontal, bordeCercano, lugarDe, lugarAjustado, disposicionAcoplada, zonaInteractiva, recorte, cajaArrastre,
   posicionFlotante, dentroDe, ventanaDeArea, mismoRect, relativo, estadoMuesca, contenidoMuesca, contenidoPildora, ESTADO_INICIAL, siguiente, tocaGolpe, PILDORA,
-  eventoZona, planVentana, tamMuescaDe, figuraMuesca, disposicionFlotante, disposicionTira, plegadoHacia, anclaHacia, fueraDelBorde, centroDe,
+  planVentana, tamMuescaDe, figuraMuesca, disposicionFlotante, disposicionTira, plegadoHacia, anclaHacia, fueraDelBorde, centroDe,
 } from './muesca.js'
 import * as movimientoMuesca from './muescaMotion.js'
 import {
@@ -1375,7 +1375,7 @@ function ponerArriba(valor) {
 function pintarControles() {
   const pin = $('#marco [data-accion="pin"]')
   const cerrar = $('#marco [data-accion="cerrar"]')
-  const textoPin = st.acople ? (st.muesca.fija ? 'Soltar: se pliega sola' : 'Mantener abierta') : 'Siempre arriba'
+  const textoPin = st.acople ? (st.muesca.fija ? 'Soltar: se pliega con un clic afuera' : 'Mantener abierta') : 'Siempre arriba'
   pin.setAttribute('aria-pressed', String(st.acople ? st.muesca.fija : st.arriba))
   pin.setAttribute('aria-label', textoPin)
   // Fijada por el código de GitHub (bienvenida-ux.md 5.2): se ve como "Mantener abierta" marcado
@@ -1818,7 +1818,8 @@ async function enviarZona(forzar = false) {
 
 /**
  * El puntero entró o salió de la zona interactiva (aviso del sondeo de Rust, o el DOM cuando lo ve
- * antes): el hover abre a los 180 ms y la salida cierra a los 650 ms, salvo fijada (7.2).
+ * antes). Solo lo usan los Avis para mirar y reaccionar: el hover no abre la muesca ni la salida la
+ * cierra (#21); abre el clic y cierran el clic afuera, Esc o la ×.
  */
 function ponerDentro(dentro) {
   st.dentroZona = dentro
@@ -1826,11 +1827,6 @@ function ponerDentro(dentro) {
   // Flotando, fuera del tablero los clics pasan y el WebView no ve salir al puntero: la marca lo
   // sabe por acá y mira hacia donde salió, como al salir de la ventana chica de antes
   if (!st.acople) marca.zona(dentro)
-  // `st.ventana`: la muesca ya está en su borde (al arrancar, la ventana todavía está en otro lado)
-  if (!st.acople || st.arrastre || !st.ventana) return
-  // Decide lo que la muesca todavía no sabe: Rust repite el estado real con cada zona nueva
-  const tipo = eventoZona(st.muesca, dentro)
-  if (tipo) evento({ tipo })
 }
 
 /**
@@ -1851,11 +1847,9 @@ function aplicarModo() {
   verAvis()
 }
 
-let relojMuesca = null
-
 /**
- * Un evento de la muesca (`siguiente`, muesca.js): programa la espera que pida, anima si cambia
- * abierta o cerrada y deja el foco donde corresponde.
+ * Un evento de la muesca (`siguiente`, muesca.js): anima si cambia abierta o cerrada y deja el foco
+ * donde corresponde.
  */
 function evento(ev) {
   const antes = st.muesca
@@ -1863,13 +1857,6 @@ function evento(ev) {
   st.muesca = e
   // Mientras el código de GitHub retiene el panel, un cambio de la marca es del usuario (alfiler o Esc)
   if (st.pp.retuvo && e.fija !== antes.fija) st.pp.fijaTocada = true
-  if (e.espera !== antes.espera) {
-    clearTimeout(relojMuesca)
-    if (e.espera) {
-      const { que, ms } = e.espera
-      relojMuesca = setTimeout(() => evento({ tipo: 'tiempo', que }), ms)
-    }
-  }
   if (e.foco) st.focoPendiente = e.foco
   pintarControles()
   if (e.efecto) sincronizar()
@@ -1951,10 +1938,8 @@ async function animarCierre() {
   colocar(d)
   // Recién visto: el próximo golpe, dentro de 90 s si la pregunta sigue
   if (st.golpe.vistas.size) st.golpe.ultimo = Date.now()
-  // La zona vuelve a ser la muesca: si el puntero no está en ella, el hover vuelve a abrir (7.2)
-  const dentro = await enviarZona(true)
-  const fuera = dentro === null ? !st.dentroZona : !dentro
-  if (fuera && !st.muesca.abierta) st.muesca = siguiente(st.muesca, { tipo: 'sale' })
+  // La zona vuelve a ser la muesca
+  await enviarZona(true)
 }
 
 /**
@@ -1983,7 +1968,6 @@ async function transicion(fn) {
  */
 async function acoplarA(borde, { lugar, puntero } = {}) {
   if (!tauri?.core || st.arrastre || st.transicion) return
-  clearTimeout(relojMuesca)
   try {
     const g = await invocar('geometria')
     // Si la ventana todavía no es el área de su monitor, primero eso (una vez, velado)
@@ -2000,7 +1984,7 @@ async function acoplarA(borde, { lugar, puntero } = {}) {
 /** Cerrada al instante de la pregunta del usuario: la isla se cierra antes de cambiar de forma. */
 async function cerrarAntes() {
   if (!st.vista) return
-  st.muesca = { ...ESTADO_INICIAL, armado: false }
+  st.muesca = { ...ESTADO_INICIAL }
   pintarControles()
   await animarCierre()
 }
@@ -2037,7 +2021,7 @@ async function acoplarABorde(borde, lugar, area) {
       invocar('modo_mini', { mini: false }).catch(() => {})
     }
     st.acople = acople
-    st.muesca = { ...ESTADO_INICIAL, armado: false }
+    st.muesca = { ...ESTADO_INICIAL }
     aplicarModo()
     colocar(disposicion(area))
     soltar()
@@ -2110,10 +2094,21 @@ $('#marco').addEventListener('pointerenter', e => {
 document.documentElement.addEventListener('pointerleave', e => {
   if (e.pointerType === 'mouse') ponerDentro(false)
 })
-// Clic, Enter o Espacio: abre y lleva el foco al proyecto activo
+// Clic, Enter o Espacio: abre y lleva el foco al proyecto activo; abierta, la cierra (#21)
 muescaEl.addEventListener('click', () => {
   if (justoArrastro || !st.acople) return
-  evento({ tipo: 'clic' })
+  evento({ tipo: 'alternar' })
+})
+// Clic afuera (#21): acoplada, fuera del tablero los clics pasan de largo a la app de abajo y el
+// WebView no los ve, pero esa app toma el foco y la ventana lo pierde (`blur`). Un clic que sí cae
+// en la ventana fuera del panel (antes de que el sondeo apague la zona, o en dev/vista.html) cierra
+// igual. Fijada ("Mantener abierta") no cierra.
+window.addEventListener('blur', () => {
+  if (st.acople && st.muesca.abierta && !st.arrastre) evento({ tipo: 'afuera' })
+})
+document.addEventListener('pointerdown', e => {
+  if (!st.acople || !st.muesca.abierta || st.arrastre || e.target.closest?.('#marco, #muesca')) return
+  evento({ tipo: 'afuera' })
 })
 
 // ---- arrastre propio e imán (7.3 y 9.3). El umbral (UMBRAL_ARRASTRE, 4 px) vive en logica.js
@@ -2180,10 +2175,9 @@ function empezarArrastre(a, e) {
   a.activo = true
   document.body.setPointerCapture?.(e.pointerId)
   document.body.classList.add('arrastrando')
-  clearTimeout(relojMuesca)
   if (a.origen === 'muesca') {
     // Abierta, se pliega al instante: lo que se arrastra es la muesca
-    st.muesca = { ...ESTADO_INICIAL, armado: false }
+    st.muesca = { ...ESTADO_INICIAL }
     st.vista = false
     document.body.classList.remove('abierta', 'desplegada', 'abriendo', 'muesca-oculta')
     $('#marco').style.clipPath = ''
@@ -2628,8 +2622,7 @@ function retenerPanel(modelo, forma) {
     pp.retuvo = true
     pp.fijaAntes = st.muesca.fija
     pp.fijaTocada = false
-    if (st.muesca.espera?.que === 'cerrar') clearTimeout(relojMuesca)
-    st.muesca = { ...st.muesca, fija: true, espera: st.muesca.espera?.que === 'cerrar' ? null : st.muesca.espera }
+    st.muesca = { ...st.muesca, fija: true }
     pintarControles()
   } else if (!retener && pp.retuvo) {
     pp.retuvo = false
