@@ -23,6 +23,19 @@ export function zoomDe(porcentaje) {
   return PASOS.includes(porcentaje) ? porcentaje / 100 : 1
 }
 
+/**
+ * El paso que se aplica de verdad: el más grande, sin pasar del `elegido`, con el que el panel
+ * (`anchoCss`, su ancho en px CSS, sin zoom) entra en el 90 % del área (`anchoArea`, px de pantalla),
+ * el mismo tope que `tamanoDeseado`. Si ni el 100 % entra, queda el 100 %. La preferencia guardada
+ * no cambia: en un monitor más ancho vuelve el elegido. Sin medida, o con un paso raro, el elegido.
+ */
+export function pasoQueEntra(elegido, anchoCss, anchoArea) {
+  if (!PASOS.includes(elegido) || !(anchoCss > 0) || !(anchoArea > 0)) return elegido
+  const libre = Math.floor(anchoArea * FRACCION_MAXIMA)
+  const candidatos = PASOS.filter(p => p <= elegido).reverse()
+  return candidatos.find(p => Math.ceil((anchoCss * p) / 100) <= libre) ?? PASOS[0]
+}
+
 /** Ctrl + agranda (1), Ctrl − achica (-1), Ctrl 0 vuelve a 100 % (0); cualquier otra tecla, null. */
 export function direccionDeTecla(e) {
   if (!e.ctrlKey) return null
