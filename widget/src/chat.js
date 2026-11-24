@@ -28,17 +28,35 @@ export function ladoHoja(tablero, area, modo, borde, z = 1) {
   return derecha ? 'derecha' : izquierda ? 'izquierda' : 'encima'
 }
 
+/** Por debajo de este ancho (px CSS al 100 %), la hoja `'encima'` tapa también la barra lateral (18, B2). */
+export const ANCHO_MIN_HOJA = 320
+/** Con la hoja más baja que esto (px CSS), el escenario se compacta para que se lea la charla (18, B1). */
+export const ALTO_HOJA_BAJA = 520
+
 /**
  * El rectángulo de la hoja (px de pantalla): 420·z de ancho, a 14·z del tablero, con su misma `y` y
  * su mismo alto. `'encima'` tapa la columna principal: desde la barra lateral (`barra`, su ancho en
- * px de pantalla) hasta el borde derecho del tablero.
+ * px de pantalla) hasta el borde derecho del tablero; si eso deja menos de 320·z, tapa el tablero entero.
  */
 export function rectHoja(tablero, lado, z = 1, barra = 0) {
   const ancho = Math.round(ANCHO_HOJA * z), hueco = Math.round(HUECO_HOJA * z)
   const { y, alto } = tablero
   if (lado === 'izquierda') return { x: tablero.x - hueco - ancho, y, ancho, alto }
-  if (lado === 'encima') return { x: tablero.x + barra, y, ancho: tablero.ancho - barra, alto }
+  if (lado === 'encima') {
+    if (tablero.ancho - barra < ANCHO_MIN_HOJA * z) return { x: tablero.x, y, ancho: tablero.ancho, alto }
+    return { x: tablero.x + barra, y, ancho: tablero.ancho - barra, alto }
+  }
   return { x: tablero.x + tablero.ancho + hueco, y, ancho, alto }
+}
+
+/** ¿La hoja es baja? `alto` en px CSS (sin el zoom). */
+export const hojaBaja = alto => alto < ALTO_HOJA_BAJA
+
+/** El anuncio de los archivos de una misma soltada (12, uno solo por cambio). */
+export function anuncioAdjuntos(nombres) {
+  if (nombres.length <= 1) return `Adjuntaste ${nombres[0] ?? ''}`.trim()
+  const lista = `${nombres.slice(0, -1).join(', ')} y ${nombres.at(-1)}`
+  return nombres.length === 2 ? `Adjuntaste ${lista}` : `Adjuntaste ${nombres.length} archivos: ${lista}`
 }
 
 // ------------------------------------------------------------------ estado (3.3)
@@ -767,7 +785,7 @@ function conAdjunto(c, ev) {
   const a = { ruta, nombre, tipo: v.tipo, bytes: Number(r.bytes), paginas: Number.isFinite(r.paginas) ? r.paginas : null }
   return {
     chat: { ...c, adjuntos: [...c.adjuntos, a], errorAdjunto: null },
-    efectos: [{ tipo: 'anunciar', texto: `Adjuntaste ${nombre}` }, { tipo: 'chip', ruta, desdeCapa: !!ev.desdeCapa }],
+    efectos: [{ tipo: 'anunciar', texto: `Adjuntaste ${nombre}`, adjunto: nombre }, { tipo: 'chip', ruta, desdeCapa: !!ev.desdeCapa }],
   }
 }
 

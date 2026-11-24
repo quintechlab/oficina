@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
-  ANCHO_HOJA, HUECO_HOJA, ladoHoja, rectHoja, chatInicial, transicionChat, pasoEspera, relojEspera, markdownSeguro,
+  ANCHO_HOJA, HUECO_HOJA, ladoHoja, rectHoja, hojaBaja, anuncioAdjuntos,chatInicial, transicionChat, pasoEspera, relojEspera, markdownSeguro,
   partirBloques, textoHerramientas, grupoDeFecha, tituloConversacion, sugerencias, validarAdjunto, coincideBusqueda,
   animoChat, datosAvis, firmaDatos, cifrasDescarga, formatoGB, duracionContando, contarPalabras, actividadParaAvis,
   ACTIVIDAD_QUIETA, TOPES_DATOS, formatoReloj, nombreCarpeta, listaCharlas, mensajesVisibles, TARDA_MS, SIN_NOTICIAS_MS,
@@ -56,6 +56,28 @@ test('rectHoja: 420·z de ancho, 14·z de hueco, la misma y y el mismo alto que 
   assert.deepEqual(rectHoja(TABLERO, 'derecha', 2), { x: 1318, y: 200, ancho: 840, alto: 640 })
   // Encima: tapa la columna principal desde la barra lateral
   assert.deepEqual(rectHoja(TABLERO, 'encima', 1, 200), { x: 800, y: 200, ancho: 490, alto: 640 })
+})
+
+test('rectHoja encima: si la columna deja menos de 320·z, tapa el tablero entero con la barra (18, B2)', () => {
+  const angosto = { x: 0, y: 0, ancho: 320, alto: 700 }
+  assert.deepEqual(rectHoja(angosto, 'encima', 1, 188), { x: 0, y: 0, ancho: 320, alto: 700 })
+  // Justo 320 de columna: sigue dejando la barra a la vista
+  assert.deepEqual(rectHoja({ ...angosto, ancho: 508 }, 'encima', 1, 188), { x: 188, y: 0, ancho: 320, alto: 700 })
+  // Al 200 %, el mínimo es 640 px de pantalla
+  assert.deepEqual(rectHoja({ ...angosto, ancho: 1000 }, 'encima', 2, 376), { x: 0, y: 0, ancho: 1000, alto: 700 })
+})
+
+test('hojaBaja: menos de 520 px CSS de alto compacta el escenario (18, B1)', () => {
+  assert.equal(hojaBaja(328), true)
+  assert.equal(hojaBaja(519), true)
+  assert.equal(hojaBaja(520), false)
+  assert.equal(hojaBaja(640), false)
+})
+
+test('anuncioAdjuntos: un solo anuncio por soltada (18, M3)', () => {
+  assert.equal(anuncioAdjuntos(['notas.md']), 'Adjuntaste notas.md')
+  assert.equal(anuncioAdjuntos(['presupuesto-2027.pdf', 'notas.md']), 'Adjuntaste presupuesto-2027.pdf y notas.md')
+  assert.equal(anuncioAdjuntos(['a.pdf', 'b.md', 'c.txt']), 'Adjuntaste 3 archivos: a.pdf, b.md y c.txt')
 })
 
 // ------------------------------------------------------------------ 3: zona interactiva

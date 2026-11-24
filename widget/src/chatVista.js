@@ -125,7 +125,7 @@ function tarjetaError(e = { motivo: 'otro' }, cerrar = 'ch-descartar') {
   const t = textoError(e.motivo, e.detalle)
   const titulo = e.motivo === 'otro' && e.detalle ? ` title="${escapar(e.detalle)}"` : ''
   const acciones = t.acciones.map(([a, texto], k) => boton(a, escapar(texto), { primario: k === 0 }))
-  if (!t.acciones.length) acciones.push(boton(cerrar, 'Cerrar'))
+  if (!t.acciones.length) acciones.push(boton(cerrar, 'Cerrar el aviso'))
   return `<div class="err" role="alert"${titulo}><b>${ICONOS.nube}${escapar(t.titulo)}</b>${t.cuerpo ? `<p>${conCodigo(t.cuerpo)}</p>` : ''}<div class="acc">${acciones.join('')}</div></div>`
 }
 
@@ -172,7 +172,7 @@ function espera(m) {
     ? ['Despertando el modelo de esta PC', 'Leyendo tus sesiones de Avis', 'Pensando la respuesta']
     : [`Abriendo Claude Code en ${nombreCarpeta(carpetaDe(m))}`, 'Mandando tu pregunta', 'Pensando la respuesta']
   const r = relojEspera(c.desdeMs ?? m.ahoraMs, c.ultimoMs, m.ahoraMs)
-  const paso = (t, i) => `<div class="paso${i < c.paso ? ' hecho' : i === c.paso ? ' ahora' : ''}"><i aria-hidden="true"></i>${escapar(t)}</div>`
+  const paso = (t, i) => `<div class="paso${i < c.paso ? ' listo' :i === c.paso ? ' ahora' : ''}"><i aria-hidden="true"></i>${escapar(t)}</div>`
   const nota = r.tarda ? 'Está tardando más de lo normal. Podés esperar o frenar' : 'La primera respuesta tarda unos segundos. Las que siguen, menos.'
   return `<div class="espera"><div class="arr"><b>${escapar(nombreDe(m))} está despertando a ${local ? 'su modelo' : 'Claude'}</b><span class="reloj" data-reloj>${r.reloj}</span></div>`
     + `<div class="barra-ind" aria-hidden="true"></div>${pasos.map(paso).join('')}<small>${nota}</small></div>`

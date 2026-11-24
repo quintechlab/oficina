@@ -708,3 +708,65 @@ Las tomaron el orquestador o la diseñadora, porque el usuario pidió avanzar si
   - **Una charla que ya no entra** (llama-server responde 400 `exceed_context_size_error`, medido) es el error `local` con "La charla ya no entra en el modelo de esta PC: empezá una charla nueva". Con el recorte no debería pasar; es la red por si la estimación de 3,5 se queda corta.
   - **Un turno local por vez en toda la app:** si queda corriendo el de otra charla (se cambió de charla con un turno en curso), se frena, porque llama-server atiende uno por vez (`-np 1`) y el nuevo esperaría.
   - **Una charla local se guarda sin `sesionClaude`**, aunque `chat_abrir` devuelva un id.
+
+## 18. Revisión visual (24/11/2026)
+
+Delfina, sobre `widget/dev/vista.html` (rama `feat/22-chat`, sin commit nuevo), con Playwright (Chromium) a 1440 × 900, 768 × 1024 y 375 × 812, más 1024 × 768 al 200 % (`&zoom=200`, la misma altura que una pantalla de 1366 × 768, el caso que nombra D1). Se midió con `getComputedStyle` y `getBoundingClientRect` dentro del iframe; las capturas quedaron fuera del repositorio (`%TEMP%\delfina-chat22`). Sin errores en la consola en ningún estado.
+
+**Resultado: 3 bloquean · 3 mejoras · 5 detalles.**
+
+### 18.1 Bloquean
+
+| # | Estado y ancho | Qué se ve | Qué dice la dirección | Dónde, probable |
+|---|---|---|---|---|
+| B1 | `?chat=vacio&zoom=200`, 1024 × 768 (lado `encima`) | La hoja mide 255 × 328 px CSS: el escenario se queda con 172, la cabecera con 44 y el composer con 101, así que el hilo queda en **14 px** y no se lee ninguna línea de la charla. El pie del composer se sale 15 px por abajo y queda cortado ("Shift+Enter, línea…"), y "Claude Code" del motor se parte en dos líneas. A 1440 × 900 al 200 % el hilo tiene unos 65 px y la bienvenida arranca desplazada al final, con el saludo fuera de la vista. | 3.1 D1: `encima` es justamente el caso "200 % en pantallas de 1366 o menos". La acción principal (1) es leer y escribir; 5.1 fija el escenario en 172 sin prever poco alto. **La dirección no diseñó este caso:** vuelve a diseño. Propuesta: con la hoja de menos de ~520 px CSS de alto, un escenario compacto (Avi de 56, sin el piso, nombre y estado en una línea, unos 84 px) y el pie del composer en una sola línea, recortada con elipsis. | `estilos.css:967` (`#hoja .escenario`, alto fijo) · `chat.js:40` (`rectHoja`, alto = tablero) |
+| B2 | `?chat=vacio`, 375 × 812 (lado `encima`) | La hoja mide **132 px** de ancho (de la barra lateral al borde del tablero). Adentro, el campo mide 245, así que Enviar queda fuera de la hoja y de la pantalla (x = 424, con un ancho de 375), el motor se corta y el hilo tiene scroll horizontal. Solo Enter sirve para mandar. | 3.1 D1: `encima` supone que la columna tiene lugar; 5.1 y 5.5 no fijan un mínimo. **Caso sin diseñar.** Propuesta: si la columna mide menos de 320·z, la hoja tapa todo el tablero (con la barra incluida) y la × sigue siendo la salida. | `chat.js:40` (`rectHoja` con `encima`) |
+| B3 | `?chat=error-red`, 1440 | "No se envió" (rojo, mono 10) dentro de `.m-u.fallido`, que lleva `opacity: .7` en todo el globo: el rojo queda en **3,78:1** sobre el fondo del globo (calculado: rojo al 70 % sobre `--s3` al 70 % sobre negro). | 12 y 5.2: contraste de 4,5:1 como mínimo; "No se envió" es el único texto que dice que el mensaje no salió (12, el color nunca solo). | `estilos.css:1015` (opacidad del globo) y `:1016` (`.tag-no`). Bajar la opacidad solo del texto del mensaje, no de la etiqueta. |
+
+### 18.2 Mejoras
+
+| # | Estado y ancho | Qué se ve | Qué dice la dirección | Dónde, probable |
+|---|---|---|---|---|
+| M1 | `?chat=esperando`, todos | Los pasos hechos ("Abriendo Claude Code en catalogo", "Mandando tu pregunta") se ven como **píldoras con borde verde y fondo `--s1`**, parecidas a botones o a las sugerencias, y entran con `sube`. Es el `.hecho` global (la píldora "respondida" de la pregunta, 4.5.10 de estilo-avis) que se cuela en `#hoja .paso.hecho`. Es el mismo tipo de choque que el `@keyframes late` de E3. | 5.1: el paso hecho es texto `--crema2` con el punto `--verde`, sin caja (como el boceto). | `estilos.css:434` choca con `:1055`. Renombrar la clase del paso (por ejemplo `.paso.listo`) o anular borde, fondo, relleno y animación en `#hoja .paso.hecho`; sumar el nombre al test que prohíbe nombres repetidos. |
+| M2 | `?chat=listo`, todos | "Copiar" (respuesta) y "Copiar" (código) miden **52 × 24**. | 12 (D31): objetivos de 32 × 32 como mínimo. El boceto los dibuja de 24 (`chat-avis.html:151` y `:160`): **la dirección se contradice**; manda la 12. | `estilos.css:1030` y `:1038` (`height: 24px` → `min-height: 32px`, o un área de clic de 32 con el mismo dibujo) |
+| M3 | `?chat=adjuntos`, todos | Se sueltan dos archivos y el anuncio dice solo "Adjuntaste notas.md": el del PDF se pisa. | 12: un anuncio por cambio, y soltar dos archivos es un solo cambio. Propuesta: "Adjuntaste presupuesto-2027.pdf y notas.md" (o "Adjuntaste 2 archivos: …"). | `chat.js:770` (un `anunciar` por archivo; juntarlos por soltada) |
+
+### 18.3 Detalles
+
+- **D-a** · `?chat=listo`, 768 (`encima`): el pie de la barra lateral ("actualizado 09:39 · cada 1,5 s") queda cortado por el borde izquierdo de la hoja. 3.1 pide que la barra siga a la vista. `estilos.css` (pie de la barra: elipsis o salto de línea con la hoja `encima`).
+- **D-b** · `?chat=error-adjunto`: el único botón de la tarjeta se llama "Cerrar", igual que el comienzo de "Cerrar la charla". 12 nombra cada control; propuesta "Cerrar el aviso". `chatVista.js:128`.
+- **D-c** · `?chat=historial`, 1440: si el cajón se abre mientras dura el vuelo de apertura (6.1), el clon `.vuela` pasa por encima del cajón y del velo hasta aterrizar. Pasa en la vista porque `falso.js` abre el cajón temprano; un usuario rápido también llega (Historial ya está a la vista a los 600 ms). `chatMotion.js` (terminar el vuelo, o subir el cajón por encima del clon, al abrir el historial).
+- **D-d** · Motor, todos: los botones miden 26 px de alto, como pide 5.1, pero 12 (D31) pide 32 como mínimo. **Contradicción de la dirección**; la decide el usuario (una píldora de 40 con botones de 32 es la salida fácil).
+- **D-e** · `?chat=listo`, todos: el scroll del hilo es fino (`scrollbar-width: thin`, `--linea-hover`), pero Chromium igual dibuja las flechas de arriba y abajo. 5.1 dice "scroll fino"; se acepta como está o se pule aparte.
+
+### 18.4 Lo que cumple (medido)
+
+- **Hoja (5.1):** 420 × 640, a 14 del tablero, radio 26, fondo `--negro` y las tres sombras; escenario de 172 con el brillo de `--c` al 22 % y el piso a 118; nombre `800 16px` y estado mono `--crema2`; carpeta de 32 con un ancho máximo de 180; campo `--s1` con el borde `--ambar` y el anillo al 14 % con foco; Enviar de 36, `--ambar` o `--s3`/`--tenue` sin texto; Frenar de 36 con borde rojo al 55 %; error con su borde y su fondo exactos; chip de adjunto `--s2`, radio 12, documento de 26 × 32 en mono 7; capa de soltar con 2 px punteados `--c` e `inset: 40px 0 0`; cajón de 300 con el velo al 55 %.
+- **Textos (4):** los de vacío, sugerencias (con carpeta y del motor local), espera, herramientas, listo, frenada, `red` (con la línea "Sin internet · el modelo local sigue andando"), local sin instalar y bajando (con `role=progressbar` y sus valores), historial y soltar coinciden con la tabla.
+- **Estados (3.3):** cada `?chat=` llega a su estado y su pose (`e-pensando`, `e-contando`, `e-error`, `e-leyendo`, `e-baja`); la chispa (8 px, 1,3 s) y el cursor solo en el turno en curso; la primera `.w` sigue en opacidad 1 mientras crece el texto y no quedan `.w` al terminar.
+- **Teclado y foco (3.5):** al abrir, el foco va al campo; al cerrar, a `#marca-boton` con `aria-expanded=false`; el orden de Tab es el de 3.5, con el motor como un solo tope (radio con `tabindex` móvil); Esc cierra el menú (el foco vuelve a la carpeta), cierra el cajón (vuelve a Historial), frena un turno (pasa a `frenada` y la hoja sigue abierta) y, en reposo, cierra la hoja. El cajón abierto con el teclado lleva el foco al buscador y lo atrapa. El borrador y el scroll sobreviven a cerrar y abrir.
+- **Accesibilidad (12):** los nombres de 12 están todos; `#chat-hilo` es `role=log`, `aria-live=off`, `tabindex=0`; `#anuncio-chat` es polite y dice "Avi está pensando", "Avi respondió: …" (140 caracteres) y "Respuesta frenada"; los errores llevan `role=alert`; la hoja no agrega encabezados; no hay enlaces ni imágenes en el Markdown y el HTML sale como texto.
+- **1440 y 768:** a 1440 la hoja va a la derecha; a 768 va `encima` (471 de ancho) y la barra sigue a la vista; no hay desborde horizontal.
+
+### 18.5 Sin verificar
+
+- **Movimiento reducido emulado:** esta sesión de Playwright no tiene `emulate_media`. Se revisó el código: todos los bucles y las entradas de la hoja están dentro de `prefers-reduced-motion: no-preference` (`estilos.css:1148`), el bloque `reduce` (`:1172`) deja los fundidos de 160 ms, y `chatMotion.js:24` elige el modo con `matchMedia`. La medición de E3 sigue siendo la referencia.
+- **Modo claro:** Avis es solo oscuro y la dirección no pide otro; no aplica.
+- Los 60 fps en WebView2, el vuelo en una pantalla real, plegar a la muesca y a la tira (no se repitió: E3 lo midió), el arrastre con el mouse y Engram siguen como dicen las entregas 3 a 5.
+- La vista tarda unos 4 a 5 s en abrir la hoja después de cargar (`falso.js`); en la app real no se midió.
+
+### 18.6 Correcciones (24/11/2026)
+
+Todas aplicadas en la rama, con las propuestas de 18.1 aprobadas por el usuario:
+
+- **B1:** con la hoja de menos de 520 px CSS de alto (`ALTO_HOJA_BAJA`, `hojaBaja` en `chat.js`), `#hoja.baja`: escenario de 84 con el Avi de 56, sin piso ni destello, y el nombre y el estado en una línea. Medido a 1024 × 768 al 200 %: el hilo pasa de 14 a unos 100 px y el pie del composer entra.
+- **B2:** con la hoja `encima`, si la columna deja menos de 320·z (`ANCHO_MIN_HOJA`), la hoja tapa el tablero entero (`rectHoja`). Medido a 375: la hoja mide 337, Enviar queda adentro y no hay scroll horizontal.
+- **B3:** la opacidad de .7 va solo al contenido del globo fallido; "No se envió" queda con opacidad 1.
+- **M1:** el paso hecho de la espera es `.paso.listo` (ya no choca con el `.hecho` global).
+- **M2 y D-d:** "Copiar" y los botones del motor conservan su dibujo (24 y 26), pero el área de clic es de 32 (`::after`).
+- **M3:** los archivos de una misma soltada se anuncian juntos (`anuncioAdjuntos`, con una espera de 300 ms en `main.js`).
+- **D-a:** `.pie-w` con margen a los dos lados y "cada 1,5 s" con espacios duros.
+- **D-b:** el botón del aviso de adjunto se llama "Cerrar el aviso".
+- **D-c:** abrir el historial a mitad del vuelo de apertura lo termina (`movimientoChat.detener()`).
+- **D-e:** el hilo usa `::-webkit-scrollbar` (6 px, sin flechas); `scrollbar-width` queda solo para navegadores sin él.
+- Además: el pie del composer va siempre en una línea, con elipsis.

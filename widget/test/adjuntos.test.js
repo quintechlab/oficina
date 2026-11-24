@@ -88,7 +88,7 @@ test('el clip y "Resumime un PDF" abren el selector de archivos; con el motor lo
 test('un adjunto que entra es un chip con su nombre, páginas y tamaño; se anuncia', () => {
   const r = adjunto(abierta(), RUTA, PDF, { desdeCapa: true })
   assert.deepEqual(r.chat.adjuntos, [{ ruta: RUTA, ...PDF }])
-  assert.deepEqual(r.efectos, [{ tipo: 'anunciar', texto: 'Adjuntaste presupuesto-2027.pdf' }, { tipo: 'chip', ruta: RUTA, desdeCapa: true }])
+  assert.deepEqual(r.efectos, [{ tipo: 'anunciar', texto: 'Adjuntaste presupuesto-2027.pdf', adjunto: 'presupuesto-2027.pdf' }, { tipo: 'chip', ruta: RUTA, desdeCapa: true }])
   const chips = composer(MODELO(r.chat)).adjuntos
   assert.match(chips, /presupuesto-2027\.pdf/)
   assert.match(chips, /14 páginas · 1,4 MB/)

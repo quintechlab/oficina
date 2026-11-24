@@ -42,7 +42,7 @@ import { esqueleto, rotulo, pestanas, indicePestana, escena as escenaPasos, pie 
 import * as movimientoPasos from './primerosPasosMotion.js'
 import {
   chatInicial, transicionChat, ocupado, datosAvis, relojEspera, tramoVivo, markdownSeguro, sugerencias, nombreCarpeta,
-  carpetasDeProyectos, ladoHoja, rectHoja, SALUDA_MS, FELIZ_MS, ADELANTO_PLIEGUE_MS, aArchivo, guardadosPendientes, GUARDAR_CADA_MS,
+  carpetasDeProyectos, ladoHoja, rectHoja, hojaBaja, anuncioAdjuntos, SALUDA_MS, FELIZ_MS, ADELANTO_PLIEGUE_MS, aArchivo, guardadosPendientes, GUARDAR_CADA_MS,
   sobreHoja, nombreArchivo, puedeVencer,
 } from './chat.js'
 import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, cajon, listaHistorial, capaSoltar, htmlPalabras, clipAdjuntar } from './chatVista.js'
@@ -486,7 +486,8 @@ function pintarPie() {
   pie.classList.toggle('error', !!st.error)
   if (st.error) { pie.textContent = st.error; return }
   const hora = st.actualizado ? st.actualizado.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—'
-  pie.textContent = `actualizado ${hora} · cada 1,5 s`
+  // Espacios duros: si no entra, "cada 1,5 s" baja entero a la línea siguiente
+  pie.textContent = `actualizado ${hora} · cada 1,5 s`
 }
 
 /** Tira mini: caras, resumen y cuenta de preguntas. */
@@ -1946,6 +1947,8 @@ function colocarHoja(d, poner) {
   d.local.hoja = relativo(r, d.ventana, z)
   poner('h', d.local.hoja)
   hojaEl.dataset.lado = st.chat.lado
+  // Poco alto (200 % en una pantalla de 768): el escenario compacto, así se lee la charla (18, B1)
+  hojaEl.classList.toggle('baja', hojaBaja(d.local.hoja.alto))
   if (st.chat.lado !== 'encima') d.hoja = r
   // Si al soltar cambió de lado, la hoja se funde en el nuevo (D2); nunca en medio de un acto
   if (ladoVisto && ladoVisto !== st.chat.lado && st.hojaVista) movimientoChat.cambiarLado(hojaEl)
@@ -2944,12 +2947,27 @@ async function revisarAdjuntos(rutas, desdeCapa) {
   }
 }
 
-/** Un aviso en `#anuncio-chat` (12): se vacía antes, así el mismo texto se vuelve a oír. */
-function anunciarChat(mensaje) {
+/**
+ * Un aviso en `#anuncio-chat` (12): se vacía antes, así el mismo texto se vuelve a oír. Uno pendiente
+ * se reemplaza (nunca se oyen dos seguidos del mismo cambio).
+ */
+let anuncioPendiente = null
+function anunciarChat(mensaje, espera = 60) {
   const el = $('#anuncio-chat')
   if (!mensaje || !el) return
+  clearTimeout(anuncioPendiente)
   el.textContent = ''
-  setTimeout(() => { el.textContent = mensaje }, 60)
+  anuncioPendiente = setTimeout(() => { el.textContent = mensaje }, espera)
+}
+
+/** Los archivos de una misma soltada llegan uno por uno: se juntan en un solo anuncio (18, M3). */
+const JUNTAR_ADJUNTOS_MS = 300
+let adjuntados = { nombres: [], hasta: 0 }
+function anunciarAdjunto(nombre) {
+  const ahora = Date.now()
+  const nombres = ahora < adjuntados.hasta ? [...adjuntados.nombres, nombre] : [nombre]
+  adjuntados = { nombres, hasta: ahora + JUNTAR_ADJUNTOS_MS }
+  anunciarChat(anuncioAdjuntos(nombres), JUNTAR_ADJUNTOS_MS)
 }
 
 /**
@@ -3151,7 +3169,8 @@ function efectoChat(e) {
         .catch(err => registrar(`chat elegir carpeta: ${err}`))
       break
     case 'anunciar':
-      anunciarChat(e.texto)
+      if (e.adjunto) anunciarAdjunto(e.adjunto)
+      else anunciarChat(e.texto)
       break
     case 'historial':
       // La lista del disco (9.1): al arrancar y al abrir el cajón
@@ -3368,6 +3387,8 @@ function pintarCajon(m) {
     return
   }
   if (!lugar.childElementCount) {
+    // Abierto a mitad del vuelo de apertura: la mascota aterriza ya, así el clon no pasa por encima (18, D-c)
+    if (actoHoja) movimientoChat.detener()
     lugar.innerHTML = cajon(m, buscarChat)
     st.firmas['#chat-hist-lista'] = listaHistorial(m, buscarChat)
   } else {

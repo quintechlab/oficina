@@ -203,7 +203,8 @@ h1, h2, h3 { font: inherit }
 .cabezas { display: flex; flex: none; align-items: center; padding-left: var(--e-4) }
 .cabezas .avi { margin-left: -8px; border-radius: 50%; background: var(--s2); border: 2px solid var(--s1) }
 .mas-c { margin-left: var(--e-1); font: 600 10px/1 var(--m); color: var(--crema2) }
-.pie-w { margin: var(--e-4) 0 0 var(--e-4); font: var(--t-mono-s); color: var(--tenue) }
+/* Con margen a los dos lados: con la hoja encima, el texto no llega al borde (chat-avis-ux.md 18, D-a) */
+.pie-w { margin: var(--e-4) var(--e-4) 0; font: var(--t-mono-s); color: var(--tenue) }
 .pie-w.error { color: var(--rojo) }
 
 /* ------------------------------------------------------------------ columna principal (4.3) */
@@ -986,7 +987,7 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .charla { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 12px 14px 14px }
 #hoja .ch-cab { display: flex; align-items: center; gap: 6px; padding-bottom: 10px; flex: none }
 #hoja .ch-cab .carpeta {
-  display: flex; align-items: center; gap: 6px; height: 32px; max-width: 180px; padding: 0 8px 0 9px; border-radius: var(--r-campo);
+  min-width: 0; display: flex; align-items: center; gap: 6px; height: 32px; max-width: 180px; padding: 0 8px 0 9px; border-radius: var(--r-campo);
   background: var(--s2); border: 1px solid var(--linea); color: var(--crema); font: var(--t-cuerpo-f); transition: border-color var(--d-color);
 }
 #hoja .ch-cab .carpeta:hover { border-color: var(--linea-hover) }
@@ -994,12 +995,18 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .ch-cab .carpeta svg { flex: none; color: var(--crema2) }
 #hoja .ch-cab .carpeta[aria-disabled="true"] { opacity: .6; cursor: default }
 #hoja .ch-cab .motor { display: flex; padding: 3px; margin-left: auto; border-radius: var(--r-pildora); background: var(--s2); border: 1px solid var(--linea) }
-#hoja .ch-cab .motor button { height: 26px; padding: 0 10px; border-radius: var(--r-pildora); font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2); transition: background 250ms var(--ease), color 250ms }
+#hoja .ch-cab .motor button { position: relative; height: 26px; white-space: nowrap; padding: 0 10px; border-radius: var(--r-pildora); font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2); transition: background 250ms var(--ease), color 250ms }
 #hoja .ch-cab .motor button[aria-checked="true"] { background: var(--tinta); color: var(--crema); box-shadow: inset 0 0 0 1px var(--linea-hover) }
 
 #chat-hilo {
   flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 10px;
-  scrollbar-width: thin; scrollbar-color: var(--linea-hover) transparent;
+}
+/* Fino y sin flechas (18, D-e): con scrollbar-width, Chromium ignora ::-webkit-scrollbar y dibuja las flechas */
+#chat-hilo::-webkit-scrollbar { width: 6px }
+#chat-hilo::-webkit-scrollbar-thumb { border-radius: 3px; background: var(--linea-hover) }
+#chat-hilo::-webkit-scrollbar-button { display: none }
+@supports not selector(::-webkit-scrollbar) {
+  #chat-hilo { scrollbar-width: thin; scrollbar-color: var(--linea-hover) transparent }
 }
 #chat-hilo:focus-visible { outline-offset: -2px }
 #chat-hilo .nueva-en { align-self: center; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
@@ -1012,7 +1019,8 @@ body:not(.colocada) #hoja { visibility: hidden }
   user-select: text; -webkit-user-select: text;
 }
 #hoja .m-u .adj-min { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; font: var(--t-mono-s); font-stretch: 75%; opacity: .8 }
-#hoja .m-u.fallido { opacity: .7 }
+/* Solo el mensaje se apaga: "No se envió" queda con su contraste de 4,5:1 (18, B3) */
+#hoja .m-u.fallido > :not(.tag-no) { opacity: .7 }
 #hoja .m-u .tag-no { display: block; margin-top: 4px; font: 500 10px/1.3 var(--m); font-stretch: 75%; color: var(--rojo) }
 #hoja .m-m { position: relative; padding-left: 16px; font: 500 13px/1.6 var(--f); color: var(--crema); user-select: text; -webkit-user-select: text; overflow-wrap: anywhere }
 #hoja .m-m::before { content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; border-radius: 2px; background: linear-gradient(var(--c), color-mix(in srgb, var(--c) 10%, transparent)) }
@@ -1027,7 +1035,7 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .m-m .txt pre code { padding: 0; background: none; font: 400 11px/1.65 var(--m); font-stretch: 75%; white-space: pre }
 #hoja .m-m .txt pre.tabla { padding-top: 10px; font: 400 11px/1.65 var(--m); font-stretch: 75%; white-space: pre }
 #hoja .m-m .txt pre .leng { position: absolute; left: 12px; top: 9px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
-#hoja .m-m .txt pre .copiar { position: absolute; right: 6px; top: 4px; height: 24px; padding: 0 8px; border-radius: var(--r-icono); font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
+#hoja .m-m .txt pre .copiar { position: absolute; right: 6px; top: 4px; height: 24px; min-width: 32px; padding: 0 8px; border-radius: var(--r-icono); font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
 #hoja .m-m .txt pre .copiar:hover { background: var(--s3); color: var(--crema) }
 #hoja .m-m .caret { display: inline-block; width: 7px; height: 13px; margin-left: 2px; border-radius: 2px; background: var(--c); vertical-align: -2px }
 #hoja .m-m .abierto { display: inline; white-space: pre-wrap }
@@ -1035,7 +1043,7 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .herr { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
 #hoja .herr b { font-weight: 500; color: var(--crema2) }
 #hoja .pie-m { display: flex; gap: 10px; align-items: center; margin-top: 2px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
-#hoja .pie-m button { height: 24px; padding: 0 8px; border-radius: var(--r-icono); color: var(--crema2); font: var(--t-mono-s); font-stretch: 75% }
+#hoja .pie-m button { position: relative; height: 24px; min-width: 32px; padding: 0 8px; border-radius: var(--r-icono); color: var(--crema2); font: var(--t-mono-s); font-stretch: 75% }
 #hoja .pie-m button:hover { background: var(--s3); color: var(--crema) }
 #hoja .sug { display: flex; flex-direction: column; align-items: flex-start; gap: 6px }
 #hoja .sug button {
@@ -1052,8 +1060,8 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .espera small { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
 #hoja .paso { display: flex; gap: 10px; align-items: center; font: var(--t-chico); color: var(--tenue) }
 #hoja .paso i { width: 8px; height: 8px; flex: none; border-radius: 50%; border: 1.5px solid currentColor }
-#hoja .paso.hecho { color: var(--crema2) }
-#hoja .paso.hecho i { background: var(--verde); border-color: var(--verde) }
+#hoja .paso.listo { color: var(--crema2) }
+#hoja .paso.listo i { background: var(--verde); border-color: var(--verde) }
 #hoja .paso.ahora { color: var(--crema); font-weight: 700 }
 #hoja .paso.ahora i { border-color: var(--c); background: var(--c) }
 #hoja .barra-ind { position: relative; height: 2px; overflow: hidden; border-radius: 2px; background: var(--linea) }
@@ -1098,7 +1106,16 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .frenar::before { content: ""; width: 9px; height: 9px; border-radius: 2px; background: currentColor }
 #hoja .frenar:hover { background: rgba(255, 122, 107, .1) }
 #hoja .pie-comp { display: flex; justify-content: space-between; gap: 8px; padding: 0 4px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
-#hoja .pie-comp span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#hoja .pie-comp span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+/* Los botones chicos se dibujan de 24 y 26, pero se tocan en 32 (12, D31; 18, M2 y D-d) */
+#hoja .m-m .txt pre .copiar::after, #hoja .pie-m button::after { content: ""; position: absolute; inset: -4px 0 }
+#hoja .ch-cab .motor button::after { content: ""; position: absolute; inset: -3px 0 }
+/* Poco alto (18, B1): escenario de 84 con el Avi de 56, sin piso, y nombre y estado en una línea */
+#hoja.baja { --alto-escena-chat: 84px }
+#hoja.baja .escenario { grid-auto-flow: column; justify-content: center; align-items: center; gap: 8px; padding-bottom: 6px; background: linear-gradient(var(--s1), var(--negro)) }
+#hoja.baja .escenario::after, #hoja.baja .destello { display: none }
+#hoja.baja #chat-avi { top: 2px; width: 56px; height: 56px }
+#hoja.baja #chat-avi .avi { --t: 56px !important }
 
 #chat-menu { position: absolute; z-index: 9; top: 52px; left: 14px }
 #hoja .menu { width: 262px; display: grid; gap: 1px; padding: 6px; border-radius: 14px; background: var(--s2); color: var(--crema); border: 1px solid var(--linea-hover); box-shadow: 0 24px 48px -18px #000 }
