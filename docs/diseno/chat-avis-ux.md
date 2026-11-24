@@ -145,7 +145,7 @@ Español rioplatense neutro, de vos, sin signos de admiración en los errores. L
 | Vacío, Local | "¡Hola! Te respondo con el modelo de esta PC: privado y sin internet. Sé lo que pasa en tus sesiones de Avis." Sugerencias: "¿Quién me está esperando?" · "¿Cuántos subagentes trabajan ahora?" · "¿Qué pregunta tengo pendiente?" Pista: "El modelo local no lee carpetas ni archivos" |
 | Local sin instalar | "Para charlar sin internet necesito bajar el modelo de esta PC (2,6 GB, una sola vez)." Botón primario "Descargar 2,6 GB" (la cifra la da el backend) y secundario "Usar Claude Code". Mientras baja: la barra y la cifra de `cifrasDescarga` (pasa de `resumen.js` a `chat.js`) |
 | Esperando | Título "{Mascota} está despertando a Claude" (local: "a su modelo"), el reloj, la barra indeterminada, los tres pasos (3.3) y la nota "La primera respuesta tarda unos segundos. Las que siguen, menos." **(D13, medido en E0: la primera, 2 s con el proceso precalentado y hasta 7 s en frío; la segunda, 1,1 s.)** |
-| Herramientas | Una línea `↳` por turno, que junta las herramientas: "↳ Leyó **README.md**" · "↳ Leyó **6 archivos**: README.md, docs/arquitectura.md…" (hasta 2 nombres) · "↳ Buscó «pedido» en catalogo" (Grep) · "↳ Miró 12 archivos" (Glob) · "↳ Miró tus sesiones de Avis" (cuando el turno llevó el contexto de Avis, 7.4) |
+| Herramientas | Una línea `↳` por turno, que junta las herramientas: "↳ Leyó **README.md**" · "↳ Leyó **6 archivos**: README.md, docs/arquitectura.md…" (hasta 2 nombres) · "↳ Buscó «pedido» en catalogo" (Grep) · "↳ Miró «**/*.md»" (Glob: el patrón, porque Rust no lee cuántos archivos encontró; E2) · "↳ Miró tus sesiones de Avis" (cuando el turno llevó el contexto de Avis, 7.4) |
 | Escribiendo | El texto que va llegando, más el cursor `--c` |
 | Listo | Pie de la respuesta: "Copiar" · "{n} s · Claude Code" (o "· modelo local") |
 | Frenada | El texto parcial y la marca "■ frenaste acá". Debajo, el botón "Volver a preguntar" (manda de nuevo el último mensaje) |
@@ -393,7 +393,8 @@ Cada evento lleva `{ conversacion, turno }`; la ventana descarta los de una conv
 | `chat_borrar({ id })` | Archivo + Engram (9.2) |
 | `chat_adjunto({ ruta })` | Valida y devuelve `{ nombre, tipo, bytes, paginas? }` o `{ error }` (10) |
 | `elegir_carpeta()` | Selector nativo (D10); `null` si se canceló |
-| `estado_modelo()` y `descargar_modelo()` | 3.6 |
+| `guardar_chat({ motor, carpeta })` | Guarda en `preferencias.json` → `chat` el motor y la carpeta de la próxima charla (D11) y suma la carpeta a las recientes (5, sin repetir; lo decide Rust, `con_reciente`). Devuelve `{ motor, carpeta, recientes }`, como `estado_menu().chat`, que al arrancar trae lo mismo con solo las carpetas que siguen existiendo (E2) |
+| `estado_modelo()`, `descargar_modelo()` y `cancelar_modelo()` | 3.6 (`cancelar_modelo` es el `cancelar_resumen` de antes, sin el pedido: corta la descarga o el arranque del motor) |
 
 Eventos: `oficina://chat` (7.5), `oficina://modelo` (descarga y motor local) y los de arrastrar de Tauri (10).
 
@@ -502,7 +503,7 @@ Todo según `engram-para-avis.md` 5, con `ureq` desde Rust. Desde la ventana no 
    - los enlaces quedan "texto (url)" sin `href`.
    - código cercado → `pre > code` con el lenguaje; listas anidadas de un nivel; `**` sin cerrar queda literal.
 7. **Bloques progresivos:** un bloque abierto va como texto; al cerrarse por línea en blanco o por la cerca, se dibuja; los bloques cerrados no cambian con los tramos que siguen.
-8. `textoHerramientas`: 1 Read → "Leyó **README.md**"; 6 Read → "Leyó **6 archivos**: README.md, docs/arquitectura.md…"; Grep → "Buscó «x» en {carpeta}"; Glob → "Miró {n} archivos"; nunca una ruta completa.
+8. `textoHerramientas`: 1 Read → "Leyó **README.md**"; 6 Read → "Leyó **6 archivos**: README.md, docs/arquitectura.md…"; Grep → "Buscó «x» en {carpeta}"; Glob → "Miró «patrón»" (E2); nunca una ruta completa.
 9. `grupoDeFecha`: hoy, ayer, esta semana (lunes a hoy, hora local) y antes; el cambio de día cae a las 00:00 locales.
 10. `tituloConversacion`: las primeras 6 palabras, sin signos al final; vacío o solo un adjunto → "Charla sobre {nombre}".
 11. `sugerencias(motor, carpeta)`: los textos de 4.1, con la carpeta interpolada; sin carpeta, los de sesiones.
@@ -566,6 +567,8 @@ Son chicas y cada una se puede revisar sola. Las de código siguen el test prime
    - plegar a la muesca y a la tira y volver deja todo igual (borrador y scroll incluidos);
    - no queda rastro del resumen (ni `#resumen`, ni `pedir_resumen`, ni `resumen.js`);
    - la marca abre y cierra la hoja; Tab y Esc como en 3.5.
+
+   **Hecha el 23/11** (`chat.js`, `chatVista.js`, la sección de la charla de `main.js`, `#hoja` en `index.html` y su CSS bajo `#hoja`): 49 tests en `widget/test/chat.test.js` (14.1 del 1 al 12, 14 y 15, más los textos de 4) y `zonaInteractiva` con la hoja en `muesca.js`. Se fue el resumen: `resumen.js`, `resumenMotion.js`, su test, `#resumen`, `#anuncio-resumen`, `pedir_resumen`, `cuerpo_pedido`, `PREGUNTA`; `estado_resumen` → `estado_modelo`, `cancelar_resumen` → `cancelar_modelo` y `oficina://resumen` → `oficina://modelo`; `datosResumen` → `datosAvis`, `duracionContando`, `contarPalabras` y `cifrasDescarga` a `chat.js`, y `animoTexto` (la descripción de la marca) a `tablero.js`. En Rust: `tauri-plugin-dialog` (D10) con `elegir_carpeta`, `guardar_chat` y `chat` en `estado_menu` (preferencias.rs, 3 tests), y una charla del motor local que nunca lanza `claude` (`chat_tests.rs`). La vista `dev/vista.html?chat=…` muestra cada estado (falso.js la lleva por `window.__chat`, el mismo camino que el usuario). No se miró con Playwright (lo usaba otro trabajo): la geometría y cada estado se revisaron en el DOM con Edge sin ventana, al 100 y al 200 %, flotando y acoplada en los cuatro bordes, sin errores en la consola. Queda la revisión visual a 375/768/1440 de la dirección, ahora sin el vuelo.
 3. **Movimiento** (`chatMotion.js` y CSS): la mudanza, la apertura y el cierre, las palabras, la chispa, la espera, soltar, el cajón y el menú. **Acepta:**
    - las pistas de 6.1 dentro de ±30 ms;
    - 60 fps al 200 % en el panel de rendimiento;
@@ -640,4 +643,12 @@ Las tomaron el orquestador o la diseñadora, porque el usuario pidió avanzar si
 - **El texto del boceto "Cargando tus ajustes y memorias" cambia a "Mandando tu pregunta":** con los hooks apagados (7.2) no se carga memoria, y el paso real es el pedido a la API.
 - **El costo** no se muestra (#22); queda `--max-budget-usd` como red de seguridad (D16).
 - **E0 hecha (23/11):** quedan como supuestos JPG, GIF y WebP en el bloque `image`, el techo de tamaño del PDF, un `rate_limit_event` rechazado (no se pudo provocar), el corte real de la red (se midió con un proxy caído) y el arrastre con el mouse (leído en el código; lo prueba la entrega 5).
+- **E2 (23/11), lo que el código no deja hacer tal cual:**
+  - **Glob no dice cuántos archivos miró:** Rust solo manda el patrón (`detalle_herramienta`; el resultado de la herramienta se ignora), así que "Miró 12 archivos" (4.1) pasa a "Miró «patrón»".
+  - **El historial todavía no se guarda en disco (entrega 4):** el cajón lista las charlas de esta ejecución; no muestra "Guardado en esta PC" hasta que sea cierto (con `engram` en `sin-saber`, sin pie).
+  - **Los adjuntos llegan con la entrega 5:** hasta entonces no se ven ni el clip ni "Resumime un PDF" (un botón que no hace nada sería peor). La capa de soltar ya existe (`?chat=soltar`).
+  - **El motor local llega con la entrega 6:** se puede elegir y la tarjeta de descarga funciona, pero `chat_enviar` de una charla local devuelve un error (Rust nunca la manda a `claude`, regla 3) y se ve el error `local`. Con eso, el arranque del motor en `modelo.rs` queda sin usar: `#[allow(dead_code)]` en `mod modelo` hasta la entrega 6.
+  - **`chat.motor` en `preferencias.json`:** 3.4 nombra `chat.carpeta` y `chat.recientes`; D11 ("el último motor") necesita también el motor.
+  - **Plegar la hoja con el panel (3.1) es movimiento:** en esta entrega la hoja se esconde sin animar cuando el panel se pliega (`visibility`, así conserva el borrador y el scroll) y vuelve igual; la animación con `plegar` queda para la entrega 3, con el resto del movimiento.
+  - **El anuncio de "respondió"** lleva el texto sin las marcas del Markdown (`textoPlano`), para que el lector no lea asteriscos.
 - **E1 (23/11):** 7.8 no decía cómo llegan a Rust la mascota (`--append-system-prompt`) ni la sesión de una charla vieja (`--resume`): `chat_abrir` suma `mascota` y `sesionClaude` y devuelve `sesion`. El turno emite `pidiendo` y `pensando` una sola vez (los `thinking_tokens` llegan muchos por turno) y un solo final (`fin`, `error` o `frenada`); después de un `error` de red (D33), el `result` del corte no se emite. Cambiar de conversación cierra el stdin del proceso anterior y lo deja terminar su turno: durante esos segundos puede haber dos procesos vivos (D20 dice uno). Desde la consola de la ventana no se probó (la Avis instalada ocupa la instancia única); el test `real_` usa el mismo `Chat` que los comandos.

@@ -813,6 +813,32 @@ fn abrir_valida_la_conversacion_y_la_carpeta() {
     borrar(&carpeta);
 }
 
+#[test]
+fn una_charla_del_motor_local_nunca_lanza_claude() {
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let lanzados = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let cuenta = lanzados.clone();
+    let lanzador: Lanzador = Arc::new(move |_l: &Lanzamiento| {
+        cuenta.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Err(std::io::Error::new(std::io::ErrorKind::NotFound, "no"))
+    });
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    chat.abrir("c-local", "local", None, "Avi", None).unwrap();
+    // Mandar con el motor local no puede terminar en la nube (regla 3): error y nada lanzado
+    assert!(chat.enviar("c-local", 1, "¿Quién me espera?", &Value::Null).is_err());
+    assert_eq!(lanzados.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert!(r.todos().is_empty());
+    // Vacía, la misma charla puede pasar a Claude Code (D8: solo cambia la cabecera) y entonces sí lanza
+    chat.abrir("c-local", "claude", None, "Avi", None).unwrap();
+    assert_eq!(lanzados.load(std::sync::atomic::Ordering::SeqCst), 1);
+    // Y una de Claude Code vacía puede volver a local: deja de mandar
+    chat.abrir("c-local", "local", None, "Avi", None).unwrap();
+    assert!(chat.enviar("c-local", 2, "Hola", &Value::Null).is_err());
+    assert_eq!(lanzados.load(std::sync::atomic::Ordering::SeqCst), 1);
+    borrar(&carpeta);
+}
+
 // ---------------------------------------------------------------- con el claude real (a mano)
 //
 // `cargo test real_ -- --ignored --nocapture`. Gastan unos centavos: usan Haiku por

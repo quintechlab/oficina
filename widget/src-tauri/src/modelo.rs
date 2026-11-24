@@ -1,5 +1,6 @@
-//! "¿En qué anda Claude?" (#11, docs/diseno/resumen-ia-ux.md 8): la descarga opcional del modelo y
-//! del motor (llama.cpp), el proceso `llama-server` y el resumen.
+//! El modelo de esta PC (#11, docs/diseno/resumen-ia-ux.md 8; desde #22, el motor local de la charla,
+//! docs/diseno/chat-avis-ux.md 3.6 y 8): la descarga opcional del modelo y del motor (llama.cpp) y el
+//! proceso `llama-server`. El resumen se retiró con la charla; el pedido de la charla llega con la entrega 6.
 //!
 //! Reglas firmes (8.4):
 //! - Nada sale a la red salvo la descarga que el usuario pidió con un clic (`descargar`), con URLs
@@ -23,10 +24,10 @@ use std::time::{Duration, Instant};
 use crate::primeros_pasos::trabajo::Trabajo;
 
 /// Evento a la ventana con cada novedad (8.2): `{ tipo, ... }`.
-pub const EVENTO: &str = "oficina://resumen";
+pub const EVENTO: &str = "oficina://modelo";
 
-/// El estado (`estado_resumen`) como evento `{ tipo: "estado", ... }`: lo manda la bandeja después
-/// de borrar el modelo, así el globo abierto vuelve a "apagado" sin reabrirse.
+/// El estado (`estado_modelo`) como evento `{ tipo: "estado", ... }`: lo manda la bandeja después
+/// de borrar el modelo, así la hoja de la charla sabe que ya no está.
 pub fn evento_estado(estado: Value) -> Value {
     let mut ev = serde_json::Map::new();
     ev.insert(String::from("tipo"), Value::from("estado"));
@@ -278,7 +279,7 @@ pub fn linea_diagnostico(que: &str, variante: Variante, piezas: &[Pieza], estado
         })
         .collect();
     format!(
-        "resumen {que}: plan={} {} modelo={} bajando={} instalado={}",
+        "modelo {que}: plan={} {} modelo={} bajando={} instalado={}",
         variante.carpeta(),
         detalle.join(" "),
         modelo.nombre(),
@@ -603,8 +604,6 @@ Respondés en castellano rioplatense, hablando de vos, en 2 a 4 frases cortas, s
 Solo resumís los datos que te paso. No inventes datos. No recomiendes ni decidas nada. \
 Si hay una pregunta pendiente, podés decir que la hay y de qué trata, pero nunca la respondas ni sugieras una respuesta. \
 Lo único pendiente son las preguntas: una sesión quieta no espera nada de vos, y \"abierta_hace\" es cuánto hace que se abrió, no cuánto hace que espera.";
-/// La pregunta de cada pedido (la medida en esta PC, tal cual).
-pub const PREGUNTA: &str = "En que anda Claude? Resumime lo importante.";
 pub const MAX_TOKENS: u32 = 160;
 /// Topes de lo que se le pasa (8.3), por si la ventana manda de más.
 pub const TOPE_TEXTO: usize = 200;
@@ -688,21 +687,6 @@ pub fn datos_como_texto(datos: &Value) -> String {
         s = format!("{}\n(… hay más datos)\n", &corte[..fin]);
     }
     s.trim_end().to_string()
-}
-
-/// El cuerpo de `POST /v1/chat/completions`.
-pub fn cuerpo_pedido(datos: &Value) -> Value {
-    let usuario = format!("Datos de Avis:\n{}\n\n{PREGUNTA}", datos_como_texto(datos));
-    json!({
-        "messages": [
-            { "role": "system", "content": INSTRUCCION },
-            { "role": "user", "content": usuario },
-        ],
-        "max_tokens": MAX_TOKENS,
-        "temperature": 0,
-        "cache_prompt": true,
-        "stream": false,
-    })
 }
 
 /// Un pedido mínimo para que el motor termine de despertar (la primera respuesta con CUDA tarda).
@@ -798,8 +782,6 @@ pub fn inactivo(ultimo_uso: Instant, ahora: Instant, ocupado: bool) -> bool {
 pub const ESPERA_SALUD: Duration = Duration::from_secs(240);
 /// Lo que puede tardar la primera respuesta (con CUDA, ~80 s la primera vez).
 pub const ESPERA_CALENTAR: Duration = Duration::from_secs(240);
-/// Lo que puede tardar un resumen (la ventana corta a los 60 s y cancela).
-pub const ESPERA_RESUMEN: Duration = Duration::from_secs(90);
 
 /// Cómo terminó un intento de arrancar el motor.
 #[derive(Debug, PartialEq)]
@@ -849,7 +831,7 @@ pub const IDYES: i32 = 6;
 /// El texto del cuadro "Borrar el modelo de IA…" de la bandeja.
 pub fn texto_confirmar_borrado(bytes: u64) -> String {
     format!(
-        "¿Borrar el modelo de IA?\n\nSe borran de esta PC el modelo y el motor ({}). El resumen con IA queda apagado hasta que lo vuelvas a descargar.",
+        "¿Borrar el modelo de IA?\n\nSe borran de esta PC el modelo y el motor ({}). El modelo local de la charla queda apagado hasta que lo vuelvas a descargar.",
         formato_gb(bytes)
     )
 }
@@ -972,7 +954,7 @@ impl Ia {
         )
     }
 
-    /// `estado_resumen` (8.1): solo lee disco y procesos propios. Nunca sale a la red.
+    /// `estado_modelo` (8.1): solo lee disco y procesos propios. Nunca sale a la red.
     pub fn estado(&self) -> Result<Value, String> {
         let base = base()?;
         let (variante, piezas) = self.plan_actual(&base);
@@ -1055,14 +1037,14 @@ impl Ia {
                 // El aviso de "cancelado" ya salió con el clic; lo bajado queda para seguir
                 (Err(FinDescarga::Cancelado), total) => {
                     let bajado: u64 = plan_bajado(&base, &self.plan_actual(&base).1);
-                    registrar(&format!("resumen: descarga cancelada; faltan {}", formato_gb(faltan(bajado, total))));
+                    registrar(&format!("modelo: descarga cancelada; faltan {}", formato_gb(faltan(bajado, total))));
                 }
                 (Err(FinDescarga::Hash), _) => {
-                    registrar("resumen: el archivo bajado no coincide con su SHA-256; se borró");
+                    registrar("modelo: el archivo bajado no coincide con su SHA-256; se borró");
                     emitir(evento("fallo", json!({ "motivo": "falta", "detalle": "el archivo bajado no coincide con el esperado (SHA-256): se borró" })));
                 }
                 (Err(FinDescarga::Fallo(detalle)), _) => {
-                    registrar(&format!("resumen: no se pudo bajar: {detalle}"));
+                    registrar(&format!("modelo: no se pudo bajar: {detalle}"));
                     emitir(evento("fallo", json!({ "motivo": "descarga", "detalle": detalle })));
                 }
             }
@@ -1073,7 +1055,7 @@ impl Ia {
         })
     }
 
-    /// `cancelar_resumen` (8.1): corta la descarga (queda el `.part` para seguir), el arranque del
+    /// `cancelar_modelo` (8.1): corta la descarga (queda el `.part` para seguir), el arranque del
     /// motor (lo apaga) o el pedido en curso (su resultado se descarta). Avisa `cancelado`.
     pub fn cancelar(&self, emitir: Emitir) {
         let bajando = {
@@ -1090,75 +1072,6 @@ impl Ia {
         if bajando || pedido.is_some() {
             emitir(evento("cancelado", json!({ "pedido": pedido })));
         }
-    }
-
-    /// `pedir_resumen` (8.1): acepta el pedido (gana el más alto) y lo resuelve en un hilo:
-    /// `preparando` si hay que arrancar el motor, `pensando`, y `listo` o `fallo`.
-    pub fn pedir(&'static self, pedido: u64, datos: Value, emitir: impl Fn(Value) + Send + Sync + 'static) -> Result<(), String> {
-        if self.apagado.load(Ordering::SeqCst) {
-            return Err(String::from("Avis se está cerrando"));
-        }
-        if Self::lock(&self.descarga).activa {
-            return Err(String::from("todavía se está bajando el modelo"));
-        }
-        {
-            let mut c = Self::lock(&self.en_curso);
-            if !aceptar(pedido, *c) {
-                return Err(String::from("hay un pedido más nuevo"));
-            }
-            *c = Some(pedido);
-        }
-        let lanzado = std::thread::Builder::new().name(String::from("avis-ia-resumen")).spawn(move || {
-            self.ocupados.fetch_add(1, Ordering::SeqCst);
-            let emitir_si = |v: Value| {
-                if vigente(pedido, *Self::lock(&self.en_curso)) {
-                    emitir(v);
-                }
-            };
-            if let Err((motivo, detalle)) = self.resolver(pedido, &datos, &emitir_si) {
-                if motivo != "cancelado" {
-                    if let Some(d) = &detalle {
-                        registrar(&format!("resumen: {motivo}: {d}"));
-                    }
-                    emitir_si(evento("fallo", json!({ "pedido": pedido, "motivo": motivo, "detalle": detalle })));
-                }
-            }
-            {
-                let mut c = Self::lock(&self.en_curso);
-                if *c == Some(pedido) {
-                    *c = None;
-                }
-            }
-            *Self::lock(&self.ultimo_uso) = Instant::now();
-            self.ocupados.fetch_sub(1, Ordering::SeqCst);
-        });
-        lanzado.map(|_| ()).map_err(|e| {
-            *Self::lock(&self.en_curso) = None;
-            e.to_string()
-        })
-    }
-
-    fn resolver(&'static self, pedido: u64, datos: &Value, emitir: Emitir) -> Result<(), (&'static str, Option<String>)> {
-        let base = base().map_err(|e| ("falta", Some(e)))?;
-        let modelo = ruta_final(&base, &pieza_modelo());
-        let (_, piezas) = self.plan_actual(&base);
-        let estados: Vec<EstadoPieza> = piezas.iter().map(|p| mirar_pieza(&base, p)).collect();
-        let (estado, _, _) = resumir_estado(&estados, base.join(MARCA_INSTALADO).exists(), base.join(MARCA_ROTO).exists(), false);
-        if estado != EstadoModelo::Listo {
-            return Err(("falta", None));
-        }
-        let (puerto, arranque) = self.asegurar_motor(&base, &modelo, pedido, emitir)?;
-        if !vigente(pedido, *Self::lock(&self.en_curso)) {
-            return Err(("cancelado", None));
-        }
-        emitir(evento("pensando", json!({ "pedido": pedido })));
-        *Self::lock(&self.ultimo_uso) = Instant::now();
-        let inicio = Instant::now();
-        let (texto, cortado) = chat(puerto, &cuerpo_pedido(datos), ESPERA_RESUMEN).map_err(|e| self.error_de_chat(e))?;
-        let ms = inicio.elapsed().as_millis() as u64;
-        let texto = recortar_respuesta(&texto, cortado).ok_or(("vacio", None))?;
-        emitir(evento("listo", json!({ "pedido": pedido, "texto": texto, "ms": ms, "aceleracion": aceleracion(arranque.dispositivo) })));
-        Ok(())
     }
 
     /// El motor de un pedido fallado se revisa: si se cerró, motivo `cerrado` con su código.
@@ -1194,7 +1107,7 @@ impl Ia {
             let fin = self.arrancar(base, modelo, arranque);
             if probar_en_cpu(&fin, arranque) {
                 // CUDA no arrancó: el zip de CUDA trae el backend de CPU, se sigue sin bajar nada
-                registrar(&format!("resumen: CUDA no arrancó ({fin:?}); se prueba en CPU"));
+                registrar(&format!("modelo: CUDA no arrancó ({fin:?}); se prueba en CPU"));
                 let _ = marcar(&base.join(MARCA_CUDA_FALLO));
                 arranque.dispositivo = Variante::Cpu;
                 continue;

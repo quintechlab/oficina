@@ -3,6 +3,8 @@ mod chat;
 mod diagnostico;
 mod equipo;
 mod preferencias;
+// Sin el resumen, el arranque del motor local queda sin usar hasta que la charla lo pida (entrega 6)
+#[allow(dead_code)]
 mod modelo;
 mod mod_auto;
 mod ordenes;
@@ -323,7 +325,7 @@ struct MenuBandeja {
 /// Orden del menú de la bandeja: "Primeros pasos" va justo debajo de "Mostrar Avis" (3.5) y
 /// "Borrar el modelo de IA…" (#11) al final, antes del separador de "Salir".
 const ORDEN_BANDEJA: [&str; 11] = ["mostrar", "primeros-pasos", "arriba", "avisar", "pausa", "acoplar", "tamano", "arranque", "borrar-modelo", "separador", "salir"];
-/// Texto del ítem que borra el modelo y el motor del resumen con IA (con confirmación nativa).
+/// Texto del ítem que borra el modelo y el motor de esta PC (con confirmación nativa).
 const TEXTO_BORRAR_MODELO: &str = "Borrar el modelo de IA…";
 
 fn ventana(app: &AppHandle) -> Option<WebviewWindow> {
@@ -544,14 +546,14 @@ fn borrar_modelo(app: &AppHandle) {
         }
         match modelo::IA.borrar() {
             Ok(_) => {
-                registrar(String::from("resumen: modelo de IA borrado desde la bandeja"));
-                // El globo abierto vuelve a "apagado" sin esperar a reabrirse
+                registrar(String::from("modelo: modelo de IA borrado desde la bandeja"));
+                // La hoja de la charla sabe que ya no está, sin esperar a reabrirse
                 if let Ok(estado) = modelo::IA.estado() {
                     let _ = app.emit(modelo::EVENTO, modelo::evento_estado(estado));
                 }
             }
             Err(e) => {
-                registrar(format!("resumen: no se pudo borrar el modelo: {e}"));
+                registrar(format!("modelo: no se pudo borrar el modelo: {e}"));
                 dialogo::avisar(&format!("No se pudo borrar el modelo de IA.
 
 {e}"), true);
@@ -722,17 +724,17 @@ fn abrir_enlace(cual: String) -> Result<(), String> {
     primeros_pasos::abrir_en_navegador(url)
 }
 
-// ------------------------------------------------------------------ resumen con IA (#11, resumen-ia-ux.md 8)
+// ------------------------------------------------------------------ el modelo de esta PC (#11; en la charla, chat-avis-ux.md 3.6)
 
 /// `{ modelo, bajado, total, motor, primeraVez, aceleracion }`: solo lee disco y procesos propios,
-/// nunca la red. Al arrancar y al tocar el Avi con el globo cerrado; nunca en el ciclo de 1,5 s.
+/// nunca la red. Al abrir la hoja de la charla; nunca en el ciclo de 1,5 s.
 #[tauri::command]
-async fn estado_resumen() -> Result<serde_json::Value, String> {
+async fn estado_modelo() -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(|| modelo::IA.estado()).await.map_err(|e| e.to_string())?
 }
 
 /// Solo con el clic en "Descargar": la única salida a la red, con URLs fijas. Lo que pasa llega como
-/// `oficina://resumen` (`progreso`, `bajado`, `fallo`).
+/// `oficina://modelo` (`progreso`, `bajado`, `fallo`).
 #[tauri::command]
 fn descargar_modelo(app: AppHandle) -> Result<(), String> {
     modelo::IA.descargar(move |v| {
@@ -740,21 +742,12 @@ fn descargar_modelo(app: AppHandle) -> Result<(), String> {
     })
 }
 
-/// Solo con el clic en "Cancelar" (o a los 60 s de pensando): corta la descarga (queda para seguir),
-/// el arranque del motor o el pedido en curso.
+/// Solo con un clic: corta la descarga (queda para seguir) o el arranque del motor.
 #[tauri::command]
-fn cancelar_resumen(app: AppHandle) {
+fn cancelar_modelo(app: AppHandle) {
     modelo::IA.cancelar(&|v| {
         let _ = app.emit(modelo::EVENTO, v);
     });
-}
-
-/// Solo con un clic: pide un resumen de `datos` (lo que Avis ya ve). Gana el `pedido` más alto.
-#[tauri::command]
-fn pedir_resumen(app: AppHandle, pedido: u64, datos: serde_json::Value) -> Result<(), String> {
-    modelo::IA.pedir(pedido, datos, move |v| {
-        let _ = app.emit(modelo::EVENTO, v);
-    })
 }
 
 // ------------------------------------------------------------------ charla con la mascota (#22, chat-avis-ux.md 7)
@@ -811,6 +804,33 @@ fn chat_cerrar(conversacion: String) -> Result<(), String> {
     Ok(())
 }
 
+/// El motor y la carpeta de la charla (chat-avis-ux.md 3.4): quedan para la próxima charla nueva y
+/// la carpeta va primera en las recientes. Devuelve `{ motor, carpeta, recientes }` como `estado_menu`.
+#[tauri::command]
+fn guardar_chat(app: AppHandle, motor: String, carpeta: Option<String>) -> Result<serde_json::Value, String> {
+    let ruta = ruta_preferencias(&app).ok_or_else(|| String::from("sin carpeta de configuración"))?;
+    if carpeta.as_deref().is_some_and(|c| !std::path::Path::new(c).is_dir()) {
+        return Err(String::from("la carpeta no existe"));
+    }
+    preferencias::guardar_chat(&ruta, &motor, carpeta.as_deref()).map(valor_chat)
+}
+
+/// "＋ Elegir otra carpeta…" (D10): el selector nativo de carpetas, solo con ese clic. `null` si se
+/// canceló. Corre fuera del hilo principal (el diálogo bloquea hasta que el usuario elige).
+#[tauri::command]
+async fn elegir_carpeta(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut dialogo = app.dialog().file().set_title("Elegí la carpeta de la charla");
+        if let Some(v) = ventana(&app) {
+            dialogo = dialogo.set_parent(&v);
+        }
+        dialogo.blocking_pick_folder().and_then(|r| r.into_path().ok()).map(|r| r.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
 /// Fija la ventana arriba de las demás y sincroniza la marca del menú de la bandeja.
 #[tauri::command]
 fn fijar_arriba(app: AppHandle, estado: State<'_, Estado>, valor: bool) -> Result<(), String> {
@@ -835,6 +855,18 @@ fn estado_menu(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
         "tamano": tamano_guardado(&app),
         "acople": preferencias::valor_de_acople(*estado.acople.lock().unwrap()),
         "flotante": ruta_preferencias(&app).and_then(|r| preferencias::leer_flotante(&r)).map(|f| serde_json::json!({ "x": f.x, "y": f.y })),
+        "chat": valor_chat(ruta_preferencias(&app).map(|r| preferencias::leer_chat(&r)).unwrap_or_default()),
+    })
+}
+
+/// La charla guardada para la ventana: la carpeta y las recientes, solo las que siguen existiendo
+/// (una carpeta borrada no se ofrece ni se abre). Sin carpeta, "Solo Avis" (D9).
+fn valor_chat(c: preferencias::Chat) -> serde_json::Value {
+    let existe = |r: &String| std::path::Path::new(r).is_dir();
+    serde_json::json!({
+        "motor": c.motor,
+        "carpeta": c.carpeta.filter(existe),
+        "recientes": c.recientes.into_iter().filter(existe).collect::<Vec<_>>(),
     })
 }
 
@@ -1501,6 +1533,8 @@ pub fn run() {
         // Primero, como pide el plugin: una sola Avis por máquina; abrir otra muestra la que hay
         .plugin(tauri_plugin_single_instance::init(|app, _argumentos, _carpeta| al_segundo_arranque(app)))
         .plugin(tauri_plugin_notification::init())
+        // El selector de carpetas de la charla (D10), llamado solo desde Rust
+        .plugin(tauri_plugin_dialog::init())
         // Registrar el plugin no prende nada: el arranque con Windows solo cambia desde el menú
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .manage(Estado {
@@ -1608,14 +1642,15 @@ pub fn run() {
             cancelar_paso,
             abrir_enlace,
             tomar_aviso_mod,
-            estado_resumen,
+            estado_modelo,
             descargar_modelo,
-            cancelar_resumen,
-            pedir_resumen,
+            cancelar_modelo,
             chat_abrir,
             chat_enviar,
             chat_frenar,
-            chat_cerrar
+            chat_cerrar,
+            guardar_chat,
+            elegir_carpeta
         ])
         .build(tauri::generate_context!())
         .expect("no se pudo iniciar el widget de la oficina")
@@ -1623,7 +1658,7 @@ pub fn run() {
             // Cualquier salida de la aplicación, no solo "Salir" de la bandeja
             if let tauri::RunEvent::Exit = evento {
                 apagar_paso();
-                // El motor del resumen y la descarga no quedan corriendo (el trabajo de Windows
+                // El motor del modelo local y la descarga no quedan corriendo (el trabajo de Windows
                 // lo mata igual si la aplicación se cae)
                 modelo::IA.apagar();
                 // El chat: la interrupción si hay un turno, cerrar stdin, 2 s y el trabajo de Windows (7.3)

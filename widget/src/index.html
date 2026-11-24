@@ -19,12 +19,14 @@
       <div id="contenido">
         <aside class="lado">
           <!-- Marca "Escenario" (docs/diseno/marca-avi-ux.md): el Avi de Claude de 112 sobre su luz; marcaMotion.js lo mueve -->
-          <!-- El Avi es además el botón de "¿En qué anda Claude?" (docs/diseno/resumen-ia-ux.md 3.1): arrastrar desde él sigue moviendo el tablero -->
+          <!-- El Avi es además el botón de la charla (docs/diseno/chat-avis-ux.md 3.2): arrastrar desde él sigue moviendo el tablero -->
           <div class="marca" data-arrastre title="Arrastrá para mover o acoplar a un borde">
-            <button type="button" id="marca-boton" class="avi-btn" aria-label="¿En qué anda Claude?" aria-describedby="marca-animo" aria-expanded="false" aria-controls="resumen" title="¿En qué anda Claude?">
+            <button type="button" id="marca-boton" class="avi-btn" aria-label="Charlar con Avi" aria-describedby="marca-animo" aria-expanded="false" aria-controls="hoja" title="Charlar con Avi">
               <span id="marca-avi" aria-hidden="true"></span>
               <span id="marca-animo" class="oculto"></span>
             </button>
+            <!-- Con la hoja abierta la mascota se mudó a su escenario: queda su fantasma -->
+            <span class="mudada" aria-hidden="true"><i></i>en la charla →</span>
             <b class="marca-n">Avis</b>
             <span class="estado" id="marca-estado"></span>
           </div>
@@ -76,8 +78,6 @@
           </section>
           <div class="ficha-u" id="ficha-u"></div>
           <div id="w-globo"></div>
-          <!-- "¿En qué anda Claude?": el globo del Avi de la marca (resumen-ia-ux.md 3.2), entre la pregunta y la hoja de primeros pasos -->
-          <section id="resumen" aria-labelledby="h-resumen"></section>
           <!-- Primeros pasos (docs/diseno/bienvenida-ux.md): el escenario en lugar del vacío o la hoja de la columna -->
           <div id="pp"></div>
           <div class="conteos" id="conteos"></div>
@@ -89,6 +89,43 @@
       </div>
     </div>
   </div>
+  <!-- La charla con la mascota (docs/diseno/chat-avis-ux.md 3.2): una hoja al lado del tablero, hermana de
+       #marco (así el tamaño del tablero no cambia). main.js la ubica (--hx, --hy, --hw, --hh) y chatVista.js
+       dibuja sus partes; el campo no se redibuja nunca (lo escrito no se pierde) -->
+  <section id="hoja" class="hoja" aria-label="Charla con Avi" hidden>
+    <div class="escenario" data-arrastre title="Arrastrá para mover o acoplar a un borde">
+      <div class="arriba">
+        <button type="button" class="ic" data-accion="ch-hist" aria-label="Historial" aria-expanded="false" title="Historial">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8V8l2.2 1.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </button>
+        <button type="button" class="ic" data-accion="ch-cerrar" aria-label="Cerrar la charla" title="Cerrar la charla">
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div id="chat-avi" class="voz"></div>
+      <b class="esc-nom" id="chat-nom"></b>
+      <span class="esc-est" id="chat-est"></span>
+    </div>
+    <div class="charla">
+      <div class="ch-cab" id="chat-cab"></div>
+      <div id="chat-hilo" class="hilo" role="log" aria-live="off" tabindex="0" aria-label="Conversación"></div>
+      <div class="comp">
+        <div class="adjuntos" id="chat-adjuntos"></div>
+        <div class="campo">
+          <button type="button" class="ic" id="chat-clip" data-accion="ch-adjuntar" aria-label="Adjuntar archivo" title="Adjuntar archivo" hidden>
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4.5 5.6 9.4a1.4 1.4 0 0 0 2 2l5-5a2.8 2.8 0 0 0-4-4l-5 5a4.2 4.2 0 0 0 6 6l4.4-4.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </button>
+          <textarea id="chat-campo" rows="1" aria-label="Mensaje para Avi" placeholder="Preguntale a Avi…"></textarea>
+          <span id="chat-boton" class="boton"></span>
+        </div>
+        <div class="pie-comp"><span id="chat-pista"></span><span id="chat-pie"></span></div>
+      </div>
+      <div id="chat-menu" hidden></div>
+      <div id="chat-soltar"></div>
+    </div>
+    <div id="chat-cajon-lugar"></div>
+    <p class="oculto" id="anuncio-chat" aria-live="polite" aria-atomic="true"></p>
+  </section>
   <!-- Muesca acoplada (sección 7): el único control mientras está cerrada. El panel es #marco -->
   <!-- Muesca A "Asoma" (docs/diseno/muesca-avi-ux.md): main.js escribe su armazón una vez (contenidoMuesca) -->
   <button type="button" id="muesca" aria-expanded="false" aria-controls="marco" aria-label="Avis. Abrir"></button>
@@ -98,8 +135,6 @@
   <p id="aviso-iman" aria-hidden="true"></p>
   <!-- Anuncia una sola vez cada pregunta que llega (dirección 8); nunca mueve el foco -->
   <p class="oculto" id="anuncio" aria-live="polite"></p>
-  <!-- Un aviso por estado del resumen (resumen-ia-ux.md 6.4): fuera de #marco, así se oye con el panel plegado -->
-  <p class="oculto" id="anuncio-resumen" aria-live="polite" aria-atomic="true"></p>
   <!-- Tira mini (400 × 56): caras, resumen, preguntas, expandir y cerrar -->
   <div class="tira" id="tira" hidden>
     <div class="arrastre" data-arrastre title="Arrastrá para mover o acoplar a un borde">

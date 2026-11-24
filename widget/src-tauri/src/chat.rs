@@ -520,6 +520,8 @@ struct Conversacion {
     cwd: PathBuf,
     mascota: String,
     firma: Option<u64>,
+    /// La charla es del motor local: nunca lanza `claude` (regla 3; el motor local llega con la entrega 6).
+    local: bool,
 }
 
 /// El proceso y su trabajo de Windows. Soltar el trabajo mata el proceso: vive hasta que sale.
@@ -658,19 +660,21 @@ impl Chat {
             }
         };
         let mascota = nombre_mascota(mascota);
+        let local = motor != "claude";
         let mut e = self.estado();
         match e.conversaciones.get_mut(conversacion) {
-            Some(c) if c.usada && c.cwd != cwd => return Err(String::from("la carpeta de una charla con mensajes no cambia")),
+            Some(c) if c.usada && (c.cwd != cwd || c.local != local) => return Err(String::from("la carpeta y el motor de una charla con mensajes no cambian")),
             Some(c) if !c.usada => {
                 // Vacía: la cabecera cambia (D8) y la mascota es la del primer mensaje
                 c.cwd = cwd;
                 c.mascota = mascota;
+                c.local = local;
             }
             Some(_) => {}
             None => {
                 let usada = sesion_claude.is_some();
                 let sesion = sesion_claude.unwrap_or_else(nuevo_uuid);
-                e.conversaciones.insert(conversacion.to_string(), Conversacion { sesion, usada, cwd, mascota, firma: None });
+                e.conversaciones.insert(conversacion.to_string(), Conversacion { sesion, usada, cwd, mascota, firma: None, local });
             }
         }
         let sesion = e.conversaciones[conversacion].sesion.clone();
@@ -740,8 +744,11 @@ impl Chat {
             return Err(String::from("el mensaje es demasiado largo"));
         }
         let mut e = self.estado();
-        if !e.conversaciones.contains_key(conversacion) {
-            return Err(String::from("la charla no está abierta"));
+        match e.conversaciones.get(conversacion) {
+            None => return Err(String::from("la charla no está abierta")),
+            // Nunca a la nube una charla del motor local (regla 3): ese motor llega con la entrega 6
+            Some(c) if c.local => return Err(String::from("el modelo de esta PC todavía no responde en la charla")),
+            Some(_) => {}
         }
         if e.proceso.as_ref().is_some_and(|p| p.conversacion == conversacion && p.turno_activo()) {
             return Err(String::from("hay una respuesta en curso"));

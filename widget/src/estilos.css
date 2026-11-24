@@ -86,9 +86,11 @@
   --d-presion: 140ms; --d-color: 200ms; --d-elevar: 350ms; --d-entrada: 620ms; --d-escalon: 65ms;
   --d-abre: 560ms; --d-cierra: 360ms; --d-golpe: 1100ms;
   --espera-abrir: 180ms; --espera-cerrar: 650ms; --cada-golpe: 90s;
-  /* Resumen con IA (docs/diseno/resumen-ia-ux.md 5.3): la tinta sobre crema y los tiempos del globo */
-  --tinta: #14110C; --tinta2: #5E574A;
-  --d-nace: 480ms; --d-contenido: 380ms; --d-escalon-c: 45ms; --d-palabra: 18ms; --d-voz: 360ms;
+  /* La tinta (el motor elegido, la letra sobre crema) y el cambio de pose de la voz de la marca */
+  --tinta: #14110C; --d-voz: 360ms;
+  /* La charla con la mascota (docs/diseno/chat-avis-ux.md 5): la hoja, su escenario y los tiempos de chatMotion.js */
+  --ancho-hoja: 420px; --hueco-hoja: 14px; --alto-escena-chat: 172px;
+  --d-mudanza: 900ms; --d-hoja: 640ms; --d-palabra-chat: 360ms; --d-chispa: 1300ms;
 }
 
 /* ------------------------------------------------------------------ base */
@@ -919,112 +921,235 @@ body.pausa .pp-btn:active { transform: none }
    devuelve font-stretch a normal, así que esta regla tiene que ganar por orden. */
 .estado, .chip, .rot, .pie-w, .tag, .lleva, .conteo, .conteo-err, .esc-nada, .esc .rotulo em, .mas-c, .pj-ic, .ini, .compa-aviso, .resumen, .pend, .preg-modo, .preg-otra label, .preg-nota, .op .n, .recom { font-stretch: 75% }
 
-/* ------------------------------------------------------------------ "¿En qué anda Claude?" (docs/diseno/resumen-ia-ux.md)
-   El Avi de la marca es un botón (3.1) y su globo crema vive en la columna principal, entre la
-   pregunta y la hoja de primeros pasos (3.2 y 5.1). Solo transform y opacity se animan. */
+/* ------------------------------------------------------------------ la charla con la mascota (docs/diseno/chat-avis-ux.md 5)
+   El Avi de la marca es el botón de la charla (3.2) y la hoja es una tarjeta aparte, hermana de
+   #marco, ubicada por main.js (--hx, --hy, --hw, --hh: `rectHoja`). Sin fuentes ni colores nuevos;
+   --c (la especie) solo en lo de la mascota y nunca lleva texto (5.2). El vuelo, las palabras y la
+   chispa son de chatMotion.js (entrega 3): acá, solo los bucles y estados. */
 .marca .avi-btn {
   pointer-events: auto; position: relative; display: block; width: 112px; height: 112px; flex: none;
   padding: 0; border: 0; border-radius: 24px; background: none; line-height: 0; cursor: pointer;
 }
 /* Hover, foco y presión en el span del Avi (no es el grupo que mueve marcaMotion.js, así no se pisan) */
-#marca-avi { transition: transform 280ms var(--ease) }
+#marca-avi { transition: transform 280ms var(--ease), opacity 400ms var(--ease), filter 400ms var(--ease) }
 .avi-btn:hover #marca-avi, .avi-btn:focus-visible #marca-avi { transform: translateY(-3px) }
 .avi-btn:active #marca-avi { transform: translateY(-1px) scale(.97); transition-duration: var(--d-presion) }
-
-#resumen { contain: inline-size; scroll-margin-top: 64px }
-#resumen:empty { display: none }
-#marco.vacio #resumen, #marco.cargando #resumen, #marco.escenario #resumen { display: none }
-
-.rz-globo {
-  position: relative; padding: 14px 16px 12px; border-radius: var(--r-tarjeta);
-  background: var(--crema); color: var(--tinta); transform-origin: 50% 0;
-  box-shadow: 0 22px 40px -20px rgba(0, 0, 0, .95), 0 0 0 1px rgba(255, 255, 255, .05);
+/* La mascota se mudó a la charla: queda su fantasma (5.1) */
+.marca .mudada { display: none }
+.marca.mudada #marca-avi { opacity: .14; filter: grayscale(1) }
+.marca.mudada .mudada {
+  display: inline-flex; align-items: center; gap: 6px; position: absolute; top: 92px; left: 50%; transform: translateX(-50%);
+  font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2); white-space: nowrap;
 }
-/* La cola apunta a la boca del Avi. .principal recorta a 6 px: el globo se corre 6 px y la cola entra en ese relleno */
-.rz-globo.cola { margin-left: 6px; transform-origin: 0 34px }
-.rz-globo.cola::before { content: ""; position: absolute; left: -11px; top: 24px; width: 12px; height: 20px; background: var(--crema); clip-path: polygon(100% 0, 0 50%, 100% 100%) }
-.rz-globo :focus-visible { outline-color: var(--tinta) }
-.rz-c { position: relative; min-width: 0 }
-.rz-c > * + * { margin-top: 8px }
-.rz-k { display: flex; align-items: center; gap: 7px; padding-right: 34px; font: 500 10px/1 var(--m); font-stretch: 75%; letter-spacing: .12em; text-transform: uppercase; color: #6B6353 }
-.rz-k .pt { width: 6px; height: 6px; box-shadow: none; background: var(--tinta) }
-.rz-globo.err .rz-k .pt { background: var(--rojo) }
-.rz-t { padding-right: 24px; font: 800 14.5px/1.3 var(--f); letter-spacing: -.015em }
-.rz-p { font: 500 12.5px/1.5 var(--f); color: var(--tinta2) }
-.rz-meta { font: 400 10px/1.4 var(--m); font-stretch: 75%; color: #6B6353 }
-.rz-texto {
-  max-height: 152px; overflow-y: auto; overscroll-behavior: contain; white-space: pre-line;
-  font: 500 13.5px/1.6 var(--f); user-select: text; -webkit-user-select: text; cursor: text;
-  scrollbar-width: thin; scrollbar-color: rgba(20, 17, 12, .28) transparent;
-}
-.rz-texto.desborda { mask-image: linear-gradient(#000 calc(100% - 12px), transparent) }
-.rz-texto .w { display: inline-block }
-.rz-texto::selection, .rz-texto *::selection, .rz-det::selection { background: var(--ambar); color: var(--negro) }
-.rz-globo .pj-t { padding: 1px 6px; border-radius: var(--r-tag); background: color-mix(in srgb, var(--c, var(--ambar)) 45%, var(--crema)); color: var(--tinta); font: 600 11.5px/1.6 var(--m); font-stretch: 75% }
-.rz-acc { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 4px }
-.bt-p, .bt-s {
-  display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 14px; border-radius: var(--r-pildora);
-  font: 700 12.5px/1 var(--f); white-space: nowrap; cursor: pointer;
-  transition: background var(--d-color), border-color var(--d-color), transform var(--d-presion);
-}
-.bt-p { background: var(--tinta); color: var(--crema); border: 1px solid var(--tinta) }
-.bt-p:hover { background: #2C271E }
-.bt-s { background: transparent; color: var(--tinta); border: 1px solid rgba(20, 17, 12, .28) }
-.bt-s:hover { border-color: var(--tinta2) }
-.bt-p:active, .bt-s:active { transform: scale(.97) }
-.bt-p svg, .bt-s svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round }
-.rz-x { position: absolute; top: 6px; right: 6px }
-.bt-x { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--r-fila); background: transparent; color: var(--tinta2); cursor: pointer; transition: background var(--d-color), color var(--d-color) }
-.bt-x:hover { background: rgba(20, 17, 12, .07); color: var(--tinta) }
-.bt-x svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round }
-.cifra { display: flex; align-items: baseline; gap: 8px }
-.cifra b { font: var(--t-cifra); letter-spacing: -.03em; font-variant-numeric: tabular-nums }
-.cifra small { font: 600 12px/1 var(--f); color: var(--tinta2) }
-.cifra span { margin-left: auto; font: 500 11px/1 var(--m); font-stretch: 75%; color: var(--tinta2); font-variant-numeric: tabular-nums }
-.barra { position: relative; height: 6px; border-radius: 3px; background: rgba(20, 17, 12, .12); overflow: hidden }
-.barra i { position: absolute; inset: 0; border-radius: 3px; background: var(--tinta); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); transition: transform 120ms linear }
-.barra i::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40px; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .55), transparent); transform: translateX(-40px) }
-/* Indeterminada: un tramo del 34 % que va y vuelve; quieta, centrado */
-.barra.ind i { right: auto; width: 34%; transform: translateX(97%); transition: none }
-.barra.ind i::after { display: none }
-.dots { display: inline-flex; gap: 3px; margin-left: 4px; vertical-align: 2px }
-.dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor }
-.esq { display: grid; gap: 7px; padding: 2px 0 }
-/* El brillo del esqueleto es un tramo que se traslada (solo transform), no un fondo que se mueve */
-.esq i { position: relative; display: block; height: 9px; border-radius: 5px; overflow: hidden; background: rgba(20, 17, 12, .12) }
-.esq i::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 50%; background: linear-gradient(90deg, transparent, rgba(20, 17, 12, .12), transparent); transform: translateX(-100%) }
-.esq i:nth-child(2) { width: 88% }
-.esq i:nth-child(3) { width: 62% }
-.rz-viejo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 10px; border-radius: var(--r-fila); background: rgba(20, 17, 12, .07); font: 600 11.5px/1.3 var(--f) }
-.bt-l { min-height: 24px; padding: 0; border: 0; background: none; color: inherit; font: 800 11.5px/1 var(--f); text-decoration: underline; text-underline-offset: 3px; cursor: pointer }
-.rz-det { padding: 6px 8px; border-radius: 8px; background: rgba(20, 17, 12, .07); color: var(--tinta2); font: 400 10px/1.4 var(--m); font-stretch: 75%; user-select: text; -webkit-user-select: text; overflow-wrap: anywhere }
+.marca.mudada .mudada i { width: 6px; height: 6px; border-radius: 50%; background: var(--c-mascota, var(--ambar)); box-shadow: 0 0 8px var(--c-mascota, var(--ambar)) }
 
-/* Bucles de adentro (9.1): solo con movimiento y sin "Pausar animaciones"; quietos, el estado se lee en el texto */
+#hoja {
+  position: fixed; left: var(--hx, 0); top: var(--hy, 0); width: var(--hw, var(--ancho-hoja)); height: var(--hh, var(--alto-tablero));
+  z-index: 2; display: flex; flex-direction: column; overflow: hidden;
+  border-radius: var(--r-panel); background: var(--negro); color: var(--crema);
+  box-shadow: var(--sombra-ventana), 0 40px 90px -40px rgba(0, 0, 0, .9), inset 0 0 0 1px rgba(255, 255, 255, .05);
+}
+/* Plegada con el panel (la tira, la muesca cerrada o abriéndose, arrastrando la muesca): no se ve ni toma clics,
+   pero queda como estaba (borrador, adjuntos y scroll; 3.1) */
+body.mini #hoja, body.acoplada:not(.desplegada) #hoja, body.pildora #hoja { visibility: hidden; pointer-events: none }
+body:not(.colocada) #hoja { visibility: hidden }
+#hoja .ic {
+  width: 32px; height: 32px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--r-campo);
+  background: none; color: var(--crema2); cursor: pointer; transition: background var(--d-color), color var(--d-color);
+}
+#hoja .ic:hover, #hoja .ic[aria-expanded="true"] { background: var(--s3); color: var(--crema) }
+#hoja button { font: inherit; border: 0; background: none; cursor: pointer }
+#hoja :focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px }
+
+#hoja .escenario {
+  position: relative; height: var(--alto-escena-chat); flex: none; display: grid; justify-items: center; align-content: end; gap: 4px; padding-bottom: 14px;
+  background: radial-gradient(200px 90px at 50% 112px, color-mix(in srgb, var(--c) 22%, transparent), transparent 70%), linear-gradient(var(--s1), var(--negro));
+  cursor: grab; user-select: none;
+}
+#hoja .escenario::after { content: ""; position: absolute; left: 50%; top: 118px; width: 180px; height: 1px; transform: translateX(-50%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--c) 70%, transparent), transparent); pointer-events: none }
+#hoja .escenario .arriba { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; cursor: default }
+#chat-avi { position: absolute; left: 50%; top: 22px; width: 96px; height: 96px; transform: translateX(-50%); pointer-events: none }
+#hoja .esc-nom { position: relative; z-index: 1; font: 800 16px/1.1 var(--f) }
+#hoja .esc-est { display: flex; gap: 6px; align-items: center; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
+#hoja .esc-est i { width: 6px; height: 6px; border-radius: 50%; background: var(--c) }
+
+#hoja .charla { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 12px 14px 14px }
+#hoja .ch-cab { display: flex; align-items: center; gap: 6px; padding-bottom: 10px; flex: none }
+#hoja .ch-cab .carpeta {
+  display: flex; align-items: center; gap: 6px; height: 32px; max-width: 180px; padding: 0 8px 0 9px; border-radius: var(--r-campo);
+  background: var(--s2); border: 1px solid var(--linea); color: var(--crema); font: var(--t-cuerpo-f); transition: border-color var(--d-color);
+}
+#hoja .ch-cab .carpeta:hover { border-color: var(--linea-hover) }
+#hoja .ch-cab .carpeta .ruta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#hoja .ch-cab .carpeta svg { flex: none; color: var(--crema2) }
+#hoja .ch-cab .carpeta[aria-disabled="true"] { opacity: .6; cursor: default }
+#hoja .ch-cab .motor { display: flex; padding: 3px; margin-left: auto; border-radius: var(--r-pildora); background: var(--s2); border: 1px solid var(--linea) }
+#hoja .ch-cab .motor button { height: 26px; padding: 0 10px; border-radius: var(--r-pildora); font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2); transition: background 250ms var(--ease), color 250ms }
+#hoja .ch-cab .motor button[aria-checked="true"] { background: var(--tinta); color: var(--crema); box-shadow: inset 0 0 0 1px var(--linea-hover) }
+
+#chat-hilo {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 10px;
+  scrollbar-width: thin; scrollbar-color: var(--linea-hover) transparent;
+}
+#chat-hilo:focus-visible { outline-offset: -2px }
+#chat-hilo .nueva-en { align-self: center; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#chat-hilo .ver-antes { align-self: center }
+#hoja .quien { display: flex; gap: 6px; align-items: center; margin-bottom: -6px; font: var(--t-rotulo); font-stretch: 75%; text-transform: uppercase; letter-spacing: .12em; color: var(--tenue) }
+#hoja .quien i { width: 6px; height: 6px; border-radius: 50%; background: var(--c) }
+#hoja .m-u {
+  align-self: flex-end; max-width: 84%; padding: 9px 12px; border-radius: 14px 14px 4px 14px;
+  background: var(--s3); border: 1px solid var(--linea); color: var(--crema); font: var(--t-cuerpo); white-space: pre-wrap; overflow-wrap: anywhere;
+  user-select: text; -webkit-user-select: text;
+}
+#hoja .m-u .adj-min { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; font: var(--t-mono-s); font-stretch: 75%; opacity: .8 }
+#hoja .m-u.fallido { opacity: .7 }
+#hoja .m-u .tag-no { display: block; margin-top: 4px; font: 500 10px/1.3 var(--m); font-stretch: 75%; color: var(--rojo) }
+#hoja .m-m { position: relative; padding-left: 16px; font: 500 13px/1.6 var(--f); color: var(--crema); user-select: text; -webkit-user-select: text; overflow-wrap: anywhere }
+#hoja .m-m::before { content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; border-radius: 2px; background: linear-gradient(var(--c), color-mix(in srgb, var(--c) 10%, transparent)) }
+#hoja .bienvenida .m-m { font: 600 15px/1.45 var(--f) }
+#hoja .m-m .txt { display: grid; gap: 7px; min-width: 0 }
+#hoja .m-m .txt p { white-space: pre-wrap }
+#hoja .m-m .txt h4 { font: var(--t-titulo) }
+#hoja .m-m .txt ol, #hoja .m-m .txt ul { display: grid; gap: 3px; padding-left: 18px }
+#hoja .m-m .txt li::marker { color: var(--tenue); font: var(--t-mono-s) }
+#hoja .m-m .txt code { padding: 1px 4px; border-radius: 4px; background: var(--s3); font: 400 11.5px/1.5 var(--m); font-stretch: 75% }
+#hoja .m-m .txt pre { position: relative; padding: 28px 12px 10px; overflow-x: auto; border-radius: 12px; border: 1px solid var(--linea); background: #08080A; color: var(--crema) }
+#hoja .m-m .txt pre code { padding: 0; background: none; font: 400 11px/1.65 var(--m); font-stretch: 75%; white-space: pre }
+#hoja .m-m .txt pre.tabla { padding-top: 10px; font: 400 11px/1.65 var(--m); font-stretch: 75%; white-space: pre }
+#hoja .m-m .txt pre .leng { position: absolute; left: 12px; top: 9px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hoja .m-m .txt pre .copiar { position: absolute; right: 6px; top: 4px; height: 24px; padding: 0 8px; border-radius: var(--r-icono); font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
+#hoja .m-m .txt pre .copiar:hover { background: var(--s3); color: var(--crema) }
+#hoja .m-m .caret { display: inline-block; width: 7px; height: 13px; margin-left: 2px; border-radius: 2px; background: var(--c); vertical-align: -2px }
+#hoja .m-m .abierto { display: inline; white-space: pre-wrap }
+#hoja .m-m .cortado { display: inline-flex; gap: 5px; align-items: center; justify-self: start; padding: 2px 7px; border-radius: var(--r-tag); border: 1px dashed var(--linea-hover); font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hoja .herr { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hoja .herr b { font-weight: 500; color: var(--crema2) }
+#hoja .pie-m { display: flex; gap: 10px; align-items: center; margin-top: 2px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hoja .pie-m button { height: 24px; padding: 0 8px; border-radius: var(--r-icono); color: var(--crema2); font: var(--t-mono-s); font-stretch: 75% }
+#hoja .pie-m button:hover { background: var(--s3); color: var(--crema) }
+#hoja .sug { display: flex; flex-direction: column; align-items: flex-start; gap: 6px }
+#hoja .sug button {
+  padding: 8px 12px; border-radius: 12px; border: 1px solid var(--linea); background: var(--s2); color: var(--crema2); text-align: left;
+  font: 600 12px/1.3 var(--f); transition: border-color var(--d-color), transform var(--d-color) var(--ease);
+}
+#hoja .sug button::before { content: "↳ "; color: var(--tenue) }
+#hoja .pista { display: flex; gap: 6px; align-items: center; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hoja .bienvenida, #hoja .descarga { display: grid; gap: 12px; padding-top: 6px }
+#hoja .espera { display: grid; gap: 9px; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--linea-hover) }
+#hoja .espera .arr { display: flex; justify-content: space-between; align-items: baseline; gap: 8px }
+#hoja .espera .arr b { font: var(--t-cuerpo-f) }
+#hoja .espera .reloj { font: var(--t-mono); font-stretch: 75%; color: var(--tenue); font-variant-numeric: tabular-nums }
+#hoja .espera small { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hoja .paso { display: flex; gap: 10px; align-items: center; font: var(--t-chico); color: var(--tenue) }
+#hoja .paso i { width: 8px; height: 8px; flex: none; border-radius: 50%; border: 1.5px solid currentColor }
+#hoja .paso.hecho { color: var(--crema2) }
+#hoja .paso.hecho i { background: var(--verde); border-color: var(--verde) }
+#hoja .paso.ahora { color: var(--crema); font-weight: 700 }
+#hoja .paso.ahora i { border-color: var(--c); background: var(--c) }
+#hoja .barra-ind { position: relative; height: 2px; overflow: hidden; border-radius: 2px; background: var(--linea) }
+#hoja .barra-ind::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 35%; background: linear-gradient(90deg, transparent, var(--c), transparent); transform: translateX(95%) }
+#hoja .err { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(255, 122, 107, .4); background: rgba(255, 122, 107, .07) }
+#hoja .err b { display: flex; gap: 6px; align-items: center; font: var(--t-cuerpo-f); color: var(--rojo) }
+#hoja .err p { font: var(--t-chico); color: var(--crema2) }
+#hoja .err code { padding: 1px 4px; border-radius: 4px; background: var(--s3); font: 400 11px/1.4 var(--m) }
+#hoja .offline { display: flex; flex: none; gap: 8px; align-items: center; padding: 7px 10px; border-radius: var(--r-campo); border: 1px solid var(--linea); background: var(--s2); font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
+#hoja .offline i { width: 6px; height: 6px; border-radius: 50%; background: var(--rojo) }
+#hoja .acc { display: flex; gap: 6px; flex-wrap: wrap }
+#hoja .btn { height: 32px; padding: 0 12px; border-radius: var(--r-pildora); border: 1px solid var(--linea-hover); color: var(--crema); font: var(--t-cuerpo-f); transition: background var(--d-color) }
+#hoja .btn:hover { background: var(--s3) }
+#hoja .btn.pri { background: var(--ambar); color: var(--negro); border-color: var(--ambar) }
+#hoja .btn.pri:hover { background: #F6C552 }
+#hoja .descarga .cifra { display: flex; align-items: baseline; gap: 8px }
+#hoja .descarga .cifra b { font: var(--t-cifra); letter-spacing: -.03em; font-variant-numeric: tabular-nums }
+#hoja .descarga .cifra small { font: 600 12px/1 var(--f); color: var(--crema2) }
+#hoja .descarga .cifra span { margin-left: auto; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2); font-variant-numeric: tabular-nums }
+#hoja .descarga .barra { position: relative; height: 6px; overflow: hidden; border-radius: 3px; background: var(--s3) }
+#hoja .descarga .barra i { position: absolute; inset: 0; border-radius: 3px; background: var(--ambar); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); transition: transform 120ms linear }
+
+#hoja .comp { display: grid; flex: none; gap: 6px; padding-top: 8px }
+#hoja .adjuntos:empty { display: none }
+#hoja .adjuntos { display: flex; flex-wrap: wrap; gap: 6px }
+#hoja .chip-adj { display: flex; align-items: center; gap: 9px; max-width: 100%; padding: 6px; border-radius: 12px; background: var(--s2); border: 1px solid var(--linea) }
+#hoja .chip-adj b { display: block; font: var(--t-cuerpo-f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#hoja .chip-adj small { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hoja .chip-adj .doc { width: 26px; height: 32px; flex: none; display: grid; place-items: end center; padding-bottom: 5px; border-radius: 4px 9px 4px 4px; background: var(--crema); color: var(--tinta); font: 600 7px/1 var(--m) }
+#hoja .campo { display: flex; align-items: flex-end; gap: 4px; padding: 5px; border-radius: 14px; background: var(--s1); border: 1px solid var(--linea); transition: border-color var(--d-color), box-shadow var(--d-color) }
+#hoja .campo:focus-within { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
+#hoja .campo textarea {
+  flex: 1; min-width: 0; height: 36px; max-height: 120px; padding: 9px 4px; resize: none; overflow-y: auto; border: 0; outline: none;
+  background: none; color: var(--crema); font: var(--t-cuerpo);
+}
+#hoja .campo textarea::placeholder { color: var(--tenue) }
+#hoja .campo .boton { display: contents }
+#hoja .enviar { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--ambar); color: var(--negro); transition: transform 150ms var(--rebote) }
+#hoja .enviar:active { transform: scale(.9) }
+#hoja .enviar:disabled { background: var(--s3); color: var(--tenue); cursor: default }
+#hoja .frenar { height: 36px; flex: none; display: flex; gap: 7px; align-items: center; padding: 0 14px; border-radius: var(--r-pildora); border: 1px solid rgba(255, 122, 107, .55); color: var(--rojo); font: var(--t-cuerpo-f) }
+#hoja .frenar::before { content: ""; width: 9px; height: 9px; border-radius: 2px; background: currentColor }
+#hoja .frenar:hover { background: rgba(255, 122, 107, .1) }
+#hoja .pie-comp { display: flex; justify-content: space-between; gap: 8px; padding: 0 4px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hoja .pie-comp span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+
+#chat-menu { position: absolute; z-index: 9; top: 52px; left: 14px }
+#hoja .menu { width: 262px; display: grid; gap: 1px; padding: 6px; border-radius: 14px; background: var(--s2); color: var(--crema); border: 1px solid var(--linea-hover); box-shadow: 0 24px 48px -18px #000 }
+#hoja .menu .rot { padding: 8px 8px 4px }
+#hoja .menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px; border-radius: var(--r-campo); color: var(--crema); text-align: left; font: var(--t-cuerpo-f) }
+#hoja .menu button span { display: grid; min-width: 0 }
+#hoja .menu button:hover, #hoja .menu button:focus-visible, #hoja .menu button[aria-checked="true"] { background: var(--s3) }
+#hoja .menu button[aria-checked="true"]::after { content: "✓"; margin-left: auto; color: var(--ambar) }
+#hoja .menu small { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#hoja .menu .otra { color: var(--ambar) }
+#hoja .menu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--linea) }
+#hoja .soltar {
+  position: absolute; inset: 40px 0 0; z-index: 8; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center;
+  border-radius: 18px; border: 2px dashed var(--c); background: color-mix(in srgb, var(--c) 12%, rgba(8, 8, 10, .9)); color: var(--crema);
+}
+#hoja .soltar .hoja-doc { width: 58px; height: 72px; display: grid; place-items: end center; padding-bottom: 10px; border-radius: 6px 16px 6px 6px; background: var(--crema); color: var(--tinta); font: 600 10px/1 var(--m); transform: rotate(-8deg); box-shadow: 0 18px 30px -12px #000 }
+#hoja .soltar b { font: var(--t-display) }
+#hoja .soltar span { max-width: 30ch; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
+#hoja .velo { position: absolute; inset: 0; z-index: 9; background: rgba(0, 0, 0, .55) }
+#hoja .cajon { position: absolute; z-index: 10; inset: 0 auto 0 0; width: 300px; display: flex; flex-direction: column; gap: 8px; padding: 14px 10px; background: var(--s1); border-right: 1px solid var(--linea-hover); box-shadow: 30px 0 60px -30px #000 }
+#hoja .cajon .tit { display: flex; justify-content: space-between; align-items: center; padding: 0 2px 0 8px }
+#hoja .cajon .tit b { font: var(--t-titulo) }
+#hoja .cajon .buscar { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 9px; border-radius: var(--r-campo); background: var(--s2); border: 1px solid var(--linea); color: var(--tenue) }
+#hoja .cajon .buscar:focus-within { border-color: var(--ambar) }
+#hoja .cajon .buscar input { flex: 1; min-width: 0; border: 0; outline: none; background: none; color: var(--crema); font: var(--t-chico) }
+#hoja .cajon .hist { flex: 1; min-height: 0; display: grid; gap: 1px; align-content: start; overflow-y: auto; scrollbar-width: thin }
+#hoja .cajon .dia { padding: 10px 8px 4px; font: var(--t-rotulo); font-stretch: 75%; text-transform: uppercase; letter-spacing: .12em; color: var(--tenue) }
+#hoja .h-it { display: grid; gap: 3px; width: 100%; padding: 7px 8px; border-radius: var(--r-fila); text-align: left; color: var(--crema) }
+#hoja .h-it:hover { background: var(--s2) }
+#hoja .h-it.on { background: var(--s3) }
+#hoja .h-it b { font: 700 12px/1.25 var(--f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#hoja .h-it span { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#hoja .h-it span em { font-style: normal; color: var(--crema2) }
+#hoja .hist-vacio { padding: 12px 8px; font: var(--t-chico); color: var(--tenue) }
+#hoja .guardado { display: flex; gap: 6px; align-items: center; padding: 8px 8px 0; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hoja .guardado i { width: 6px; height: 6px; border-radius: 50%; background: var(--verde) }
+
+/* Bucles (6.2): solo con movimiento, sin "Pausar animaciones" y con la hoja a la vista; quietos, el estado se lee en el texto */
 @media (prefers-reduced-motion: no-preference) {
-  body:not(.pausa) .rz-globo .barra:not(.ind) i::after { animation: brilloBarra 1.6s ease-in-out infinite }
-  body:not(.pausa) .rz-globo .barra.ind i { animation: ida 1.5s var(--ease) infinite }
-  body:not(.pausa) .rz-globo .dots i { animation: punto 1.1s ease-in-out infinite }
-  body:not(.pausa) .rz-globo .dots i:nth-child(2) { animation-delay: .14s }
-  body:not(.pausa) .rz-globo .dots i:nth-child(3) { animation-delay: .28s }
-  body:not(.pausa) .rz-globo .esq i::after { animation: esqueleto 1.4s linear infinite }
+  body:not(.pausa) #hoja .m-m .caret { animation: parpa 1s steps(2, start) infinite }
+  body:not(.pausa) #hoja .paso.ahora i { animation: late 1.2s ease-out infinite }
+  body:not(.pausa) #hoja .barra-ind::after { animation: corre 1.4s var(--ease) infinite }
+  body:not(.pausa) #hoja .sug button:hover { border-color: var(--c); transform: translateX(3px) }
 }
+body.mini #hoja *, body.acoplada:not(.desplegada) #hoja * { animation-play-state: paused !important }
 @media (prefers-reduced-motion: reduce) {
-  #marca-avi, .bt-p, .bt-s, .bt-x, .barra i { transition: none }
-  .avi-btn:active #marca-avi, .bt-p:active, .bt-s:active { transform: none }
+  #marca-avi, #hoja .ic, #hoja .ch-cab .carpeta, #hoja .ch-cab .motor button, #hoja .enviar, #hoja .campo, #hoja .descarga .barra i { transition: none }
+  .avi-btn:active #marca-avi, #hoja .enviar:active { transform: none }
 }
-body.pausa #marca-avi, body.pausa .bt-p, body.pausa .bt-s, body.pausa .bt-x, body.pausa .barra i { transition: none }
-body.pausa .avi-btn:active #marca-avi, body.pausa .bt-p:active, body.pausa .bt-s:active { transform: none }
-@keyframes brilloBarra { from { transform: translateX(-40px) } to { transform: translateX(460px) } }
-@keyframes ida { from { transform: translateX(-110%) } to { transform: translateX(310%) } }
-@keyframes punto { 0%, 100% { opacity: .25; transform: translateY(0) } 40% { opacity: 1; transform: translateY(-2px) } }
-@keyframes esqueleto { from { transform: translateX(-100%) } to { transform: translateX(200%) } }
+body.pausa #marca-avi, body.pausa #hoja .ic, body.pausa .enviar, body.pausa .descarga .barra i { transition: none }
+body.pausa .avi-btn:active #marca-avi, body.pausa .enviar:active { transform: none }
+@keyframes parpa { to { visibility: hidden } }
+@keyframes late { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 60%, transparent) } to { box-shadow: 0 0 0 7px transparent } }
+@keyframes corre { from { transform: translateX(-100%) } to { transform: translateX(300%) } }
 
 /* ------------------------------------------------------------------ pantalla dividida (docs/diseno/dividida-ux.md)
    Cuando dos sesiones conversan, la barra se pliega a un riel de 56 y la columna (592) se parte en
    dos mitades de 272 con una costura de 26: el tablero mide lo mismo (4.1). Lo de la vista normal
    queda display: none (sus bucles no corren). Las posiciones salen de DIVIDIDA (dividida.js) */
 .riel, .cab-c-t, .volver, .drena, #pestanas, .split, .ficha-u { display: none }
-#marco.dividida .lado, #marco.dividida .cab-t, #marco.dividida #w-globo, #marco.dividida #resumen, #marco.dividida #pp,
+#marco.dividida .lado, #marco.dividida .cab-t, #marco.dividida #w-globo, #marco.dividida #pp,
 #marco.dividida .conteos, #marco.dividida .sesiones, #marco.dividida #vacio-avi { display: none }
 #marco.dividida .principal { width: var(--ancho-principal-d) }
 

@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   iniciales, colorProyecto, COLORES_PROYECTO, conteos, lineaEncabezado, subagentesVisibles, textoMas,
-  animoMarca, colorEstado, barraProyectos, sesiones, prepararProyecto, estadoMarca,
+  animoMarca, colorEstado, barraProyectos, sesiones, prepararProyecto, estadoMarca, animoTexto,
   MAX_SUBAGENTES_VISIBLES, firmaTablero, figuraMarca, figuraVacio, carasMini, companero, cifraConUnidades, chips, tiempoCorto,
   ESCENA, geometriaEscena, trazoHilo, estadoCorto, tiempoMini, ESTADO_CORTO, firmaEscenas,
 } from '../src/tablero.js'
@@ -477,4 +477,10 @@ test('la firma de las escenas cambia al abrir un detalle o sumar un paso, no con
   assert.notEqual(firma(otroPaso, abierto), firma(agentes, abierto))
   const masTarde = [{ ...agentes[0], pasos: agentes[0].pasos.map(p => ({ ...p, cuando: hace(0) })) }]
   assert.equal(firma(masTarde, abierto), firma(agentes, abierto))
+})
+
+test('el ánimo real describe al Avi-botón ("Claude, esperando"); pasó del resumen a tablero.js', () => {
+  assert.equal(animoTexto('esperando'), 'Claude, esperando')
+  assert.equal(animoTexto('coordinando'), 'Claude, coordinando el equipo')
+  assert.equal(animoTexto('teEspera'), 'Claude, esperándote')
 })

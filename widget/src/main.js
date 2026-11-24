@@ -13,7 +13,7 @@ import {
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
   prepararProyecto, firmaEscenas, sesiones, carasMini, companero, firmaCompanero,
-  barraProyectos, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, chips, lineaEncabezado, colorProyecto,
+  barraProyectos, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, chips, lineaEncabezado, colorProyecto, animoTexto,
 } from './tablero.js'
 import {
   vistaBarra, clicFrenar, validarTexto, teclaControl, lineaResultado, lineaError, pasoOrden,
@@ -21,7 +21,7 @@ import {
 } from './control.js'
 import { globo, avisoOtroProyecto, quienPregunta, anuncioPregunta } from './pregunta.js'
 import { defsAvis, nombreClaude } from './avis.js'
-import { especieValida, ESPECIE_POR_DEFECTO } from './especies.js'
+import { especieValida, ESPECIE_POR_DEFECTO, datosEspecie } from './especies.js'
 import { avanzarEvolucion, coordinaciones, debeActuar, ordenActos, actoPendiente, CLAVE_MARCA, TAMANO_MIN_ACTO } from './evolucion.js'
 import * as movimientoEvolucion from './evolucionMotion.js'
 import { entrada, cambioProyecto, hayMovimiento } from './tableroMotion.js'
@@ -41,10 +41,10 @@ import {
 import { esqueleto, rotulo, pestanas, indicePestana, escena as escenaPasos, pie as piePasos, avisoAsistente, avisoMod } from './primerosPasosVista.js'
 import * as movimientoPasos from './primerosPasosMotion.js'
 import {
-  resumenInicial, transicion as transicionResumen, datosResumen, contenidoResumen, anuncioResumen, vozAvi, colaResumen, cifrasDescarga,
-  duracionContando, contarPalabras, animoTexto, EVENTOS_BACKEND, ESPERA_PENSANDO_MS, lineaAbrir,
-} from './resumen.js'
-import * as movimientoResumen from './resumenMotion.js'
+  chatInicial, transicionChat, ocupado, datosAvis, relojEspera, partirBloques, markdownSeguro, sugerencias, nombreCarpeta,
+  carpetasDeProyectos, ladoHoja, rectHoja, SALUDA_MS, FELIZ_MS,
+} from './chat.js'
+import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, cajon, listaHistorial, capaSoltar } from './chatVista.js'
 import {
   conversaciones, conversacionesNuevas, mensajesNuevos, convsVisibles, debeAbrirseSola, ladoIzquierdo, primeroDe, pausaVuelta, nombreLado, textoSub,
   geometriaDividida, cuentaVuelta, rastroConversa, anuncioEmpieza, anuncioTermina, esperaRespuesta, RECIEN_SOLA_MS, CONTESTO_MS, ESPERA_VUELTA_MS,
@@ -212,8 +212,6 @@ const st = {
     fijaAntes: false,
     fijaTocada: false,
   },
-  // ---- "¿En qué anda Claude?" (docs/diseno/resumen-ia-ux.md): cada descarga y cada resumen, solo con un clic
-  /** El globo del resumen (3.3): lo maneja `transicion` (resumen.js). */
   /** El último HTML de lo que se pinta con `ponerVivo` (para reescribir en su lugar lo que cambia con el tiempo). */
   htmlVivo: {},
   /**
@@ -231,11 +229,13 @@ const st = {
     // La vista de desarrollo puede acortar la cuenta (window.__esperaVuelta, ver dev/falso.js)
     esperaVuelta: Number(window.__esperaVuelta) || ESPERA_VUELTA_MS,
   },
-  resumen: resumenInicial(),
-  /** El usuario abrió el globo: el foco va a su primer `data-foco` al dibujarse (10). */
-  resumenFoco: false,
-  /** El globo se está cerrando (200 ms): todavía se ve. */
-  resumenSaliendo: false,
+  // ---- la charla con la mascota (docs/diseno/chat-avis-ux.md): solo se manda con un clic o Enter
+  /** La hoja y su conversación (3.3): la maneja `transicionChat` (chat.js). */
+  chat: chatInicial(),
+  /** Cuándo apareció la charla vacía de ahora: la mascota saluda 1,2 s (3.3). */
+  chatSaludo: null,
+  /** La hoja se veía en la última vuelta (se redibuja al volver a verse, no en cada lectura). */
+  hojaVista: false,
 }
 
 /** Pone el HTML solo si cambió su firma (por defecto, el propio HTML). */
@@ -583,16 +583,20 @@ const muescaAvi = montarMarca($('#muesca-avi'), { escala: Number(window.__escala
  * Si cambia cuál quiere el puntero, la zona se vuelve a mandar (`mirada`, 9).
  */
 function verAvis() {
-  // En la pantalla dividida el riel lleva a Claude de 34 sin juegos: el motor de la marca no corre (5.1)
-  marca.visible(!st.fuera && !st.mini && (!st.acople || st.vista) && !st.dividida.clave, !!st.acople)
+  // En la pantalla dividida el riel lleva a Claude de 34 sin juegos: el motor de la marca no corre (5.1).
+  // Con la hoja de la charla abierta, la mascota se mudó a su escenario: la marca queda quieta (chat-avis-ux.md 3.2)
+  marca.visible(!st.fuera && !st.mini && (!st.acople || st.vista) && !st.dividida.clave && !st.chat.abierta, !!st.acople)
   // Lo de la dividida que corre con WAAPI (un cruce, un latido) termina si el panel deja de verse, y
   // la cuenta de la vuelta se pausa (10.2)
   if (st.dividida.clave) {
     if (!panelSeVe()) movimientoDividida.detener()
     revisarCuenta(Date.now())
   }
-  // El globo del resumen no se anima mientras no se ve (resumen-ia-ux.md 9.2): lo que corría termina de una
-  if (!resumenALaVista()) movimientoResumen.terminar()
+  // La hoja de la charla, plegada o escondida, no se dibuja; al volver a verse se pone al día. El
+  // sondeo de 1,5 s no la toca (13): solo cuando empieza a verse
+  const hojaVe = hojaSeVe()
+  if (hojaVe && !st.hojaVista) programarHoja()
+  st.hojaVista = hojaVe
   muescaAvi.visible(!!st.acople && !st.vista && !st.fuera && !st.mini && !document.body.classList.contains('pildora') && !st.arrastre?.activo, true)
   enviarZona()
   // Una figura que empieza a verse puede tener su acto de la apertura pendiente (mascotas-avi-ux.md 6.8)
@@ -825,10 +829,6 @@ function pintar() {
     st.firmas.clavesGlobo = claves
     if (escribiendo) enfocarOtra()
   }
-  // El globo del resumen va debajo de la pregunta (resumen-ia-ux.md 3.2). Sin rearmado: si cambió
-  // algo desde el pedido, solo lo avisa ("Cambió algo"); nunca pide solo
-  st.resumen = transicionResumen(st.resumen, { tipo: 'datos' }, { ahoraMs: ahora, datos: datosResumen(st.proyectos, ahora) }).resumen
-  pintarResumen()
   pintarAsistente(pp, forma)
 
   // La primera vez que se ve el tablero desde que se mostró la ventana, entra escalonado (6.1).
@@ -1607,9 +1607,9 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('[data-accion]')
   if (!b) return
   const a = b.dataset.accion
-  if (a.startsWith('rz-')) {
-    // El globo del resumen: cada botón hace solo lo suyo (resumen-ia-ux.md 6.1)
-    await accionResumen(a, b)
+  if (a.startsWith('ch-')) {
+    // La hoja de la charla: cada botón hace solo lo suyo (chat-avis-ux.md 3.5)
+    await accionChat(a, b)
     return
   }
   if (a.startsWith('pp-')) {
@@ -1739,14 +1739,8 @@ document.addEventListener('compositionstart', e => { if (e.target.matches?.('.ct
 document.addEventListener('compositionend', () => { st.componiendo = false })
 
 document.addEventListener('keydown', e => {
-  // Esc con el foco en el globo del resumen o en el Avi y el globo abierto: lo cierra y el foco vuelve
-  // al Avi (resumen-ia-ux.md 10). Va antes que el Esc de la pregunta y el de la muesca
-  if (e.key === 'Escape' && st.resumen.estado !== 'cerrado' && e.target.closest?.('#resumen, #marca-boton')) {
-    e.preventDefault()
-    despacharResumen({ tipo: 'cerrar' })
-    marcaBoton.focus()
-    return
-  }
+  // Las teclas de la hoja de la charla (chat-avis-ux.md 3.5): van antes que el Esc de la pregunta y el de la muesca
+  if (teclaChat(e)) return
   // Barra de control (#19, D4): Enter envía, Shift+Enter hace línea nueva, nada mientras compone el IME.
   // Las demás teclas son del campo; Esc sigue de largo (pliega el detalle o la muesca, como en todo campo)
   if (e.target.matches?.('#sesiones .ctl-in')) {
@@ -1782,7 +1776,7 @@ document.addEventListener('keydown', e => {
   if (teclaDividida(e)) return
   // Fuera de la pregunta, Esc cierra la muesca aunque esté fijada y devuelve el foco a la muesca (7.2)
   if (e.key === 'Escape' && st.acople && st.muesca.abierta) { e.preventDefault(); evento({ tipo: 'esc' }); return }
-  if (st.mini || e.target.closest?.('input, textarea, summary, #pp, #resumen')) return
+  if (st.mini || e.target.closest?.('input, textarea, summary, #pp, #hoja')) return
   // ↑ ↓ mueven el foco entre los proyectos de la barra (no cambian de proyecto)
   const fila = e.target.closest?.('#proyectos [data-proy]')
   if (fila && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
@@ -1916,6 +1910,7 @@ function colocar(d) {
   if (d.local.muesca) { poner('m', d.local.muesca); poner('l', d.local.luz) }
   if (d.local.tablero) poner('t', d.local.tablero)
   if (d.local.tira) poner('q', d.local.tira)
+  colocarHoja(d, poner)
   st.disp = d
   st.ventana = { ...d.ventana }
   // La primera vez: hasta acá el tablero no tenía lugar y no se veía; flotando, entra (6.1)
@@ -1923,6 +1918,32 @@ function colocar(d) {
     document.body.classList.add('colocada')
     if (d.modo === 'flotante') entradaMarco()
   }
+}
+
+/**
+ * La hoja de la charla al lado del tablero que se ve (chat-avis-ux.md 3.1): flotando o acoplada y
+ * abierta. El lado se recalcula siempre salvo a mitad de un arrastre (D2: al soltar). `d.hoja` es su
+ * rectángulo para la zona interactiva (encima, la zona es el tablero).
+ */
+function colocarHoja(d, poner) {
+  const tablero = d.modo === 'flotante' ? d.tablero : d.modo === 'acoplada' ? d.p.tablero : null
+  d.hoja = null
+  if (!st.chat.abierta || !tablero) return
+  const z = zoom()
+  if (!st.arrastre?.activo || !st.chat.lado) st.chat = { ...st.chat, lado: ladoHoja(tablero, d.ventana, d.modo, st.acople?.borde, z) }
+  const r = rectHoja(tablero, st.chat.lado, z, anchoBarra() * z)
+  poner('h', relativo(r, d.ventana, z))
+  hojaEl.dataset.lado = st.chat.lado
+  if (st.chat.lado !== 'encima') d.hoja = r
+}
+
+/** Ancho de la barra lateral (o del riel de la dividida) en px CSS, medido: lo que la hoja "encima" deja a la vista. */
+function anchoBarra() {
+  const marco = $('#marco')
+  const lado = [$('.lado'), $('#riel')].find(x => x && x.offsetWidth > 0)
+  if (!lado || !marco.offsetWidth) return 0
+  const rm = marco.getBoundingClientRect()
+  return Math.max(0, (lado.getBoundingClientRect().right - rm.left) * (marco.offsetWidth / rm.width))
 }
 
 /** La entrada del tablero flotante al mostrarse por primera vez (`aparece`, 620 ms). */
@@ -1962,7 +1983,7 @@ async function colocarEnArea(g) {
  */
 async function enviarZona(forzar = false) {
   if (!st.disp || !tauri?.core) return null
-  const zona = zonaInteractiva(st.disp, { abierta: st.vista, arrastrando: !!st.arrastre?.activo }, zoom())
+  const zona = zonaInteractiva(st.disp, { abierta: st.vista, arrastrando: !!st.arrastre?.activo, hoja: hojaSeVe() ? st.disp.hoja : null }, zoom())
   // `mirada`: acoplada, el Avi a la vista (la marca abierta o el de la muesca cerrada) quiere el
   // puntero; entonces Rust manda su posición global (muesca-avi-ux.md 9). Flotando, la marca mira
   // con el puntero del DOM, como siempre
@@ -2254,6 +2275,9 @@ muescaEl.addEventListener('pointerenter', e => {
 $('#marco').addEventListener('pointerenter', e => {
   if (e.pointerType === 'mouse' && st.muesca.abierta) ponerDentro(true)
 })
+$('#hoja').addEventListener('pointerenter', e => {
+  if (e.pointerType === 'mouse' && st.muesca.abierta) ponerDentro(true)
+})
 document.documentElement.addEventListener('pointerleave', e => {
   if (e.pointerType === 'mouse') ponerDentro(false)
 })
@@ -2270,7 +2294,8 @@ window.addEventListener('blur', () => {
   if (st.acople && st.muesca.abierta && !st.arrastre) evento({ tipo: 'afuera' })
 })
 document.addEventListener('pointerdown', e => {
-  if (!st.acople || !st.muesca.abierta || st.arrastre || e.target.closest?.('#marco, #muesca')) return
+  // La hoja de la charla es parte del panel: un clic en ella no lo cierra (chat-avis-ux.md 3.1)
+  if (!st.acople || !st.muesca.abierta || st.arrastre || e.target.closest?.('#marco, #muesca, #hoja')) return
   evento({ tipo: 'afuera' })
 })
 
@@ -2795,118 +2820,434 @@ function retenerPanel(modelo, forma) {
   }
 }
 
-// ------------------------------------------------------------------ "¿En qué anda Claude?" (docs/diseno/resumen-ia-ux.md)
-// Reglas de oro (1): un clic, nunca solo (la descarga y cada resumen arrancan con un clic; nada se
-// pide, se descarga ni se rearma por tiempo o por cambios); el modelo solo resume (este bloque no
-// toca responder.js ni respuestas/); nunca tapa una pregunta (la tarjeta va antes que el globo).
+// ------------------------------------------------------------------ la charla con la mascota (docs/diseno/chat-avis-ux.md)
+// Reglas de oro: un clic, nunca solo (abrir la hoja no manda nada; solo Enter, Enviar, una
+// sugerencia, Reintentar o "Volver a preguntar" mandan); nunca se pierde lo escrito (el borrador
+// vive en st.chat y el campo no se redibuja); quién responde, siempre a la vista; el texto del modelo
+// nunca es HTML (chatVista.js lo escapa o lo pasa por markdownSeguro). La lógica es de chat.js.
 
 const marcaBoton = $('#marca-boton')
+const hojaEl = $('#hoja')
+const campoChat = $('#chat-campo')
 /** Dónde se apretó el Avi (px de pantalla): si se movió más que el umbral, no es un clic (3.1). */
 let toqueMarca = null
-let relojPensando = null, pensandoDe = null, relojHabla = null, relojCopiado = null
+/** El reloj de la espera (1 s, solo con un turno en curso) y el de las poses de un rato. */
+let temporizadorEspera = null, temporizadorPose = null
+/** El último `chat_abrir` pedido: `chat_enviar` espera a que Rust conozca la conversación. */
+let abriendo = Promise.resolve()
+let cuadroHoja = 0
+/** Lo buscado en el cajón del historial (se pierde al cerrarlo). */
+let buscarChat = ''
 
-/** ¿El globo se ve? Flotando, o acoplada con el panel abierto; ni escondida ni en la tira. */
-function resumenALaVista() {
-  return !st.fuera && !st.mini && (!st.acople || st.vista)
+/** El nombre de la mascota ("Avi", "Ascua"…): la cara y la voz de la charla. */
+const nombreMascota = () => datosEspecie(st.mascota).nombre
+
+/** Un id nuevo de conversación (`c-<uuid>`, como pide `conversacion_valida` de Rust). */
+const idConversacion = () => `c-${globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`
+
+/** ¿Se ve la hoja? Abierta y con el tablero a la vista: flotando, o acoplada y abierta; ni en la tira ni escondida. */
+function hojaSeVe() {
+  return st.chat.abierta && !st.fuera && !st.mini && (!st.acople || st.vista)
 }
 
-/** La voz y el ánimo del Avi de la marca (6.2 y 6.3): con el globo abierto, la voz manda y no juega. */
-function pintarMarca(ahora = Date.now()) {
-  const animo = animoMarca(st.proyectos, ahora)
-  const r = st.resumen
-  // Todas las especies tienen las voces del resumen (mascotas-avi-ux.md 10, P2)
-  marca.voz(vozAvi(r.estado, r.hablando, animo), { hablando: r.hablando })
-  marca.animo(animo, reposoPermitido(st.proyectos, ahora) && r.estado === 'cerrado')
-  texto('#marca-animo', animoTexto(animo))
+/** Lo que dibuja chatVista.js. Los adjuntos llegan con la entrega 5: hasta entonces, ni el clip ni "Resumime un PDF". */
+function modeloVista(ahora = Date.now()) {
+  const c = st.chat
+  const reciente = (c.estado === 'listo' && c.listoMs != null && ahora - c.listoMs < FELIZ_MS)
+    || (c.estado === 'vacio' && st.chatSaludo != null && ahora - st.chatSaludo < SALUDA_MS)
+  return { chat: c, especie: st.mascota, ahoraMs: ahora, reciente, hablando: false, puedeAdjuntar: false, proyectos: carpetasDeProyectos(st.proyectos) }
 }
 
-/** Un aviso en `#anuncio-resumen` (6.4): se vacía antes, así el mismo texto se vuelve a oír. */
-function anunciarResumen(mensaje) {
-  const el = $('#anuncio-resumen')
+/** Un aviso en `#anuncio-chat` (12): se vacía antes, así el mismo texto se vuelve a oír. */
+function anunciarChat(mensaje) {
+  const el = $('#anuncio-chat')
   if (!mensaje || !el) return
   el.textContent = ''
   setTimeout(() => { el.textContent = mensaje }, 60)
 }
 
-/** Lo de abajo del globo (#pp, conteos, sesiones): se acomoda con FLIP (9.1). */
-function hermanosResumen() {
-  const lista = []
-  for (let el = $('#resumen').nextElementSibling; el; el = el.nextElementSibling) lista.push(el)
-  return lista
+/**
+ * Pasa un evento por `transicionChat` (chat.js), hace sus efectos y redibuja la hoja. Es el único
+ * camino para cambiar `st.chat` (salvo el borrador, que se guarda tecla a tecla en `input`).
+ */
+function despacharChat(ev) {
+  const antes = st.chat
+  const ahora = Date.now()
+  const { chat, efectos } = transicionChat(antes, ev, { ahoraMs: ahora, id: idConversacion(), mascota: nombreMascota(), datos: datosAvis(st.proyectos, ahora) })
+  if (chat === antes && !efectos.length) return
+  st.chat = chat
+  // La mascota saluda 1,2 s en una charla vacía que aparece y festeja 1,6 s al terminar (3.3)
+  if (chat.abierta && chat.estado === 'vacio' && (!antes.abierta || chat.conversacion?.id !== antes.conversacion?.id)) poseDeUnRato('chatSaludo', SALUDA_MS)
+  if (chat.estado === 'listo' && antes.estado !== 'listo') poseDeUnRato(null, FELIZ_MS)
+  if (chat.borrador !== campoChat.value) { campoChat.value = chat.borrador; ajustarCampo() }
+  for (const e of efectos) efectoChat(e)
+  vigilarEspera()
+  if (chat.abierta !== antes.abierta) {
+    // La marca se muda (3.2): su motor se pausa y la zona suma o saca la hoja
+    verAvis()
+    recolocar()
+    enviarZona()
+  }
+  pintarHoja()
+  for (const e of efectos) if (e.tipo === 'foco') enfocarEnHoja(e.a)
 }
 
-/** Una llamada del plan de `transicion` al backend; si falla, el globo lo dice (nunca reintenta solo). */
-function llamarResumen({ comando, args }) {
+/** Redibuja cuando termina la pose de un rato (`clave`: dónde se anota su comienzo, si hace falta). */
+function poseDeUnRato(clave, ms) {
+  if (clave) st[clave] = Date.now()
+  clearTimeout(temporizadorPose)
+  temporizadorPose = setTimeout(programarHoja, ms + 20)
+}
+
+/** Los efectos de una transición: comandos de Rust, el selector de carpetas y los anuncios. */
+function efectoChat(e) {
+  if (!tauri?.core && e.tipo !== 'anunciar' && e.tipo !== 'foco') return
+  switch (e.tipo) {
+    case 'abrir': {
+      // Precalienta sin mandar nada (D19). Con el motor local, además, qué hay del modelo (solo lee)
+      abriendo = invocar('chat_abrir', { conversacion: e.conversacion, motor: e.motor, carpeta: e.carpeta, mascota: nombreMascota(), sesionClaude: e.sesionClaude })
+        .then(resultado => despacharChat({ tipo: 'abierta', conversacion: e.conversacion, resultado }))
+        .catch(err => registrar(`chat abrir: ${err}`))
+      if (e.motor === 'local') leerModelo()
+      break
+    }
+    case 'enviar': {
+      const { conversacion, turno, texto } = e
+      // `adjuntos` llega con la entrega 5: Rust todavía no lo recibe
+      abriendo.then(() => invocar('chat_enviar', { conversacion, turno, texto, datos: datosAvis(st.proyectos, Date.now()) }))
+        .catch(err => {
+          registrar(`chat enviar: ${err}`)
+          const motivo = st.chat.conversacion?.motor === 'local' ? 'local' : 'otro'
+          despacharChat({ tipo: 'backend', payload: { conversacion, turno, tipo: 'error', motivo, detalle: String(err) } })
+        })
+      break
+    }
+    case 'frenar':
+      invocar('chat_frenar', { conversacion: e.conversacion, turno: e.turno }).catch(err => registrar(`chat frenar: ${err}`))
+      break
+    case 'preferencias':
+      invocar('guardar_chat', { motor: e.motor, carpeta: e.carpeta })
+        .then(r => despacharChat({ tipo: 'recientes', recientes: r?.recientes }))
+        .catch(err => registrar(`chat preferencias: ${err}`))
+      break
+    case 'elegir-carpeta':
+      // El selector nativo de carpetas (D10), solo con el clic en "Elegir otra carpeta…"
+      invocar('elegir_carpeta')
+        .then(ruta => { if (ruta) despacharChat({ tipo: 'carpeta', carpeta: ruta }) })
+        .catch(err => registrar(`chat elegir carpeta: ${err}`))
+      break
+    case 'anunciar':
+      anunciarChat(e.texto)
+      break
+  }
+}
+
+/** Lleva el foco adonde dice la transición (3.5), cuando la hoja ya está dibujada. */
+function enfocarEnHoja(a) {
+  if (a === 'marca') { marcaBoton.focus({ preventScroll: true }); return }
+  if (!hojaSeVe()) return
+  const destino = {
+    campo: campoChat, carpeta: $('#chat-cab .carpeta'), hist: $('#hoja .arriba [data-accion="ch-hist"]'), buscar: $('#chat-buscar'),
+  }[a]
+  destino?.focus({ preventScroll: true })
+}
+
+/** `estado_modelo` (solo lee, sin red): si el modelo de esta PC está, falta o se está bajando. */
+function leerModelo() {
   if (!tauri?.core) return
-  invocar(comando, args).catch(e => {
-    registrar(`resumen ${comando}: ${e}`)
-    if (comando === 'descargar_modelo') despacharResumen({ tipo: 'fallo', motivo: 'descarga', detalle: String(e) })
-    else if (comando === 'pedir_resumen') despacharResumen({ tipo: 'fallo', pedido: args.pedido, motivo: 'otro', detalle: String(e) })
-  })
+  invocar('estado_modelo').then(e => despacharChat({ tipo: 'modelo', modelo: e?.modelo, bajado: e?.bajado, total: e?.total }))
+    .catch(err => registrar(`chat modelo: ${err}`))
 }
 
-/** 60 s pensando sin respuesta: falló por tiempo (6.1). Corre aunque el globo esté cerrado: es trabajo, no movimiento. */
-function vigilarPensando() {
-  const r = st.resumen
-  const de = r.trabajo === 'pensando' ? r.pedido : null
-  if (de === pensandoDe) return
-  clearTimeout(relojPensando)
-  pensandoDe = de
-  if (de != null) relojPensando = setTimeout(() => despacharResumen({ tipo: 'vencio', pedido: de }), ESPERA_PENSANDO_MS)
+/** Un evento `oficina://modelo` (la descarga o el borrado desde la bandeja). */
+function alEventoModelo(p) {
+  switch (p?.tipo) {
+    case 'estado': despacharChat({ tipo: 'modelo', modelo: p.modelo, bajado: p.bajado, total: p.total }); break
+    case 'progreso': despacharChat({ tipo: 'modelo', modelo: 'bajando', bajado: p.bajado, total: p.total }); break
+    case 'bajado': despacharChat({ tipo: 'modelo', modelo: 'listo', bajado: p.total, total: p.total }); break
+    case 'fallo': registrar(`chat modelo: ${p.motivo} ${p.detalle ?? ''}`); leerModelo(); break
+    case 'cancelado': leerModelo(); break
+  }
 }
 
 /**
- * Pasa un evento por `transicion` (resumen.js), hace las llamadas del plan, avisa al lector de
- * pantalla y vuelve a dibujar el globo y la voz del Avi.
+ * El reloj de la espera: cada segundo, mientras hay un turno, reescribe el reloj en su lugar (y la
+ * nota de los 45 s); a los 120 s sin ningún evento del turno, `vencio` (D6). Corre aunque la hoja
+ * no se vea: el turno sigue en Rust.
  */
-function despacharResumen(evento) {
-  const antes = st.resumen
-  const { resumen, llamadas } = transicionResumen(antes, evento, { ahoraMs: Date.now(), datos: datosResumen(st.proyectos, Date.now()) })
-  if (resumen === antes && !llamadas.length) return
-  st.resumen = resumen
-  if (resumen.hablando && !antes.hablando) {
-    // "contando" dura la cascada de palabras; sin movimiento o sin verse, directo a "feliz"
-    if (!hayMovimiento() || !resumenALaVista()) st.resumen = { ...st.resumen, hablando: false }
-    else {
-      clearTimeout(relojHabla)
-      relojHabla = setTimeout(() => despacharResumen({ tipo: 'callado' }), duracionContando(contarPalabras(resumen.texto)))
+function vigilarEspera() {
+  if (!ocupado(st.chat)) { clearInterval(temporizadorEspera); temporizadorEspera = null; return }
+  if (temporizadorEspera) return
+  temporizadorEspera = setInterval(() => {
+    const c = st.chat
+    if (!ocupado(c)) { clearInterval(temporizadorEspera); temporizadorEspera = null; return }
+    if (relojEspera(c.desdeMs, c.ultimoMs, Date.now()).vencido) { despacharChat({ tipo: 'vencio', turno: c.turno }); return }
+    programarHoja()
+  }, 1000)
+}
+
+/** Un redibujo de la hoja por cuadro como mucho (13): el texto llega cada 50 ms. */
+function programarHoja() {
+  if (!cuadroHoja) cuadroHoja = requestAnimationFrame(() => { cuadroHoja = 0; pintarHoja() })
+}
+
+/**
+ * Pone el HTML si cambió su firma, y si el foco estaba adentro lo devuelve al mismo control (por su
+ * `data-accion` y `data-motor`): la carpeta, el motor o un botón del hilo.
+ */
+function ponerConFoco(sel, html) {
+  const el = $(sel)
+  const activo = el.contains(document.activeElement) ? document.activeElement : null
+  const clave = activo && ['accion', 'motor', 'i', 'id'].map(k => activo.dataset[k] ?? '').join('|')
+  if (!poner(sel, html)) return
+  if (!clave) return
+  const igual = [...el.querySelectorAll('[data-accion]')].find(x => ['accion', 'motor', 'i', 'id'].map(k => x.dataset[k] ?? '').join('|') === clave)
+  igual?.focus({ preventScroll: true })
+}
+
+/** ¿El hilo está abajo del todo (con 40 px de margen)? Entonces sigue al texto que llega. */
+const alFondo = el => el.scrollHeight - el.scrollTop - el.clientHeight < 40
+
+/**
+ * El hilo (6.2): se redibuja entero solo si cambió algo más que el texto que llega. Mientras llega,
+ * los bloques que se cierran se agregan como nodos nuevos y el abierto se reescribe en su lugar
+ * (nunca un innerHTML de todo, que cortaría lo que ya está); el reloj de la espera, en su lugar.
+ */
+function pintarHilo(m) {
+  const el = $('#chat-hilo')
+  const c = m.chat
+  const seguir = alFondo(el)
+  let html, firma
+  if (c.estado === 'escribiendo') {
+    // La firma sin el texto que llega (un espacio en su lugar): cambia solo si cambia lo demás, y
+    // solo entonces se arma el hilo entero
+    const conv = c.conversacion
+    const mensajes = conv.mensajes.map((x, k) => (k === conv.mensajes.length - 1 ? { ...x, texto: ' ' } : x))
+    firma = hiloVista({ ...m, chat: { ...c, conversacion: { ...conv, mensajes } } })
+    html = st.firmas['#chat-hilo'] === firma ? '' : hiloVista(m)
+  } else {
+    html = hiloVista(m)
+    firma = html.replace(/data-reloj>[^<]*</, 'data-reloj><')
+  }
+  if (poner('#chat-hilo', html, firma)) {
+    if (seguir) el.scrollTop = el.scrollHeight
+    return
+  }
+  if (c.estado === 'escribiendo') {
+    const txt = el.querySelector('.m-m.vivo .txt')
+    const abiertoEl = txt?.querySelector('.abierto')
+    if (!abiertoEl) return
+    const { cerrados, abierto } = partirBloques(c.conversacion.mensajes.at(-1).texto)
+    const n = Number(txt.dataset.bloques) || 0
+    if (cerrados.length > n) {
+      abiertoEl.insertAdjacentHTML('beforebegin', cerrados.slice(n).map(markdownSeguro).join(''))
+      txt.dataset.bloques = String(cerrados.length)
     }
+    if (abiertoEl.textContent !== abierto) abiertoEl.textContent = abierto
+  } else {
+    const reloj = /data-reloj>([^<]*)</.exec(html)?.[1]
+    const relojEl = el.querySelector('[data-reloj]')
+    if (reloj != null && relojEl && relojEl.textContent !== reloj) relojEl.textContent = reloj
   }
-  for (const l of llamadas) llamarResumen(l)
-  vigilarPensando()
-  const r = st.resumen
-  if (r.estado !== antes.estado) anunciarResumen(anuncioResumen(r.estado, { texto: r.texto, primeraVez: r.primeraVez }))
-  else if (r.estado === 'cerrado' && r.sinVer && r.resultado === 'listo' && !(antes.sinVer && antes.resultado === 'listo')) {
-    anunciarResumen(anuncioResumen('listo', { abierto: false }))
-  }
-  pintarMarca()
-  pintarResumen()
+  if (seguir) el.scrollTop = el.scrollHeight
 }
 
-/** Un evento `oficina://resumen` del backend: solo los `tipo` del contrato (8.2); nunca una acción del usuario. */
-function alEventoResumen(payload) {
-  if (!payload || typeof payload !== 'object' || !EVENTOS_BACKEND.includes(payload.tipo)) return
-  despacharResumen(payload)
+/**
+ * La hoja (3.2): abierta o cerrada, la marca mudada, el escenario, la cabecera, el hilo, el composer,
+ * el menú, el cajón y la capa de soltar. Plegada (la tira, la muesca cerrada) o escondida no se
+ * dibuja: queda como estaba (borrador, adjuntos y scroll) y se pone al día al volver a verse.
+ */
+function pintarHoja() {
+  const c = st.chat
+  const nombre = nombreMascota()
+  const etiqueta = `Charlar con ${nombre}`
+  if (marcaBoton.getAttribute('aria-label') !== etiqueta) {
+    marcaBoton.setAttribute('aria-label', etiqueta)
+    marcaBoton.setAttribute('title', etiqueta)
+  }
+  marcaBoton.setAttribute('aria-expanded', String(c.abierta))
+  const marcaEl = $('.marca')
+  marcaEl.classList.toggle('mudada', c.abierta)
+  // El punto del fantasma ("en la charla →") es del color de la mascota
+  marcaEl.style.setProperty('--c-mascota', datosEspecie(st.mascota).c)
+  hojaEl.hidden = !c.abierta
+  document.body.classList.toggle('con-charla', c.abierta)
+  if (!c.abierta || !hojaSeVe()) return
+  const m = modeloVista()
+  hojaEl.dataset.estado = c.estado
+  hojaEl.dataset.motor = c.conversacion?.motor ?? c.motor
+  hojaEl.style.setProperty('--c', datosEspecie(st.mascota).c)
+  hojaEl.setAttribute('aria-label', `Charla con ${nombre}`)
+  campoChat.setAttribute('aria-label', `Mensaje para ${nombre}`)
+  campoChat.setAttribute('placeholder', `Preguntale a ${nombre}…`)
+  $('#chat-clip').hidden = !m.puedeAdjuntar
+  const hist = $('#hoja .arriba [data-accion="ch-hist"]')
+  hist.setAttribute('aria-expanded', String(c.cajon))
+  poner('#chat-avi', aviEscena(m))
+  texto('#chat-nom', nombre)
+  poner('#chat-est', estadoEscena(m))
+  ponerConFoco('#chat-cab', cabecera(m))
+  pintarHilo(m)
+  const comp = composer(m)
+  poner('#chat-adjuntos', comp.adjuntos)
+  ponerConFoco('#chat-boton', comp.boton)
+  texto('#chat-pista', comp.pista)
+  texto('#chat-pie', comp.pie)
+  const menu = $('#chat-menu')
+  menu.hidden = !c.menu
+  if (c.menu) ponerConFoco('#chat-menu', menuCarpeta(m))
+  else st.firmas['#chat-menu'] = null
+  pintarCajon(m)
+  poner('#chat-soltar', capaSoltar(m))
 }
 
-/** `estado_resumen` (8.1): al arrancar y al tocar el Avi con el globo cerrado. Solo lee. */
-async function leerEstadoResumen() {
-  if (!tauri?.core) return
+/** El cajón: su armazón al abrirlo (el buscador no se redibuja mientras se escribe) y la lista. */
+function pintarCajon(m) {
+  const lugar = $('#chat-cajon-lugar')
+  if (!m.chat.cajon) {
+    if (lugar.childElementCount) { lugar.innerHTML = ''; buscarChat = '' }
+    return
+  }
+  if (!lugar.childElementCount) {
+    lugar.innerHTML = cajon(m, buscarChat)
+    st.firmas['#chat-hist-lista'] = listaHistorial(m, buscarChat)
+  } else {
+    poner('#chat-hist-lista', listaHistorial(m, buscarChat))
+  }
+}
+
+/** Manda lo escrito (Enter, Ctrl+Enter o Enviar): con un turno en curso o vacío, nada (D7). */
+function mandarCampo() {
+  despacharChat({ tipo: 'enviar', texto: campoChat.value, campo: true })
+}
+
+/** El campo crece con lo escrito, hasta 5 líneas. */
+function ajustarCampo() {
+  campoChat.style.height = 'auto'
+  campoChat.style.height = `${Math.min(campoChat.scrollHeight, 120)}px`
+}
+
+/** Los botones de la hoja (`data-accion="ch-…"`). Cada uno hace solo lo suyo. */
+async function accionChat(a, b) {
+  const c = st.chat
+  switch (a) {
+    case 'ch-cerrar': despacharChat({ tipo: 'cerrar' }); break
+    case 'ch-hist': despacharChat({ tipo: 'hist' }); break
+    case 'ch-menu':
+      if (b.getAttribute('aria-disabled') === 'true') return
+      despacharChat({ tipo: 'menu' })
+      if (st.chat.menu) ($('#chat-menu [aria-checked="true"]') ?? $('#chat-menu [role^="menuitem"]'))?.focus()
+      break
+    case 'ch-carpeta': despacharChat({ tipo: 'carpeta', carpeta: b.dataset.carpeta || null }); enfocarEnHoja('carpeta'); break
+    case 'ch-otra-carpeta': despacharChat({ tipo: 'elegir-otra' }); enfocarEnHoja('carpeta'); break
+    case 'ch-motor': elegirMotor(b.dataset.motor); break
+    case 'ch-enviar': if (!b.disabled) mandarCampo(); break
+    case 'ch-frenar': despacharChat({ tipo: 'frenar' }); campoChat.focus(); break
+    case 'ch-sugerencia': {
+      // Una sugerencia es un clic explícito: manda su texto como si se hubiera escrito (3.5)
+      const conv = c.conversacion
+      const s = sugerencias(conv?.motor ?? c.motor, conv?.carpeta ? nombreCarpeta(conv.carpeta) : null)[Number(b.dataset.i)]
+      if (s && !s.adjuntar) despacharChat({ tipo: 'enviar', texto: s.texto })
+      break
+    }
+    case 'ch-reintentar': despacharChat({ tipo: 'reintentar' }); break
+    case 'ch-volver-a-preguntar': despacharChat({ tipo: 'volver-a-preguntar' }); break
+    case 'ch-nueva': despacharChat({ tipo: 'nueva' }); break
+    case 'ch-descartar': despacharChat({ tipo: 'descartar' }); campoChat.focus(); break
+    case 'ch-todos': despacharChat({ tipo: 'todos' }); break
+    case 'ch-usar-local': elegirMotor('local'); break
+    case 'ch-usar-claude': elegirMotor('claude'); break
+    case 'ch-primeros-pasos': await abrirAsistente({ foco: true }); break
+    case 'ch-descargar':
+      // La única salida a la red del modelo local, solo con este clic
+      try {
+        await invocar('descargar_modelo')
+        despacharChat({ tipo: 'modelo', modelo: 'bajando' })
+      } catch (err) { registrar(`chat descargar: ${err}`) }
+      break
+    case 'ch-retomar': despacharChat({ tipo: 'retomar', id: b.dataset.id }); break
+    case 'ch-copiar': await copiarDeHoja(b, c.conversacion?.mensajes[Number(b.dataset.i)]?.texto ?? ''); break
+    case 'ch-copiar-codigo': await copiarDeHoja(b, b.closest('pre')?.querySelector('code')?.textContent ?? ''); break
+  }
+}
+
+/** Cambia el motor (el radiogroup, "Preguntarle al modelo local" o "Usar Claude Code"); el foco queda en la opción. */
+function elegirMotor(motor) {
+  despacharChat({ tipo: 'motor', motor })
+  if ($('#chat-cab').contains(document.activeElement) || document.activeElement === document.body) $(`#chat-cab [data-motor="${motor}"]`)?.focus()
+}
+
+/** "Copiar": el texto tal cual; el botón dice "Copiado" 1,6 s sin redibujar. */
+async function copiarDeHoja(b, textoACopiar) {
   try {
-    const e = await invocar('estado_resumen')
-    if (e && typeof e === 'object') despacharResumen({ ...e, tipo: 'estado' })
-  } catch (err) { registrar(`resumen estado: ${err}`) }
+    await navigator.clipboard.writeText(textoACopiar)
+  } catch (e) {
+    registrar(`chat copiar: ${e}`)
+    return
+  }
+  const antes = b.textContent
+  b.textContent = 'Copiado'
+  setTimeout(() => { if (b.isConnected) b.textContent = antes }, 1600)
 }
 
-/** Tocar el Avi (clic sin arrastrar, Enter o Espacio): abre el globo o, abierto, lo cierra (nunca cancela). */
-async function tocarMarca() {
-  if (st.resumen.estado !== 'cerrado') { despacharResumen({ tipo: 'cerrar' }); return }
-  if (!st.resumen.trabajo) await leerEstadoResumen()
-  st.resumenFoco = true
-  const antes = st.resumen
-  despacharResumen({ tipo: 'abrir' })
-  // Diagnóstico: con la línea "resumen estado:" del motor, dice por qué ofreció descargar
-  registrar(lineaAbrir(antes, st.resumen))
+/** Los elementos con foco de un contenedor, en orden. */
+const enfocables = raiz => [...raiz.querySelectorAll('button:not([disabled]), input, textarea, [tabindex="0"]')].filter(x => !x.closest('[hidden]'))
+
+/**
+ * Las teclas de la hoja (3.5), antes que las de la pregunta y la muesca. Enter (y Ctrl+Enter) manda
+ * y Shift+Enter hace una línea nueva; Esc cierra el menú, el cajón, frena o cierra la hoja, en ese
+ * orden; el menú y el motor se mueven con las flechas; el cajón atrapa el foco.
+ */
+function teclaChat(e) {
+  if (!st.chat.abierta || !e.target.closest?.('#hoja')) return false
+  const c = st.chat
+  if (e.target === campoChat && teclaControl(e) === 'enviar') { e.preventDefault(); mandarCampo(); return true }
+  if (e.key === 'Escape') { e.preventDefault(); despacharChat({ tipo: 'esc' }); return true }
+  if (c.menu && e.target.closest('#chat-menu')) {
+    const items = [...$$('#chat-menu [role^="menuitem"]')]
+    const k = items.indexOf(e.target)
+    const destino = { ArrowDown: k + 1, ArrowUp: k - 1, Home: 0, End: items.length - 1 }[e.key]
+    if (destino != null) { e.preventDefault(); items[(destino + items.length) % items.length]?.focus(); return true }
+    if (e.key === 'Tab') { despacharChat({ tipo: 'menu' }); return false }
+  }
+  const radio = e.target.closest?.('[data-motor]')
+  if (radio && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+    e.preventDefault()
+    elegirMotor(radio.dataset.motor === 'claude' ? 'local' : 'claude')
+    return true
+  }
+  if (c.cajon && e.key === 'Tab') {
+    const lista = enfocables($('#chat-cajon'))
+    if (!lista.length) return false
+    const k = lista.indexOf(e.target)
+    if (e.shiftKey && k <= 0) { e.preventDefault(); lista.at(-1).focus(); return true }
+    if (!e.shiftKey && (k === -1 || k === lista.length - 1)) { e.preventDefault(); lista[0].focus(); return true }
+  }
+  return false
+}
+
+// Lo escrito queda en st.chat tecla a tecla (regla 2); el campo no se redibuja y Enviar se prende solo
+campoChat.addEventListener('input', () => {
+  st.chat = { ...st.chat, borrador: campoChat.value }
+  ajustarCampo()
+  const enviar = $('#chat-boton [data-accion="ch-enviar"]')
+  if (enviar) enviar.disabled = !campoChat.value.trim() && !st.chat.adjuntos.length
+})
+document.addEventListener('input', e => {
+  if (e.target.id !== 'chat-buscar') return
+  buscarChat = e.target.value
+  poner('#chat-hist-lista', listaHistorial(modeloVista(), buscarChat))
+})
+// Un clic afuera del menú de carpeta lo cierra (3.5)
+document.addEventListener('pointerdown', e => {
+  if (st.chat.menu && !e.target.closest?.('#chat-menu, #chat-cab .carpeta')) despacharChat({ tipo: 'menu' })
+})
+
+/** Pinta la marca: su ánimo real y la descripción del Avi-botón. Con la hoja abierta, su motor está quieto (3.2). */
+function pintarMarca(ahora = Date.now()) {
+  const animo = animoMarca(st.proyectos, ahora)
+  marca.animo(animo, reposoPermitido(st.proyectos, ahora))
+  texto('#marca-animo', animoTexto(animo))
 }
 
 marcaBoton.addEventListener('pointerdown', e => { toqueMarca = { x: e.screenX, y: e.screenY } })
@@ -2916,126 +3257,13 @@ marcaBoton.addEventListener('click', e => {
   // Después de un arrastre real, el clic que sigue se descarta; con el mouse, es clic hasta 4 px (3.1)
   if (justoArrastro) return
   if (e.detail > 0 && toque && superaUmbral(e.screenX - toque.x, e.screenY - toque.y)) return
-  tocarMarca()
+  // Con la pantalla dividida la marca no se ve: la charla no se abre desde ahí (D4)
+  if (st.dividida.clave) return
+  despacharChat({ tipo: 'alternar' })
 })
 
-/** Los botones del globo (`data-accion="rz-…"`). Cada uno hace solo lo suyo. */
-async function accionResumen(a, b) {
-  switch (a) {
-    case 'rz-cerrar': case 'rz-ahora-no': despacharResumen({ tipo: 'cerrar' }); break
-    case 'rz-descargar': despacharResumen({ tipo: 'descargar' }); break
-    case 'rz-cancelar': despacharResumen({ tipo: 'cancelar' }); break
-    case 'rz-pedir': despacharResumen({ tipo: 'pedir' }); break
-    case 'rz-reintentar': despacharResumen({ tipo: 'reintentar' }); break
-    case 'rz-copiar': await copiarResumen(b); break
-  }
-}
-
-/** "Copiar": el texto plano limpio, sin etiquetas; el botón dice "Copiado" 1,6 s sin redibujar. */
-async function copiarResumen(b) {
-  try {
-    await navigator.clipboard.writeText(st.resumen.texto ?? '')
-  } catch (e) {
-    registrar(`copiar resumen: ${e}`)
-    return
-  }
-  anunciarResumen('Resumen copiado.')
-  const rotuloCopiar = b.querySelector('[data-copiar]')
-  if (!rotuloCopiar) return
-  rotuloCopiar.textContent = 'Copiado'
-  clearTimeout(relojCopiado)
-  relojCopiado = setTimeout(() => { if (rotuloCopiar.isConnected) rotuloCopiar.textContent = 'Copiar' }, 1600)
-}
-
-/** Se cierra hacia la cola; después se quita y lo de abajo sube con FLIP. El foco, si estaba adentro, vuelve al Avi. */
-async function cerrarGlobo(el) {
-  st.resumenSaliendo = true
-  const quieto = !!st.transicion || !!st.arrastre?.activo || !resumenALaVista()
-  await movimientoResumen.cierra(el.querySelector('.rz-globo'), { quieto })
-  st.resumenSaliendo = false
-  // Se volvió a abrir mientras se cerraba: pintarResumen ya lo redibujó
-  if (st.resumen.estado !== 'cerrado') return
-  const devolver = el.contains(document.activeElement)
-  const alto = el.offsetHeight
-  el.innerHTML = ''
-  st.firmas['#resumen'] = null
-  movimientoResumen.flip(hermanosResumen(), alto, { quieto })
-  if (devolver) marcaBoton.focus({ preventScroll: true })
-}
-
-/**
- * Dibuja el globo (3.2 y 7): se redibuja solo si cambió su contenido (la firma, sin el progreso, la
- * cola ni el aviso "Cambió algo", que se reescriben en su lugar), así una lectura de 1,5 s no se
- * lleva la selección ni el foco. Al abrirse, el foco va a su primer `data-foco` y la columna se
- * desplaza lo justo para mostrarlo; al cambiar de estado con el foco adentro, el foco lo sigue.
- */
-function pintarResumen() {
-  const r = st.resumen
-  const el = $('#resumen')
-  marcaBoton.setAttribute('aria-expanded', String(r.estado !== 'cerrado'))
-  if (r.estado === 'cerrado') {
-    st.resumenFoco = false
-    if (el.childElementCount && !st.resumenSaliendo) cerrarGlobo(el)
-    return
-  }
-  // Se volvió a abrir mientras se cerraba: el globo se redibuja entero
-  if (st.resumenSaliendo) st.firmas['#resumen'] = null
-  const cola = colaResumen({ hayAviso: $('#otro').childElementCount > 0, hayPregunta: $('#w-globo').childElementCount > 0 })
-  const m = {
-    ...r, cola,
-    proyectos: st.proyectos.filter(p => p.repo).map(p => ({ nombre: p.nombre, color: colorProyecto(p.nombre) })),
-  }
-  const firma = contenidoResumen({ ...m, cola: true, cascada: false, cambio: false, progreso: r.estado === 'descargando' ? null : r.progreso })
-  const quieto = !!st.transicion || !!st.arrastre?.activo || !resumenALaVista()
-  if (st.firmas['#resumen'] !== firma) {
-    const nuevo = !el.childElementCount || st.resumenSaliendo
-    const enfocado = el.contains(document.activeElement)
-    movimientoResumen.terminar()
-    const altoAntes = nuevo ? 0 : el.offsetHeight
-    const cascada = r.estado === 'listo' && r.hablando
-    st.firmas['#resumen'] = firma
-    el.innerHTML = contenidoResumen({ ...m, cascada })
-    const globoEl = el.querySelector('.rz-globo')
-    const delta = altoAntes - el.offsetHeight
-    if (nuevo) {
-      movimientoResumen.nace(globoEl, { quieto })
-      movimientoResumen.flip(hermanosResumen(), delta, { quieto })
-    } else {
-      movimientoResumen.cambia(globoEl, hermanosResumen(), delta, { quieto })
-    }
-    if (cascada) movimientoResumen.palabras(globoEl, { quieto })
-    // Con desborde, el texto se puede desplazar con el teclado y se funde abajo
-    const t = el.querySelector('[data-texto]')
-    if (t && t.scrollHeight > t.clientHeight + 1) {
-      t.classList.add('desborda')
-      t.tabIndex = 0
-      t.setAttribute('aria-label', 'Texto del resumen')
-    }
-    if (st.resumenFoco || enfocado) {
-      el.querySelector('[data-foco]')?.focus({ preventScroll: true })
-      if (st.resumenFoco) el.scrollIntoView({ block: 'nearest', behavior: hayMovimiento() ? 'smooth' : 'auto' })
-      st.resumenFoco = false
-    }
-  }
-  // Lo que cambia sin redibujar: la cola, el progreso de la descarga y el aviso "Cambió algo"
-  el.querySelector('.rz-globo')?.classList.toggle('cola', cola)
-  if (r.estado === 'descargando') {
-    const c = cifrasDescarga(r.progreso)
-    const barra = el.querySelector('[data-barra]')
-    texto('#resumen [data-gb]', c.cifra)
-    texto('#resumen [data-pc]', `${c.porcentaje} %`)
-    texto('#resumen .cifra small', `de ${c.total}`)
-    if (barra) {
-      barra.style.setProperty('--p', String(c.fraccion))
-      barra.setAttribute('aria-valuenow', String(c.porcentaje))
-    }
-  }
-  const aviso = el.querySelector('[data-cambio]')
-  if (aviso && aviso.hidden === r.cambio) {
-    aviso.hidden = !r.cambio
-    if (r.cambio) movimientoResumen.entra(aviso, { quieto })
-  }
-}
+// La vista de desarrollo (dev/falso.js) maneja la hoja por acá para mostrar cada estado
+if (window.__vistaDev) window.__chat = { despachar: despacharChat, estado: () => st.chat }
 
 async function iniciar() {
   // Las definiciones de los Avis (piel, luz de piso y desenfoque), una vez por documento (5.1)
@@ -3050,6 +3278,13 @@ async function iniciar() {
       if (typeof m.pausa === 'boolean') ponerPausa(m.pausa)
       // Dónde quedó el tablero flotante la última vez (fracciones del área, 9.7)
       if (m.flotante && typeof m.flotante === 'object') st.fraccion = { x: Number(m.flotante.x), y: Number(m.flotante.y) }
+      // El motor y la carpeta de la próxima charla, y las recientes (chat-avis-ux.md 3.4, D11)
+      if (m.chat && typeof m.chat === 'object') {
+        st.chat = {
+          ...st.chat, motor: m.chat.motor === 'local' ? 'local' : 'claude',
+          carpeta: typeof m.chat.carpeta === 'string' ? m.chat.carpeta : null, recientes: Array.isArray(m.chat.recientes) ? m.chat.recientes : [],
+        }
+      }
       // Acoplada al cerrar la última vez: vuelve como muesca. Rust ya puso la ventana en el área del
       // monitor de la última vez (9.7): la muesca va a su borde sin velo
       if (typeof m.acople?.borde === 'string') {
@@ -3090,10 +3325,11 @@ async function iniciar() {
     // El mod automático (#17): la instalación sola que empieza y el aviso de una vez
     escuchar('oficina://mod-auto', ev => alEventoModAuto(ev.payload))
     tomarAvisoMod()
-    // El resumen (resumen-ia-ux.md 8.2): un solo evento con `tipo`; solo avanza lo que ya se pidió
-    escuchar('oficina://resumen', ev => alEventoResumen(ev.payload))
-    // Al arrancar se lee qué hay del modelo (solo lectura, sin red); nunca en el ciclo de 1,5 s
-    leerEstadoResumen()
+    // La charla (chat-avis-ux.md 7.5): cada evento lleva su conversación y su turno; transicionChat
+    // descarta los de otra conversación o de un turno viejo
+    escuchar('oficina://chat', ev => despacharChat({ tipo: 'backend', payload: ev.payload }))
+    // El modelo de esta PC (3.6): la descarga y el borrado desde la bandeja
+    escuchar('oficina://modelo', ev => alEventoModelo(ev.payload))
   } else {
     // Sin Tauri (el HTML abierto solo): la ventana del navegador hace de área
     await aplicarTamano(PASO_POR_DEFECTO)
