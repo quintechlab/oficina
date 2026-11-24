@@ -2572,7 +2572,7 @@ dependencies = [
 
 [[package]]
 name = "oficina-widget"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "chrono",
  "serde_json",
