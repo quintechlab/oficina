@@ -240,6 +240,12 @@ Un PDF de una página con la palabra CEREZO y una imagen al azar sin comprimir, 
   - `dragDropEnabled` no está en `tauri.conf.json`, así que queda prendido (el valor por defecto).
 - **Supuesto que queda:** que el sondeo de Rust siga cambiando la zona mientras el mouse arrastra (Windows mantiene el arrastre en un bucle modal del proceso que arrastra, no del widget, así que el sondeo debería seguir).
 
+### 7.10 `--session-id` de un proceso precalentado (medido en E1, 23/11)
+
+Un proceso lanzado con `--session-id <uuid>` y cerrado sin mandarle nada (stdin cerrado a los 3 s, salió con código 0) no reserva el id: un segundo proceso con el mismo `--session-id` respondió el turno (`init` a 1,4 s, `result` `success`, Haiku). Así que una sesión cuenta como usada recién con su primer `init` o eco, y hasta entonces se relanza con `--session-id`, no con `--resume`.
+
+Con `chat.rs` y el `claude` real (`cargo test real_ -- --ignored`, Haiku): precalentado 3 s, el primer `texto` llegó a 4,0 s del envío (con pensamiento); frenar con ese texto dio `frenada` y el turno siguiente, en el mismo proceso, respondió "Ascua" (la mascota del primer mensaje).
+
 ## Flags recomendados para Avis
 
 Actualizado con las mediciones de E0 (7.1):

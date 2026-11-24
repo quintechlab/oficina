@@ -1,4 +1,5 @@
 mod arranque;
+mod chat;
 mod diagnostico;
 mod equipo;
 mod preferencias;
@@ -756,6 +757,60 @@ fn pedir_resumen(app: AppHandle, pedido: u64, datos: serde_json::Value) -> Resul
     })
 }
 
+// ------------------------------------------------------------------ charla con la mascota (#22, chat-avis-ux.md 7)
+
+fn el_chat() -> Result<&'static chat::Chat, String> {
+    chat::CHAT.get().ok_or_else(|| String::from("el chat no arrancó"))
+}
+
+/// `local` de `chat_abrir` (3.3): el estado del modelo de esta PC, sin red.
+fn estado_local() -> &'static str {
+    match modelo::IA.estado().ok().as_ref().and_then(|e| e["modelo"].as_str()) {
+        Some("listo") => "instalado",
+        Some("bajando") => "bajando",
+        Some("roto") => "roto",
+        _ => "falta",
+    }
+}
+
+/// Al abrir la hoja o cambiar de conversación: con Claude Code, precalienta el proceso sin mandarle
+/// nada (D19). `{ proceso, sesion, motivo?, engram, local }`. `sesionClaude`: la de una charla que
+/// ya tuvo mensajes (se retoma con `--resume`).
+#[tauri::command]
+async fn chat_abrir(conversacion: String, motor: String, carpeta: Option<String>, mascota: Option<String>, sesion_claude: Option<String>) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut r = el_chat()?.abrir(&conversacion, &motor, carpeta.map(std::path::PathBuf::from), mascota.as_deref().unwrap_or(""), sesion_claude)?;
+        // Engram llega con la entrega 4 (9.2)
+        r["engram"] = serde_json::json!("sin-saber");
+        r["local"] = serde_json::json!(estado_local());
+        Ok(r)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Solo con Enter o Enviar: manda un turno. Lo que pasa llega como `oficina://chat`.
+#[tauri::command]
+async fn chat_enviar(conversacion: String, turno: u64, texto: String, datos: Option<serde_json::Value>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || el_chat()?.enviar(&conversacion, turno, &texto, &datos.unwrap_or_default()))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Frenar (o Esc): la interrupción del turno en curso (7.6).
+#[tauri::command]
+fn chat_frenar(conversacion: String, turno: u64) -> Result<(), String> {
+    el_chat()?.frenar(&conversacion, turno);
+    Ok(())
+}
+
+/// Cierra stdin del proceso de la conversación: termina su turno y sale.
+#[tauri::command]
+fn chat_cerrar(conversacion: String) -> Result<(), String> {
+    el_chat()?.cerrar(&conversacion);
+    Ok(())
+}
+
 /// Fija la ventana arriba de las demás y sincroniza la marca del menú de la bandeja.
 #[tauri::command]
 fn fijar_arriba(app: AppHandle, estado: State<'_, Estado>, valor: bool) -> Result<(), String> {
@@ -1492,6 +1547,18 @@ pub fn run() {
                     let _ = para_mod.emit(evento, v);
                 })
             })?;
+            // La charla con la mascota (#22): el ajustes.json fijo (7.2) y el proceso, que lanza el primer chat_abrir
+            if let Ok(config) = handle.path().app_config_dir() {
+                let carpeta_chat = config.join("chat");
+                if let Err(e) = chat::escribir_ajustes(&carpeta_chat) {
+                    registrar(format!("chat: no se pudo escribir ajustes.json: {e}"));
+                }
+                let para_chat = handle.clone();
+                let emisor: chat::Emisor = std::sync::Arc::new(move |v| {
+                    let _ = para_chat.emit(chat::EVENTO, v);
+                });
+                let _ = chat::CHAT.set(chat::Chat::nuevo(carpeta_chat, std::sync::Arc::new(chat::comando_claude), emisor, chat::Tiempos::default()));
+            }
             // Clic en la notificación: mostrar la ventana
             let al_clic = handle.clone();
             let _ = handle.notification().on_action(move |_| mostrar(&al_clic));
@@ -1544,7 +1611,11 @@ pub fn run() {
             estado_resumen,
             descargar_modelo,
             cancelar_resumen,
-            pedir_resumen
+            pedir_resumen,
+            chat_abrir,
+            chat_enviar,
+            chat_frenar,
+            chat_cerrar
         ])
         .build(tauri::generate_context!())
         .expect("no se pudo iniciar el widget de la oficina")
@@ -1555,6 +1626,10 @@ pub fn run() {
                 // El motor del resumen y la descarga no quedan corriendo (el trabajo de Windows
                 // lo mata igual si la aplicación se cae)
                 modelo::IA.apagar();
+                // El chat: la interrupción si hay un turno, cerrar stdin, 2 s y el trabajo de Windows (7.3)
+                if let Some(c) = chat::CHAT.get() {
+                    c.apagar();
+                }
             }
         });
 }
