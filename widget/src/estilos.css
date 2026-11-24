@@ -1436,7 +1436,8 @@ p.det-rot { margin-top: var(--e-5) }
    primario ámbar y el secundario. Frenar lleva el cuadrado de detener en --rojo y, al pedir el
    segundo clic (D2), se pinta de --rojo entero. La línea de abajo reserva su alto: el resultado
    aparece sin empujar las tarjetas. main.js cambia botones y línea en su lugar, nunca el campo */
-.ctl { width: var(--ancho-escena); margin: var(--e-6) 0 0 }
+/* Al llevar la barra a la vista (M1 del #25) entran también el anillo de foco y el borde de la tarjeta */
+.ctl { width: var(--ancho-escena); margin: var(--e-6) 0 0; scroll-margin-bottom: var(--e-6) }
 .ctl-fila { display: flex; align-items: flex-end; gap: var(--e-3) }
 .ctl-in {
   flex: 1; min-width: 0; min-height: 32px; max-height: 112px; padding: 7px var(--e-5);
@@ -1475,4 +1476,95 @@ p.det-rot { margin-top: var(--e-5) }
 @keyframes drena { to { transform: scaleX(0) } }
 @media (prefers-reduced-motion: reduce) {
   .ctl-in, .ctl .btn { transition: none }
+}
+
+/* ------------------------------------------------------------------ cerrar la sesión (#25)
+   "Cerrar sesión" va en la línea de estado, a la derecha y lejos de Enviar: más chico y tenue que
+   Frenar, porque no es de todos los días. Confirma igual que Frenar: el segundo clic dentro de 3 s,
+   pintado de --rojo entero con la barrita que se vacía. Solo en las sesiones de terminal */
+/* D-b: el botón deja aire abajo, así el anillo de foco no toca el borde de la tarjeta */
+.ctl-est:has(.ctl-cerrar:not([hidden])) { align-items: center; margin-bottom: var(--e-3) }
+/* M3: ancho mínimo, así "¿Cerrar? Sí" no corre el borde izquierdo entre el primer clic y el segundo.
+   D-c: 11,5 px, el tamaño de --t-chico */
+.ctl .ctl-cerrar { position: relative; min-width: 96px; min-height: 24px; justify-content: center; margin-left: auto; padding: 0 var(--e-5); background: none; border: 1px solid var(--linea); color: var(--crema2); font: 700 11.5px/1 var(--f); font-stretch: normal }
+/* M2: el dibujo queda de 24 y el área de clic es de 32 (como .preg-tab; ::after es la barrita) */
+.ctl .ctl-cerrar::before { content: ""; position: absolute; inset: -4px 0 }
+.ctl .ctl-cerrar:hover { border-color: var(--linea-hover); color: var(--crema); filter: none }
+/* B2: cerrándose, "Cerrando…" conserva el foco (aria-disabled, sin disabled) y no responde; sin opacidad */
+.ctl .ctl-cerrar[aria-disabled="true"], .ctl .ctl-cerrar[aria-disabled="true"]:hover { border-color: var(--linea); color: var(--tenue); cursor: default }
+.ctl .ctl-cerrar[aria-disabled="true"]:active { transform: none }
+.ctl-in:disabled, .ctl-in:disabled:hover { border-color: var(--linea); color: var(--crema2); cursor: not-allowed }
+.ses > .linea.cerrando .pt { background: none; box-shadow: inset 0 0 0 1.5px var(--tenue) }
+/* B1: la tarjeta que se cerró se funde y pliega su alto en 240 ms (estilo-avis 6.2) */
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .ses.sale {
+    height: 0 !important; margin-bottom: calc(-1 * var(--e-5)); padding-top: 0; padding-bottom: 0; border-width: 0;
+    overflow: hidden; opacity: 0; pointer-events: none;
+    transition: opacity 240ms var(--ease-cierra), height 240ms var(--ease-cierra), margin 240ms var(--ease-cierra), padding 240ms var(--ease-cierra), border-width 240ms var(--ease-cierra);
+  }
+}
+.ctl .ctl-cerrar.confirma { background: var(--rojo); border-color: var(--rojo); color: var(--negro) }
+.ctl .ctl-cerrar.confirma:focus-visible { outline-color: var(--crema) }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .ctl-cerrar.confirma::after {
+    content: ""; position: absolute; left: var(--e-5); right: var(--e-5); bottom: 3px; height: 2px; border-radius: 1px;
+    background: color-mix(in srgb, var(--negro) 45%, transparent); transform-origin: left;
+    animation: drena 3000ms linear var(--ya, 0ms) both;
+  }
+}
+
+/* ------------------------------------------------------------------ "Qué hizo" (#25)
+   Un botón chico en la cabecera de la tarjeta, al lado de lo que lleva, y debajo el detalle con las
+   piezas del de un subagente: lo último que pidió el usuario ("Vos", en ámbar) y lo que respondió
+   Claude, del más nuevo al más viejo. Sin flecha: el botón está en la esquina */
+.ses-hizo {
+  position: relative; flex: none; display: inline-flex; align-items: center; min-height: 24px; margin: -2px 0; padding: 0 var(--e-4);
+  /* M4: radio de botón (--r-pildora), no de tag; y la presión de :active */
+  border: 1px solid var(--linea); border-radius: var(--r-pildora); background: none; color: var(--crema2);
+  font: var(--t-mono-s); font-stretch: 75%; white-space: nowrap; cursor: pointer;
+  transition: border-color var(--d-color) ease, color var(--d-color) ease, background-color var(--d-color) ease, transform var(--d-presion) ease;
+}
+/* M2: el dibujo queda de 24 y el área de clic es de 32 */
+.ses-hizo::after { content: ""; position: absolute; inset: -4px 0 }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .ses-hizo:active { transform: scale(.97) }
+}
+/* Sin "lleva" (sesión sin inicio), el botón va igual a la derecha */
+.ses-tit + .ses-hizo { margin-left: auto }
+.ses-hizo:hover { border-color: var(--linea-hover); color: var(--crema) }
+.ses-hizo:focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px }
+.ses-hizo[aria-expanded="true"] { border-color: color-mix(in srgb, var(--ambar) 45%, transparent); background: var(--ambar-osc); color: var(--ambar) }
+/* M1: entre el escenario y la barra; leyendo reserva su alto, así la barra no salta al llegar los turnos */
+.det-hist { --flecha: calc(var(--ancho-escena) - 24px); margin: var(--e-4) 0 0 }
+.det-hist[aria-busy="true"] { min-height: 120px }
+.det-hist::before { display: none }
+.det-hist > .det-rot { margin-top: 0 }
+/* M1: unos 3 turnos; D-f: mientras queda algo por ver abajo, la lista se funde en sus últimos 16 px */
+.hist-turnos { display: grid; gap: var(--e-5); margin-top: var(--e-4); max-height: 196px; overflow-y: auto; list-style: none }
+.hist-turnos.desborda {
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 16px), transparent);
+}
+.hist-turnos li { display: grid; gap: var(--e-1); min-width: 0; padding-left: var(--e-4); border-left: 2px solid var(--linea) }
+.hist-turnos li:first-child { border-left-color: var(--ambar) }
+.hist-pedido, .hist-resp {
+  display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
+  font: var(--t-chico); color: var(--crema2);
+}
+.hist-pedido { -webkit-line-clamp: 2; color: var(--crema) }
+.hist-resp { -webkit-line-clamp: 3 }
+.hist-resp.sin { font-style: italic; color: var(--tenue) }
+.hist-quien { font: var(--t-rotulo); font-stretch: 75%; text-transform: uppercase; letter-spacing: .06em; color: var(--crema2) }
+.hist-pedido .hist-quien { color: var(--ambar) }
+.hist-turnos time { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+.det-vacio[data-tono="error"] { color: var(--rojo) }
+@media (prefers-reduced-motion: no-preference) {
+  /* .turnos-llegan (D-e; .llega ya es el anillo de la dividida): en la primera lectura entran solo los turnos; el detalle no vuelve a desplegarse */
+  body:not(.pausa) :is(.det-hist.entra, .det-hist.turnos-llegan) .hist-turnos li { animation: sube var(--d-entrada) var(--ease) both }
+  body:not(.pausa) :is(.det-hist.entra, .det-hist.turnos-llegan) .hist-turnos li:nth-child(2) { animation-delay: 45ms }
+  body:not(.pausa) :is(.det-hist.entra, .det-hist.turnos-llegan) .hist-turnos li:nth-child(3) { animation-delay: 90ms }
+  body:not(.pausa) :is(.det-hist.entra, .det-hist.turnos-llegan) .hist-turnos li:nth-child(n+4) { animation-delay: 135ms }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ses-hizo { transition: none }
 }

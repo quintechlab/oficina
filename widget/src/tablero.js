@@ -6,7 +6,8 @@
 import { avi, claudeDe, nombreClaude } from './avis.js'
 import { CLAVE_MARCA } from './evolucion.js'
 import { detalleSubagente } from './detalleSub.js'
-import { barraControl, puedeControlar } from './control.js'
+import { barraControl, puedeControlar, LINEA_TARJETA_CERRANDO } from './control.js'
+import { vistaHistorial, firmaHistorial } from './historial.js'
 import {
   animoSesion, animoSubagente, personajeDeNombre, personajeSubagente, variantesEquipo, tiempoSubagente, textoActividad, tituloActividad,
   preguntasPendientes, escapar, tiempoRelativo, nombreProyecto, FUERA_DE_REPO,
@@ -76,12 +77,16 @@ export function firmaTablero(preparadas) {
  * reescribe en su lugar (los `data-vivo`), sin redibujar ni reiniciar los bucles ni los hilos.
  * `rastros` (sesión → rastro, dividida-ux.md 5.10): cuenta si hay rastro y si terminó, no su texto.
  */
-export function firmaEscenas(repo, preparadas, rastros = new Map(), abierto = null) {
+export function firmaEscenas(repo, preparadas, rastros = new Map(), abierto = null, historial = null, control = {}) {
   const r = preparadas.map(({ s }) => rastros.get(s.sesion)).filter(Boolean).map(x => `${x.clave}:${x.fin ? 'fin' : 'activa'}`)
-  // Las sesiones con la barra de control (#19); su borrador, botones y línea se actualizan en su lugar
-  const c = preparadas.filter(({ s }) => puedeControlar(s)).map(({ s }) => s.sesion)
-  return `${repo}/${firmaTablero(preparadas)}${r.length ? `#${r.join(',')}` : ''}${c.length ? `~${c.join(',')}` : ''}${firmaDetalle(preparadas, abierto)}`
+  // Las sesiones con la barra de control (#19); su borrador, botones y línea se actualizan en su lugar.
+  // Una que se está cerrando (#25) cambia la línea de la tarjeta y su campo: se redibuja
+  const c = preparadas.filter(({ s }) => puedeControlar(s)).map(({ s }) => `${s.sesion}${control?.[s.sesion]?.cerrando === true ? ':cierra' : ''}`)
+  return `${repo}/${firmaTablero(preparadas)}${r.length ? `#${r.join(',')}` : ''}${c.length ? `~${c.join(',')}` : ''}${firmaDetalle(preparadas, abierto)}${historialDe(preparadas, historial) ? firmaHistorial(historial) : ''}`
 }
+
+/** "Qué hizo" abierto (#25), solo si es de una sesión de estas tarjetas. */
+const historialDe = (preparadas, h) => (h && preparadas.some(({ s }) => s.sesion === h.sesion) ? h : null)
 
 /**
  * El detalle abierto (#14) cuenta en la firma con lo que hace y los textos de sus pasos, no con sus
@@ -390,16 +395,54 @@ function rastro(r) {
   return `<p class="rastro${r.fin ? ' fin' : ''}" title="${escapar(`⇄ ${r.texto}`)}"><span class="rastro-m" aria-hidden="true">⇄</span> <span data-vivo>${escapar(r.texto)}</span></p>`
 }
 
-function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto, control, mascota, formas) {
+const idHistorial = sesion => escapar(`hist-${sesion}`)
+
+/**
+ * "Qué hizo" (#25): despliega debajo del escenario los últimos turnos de la sesión. El nombre lleva
+ * el texto visible y la rama (o el repo), así cada tarjeta se llama distinto (M5).
+ */
+function botonHistorial(s, abierto) {
+  const nombre = `Qué hizo en ${s.rama || s.repo || 'esta sesión'}`
+  return `<button type="button" class="ses-hizo" data-accion="historial" data-sesion="${escapar(s.sesion)}" aria-label="${escapar(nombre)}" aria-expanded="${abierto}"${abierto ? ` aria-controls="${idHistorial(s.sesion)}"` : ''}>Qué hizo</button>`
+}
+
+/**
+ * El detalle de "Qué hizo" (#25), con las piezas del detalle de un subagente: lo último que pidió el
+ * usuario ("Vos") y lo que respondió Claude, del más nuevo al más viejo; o leyendo, vacío o el error.
+ * Se nombra con la rama, así varias tarjetas no se llaman todas igual.
+ */
+function detalleHistorial(s, h, ahoraMs) {
+  const v = vistaHistorial(h, ahoraMs)
+  const nombre = `Qué hizo ${s.rama || s.repo || 'esta sesión'}`
+  const cuerpo = v.turnos.length
+    ? `<ol class="hist-turnos">${v.turnos.map(t => '<li>'
+      + (t.pedido ? `<p class="hist-pedido"><span class="hist-quien">Vos</span> <span>${escapar(t.pedido)}</span></p>` : '')
+      + (t.respuesta ? `<p class="hist-resp"><span class="hist-quien">Claude</span> <span>${escapar(t.respuesta)}</span></p>` : '<p class="hist-resp sin">todavía sin respuesta</p>')
+      + `<time data-vivo>${escapar(t.hace)}</time></li>`).join('')}</ol>`
+    // Leyendo, vacío o el error: se anuncia (D-d)
+    : `<p class="det-vacio" role="status"${v.estado === 'error' ? ' data-tono="error"' : ''}>${escapar(v.texto)}</p>`
+  return `<div class="det-sub det-hist" id="${idHistorial(s.sesion)}" role="region" aria-label="${escapar(nombre)}"${v.estado === 'cargando' ? ' aria-busy="true"' : ''}>`
+    // "Lo último": la lista lleva los pedidos y las respuestas (D-g)
+    + `<p class="det-rot">lo último</p>${cuerpo}</div>`
+}
+
+function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto, control, mascota, formas, historial) {
   const base = k * AVIS_POR_TARJETA
   const tag = s.tarea ? `<span class="tag">#${escapar(s.tarea)}</span>` : '<span class="tag sin">sin tarea</span>'
   const titulo = s.rama ? `<b${s.tarea ? '' : ' class="sin"'} title="${escapar(s.rama)}">${escapar(s.rama)}</b>` : ''
   const lleva = s.inicio ? `<span class="lleva"><span class="oculto">lleva </span><span data-vivo>${escapar(tiempoRelativo(s.inicio, ahoraMs))}</span></span>` : ''
-  return `<article class="ses"><div class="ses-cab"><h3 class="ses-tit">${tag}${titulo}</h3>${lleva}</div>`
-    + `<p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span><span data-vivo>${escapar(textoActividad(s, ahoraMs))}</span></p>`
+  const h = historial?.sesion === s.sesion ? historial : null
+  // Cerrándose (B2 de cerrar-sesion-ux.md): la línea lo dice en --tenue, con el punto sin color
+  const linea = control?.[s.sesion]?.cerrando === true
+    ? `<p class="linea cerrando" style="--c:var(--tenue)" title="${LINEA_TARJETA_CERRANDO}"><span class="pt" aria-hidden="true"></span><span data-vivo>${LINEA_TARJETA_CERRANDO}</span></p>`
+    : `<p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span><span data-vivo>${escapar(textoActividad(s, ahoraMs))}</span></p>`
+  return `<article class="ses"><div class="ses-cab"><h3 class="ses-tit">${tag}${titulo}</h3>${lleva}${botonHistorial(s, !!h)}</div>`
+    + linea
     + rastro(r)
     + escena(animo, sub, ahoraMs, base, s.sesion, abierto?.sesion === s.sesion ? abierto.id : null, mascota, formas)
     + detalleAbierto({ s, sub }, ahoraMs, abierto)
+    // "Qué hizo" va entre el escenario y la barra: "Cerrar sesión" queda cerca de lo que se lee (M1)
+    + (h ? detalleHistorial(s, h, ahoraMs) : '')
     + barraControl(s, control?.[s.sesion], ahoraMs)
     + '</article>'
 }
@@ -411,8 +454,8 @@ function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto, control, mascota, fo
  * `mascota`: la especie elegida para Claude (mascotas-avi-ux.md 9.1). `formas`: las claves con la forma
  * evolucionada (6.6); la firma de las escenas no la lleva: la forma cambia en su lugar (6.7).
  */
-export function sesiones(preparadas, ahoraMs, rastros = new Map(), abierto = null, control = {}, mascota = 'avi', formas = new Set()) {
-  return preparadas.map((p, k) => tarjeta(p, ahoraMs, k, rastros.get(p.s.sesion), abierto, control, mascota, formas)).join('')
+export function sesiones(preparadas, ahoraMs, rastros = new Map(), abierto = null, control = {}, mascota = 'avi', formas = new Set(), historial = null) {
+  return preparadas.map((p, k) => tarjeta(p, ahoraMs, k, rastros.get(p.s.sesion), abierto, control, mascota, formas, historial)).join('')
 }
 
 /** El detalle de la tarjeta, si su subagente abierto tiene ficha; la flecha va al centro de su Avi. */

@@ -1,8 +1,9 @@
-// Barra de control de cada tarjeta de sesión (#19): un campo "Escribile a Claude…" con Enviar y
-// "Frenar" mientras la sesión trabaja. Lógica pura y el HTML de la barra; el foco, el borrador y el
-// sondeo de la orden viven en main.js, el archivo en ordenes.rs.
-// Regla de siempre: el widget nunca decide por el usuario. Solo un clic o un Enter envía o frena;
-// nada se manda solo ni por tiempo. Frenar pide un segundo clic (D2).
+// Barra de control de cada tarjeta de sesión (#19): un campo "Escribile a Claude…" con Enviar,
+// "Frenar" mientras la sesión trabaja y, desde el #25, "Cerrar sesión" en las de terminal. Lógica pura
+// y el HTML de la barra; el foco, el borrador y el sondeo de la orden viven en main.js, el archivo en
+// ordenes.rs.
+// Regla de siempre: el widget nunca decide por el usuario. Solo un clic o un Enter envía, frena o
+// cierra; nada se manda solo ni por tiempo. Frenar y Cerrar piden un segundo clic (D2).
 
 import { ANIMOS_DE_TRABAJO, animoSesion, escapar } from './logica.js'
 
@@ -38,6 +39,61 @@ export function clicFrenar(ui, ahoraMs) {
   return { confirmaHasta: ahoraMs + MS_CONFIRMAR_FRENAR, frenar: false }
 }
 
+/** El primer clic en "Cerrar sesión" pide confirmar por este tiempo, como Frenar (#25). */
+export const MS_CONFIRMAR_CERRAR = 3000
+
+/**
+ * La sesión se puede cerrar desde el widget (mod v0.11): solo las de terminal. En la app de
+ * escritorio o en VS Code, salir cerraría su ventana o su panel; ahí el botón no aparece.
+ */
+export const puedeCerrar = s => s?.puedeCerrar === true
+
+/** ¿"Cerrar sesión" está pidiendo confirmación? `ui.cierraHasta`: hasta cuándo. */
+export const confirmandoCierre = (ui, ahoraMs) => ui?.cierraHasta != null && ahoraMs < ui.cierraHasta
+
+/**
+ * Un clic en "Cerrar sesión" (#25), igual que Frenar: el primero, o uno después de los 3 s, pide
+ * confirmar; el segundo dentro de la ventana cierra. Nunca cierra por tiempo.
+ */
+export function clicCerrar(ui, ahoraMs) {
+  // Ya se está cerrando: el clic se ignora (B2 de cerrar-sesion-ux.md)
+  if (cerrandoSesion(ui)) return { cierraHasta: null, cerrar: false }
+  if (confirmandoCierre(ui, ahoraMs)) return { cierraHasta: null, cerrar: true }
+  return { cierraHasta: ahoraMs + MS_CONFIRMAR_CERRAR, cerrar: false }
+}
+
+/**
+ * ¿La sesión se está cerrando? Desde el segundo clic (la orden `cerrar` pendiente) y, con el
+ * resultado `cerrando` (`ui.cerrando`), hasta que la tarjeta se va (B2 de cerrar-sesion-ux.md).
+ */
+export const cerrandoSesion = ui => ui?.cerrando === true || ui?.pendiente?.tipo === 'cerrar'
+
+/** Lo que dice la línea de la tarjeta mientras se cierra (en --tenue, con el punto sin color). */
+export const LINEA_TARJETA_CERRANDO = 'cerrando la sesión'
+
+/** El nombre de una sesión para los anuncios y los controles: la rama, si no el repo. */
+const nombreSesion = s => s?.rama || s?.repo || 'esta sesión'
+
+/**
+ * A dónde va el foco cuando se van las tarjetas `cerradas` (B1): el "Qué hizo" de la siguiente que
+ * queda, si no el de la anterior; null si el proyecto se quedó sin tarjetas (el foco va al proyecto
+ * activo de la barra lateral). `orden`: las sesiones en el orden de las tarjetas, antes de irse.
+ */
+export function destinoFocoCierre(orden, cerradas, quedan) {
+  const i = orden.findIndex(id => cerradas.has(id))
+  if (i < 0) return null
+  const sirve = id => !cerradas.has(id) && quedan.has(id)
+  return orden.slice(i + 1).find(sirve) ?? orden.slice(0, i).reverse().find(sirve) ?? null
+}
+
+/** El aviso en la región viva cuando se van las sesiones cerradas desde el widget (B1). */
+export function anuncioCierre(cerradas) {
+  const nombres = cerradas.map(nombreSesion)
+  if (!nombres.length) return ''
+  if (nombres.length === 1) return `Se cerró la sesión ${nombres[0]}`
+  return `Se cerraron las sesiones ${nombres.slice(0, -1).join(', ')} y ${nombres.at(-1)}`
+}
+
 /** El texto sin los espacios de los bordes, de 1 a 10000 caracteres; si no, el error. */
 export function validarTexto(texto) {
   const t = String(texto ?? '').trim()
@@ -55,7 +111,7 @@ export function teclaControl(e) {
   return 'enviar'
 }
 
-const VERBO = { mensaje: 'enviar', frenar: 'frenar' }
+const VERBO = { mensaje: 'enviar', frenar: 'frenar', cerrar: 'cerrar' }
 const noSePudo = (tipo, motivo) => ({ texto: `No se pudo ${VERBO[tipo] ?? 'enviar'}${motivo ? ` · ${motivo}` : ''}`, tono: 'error' })
 
 /**
@@ -69,6 +125,8 @@ export function lineaResultado({ tipo, resultado, motivo }) {
     case 'en-cola': return { texto: 'Enviado · Claude lo lee al terminar el turno', tono: 'ok' }
     case 'frenado': return { texto: 'Frenado', tono: 'ok' }
     case 'sin-turno': return { texto: 'No estaba trabajando', tono: 'info' }
+    // La sesión sale como con /exit; la tarjeta se va sola cuando marca su archivo como cerrado
+    case 'cerrando': return { texto: 'Cerrando la sesión…', tono: 'ok' }
     case 'timeout': return { texto: 'La sesión no respondió', tono: 'error' }
     case 'perdida': return { texto: 'No se pudo confirmar', tono: 'error' }
     default: return noSePudo(tipo, motivo)
@@ -97,6 +155,9 @@ export function borradorTrasOrden({ resultado, enviado, actual }) {
 export const lineaAlEscribir = linea => (linea?.tono === 'error' ? null : linea)
 
 const LINEA_CONFIRMA = { texto: 'Tocá otra vez para frenar · Esc cancela', tono: 'info' }
+// Corta, así entra en una línea al lado de "en cola" y del botón (D-a)
+const LINEA_CONFIRMA_CIERRE = { texto: 'Otra vez para cerrar · Esc cancela', tono: 'info' }
+const LINEA_PENDIENTE = { mensaje: 'Enviando…', frenar: 'Frenando…', cerrar: 'Cerrando…' }
 
 /** "en cola" mientras la sesión tiene mensajes del widget esperando que termine el turno (D3). */
 export function textoCola(s) {
@@ -117,21 +178,30 @@ export function pasoOrden(estado, transcurridoMs) {
 
 /**
  * Lo que muestra la barra de una sesión. `ui`: su estado en la ventana (`borrador`, `confirmaHasta`,
- * `pendiente` { tipo, desde } mientras se espera la orden, `linea` { texto, tono, desde }).
- * La línea: lo que se está mandando, si no Frenar pidiendo el segundo clic, si no el resultado. Un
- * resultado `ok` o `info` se va a los 8 s; un `error` queda hasta que el usuario escribe o manda otra.
+ * `cierraHasta`, `pendiente` { tipo, desde } mientras se espera la orden, `linea` { texto, tono, desde }).
+ * La línea: lo que se está mandando, si no Frenar o Cerrar pidiendo el segundo clic, si no el
+ * resultado. Un resultado `ok` o `info` se va a los 8 s; un `error` queda hasta que el usuario
+ * escribe o manda otra.
  */
 export function vistaBarra(s, ui = {}, ahoraMs) {
-  const ocupada = !!ui.pendiente
+  // Cerrándose, la barra queda apagada hasta que la tarjeta se va (B2); Cerrar conserva el foco
+  const cerrando = cerrandoSesion(ui)
+  const ocupada = !!ui.pendiente || cerrando
   const confirma = !ocupada && confirmando(ui, ahoraMs)
+  const cierra = !ocupada && confirmandoCierre(ui, ahoraMs)
   const puedeFrenar = trabajando(s, ahoraMs)
+  const cerrable = puedeCerrar(s)
+  const donde = nombreSesion(s)
   let linea = null
-  if (ocupada) linea = { texto: ui.pendiente.tipo === 'frenar' ? 'Frenando…' : 'Enviando…', tono: 'info' }
+  if (ui.cerrando === true) linea = lineaResultado({ tipo: 'cerrar', resultado: 'cerrando' })
+  else if (ocupada) linea = { texto: LINEA_PENDIENTE[ui.pendiente.tipo] ?? 'Enviando…', tono: 'info' }
   else if (confirma && puedeFrenar) linea = { ...LINEA_CONFIRMA }
+  else if (cierra && cerrable) linea = { ...LINEA_CONFIRMA_CIERRE }
   else if (ui.linea && (ui.linea.tono === 'error' || ahoraMs - ui.linea.desde < MS_LINEA)) linea = { texto: ui.linea.texto, tono: ui.linea.tono }
   return {
     visible: puedeControlar(s),
     ocupada,
+    cerrando,
     puedeEnviar: !ocupada && !validarTexto(ui.borrador).error,
     frenar: {
       visible: puedeFrenar,
@@ -140,6 +210,17 @@ export function vistaBarra(s, ui = {}, ahoraMs) {
       transcurrido: confirma ? Math.max(0, MS_CONFIRMAR_FRENAR - (ui.confirmaHasta - ahoraMs)) : 0,
       etiqueta: confirma ? '¿Frenar? Sí' : 'Frenar',
       nombre: confirma ? 'Confirmar: frenar el turno de Claude' : 'Frenar el turno de Claude',
+    },
+    cerrar: {
+      visible: cerrable,
+      confirma: cierra,
+      cerrando,
+      // Con otra orden en curso se deshabilita como antes; cerrándose, solo aria-disabled (B2)
+      deshabilitado: ocupada && !cerrando,
+      transcurrido: cierra ? Math.max(0, MS_CONFIRMAR_CERRAR - (ui.cierraHasta - ahoraMs)) : 0,
+      etiqueta: cerrando ? 'Cerrando…' : cierra ? '¿Cerrar? Sí' : 'Cerrar sesión',
+      // El texto visible va dentro del nombre (control por voz) y la rama los distingue (M5)
+      nombre: cerrando ? `Cerrando sesión ${donde}` : cierra ? `¿Cerrar? Sí: cerrar sesión ${donde}` : `Cerrar sesión ${donde}`,
     },
     linea,
     cola: textoCola(s),
@@ -158,15 +239,17 @@ export function barraControl(s, ui = {}, ahoraMs) {
   if (!v.visible) return ''
   const ses = escapar(s.sesion)
   // Cada grupo con su nombre (la rama, si no el repo): con varias sesiones no se llaman todos igual
-  const donde = escapar(s.rama || s.repo || 'esta sesión')
+  const donde = escapar(nombreSesion(s))
   return `<div class="ctl" role="group" aria-label="Escribirle a Claude en ${donde}" data-sesion="${ses}">`
     + '<div class="ctl-fila">'
-    + `<textarea class="ctl-in" data-rol="in" data-sesion="${ses}" rows="1" maxlength="${MAX_TEXTO}" placeholder="Escribile a Claude…" aria-label="Mensaje para Claude" aria-describedby="ctl-ayuda-${ses}">\n${escapar(ui.borrador ?? '')}</textarea>`
+    + `<textarea class="ctl-in" data-rol="in" data-sesion="${ses}" rows="1" maxlength="${MAX_TEXTO}" placeholder="Escribile a Claude…" aria-label="Mensaje para Claude" aria-describedby="ctl-ayuda-${ses}"${si(v.cerrando, 'disabled')}>\n${escapar(ui.borrador ?? '')}</textarea>`
     + `<button type="button" class="btn ctl-env" data-accion="ctl-enviar" data-rol="env" data-sesion="${ses}"${si(!v.puedeEnviar, 'disabled')}>Enviar</button>`
     + `<button type="button" class="btn sec ctl-frenar${v.frenar.confirma ? ' confirma' : ''}" data-accion="ctl-frenar" data-rol="frenar" data-sesion="${ses}" aria-label="${v.frenar.nombre}"${si(v.frenar.confirma, `style="--ya:-${v.frenar.transcurrido}ms"`)}${si(v.ocupada, 'disabled')}${si(!v.frenar.visible, 'hidden')}>${v.frenar.etiqueta}</button>`
     + `<span class="oculto" id="ctl-ayuda-${ses}">Enter envía; Shift+Enter, línea nueva</span>`
     + '</div>'
     + `<p class="ctl-est"><span class="ctl-cola"${si(!v.cola, 'hidden')}>${escapar(v.cola ?? '')}</span>`
-    + `<span class="ctl-res" role="status" aria-live="polite" data-rol="res" data-tono="${v.linea?.tono ?? ''}">${escapar(v.linea?.texto ?? '')}</span></p>`
+    + `<span class="ctl-res" role="status" aria-live="polite" data-rol="res" data-tono="${v.linea?.tono ?? ''}">${escapar(v.linea?.texto ?? '')}</span>`
+    // Cerrar (#25): al costado de la línea, lejos de Enviar; escondido si la sesión no es de terminal
+    + `<button type="button" class="btn sec ctl-cerrar${v.cerrar.confirma ? ' confirma' : ''}" data-accion="ctl-cerrar" data-rol="cerrar" data-sesion="${ses}" aria-label="${escapar(v.cerrar.nombre)}"${si(v.cerrar.confirma, `style="--ya:-${v.cerrar.transcurrido}ms"`)}${si(v.cerrar.cerrando, 'aria-disabled="true"')}${si(v.cerrar.deshabilitado, 'disabled')}${si(!v.cerrar.visible, 'hidden')}>${v.cerrar.etiqueta}</button></p>`
     + '</div>'
 }

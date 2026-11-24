@@ -48,6 +48,8 @@ export type Presencia = {
    * archivo local** (~/.claude/oficina/sesiones): el comentario de GitHub nunca la lleva. Desde la v0.11.
    */
   cwd?: string
+  /** Se puede cerrar desde el widget: solo una sesión de terminal (`CLAUDE_CODE_ENTRYPOINT` = cli). Desde la v0.11. */
+  puedeCerrar?: boolean
 }
 
 /**
@@ -127,14 +129,15 @@ export type RespuestaWidget = {
 
 /**
  * Una orden del widget a una sesión (v0.10), en `~/.claude/oficina/ordenes/<id de la sesión>.json`:
- * mandarle un mensaje a Claude o frenar el turno en curso.
+ * mandarle un mensaje a Claude o frenar el turno en curso; desde la v0.11, cerrar la sesión (`cerrar`).
  */
 export type OrdenWidget =
   | { v: 1; origen: 'widget'; id: string; tipo: 'mensaje'; texto: string; creada: string }
   | { v: 1; origen: 'widget'; id: string; tipo: 'frenar'; creada: string }
+  | { v: 1; origen: 'widget'; id: string; tipo: 'cerrar'; creada: string }
 
 /** Cómo terminó una orden del widget. */
-export type ResultadoOrden = 'enviado' | 'en-cola' | 'frenado' | 'sin-turno' | 'fallo' | 'descartada'
+export type ResultadoOrden = 'enviado' | 'en-cola' | 'frenado' | 'sin-turno' | 'cerrando' | 'fallo' | 'descartada'
 
 /** Lo que el mod deja en el archivo de la orden al procesarla; el widget lo lee y borra el archivo. */
 export type OrdenConsumida = {

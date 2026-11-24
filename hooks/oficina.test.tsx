@@ -765,6 +765,9 @@ test('orden del widget: un mensaje y un frenar válidos se aceptan', async () =>
   expect(validarOrden(orden({}), tiempos)).toEqual({ orden: orden({}) })
   const frenar = { v: 1, origen: 'widget', id: 'abc123', tipo: 'frenar', creada: enIso(ARRANQUE + 5000) }
   expect(validarOrden(frenar, tiempos)).toEqual({ orden: frenar })
+  // Desde la v0.11: cerrar la sesión, también sin texto
+  const cerrar = { v: 1, origen: 'widget', id: 'abc124', tipo: 'cerrar', creada: enIso(ARRANQUE + 5000) }
+  expect(validarOrden(cerrar, tiempos)).toEqual({ orden: cerrar })
   // Justo en el límite de edad todavía vale
   const tarde = { arranqueMs: ARRANQUE, ahoraMs: ARRANQUE + 200000 }
   expect(errorDe(validarOrden(orden({ creada: enIso(tarde.ahoraMs - MAX_EDAD_ORDEN_MS) }), tarde))).toBe(null)
@@ -816,15 +819,18 @@ const RUTA_LOCAL = `C:/Users/prueba/.claude/oficina/sesiones/${SESION}.json`
  * Una sesión abierta con el mod: reloj, archivos y motor de mentira. Sin `gh` (cada consulta a
  * GitHub falla), así lo único que se publica es el archivo local, que es lo que lee el widget.
  */
-async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean; conGh?: boolean } = {}) {
+async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean; conGh?: boolean; entrada?: string; salirFalla?: boolean } = {}) {
   const reloj = mock.clock(on, { now: ARRANQUE })
-  mock.env(on, { USERPROFILE: CASA })
+  // Por omisión, una sesión de terminal (lo que Claude Code pone en CLAUDE_CODE_ENTRYPOINT)
+  mock.env(on, { USERPROFILE: CASA, CLAUDE_CODE_ENTRYPOINT: opciones.entrada ?? 'cli' })
   mock.store(on, { yo: { login: 'nicoequintana', nombre: 'Quintana' } })
   const archivos = new Map<string, string>()
   const escrituras: string[] = []
   const enviados: string[] = []
   const abortados: string[] = []
   const comoUsuario: boolean[] = []
+  /** Lo que pasa, en orden: abortos de turno y comandos corridos (así se ve que frena antes de salir). */
+  const hechos: string[] = []
   let idActual = SESION
   on('session.id', () => ({ value: idActual }))
   on('session.cwd', () => ({ value: 'C:/proyectos/demo' }))
@@ -859,7 +865,15 @@ async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean
   on('turn.abort', (_, e) => {
     if (opciones.abortarFalla) return { deny: `${e.turnId} no es el turno en curso` } as never
     abortados.push(e.turnId)
+    hechos.push(`abort:${e.turnId}`)
     return { value: undefined }
+  })
+  // Medido el 23/11 contra Claude Code 2.1.331: `$.command.run({ command: 'exit' })` resuelve `{}` y
+  // la sesión termina con session.end `prompt_input_exit` unos 2 s después
+  on('command.run', (_, e) => {
+    if (opciones.salirFalla) throw new Error('no se puede salir ahora')
+    hechos.push(`comando:${e.command}`)
+    return { text: '' } as never
   })
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -875,6 +889,7 @@ async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean
     enviados,
     comoUsuario,
     abortados,
+    hechos,
     /** El widget deja una orden y pasa una vuelta de la vigilancia. */
     ordenar: async (extra: Record<string, unknown>) => {
       archivos.set(RUTA_ORDEN, JSON.stringify(orden({ creada: enIso(reloj.now()), ...extra })))
@@ -1035,6 +1050,47 @@ test('una orden consumida o con un id ya procesado no se ejecuta dos veces', asy
   s.archivos.set(RUTA_ORDEN, JSON.stringify({ v: 1, id: 'nueva1', consumida: true, resultado: 'enviado', cuando: enIso(s.reloj.now()) }))
   await s.reloj.advance(MS_ENTRE_ORDENES * 2)
   expect(s.enviados.length).toBe(1)
+})
+
+// ------------------------------------------------------------------ cerrar la sesión (v0.11, #25)
+
+test('la presencia dice que se puede cerrar en una sesión de terminal', async ($, on) => {
+  const s = await abrirSesion($, on)
+  expect(s.presencia()?.puedeCerrar).toBe(true)
+})
+
+for (const entrada of ['claude-desktop', 'claude-vscode']) {
+  test(`una sesión de ${entrada} no se ofrece para cerrar y descarta la orden`, async ($, on) => {
+    const s = await abrirSesion($, on, { entrada })
+    expect(s.presencia()?.puedeCerrar).toBe(false)
+    await s.ordenar({ tipo: 'cerrar', texto: undefined })
+    expect(s.hechos).toEqual([])
+    expect(s.resultado()?.resultado).toBe('descartada')
+    expect(String(s.resultado()?.motivo)).toContain('terminal')
+  })
+}
+
+test('cerrar sale de la sesión con /exit y deja el resultado', async ($, on) => {
+  const s = await abrirSesion($, on)
+  await s.ordenar({ tipo: 'cerrar', texto: undefined })
+  expect(s.hechos).toEqual(['comando:exit'])
+  expect(s.resultado()).toEqual({ v: 1, id: 'k3j9x0a1b2c3d4e5', consumida: true, resultado: 'cerrando', cuando: enIso(s.reloj.now()) })
+  expect(s.enviados).toEqual([])
+})
+
+test('cerrar con un turno en curso primero lo corta y después sale', async ($, on) => {
+  const s = await abrirSesion($, on)
+  await s.empezarTurno('t9')
+  await s.ordenar({ tipo: 'cerrar', texto: undefined })
+  expect(s.hechos).toEqual(['abort:t9', 'comando:exit'])
+  expect(s.resultado()?.resultado).toBe('cerrando')
+})
+
+test('si el motor no deja salir, la orden queda como fallo con su motivo', async ($, on) => {
+  const s = await abrirSesion($, on, { salirFalla: true })
+  await s.ordenar({ tipo: 'cerrar', texto: undefined })
+  expect(s.resultado()?.resultado).toBe('fallo')
+  expect(String(s.resultado()?.motivo ?? '')).not.toBe('')
 })
 
 test('lo de antes sigue: al terminar el turno la sesión publica que te espera', async ($, on) => {

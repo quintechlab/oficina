@@ -18,6 +18,11 @@
 //   ?orden=muda|fallo|error  la orden de la barra: la sesión nunca la toma ("La sesión no respondió"
 //                 a los 10 s), no pudo hacerla, o el comando ordenar falla. Sin ?orden la toma en 1,2 s
 //                 (en cola si la sesión trabaja; frenar la deja esperándote)
+//   ?sincerrar    ninguna sesión se puede cerrar (mod anterior a la v0.11). Sin él, central-nucleo y
+//                 catalogo son de terminal ("Cerrar sesión"; al confirmar, la tarjeta se va a los 2 s) y
+//                 oficina es de la app de escritorio (sin el botón) (#25)
+//   ?historial=lento|vacio|error  "Qué hizo" (#25): la lectura tarda 2 s, no hay conversación, o falla.
+//                 Sin él, catalogo y oficina muestran una conversación y central-nucleo está vacía
 //   ?procesos     central-nucleo espera dos procesos en segundo plano (pose "proceso", v0.6)
 //   ?escena=dos   oficina con 2 subagentes (uno trabaja, uno terminó); ?escena=doble: oficina con dos
 //                 sesiones de un subagente cada una (panel-avis-ux.md, casos A y C del boceto). Sin
@@ -239,7 +244,23 @@
   if (!url.has('sincontrol')) {
     for (const s of SESIONES) Object.assign(s, { puedeControlar: true, enTurno: s.actividad !== 'esperándote' })
     SESIONES.find(s => s.sesion === 'ses-catalogo').enCola = 1
+    // Cerrar (#25, mod v0.11): central-nucleo y catalogo son de terminal ("Cerrar sesión" se ve);
+    // oficina es de la app de escritorio (sin el botón). ?sincerrar: mod v0.10, ninguna se cierra
+    if (!url.has('sincerrar')) for (const s of SESIONES) s.puedeCerrar = s.sesion === 'ses-nucleo' || s.sesion === 'ses-catalogo'
   }
+  /** La conversación de "Qué hizo" (#25), como la devuelve historial.rs: avisos del sistema incluidos. */
+  const HISTORIAL = [
+    { rol: 'claude', texto: 'Terminé de revisar los precios del catálogo viejo.', cuando: hace(52) },
+    { rol: 'usuario', texto: 'armá la tabla de precios con descuento para la home', cuando: hace(48) },
+    { rol: 'claude', texto: 'Voy a leer el componente de precios.', cuando: hace(47) },
+    { rol: 'claude', texto: '**Listo.** Armé `TablaPrecios` con el precio tachado y el descuento en un chip; los tests de precios pasan (12).', cuando: hace(40) },
+    { rol: 'usuario', texto: '<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n</task-notification>', cuando: hace(39) },
+    { rol: 'usuario', texto: 'en mobile el chip tapa el precio, fijate', cuando: hace(30) },
+    { rol: 'claude', texto: 'Tenías razón: a 375 px el chip se montaba sobre el precio. Lo pasé abajo del precio en mobile y quedó igual en escritorio.', cuando: hace(26) },
+    { rol: 'usuario', texto: 'perfecto, ahora sumá el precio por mayor\n\n<system-reminder>contexto del IDE</system-reminder>', cuando: hace(12) },
+    { rol: 'claude', texto: 'Sumé la columna "por mayor" con el mínimo de unidades; falta que me digas desde cuántas unidades aplica para cada categoría, así lo dejo configurable en vez de fijo en el código.', cuando: hace(8) },
+    { rol: 'usuario', texto: 'desde 10 en todas', cuando: hace(2) },
+  ]
   /** Órdenes del falso, por sesión: { id, tipo, consumida, resultado, motivo }. */
   const ordenesFalsas = new Map()
   /** Como el mod: un mensaje a una sesión que trabaja queda en cola; frenar la deja esperándote. */
@@ -249,7 +270,14 @@
     const trabaja = !!s && s.actividad !== 'esperándote'
     orden.consumida = true
     if (url.get('orden') === 'fallo') Object.assign(orden, { resultado: 'fallo', motivo: 'el motor no lo aceptó (falso)' })
-    else if (orden.tipo === 'frenar') {
+    else if (orden.tipo === 'cerrar') {
+      // Como el mod: solo una de terminal; sale como con /exit y unos 2 s después su archivo queda cerrado
+      if (!s?.puedeCerrar) Object.assign(orden, { resultado: 'descartada', motivo: 'solo se cierran las sesiones de terminal' })
+      else {
+        orden.resultado = 'cerrando'
+        setTimeout(() => { const i = SESIONES.indexOf(s); if (i >= 0) SESIONES.splice(i, 1) }, 2000)
+      }
+    } else if (orden.tipo === 'frenar') {
       orden.resultado = trabaja ? 'frenado' : 'sin-turno'
       if (trabaja) {
         s.actividad = 'esperándote'
@@ -932,6 +960,14 @@
       return o.consumida ? { estado: 'consumida', resultado: o.resultado, motivo: o.motivo ?? null } : { estado: 'pendiente' }
     },
     borrar_orden: ({ sesion }) => { ordenesFalsas.delete(sesion) },
+    // "Qué hizo" (#25): según ?historial, la conversación tarda (lento: 2 s), no hay, o no se puede leer
+    leer_historial: async ({ sesion }) => {
+      const modo = url.get('historial')
+      if (modo === 'error') throw new Error('acceso denegado a la transcripción (falso)')
+      await new Promise(r => setTimeout(r, modo === 'lento' ? 2000 : 250))
+      if (modo === 'vacio' || sesion === 'ses-nucleo') return { entradas: [] }
+      return { entradas: HISTORIAL }
+    },
   }
 
   /** Imita un evento del menú de la bandeja, p. ej. __bandeja('oficina://acoplar', 'derecha'). */

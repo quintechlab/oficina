@@ -9,6 +9,7 @@ mod historial;
 mod preferencias;
 mod modelo;
 mod mod_auto;
+mod transcripcion;
 mod ordenes;
 mod primeros_pasos;
 mod respuestas;
@@ -1205,8 +1206,8 @@ fn carpeta_de_ordenes() -> Result<std::path::PathBuf, String> {
     ordenes::carpeta_ordenes().ok_or_else(|| String::from("no se conoce la carpeta del usuario"))
 }
 
-/// Deja una orden para una sesión (#19): `mensaje` (con `texto`) o `frenar`. Devuelve su id. Solo
-/// se llama desde un clic o un Enter del usuario: el widget nunca ordena por su cuenta.
+/// Deja una orden para una sesión (#19): `mensaje` (con `texto`), `frenar` o `cerrar` (#25). Devuelve
+/// su id. Solo se llama desde un clic o un Enter del usuario: el widget nunca ordena por su cuenta.
 #[tauri::command]
 fn ordenar(sesion: String, tipo: String, texto: Option<String>) -> Result<String, String> {
     ordenes::escribir_orden(&carpeta_de_ordenes()?, &sesion, &tipo, texto.as_deref(), chrono::Utc::now())
@@ -1221,6 +1222,16 @@ fn estado_orden(sesion: String, id: String) -> Result<serde_json::Value, String>
 #[tauri::command]
 fn borrar_orden(sesion: String) -> Result<(), String> {
     ordenes::borrar_orden(&carpeta_de_ordenes()?, &sesion)
+}
+
+/// Lo último de la conversación de una sesión (#25), en solo lectura de su transcripción:
+/// `{ entradas: [{ rol, texto, cuando }] }`. Fuera del hilo principal: puede leer hasta 8 MB.
+#[tauri::command]
+async fn leer_historial(sesion: String) -> Result<serde_json::Value, String> {
+    let claude = transcripcion::carpeta_claude().ok_or_else(|| String::from("no se conoce la carpeta del usuario"))?;
+    tauri::async_runtime::spawn_blocking(move || transcripcion::leer_historial_de(&claude, &sesion))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Una línea en el log de diagnóstico (clics del globo, envíos y errores del frontend).
@@ -1767,6 +1778,7 @@ pub fn run() {
             ordenar,
             estado_orden,
             borrar_orden,
+            leer_historial,
             registrar,
             revisar_primeros_pasos,
             menu_primeros_pasos,
