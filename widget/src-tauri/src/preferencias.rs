@@ -1,6 +1,7 @@
 //! Preferencias del widget que sobreviven entre usos: el tamaño elegido en la bandeja, el borde
 //! donde está acoplada la muesca (docs/diseno/estilo-avis-ux.md, 7.5), la posición del tablero
-//! flotante, el monitor de la última vez (9.7) y la última revisión automática del mod (#17).
+//! flotante, el monitor de la última vez (9.7), la última revisión automática del mod (#17) y la
+//! mascota de Claude (docs/diseno/mascotas-avi-ux.md 9.1), que se lee y se conserva.
 //! Se guardan en `<carpeta de configuración de la app>/preferencias.json`.
 
 use std::path::Path;
@@ -44,6 +45,8 @@ struct Preferencias {
     flotante: Option<Flotante>,
     monitor: Option<(f64, f64)>,
     revision_mod: Option<RevisionMod>,
+    /// La mascota tal como está guardada (cualquier texto): Rust no la cambia, solo la conserva.
+    mascota: Option<String>,
 }
 
 /// Lo guardado, ya leído y migrado (el tamaño de texto de la 0.2 pasa a número).
@@ -54,6 +57,7 @@ fn leer_todo(ruta: &Path) -> Preferencias {
         flotante: leer_flotante(ruta),
         monitor: leer_monitor(ruta),
         revision_mod: leer_revision_mod(ruta),
+        mascota: leer_valor(ruta).and_then(|v| v.get("mascota")?.as_str().map(String::from)),
     }
 }
 
@@ -65,8 +69,25 @@ fn escribir(ruta: &Path, p: Preferencias) -> Result<(), String> {
     let flotante = p.flotante.map_or(Value::Null, |f| json!({ "x": fraccion(Some(f.x)), "y": fraccion(Some(f.y)) }));
     let monitor = p.monitor.map_or(Value::Null, |(x, y)| json!({ "x": x, "y": y }));
     let revision_mod = p.revision_mod.map_or(Value::Null, |r| json!({ "revisado": r.revisado, "fallo": r.fallo }));
-    let valor = json!({ "tamano": p.tamano, "acople": valor_de_acople(p.acople), "flotante": flotante, "monitor": monitor, "mod": revision_mod });
+    let mut valor = json!({ "tamano": p.tamano, "acople": valor_de_acople(p.acople), "flotante": flotante, "monitor": monitor, "mod": revision_mod });
+    if let Some(mascota) = p.mascota {
+        valor["mascota"] = Value::String(mascota);
+    }
     std::fs::write(ruta, valor.to_string()).map_err(|e| e.to_string())
+}
+
+// ------------------------------------------------------------------ mascota (docs/diseno/mascotas-avi-ux.md 9.1)
+
+/// Las especies de la mascota, en el orden de la dirección (`NOMBRES_ESPECIES` de especies.js).
+pub const ESPECIES: [&str; 7] = ["avi", "ascua", "escarcha", "nodo", "bruma", "morro", "lumen"];
+
+/// La mascota elegida para Claude. La escribe Configuración (#23); sin la clave, con basura o con un
+/// valor desconocido (texto exacto), el Avi.
+pub fn leer_mascota(ruta: &Path) -> String {
+    leer_valor(ruta)
+        .and_then(|v| v.get("mascota")?.as_str().map(String::from))
+        .filter(|m| ESPECIES.contains(&m.as_str()))
+        .unwrap_or_else(|| String::from(ESPECIES[0]))
 }
 
 fn leer_valor(ruta: &Path) -> Option<Value> {
@@ -482,6 +503,64 @@ mod tests {
         assert_eq!(leer_revision_mod(&r), Some(RevisionMod { revisado: 1_795_000_000_000, fallo: false }));
         fs::write(&r, r#"{"mod":null}"#).unwrap();
         assert_eq!(leer_revision_mod(&r), None);
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn la_mascota_ausente_basura_o_desconocida_es_avi() {
+        let r = ruta_temporal("mascota");
+        // Sin archivo
+        assert_eq!(leer_mascota(&r), "avi");
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        for texto in [
+            "no es json",
+            r#"{"tamano":100}"#,
+            r#"{"mascota":null}"#,
+            r#"{"mascota":3}"#,
+            r#"{"mascota":["nodo"]}"#,
+            r#"{"mascota":"dragon"}"#,
+            r#"{"mascota":"Ascua"}"#,
+            r#"{"mascota":" nodo"}"#,
+            r#"{"mascota":""}"#,
+        ] {
+            fs::write(&r, texto).unwrap();
+            assert_eq!(leer_mascota(&r), "avi", "{texto}");
+        }
+        for especie in ESPECIES {
+            fs::write(&r, format!(r#"{{"tamano":125,"mascota":"{especie}"}}"#)).unwrap();
+            assert_eq!(leer_mascota(&r), especie);
+        }
+        assert_eq!(ESPECIES, ["avi", "ascua", "escarcha", "nodo", "bruma", "morro", "lumen"]);
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn guardar_el_tamano_o_el_acople_no_borra_la_mascota() {
+        let r = ruta_temporal("conserva-mascota");
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        // La escribe Configuración (#23), o el usuario a mano: Rust solo la conserva
+        fs::write(&r, r#"{"tamano":150,"mascota":"bruma"}"#).unwrap();
+        guardar_tamano(&r, 175).unwrap();
+        assert_eq!(leer_mascota(&r), "bruma");
+        guardar_acople(&r, Some(Acople { borde: Borde::Arriba, lugar: 0.5 })).unwrap();
+        assert_eq!(leer_mascota(&r), "bruma");
+        guardar_acople(&r, None).unwrap();
+        guardar_flotante(&r, Flotante { x: 0.2, y: 0.4 }).unwrap();
+        guardar_monitor(&r, (100.0, 200.0)).unwrap();
+        guardar_revision_mod(&r, RevisionMod { revisado: 1_795_000_000_000, fallo: false }).unwrap();
+        assert_eq!(leer_mascota(&r), "bruma");
+        assert_eq!(leer_tamano(&r), 175);
+        // Un texto que esta versión no conoce (una especie futura) también se conserva tal cual
+        fs::write(&r, r#"{"tamano":100,"mascota":"futura"}"#).unwrap();
+        guardar_tamano(&r, 125).unwrap();
+        let guardado: serde_json::Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+        assert_eq!(guardado["mascota"], serde_json::json!("futura"));
+        assert_eq!(leer_mascota(&r), "avi");
+        // Sin mascota guardada, guardar otra cosa no la inventa
+        fs::write(&r, r#"{"tamano":100}"#).unwrap();
+        guardar_tamano(&r, 150).unwrap();
+        let guardado: serde_json::Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+        assert_eq!(guardado.get("mascota"), None);
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 

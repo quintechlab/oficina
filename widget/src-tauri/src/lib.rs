@@ -783,6 +783,13 @@ fn estado_menu(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
     })
 }
 
+/// La mascota de Claude guardada en preferencias.json (docs/diseno/mascotas-avi-ux.md 9.1): la ventana
+/// la pide al arrancar. Sin carpeta de configuración, el Avi.
+#[tauri::command]
+fn mascota(app: AppHandle) -> String {
+    ruta_preferencias(&app).map(|r| preferencias::leer_mascota(&r)).unwrap_or_else(|| String::from(preferencias::ESPECIES[0]))
+}
+
 /// Ctrl + / Ctrl − / Ctrl 0 desde la ventana: el mismo cambio que el submenú "Tamaño".
 #[tauri::command]
 fn cambiar_tamano(app: AppHandle, direccion: i32) -> u32 {
@@ -1510,6 +1517,7 @@ pub fn run() {
             leer_equipo,
             fijar_arriba,
             estado_menu,
+            mascota,
             geometria,
             ajustar_ventana,
             guardar_acople,
