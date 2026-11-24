@@ -7,7 +7,7 @@ import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, 
 import { companeros } from './equipo.js'
 import { iconoBandeja, textoInsignia } from './bandeja.js'
 import {
-  zoomDe, direccionDeTecla, tamanoDeseado, fueraDeLugar, posicionEnPantalla, tamanoMini, medidaVentana, PASO_POR_DEFECTO,
+  zoomDe, pasoQueEntra, direccionDeTecla, tamanoDeseado, fueraDeLugar, posicionEnPantalla, tamanoMini, medidaVentana, PASO_POR_DEFECTO,
   fraccionFlotante, posicionDeFraccion,
 } from './tamano.js'
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
@@ -114,6 +114,8 @@ const st = {
   temporizadorEvo: null,
   /** Tamaño en porcentaje del original: 100, 125, 150, 175 o 200. */
   tamano: PASO_POR_DEFECTO,
+  /** El paso aplicado: `tamano`, o menos si con él el panel no entra en el área (`pasoQueEntra`). */
+  paso: PASO_POR_DEFECTO,
   firmas: {},
   /** El último HTML de las escenas (con los tiempos) y sus subagentes, para los cambios en vivo (panel-avis-ux.md 8.4). */
   htmlEscenas: null,
@@ -1809,9 +1811,29 @@ document.addEventListener('keydown', e => {
  */
 async function aplicarTamano(porcentaje) {
   st.tamano = porcentaje
-  document.documentElement.style.zoom = String(zoomDe(porcentaje))
+  ponerPaso(porcentaje)
   recolocar()
   programarAjuste()
+}
+
+/** Aplica el paso `p` en `<html>` (todo crece junto). */
+function ponerPaso(p) {
+  st.paso = p
+  document.documentElement.style.zoom = String(zoomDe(p))
+}
+
+/**
+ * El panel nunca más ancho que el área (`area`, px de pantalla): con el zoom elegido, o el paso más
+ * grande que entra (`pasoQueEntra`). La preferencia guardada no cambia. El ancho del panel en px CSS
+ * no depende del zoom (#contenido es `max-content`), así que medirlo de nuevo da el mismo paso. En
+ * la tira mini el tablero no se ve: queda el paso de antes.
+ */
+function topearPaso(area) {
+  if (!area || st.mini) return
+  const marco = $('#marco')
+  const f = marco.offsetWidth ? marco.getBoundingClientRect().width / marco.offsetWidth : zoomDe(st.paso)
+  const p = pasoQueEntra(st.tamano, medirContenido().ancho / f, area.ancho)
+  if (p !== st.paso) ponerPaso(p)
 }
 
 // Ctrl + / Ctrl − / Ctrl 0 con la ventana enfocada: el paso lo decide y lo guarda la app
@@ -1876,7 +1898,7 @@ observador.observe($('#contenido'))
 
 // ------------------------------------------------------------------ muesca acoplable (sección 7)
 
-const zoom = () => zoomDe(st.tamano)
+const zoom = () => zoomDe(st.paso)
 /** Tamaño de la muesca en px de pantalla (`TAM_MUESCA` por el zoom), sin medir el DOM. */
 const tamMuesca = () => tamMuescaDe(st.acople.borde, zoom())
 
@@ -1884,7 +1906,9 @@ const tamMuesca = () => tamMuescaDe(st.acople.borde, zoom())
 const largoDe = (borde, area) => esHorizontal(borde) ? area.ancho : area.alto
 
 /** Disposición acoplada con el área de trabajo `area`: ventana fija, muesca y panel (9.6). */
-function disposicion(area, tablero = medirContenido()) {
+function disposicion(area, tablero) {
+  topearPaso(area)
+  tablero ??= medirContenido()
   return disposicionAcoplada(st.acople, tamMuesca(), tablero, area, zoom())
 }
 
@@ -1894,8 +1918,9 @@ function disposicion(area, tablero = medirContenido()) {
  * primera vez, en la posición guardada). La ventana es siempre el área.
  */
 function disposicionActual(area) {
-  const z = zoom()
   if (st.acople) return disposicion(area)
+  topearPaso(area)
+  const z = zoom()
   if (st.mini) {
     const tam = tamanoMini(z)
     return disposicionTira(st.tira ? posicionEnPantalla(st.tira, tam, area) : null, tam, area, z)

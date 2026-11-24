@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, posicionEnPantalla, tamanoMini, medidaVentana, fueraDeLugar, MINIMO, FRACCION_MAXIMA,
-  esquinaTira, MARGEN_TIRA, fraccionFlotante, posicionDeFraccion,
+  esquinaTira, MARGEN_TIRA, fraccionFlotante, posicionDeFraccion, pasoQueEntra,
 } from '../src/tamano.js'
 
 const AREA = { x: 0, y: 0, ancho: 1920, alto: 1040 }
@@ -18,6 +18,32 @@ test('el zoom sale del porcentaje elegido: 100 % es el tamaño original, 200 % e
   assert.equal(zoomDe(undefined), 1)
   assert.equal(zoomDe(300), 1)
   assert.equal(zoomDe('grande'), 1)
+})
+
+test('el zoom baja al paso más grande que entra en el área, sin pasar del elegido', () => {
+  // Panel de 676 px CSS (barra de 188 + columna de 460 + bordes): al 200 % mide 1 352 px
+  // 1366 de ancho: entra hasta el 90 % (1 229 px) → 175 % (1 183 px)
+  assert.equal(pasoQueEntra(200, 676, 1366), 175)
+  assert.equal(pasoQueEntra(175, 676, 1366), 175)
+  // 1440: 1 296 px libres, el 200 % no entra
+  assert.equal(pasoQueEntra(200, 676, 1440), 175)
+  // Pantalla grande: el elegido tal cual, nunca más grande que él
+  assert.equal(pasoQueEntra(200, 676, 1920), 200)
+  assert.equal(pasoQueEntra(100, 676, 1920), 100)
+  assert.equal(pasoQueEntra(125, 676, 3840), 125)
+  // Angosta: el más chico que hay es 100 %, aunque no entre
+  assert.equal(pasoQueEntra(200, 676, 768), 100)
+  assert.equal(pasoQueEntra(100, 676, 375), 100)
+  // Justo en el borde entra: 900 × 0,9 = 810 = 405 × 2
+  assert.equal(pasoQueEntra(200, 405, 900), 200)
+  assert.equal(pasoQueEntra(200, 406, 900), 175)
+})
+
+test('sin medida del panel o con un paso raro, el zoom elegido no cambia', () => {
+  assert.equal(pasoQueEntra(200, 0, 1366), 200)
+  assert.equal(pasoQueEntra(200, NaN, 1366), 200)
+  assert.equal(pasoQueEntra(175, 676, undefined), 175)
+  assert.equal(pasoQueEntra(300, 676, 1366), 300)
 })
 
 test('teclas: Ctrl + agranda, Ctrl − achica, Ctrl 0 vuelve a 100 %; sin Ctrl no hace nada', () => {
