@@ -1,6 +1,6 @@
 //! Órdenes del widget a una sesión (#19): un archivo por sesión en
 //! `%USERPROFILE%/.claude/oficina/ordenes/<id de la sesión>.json`, con una orden por vez
-//! (`mensaje` o `frenar`). La sesión de Claude Code lo lee, hace lo pedido y lo reescribe con
+//! (`mensaje`, `frenar` o, desde la v0.11, `cerrar`). La sesión de Claude Code lo lee, hace lo pedido y lo reescribe con
 //! `consumida: true` y el `resultado`. Solo se escribe desde un clic (o Enter) del usuario.
 
 use std::collections::hash_map::RandomState;
@@ -54,7 +54,7 @@ pub fn escribir_orden(
     let ruta = ruta_orden(carpeta, sesion)?;
     let texto = match tipo {
         "mensaje" => Some(texto_valido(texto)?),
-        "frenar" => None,
+        "frenar" | "cerrar" => None,
         _ => return Err(String::from("tipo de orden inválido")),
     };
     if hay_pendiente(&ruta, ahora) {
@@ -210,6 +210,18 @@ mod tests {
         assert_eq!(
             leer(&c, "ses1"),
             json!({ "v": 1, "origen": "widget", "id": id, "tipo": "frenar", "creada": "2026-11-22T15:00:00.000Z" })
+        );
+        fs::remove_dir_all(&c).unwrap();
+    }
+
+    #[test]
+    fn cerrar_va_sin_texto() {
+        // Desde la v0.11 (#25): la sesión de terminal sale como con /exit
+        let c = carpeta_temporal("cerrar");
+        let id = escribir_orden(&c, "ses1", "cerrar", Some("se ignora"), ahora()).unwrap();
+        assert_eq!(
+            leer(&c, "ses1"),
+            json!({ "v": 1, "origen": "widget", "id": id, "tipo": "cerrar", "creada": "2026-11-22T15:00:00.000Z" })
         );
         fs::remove_dir_all(&c).unwrap();
     }

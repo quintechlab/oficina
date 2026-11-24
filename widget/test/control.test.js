@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import {
   puedeControlar, trabajando, MS_CONFIRMAR_FRENAR, clicFrenar, confirmando, MAX_TEXTO, validarTexto,
   teclaControl, lineaResultado, lineaError, textoCola, MS_SONDEO_ORDEN, MS_ESPERA_ORDEN, pasoOrden,
-  MS_LINEA, vistaBarra, barraControl, borradorTrasOrden, lineaAlEscribir,
+  MS_LINEA, vistaBarra, barraControl, borradorTrasOrden, lineaAlEscribir, puedeCerrar, clicCerrar, MS_CONFIRMAR_CERRAR,
 } from '../src/control.js'
 import { ANIMOS_DE_TRABAJO, animoSesion } from '../src/logica.js'
 import { sesiones, prepararProyecto, firmaEscenas } from '../src/tablero.js'
@@ -222,4 +222,65 @@ test('la firma de las escenas cambia si la sesión empieza a aceptar control, no
   assert.notEqual(conControl, firmaEscenas(q.repo, prepararProyecto(q, AHORA)))
   // Sin control, la firma de siempre (la prueba de tablero.test.js no cambia)
   assert.doesNotMatch(firmaEscenas(q.repo, prepararProyecto(q, AHORA)), /~/)
+})
+
+// ------------------------------------------------------------------ cerrar la sesión (#25, mod v0.11)
+
+test('Cerrar sesión se ve solo si la sesión publica puedeCerrar: true (las de terminal)', () => {
+  assert.equal(puedeCerrar(ses({ puedeCerrar: true })), true)
+  for (const v of [undefined, false, 'true']) assert.equal(puedeCerrar(ses({ puedeCerrar: v })), false)
+  assert.equal(vistaBarra(ses({ puedeCerrar: true }), {}, AHORA).cerrar.visible, true)
+  assert.equal(vistaBarra(ses(), {}, AHORA).cerrar.visible, false)
+  assert.match(barraControl(ses({ puedeCerrar: true }), {}, AHORA), /<button type="button" class="btn sec ctl-cerrar" data-accion="ctl-cerrar" data-rol="cerrar" data-sesion="ses-1" aria-label="Cerrar esta sesión de Claude">Cerrar sesión<\/button>/)
+  // La de la app de escritorio o de VS Code lleva el botón escondido: refrescarBarra no lo muestra nunca
+  assert.match(barraControl(ses(), {}, AHORA), /data-accion="ctl-cerrar"[^>]* hidden/)
+})
+
+test('Cerrar confirma en el botón: el primer clic pide "¿Cerrar? Sí" por 3 s y solo el segundo cierra', () => {
+  assert.equal(MS_CONFIRMAR_CERRAR, 3000)
+  const s = ses({ puedeCerrar: true })
+  const primero = clicCerrar({}, AHORA)
+  assert.deepEqual(primero, { cierraHasta: AHORA + 3000, cerrar: false })
+  const v = vistaBarra(s, primero, AHORA + 1000)
+  assert.equal(v.cerrar.confirma, true)
+  assert.equal(v.cerrar.etiqueta, '¿Cerrar? Sí')
+  assert.equal(v.cerrar.nombre, 'Confirmar: cerrar esta sesión de Claude')
+  assert.deepEqual(v.linea, { texto: 'Tocá otra vez para cerrar la sesión · Esc cancela', tono: 'info' })
+  assert.match(barraControl(s, primero, AHORA + 1000), /ctl-cerrar confirma"[^>]* style="--ya:-1000ms"/)
+  assert.deepEqual(clicCerrar(primero, AHORA + 2999), { cierraHasta: null, cerrar: true })
+})
+
+test('sin segundo clic vuelve solo a "Cerrar sesión" y nunca cierra por tiempo', () => {
+  const s = ses({ puedeCerrar: true })
+  const primero = clicCerrar({}, AHORA)
+  assert.equal(vistaBarra(s, primero, AHORA + 3000).cerrar.etiqueta, 'Cerrar sesión')
+  assert.equal(vistaBarra(s, primero, AHORA + 3000).linea, null)
+  assert.deepEqual(clicCerrar(primero, AHORA + 3001), { cierraHasta: AHORA + 6001, cerrar: false })
+})
+
+test('mientras se cierra, nada más se manda; el resultado es una línea corta', () => {
+  const s = ses({ puedeCerrar: true, enTurno: true, actividad: 'pensando' })
+  const v = vistaBarra(s, { borrador: 'hola', pendiente: { tipo: 'cerrar', desde: AHORA } }, AHORA)
+  assert.deepEqual(v.linea, { texto: 'Cerrando…', tono: 'info' })
+  assert.equal(v.puedeEnviar, false)
+  assert.match(barraControl(s, { pendiente: { tipo: 'cerrar', desde: AHORA } }, AHORA), /data-accion="ctl-cerrar"[^>]* disabled/)
+  assert.deepEqual(lineaResultado({ tipo: 'cerrar', resultado: 'cerrando' }), { texto: 'Cerrando la sesión…', tono: 'ok' })
+  assert.deepEqual(lineaResultado({ tipo: 'cerrar', resultado: 'descartada', motivo: 'solo se cierran las sesiones de terminal' }), { texto: 'No se pudo cerrar · solo se cierran las sesiones de terminal', tono: 'error' })
+  assert.deepEqual(lineaResultado({ tipo: 'cerrar', resultado: 'timeout' }), { texto: 'La sesión no respondió', tono: 'error' })
+})
+
+test('lo de antes sigue: Frenar y Enviar no cambian con Cerrar en la barra', () => {
+  const s = ses({ puedeCerrar: true, enTurno: true, actividad: 'pensando' })
+  // Frenar confirma con su propio texto aunque Cerrar esté a la vista
+  const f = vistaBarra(s, clicFrenar({}, AHORA), AHORA + 1000)
+  assert.equal(f.frenar.etiqueta, '¿Frenar? Sí')
+  assert.equal(f.cerrar.etiqueta, 'Cerrar sesión')
+  assert.deepEqual(f.linea, { texto: 'Tocá otra vez para frenar · Esc cancela', tono: 'info' })
+  // Y Cerrar confirmando no toca a Frenar
+  assert.equal(vistaBarra(s, clicCerrar({}, AHORA), AHORA + 1000).frenar.etiqueta, 'Frenar')
+  // Enviar: igual que siempre
+  assert.equal(vistaBarra(s, { borrador: 'hola' }, AHORA).puedeEnviar, true)
+  assert.deepEqual(vistaBarra(s, { pendiente: { tipo: 'mensaje', desde: AHORA } }, AHORA).linea, { texto: 'Enviando…', tono: 'info' })
+  assert.deepEqual(lineaResultado({ tipo: 'mensaje', resultado: 'enviado' }), { texto: 'Enviado', tono: 'ok' })
+  assert.deepEqual(lineaResultado({ tipo: 'frenar', resultado: 'frenado' }), { texto: 'Frenado', tono: 'ok' })
 })

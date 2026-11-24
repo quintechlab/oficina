@@ -1291,3 +1291,62 @@ p.det-rot { margin-top: var(--e-5) }
 @media (prefers-reduced-motion: reduce) {
   .ctl-in, .ctl .btn { transition: none }
 }
+
+/* ------------------------------------------------------------------ cerrar la sesión (#25)
+   "Cerrar sesión" va en la línea de estado, a la derecha y lejos de Enviar: más chico y tenue que
+   Frenar, porque no es de todos los días. Confirma igual que Frenar: el segundo clic dentro de 3 s,
+   pintado de --rojo entero con la barrita que se vacía. Solo en las sesiones de terminal */
+.ctl-est:has(.ctl-cerrar:not([hidden])) { align-items: center }
+.ctl .ctl-cerrar { position: relative; min-height: 24px; margin-left: auto; padding: 0 var(--e-5); background: none; border: 1px solid var(--linea); color: var(--crema2); font: 700 11px/1 var(--f); font-stretch: normal }
+.ctl .ctl-cerrar:hover { border-color: var(--linea-hover); color: var(--crema); filter: none }
+.ctl .ctl-cerrar.confirma { background: var(--rojo); border-color: var(--rojo); color: var(--negro) }
+.ctl .ctl-cerrar.confirma:focus-visible { outline-color: var(--crema) }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .ctl-cerrar.confirma::after {
+    content: ""; position: absolute; left: var(--e-5); right: var(--e-5); bottom: 3px; height: 2px; border-radius: 1px;
+    background: color-mix(in srgb, var(--negro) 45%, transparent); transform-origin: left;
+    animation: drena 3000ms linear var(--ya, 0ms) both;
+  }
+}
+
+/* ------------------------------------------------------------------ "Qué hizo" (#25)
+   Un botón chico en la cabecera de la tarjeta, al lado de lo que lleva, y debajo el detalle con las
+   piezas del de un subagente: lo último que pidió el usuario ("Vos", en ámbar) y lo que respondió
+   Claude, del más nuevo al más viejo. Sin flecha: el botón está en la esquina */
+.ses-hizo {
+  flex: none; display: inline-flex; align-items: center; min-height: 24px; margin: -2px 0; padding: 0 var(--e-4);
+  border: 1px solid var(--linea); border-radius: var(--r-tag); background: none; color: var(--crema2);
+  font: var(--t-mono-s); font-stretch: 75%; white-space: nowrap; cursor: pointer;
+  transition: border-color var(--d-color) ease, color var(--d-color) ease, background-color var(--d-color) ease;
+}
+/* Sin "lleva" (sesión sin inicio), el botón va igual a la derecha */
+.ses-tit + .ses-hizo { margin-left: auto }
+.ses-hizo:hover { border-color: var(--linea-hover); color: var(--crema) }
+.ses-hizo:focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px }
+.ses-hizo[aria-expanded="true"] { border-color: color-mix(in srgb, var(--ambar) 45%, transparent); background: var(--ambar-osc); color: var(--ambar) }
+.det-hist { --flecha: calc(var(--ancho-escena) - 24px); margin: var(--e-4) 0 var(--e-2) }
+.det-hist::before { display: none }
+.det-hist > .det-rot { margin-top: 0 }
+.hist-turnos { display: grid; gap: var(--e-5); margin-top: var(--e-4); max-height: 300px; overflow-y: auto; list-style: none }
+.hist-turnos li { display: grid; gap: var(--e-1); min-width: 0; padding-left: var(--e-4); border-left: 2px solid var(--linea) }
+.hist-turnos li:first-child { border-left-color: var(--ambar) }
+.hist-pedido, .hist-resp {
+  display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
+  font: var(--t-chico); color: var(--crema2);
+}
+.hist-pedido { -webkit-line-clamp: 2; color: var(--crema) }
+.hist-resp { -webkit-line-clamp: 3 }
+.hist-resp.sin { font-style: italic; color: var(--tenue) }
+.hist-quien { font: var(--t-rotulo); font-stretch: 75%; text-transform: uppercase; letter-spacing: .06em; color: var(--crema2) }
+.hist-pedido .hist-quien { color: var(--ambar) }
+.hist-turnos time { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+.det-vacio[data-tono="error"] { color: var(--rojo) }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .det-hist.entra .hist-turnos li { animation: sube var(--d-entrada) var(--ease) both }
+  body:not(.pausa) .det-hist.entra .hist-turnos li:nth-child(2) { animation-delay: 45ms }
+  body:not(.pausa) .det-hist.entra .hist-turnos li:nth-child(3) { animation-delay: 90ms }
+  body:not(.pausa) .det-hist.entra .hist-turnos li:nth-child(n+4) { animation-delay: 135ms }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ses-hizo { transition: none }
+}

@@ -18,6 +18,7 @@ import {
 import {
   vistaBarra, clicFrenar, validarTexto, teclaControl, lineaResultado, lineaError, pasoOrden,
   borradorTrasOrden, lineaAlEscribir, MS_CONFIRMAR_FRENAR, MS_SONDEO_ORDEN, MS_LINEA,
+  clicCerrar, MS_CONFIRMAR_CERRAR,
 } from './control.js'
 import { globo, avisoOtroProyecto, quienPregunta, anuncioPregunta } from './pregunta.js'
 import { defsAvis, nombreClaude } from './avis.js'
@@ -72,6 +73,11 @@ const st = {
   sesiones: [],
   /** El subagente con el detalle desplegado en su tarjeta (#14): { sesion, id }, o null. Uno por vez. */
   detalleSub: null,
+  /**
+   * "Qué hizo" abierto (#25), uno por vez: { sesion, estado: 'cargando' | 'listo' | 'error', entradas,
+   * error }, o null. Mientras está abierto se relee la transcripción cada 10 s.
+   */
+  historial: null,
   /**
    * Barra de control de cada sesión (#19), por id de sesión: `borrador` (lo escrito, así un redibujo
    * no lo pierde), `confirmaHasta` (Frenar pidiendo el segundo clic), `pendiente` { tipo, desde }
@@ -294,10 +300,14 @@ function pintarEscenas(proyecto, preparadas, ahora, rastros) {
   const raiz = $('#sesiones')
   // Un detalle abierto de una sesión que ya no está en este proyecto se olvida
   if (st.detalleSub && !preparadas.some(({ s }) => s.sesion === st.detalleSub.sesion)) st.detalleSub = null
-  const html = sesiones(preparadas, ahora, rastros, st.detalleSub, st.control, st.mascota, st.formas)
-  const firma = firmaEscenas(proyecto.repo, preparadas, rastros, st.detalleSub)
+  // Lo mismo con "Qué hizo" (#25): una sesión cerrada se va con su detalle
+  if (st.historial && !preparadas.some(({ s }) => s.sesion === st.historial.sesion)) cerrarHistorial()
+  const html = sesiones(preparadas, ahora, rastros, st.detalleSub, st.control, st.mascota, st.formas, st.historial)
+  const firma = firmaEscenas(proyecto.repo, preparadas, rastros, st.detalleSub, st.historial)
   const ids = idsDeEscena(proyecto.repo, preparadas)
   const foco = focoEnBarra()
+  // El foco en un "Qué hizo" vuelve a su botón si la tarjeta se redibuja (al terminar de leer)
+  const focoHizo = document.activeElement?.matches?.('#sesiones .ses-hizo') ? document.activeElement.dataset.sesion : null
   // Mientras el IME compone una palabra en una barra no se redibuja: se cortaría la composición
   if (foco && st.componiendo) return
   if (st.firmas['#sesiones'] === firma && html !== st.htmlEscenas && !actualizarTiempos(raiz, html)) st.firmas['#sesiones'] = null
@@ -306,6 +316,7 @@ function pintarEscenas(proyecto, preparadas, ahora, rastros) {
     vigilarEscenas($('.principal'))
     // La barra se redibujó con el borrador guardado: el foco y el cursor vuelven a donde estaban
     devolverFoco(foco)
+    if (focoHizo) botonHistorial(focoHizo)?.focus({ preventScroll: true })
   }
   st.htmlEscenas = html
   st.idsEscena = ids
@@ -375,6 +386,14 @@ function refrescarBarra(barra, ahora = Date.now()) {
   fr.classList.toggle('confirma', v.frenar.confirma)
   if (fr.textContent !== v.frenar.etiqueta) fr.textContent = v.frenar.etiqueta
   if (fr.getAttribute('aria-label') !== v.frenar.nombre) fr.setAttribute('aria-label', v.frenar.nombre)
+  // Cerrar (#25): lo mismo que Frenar, con su propia confirmación
+  const ce = barra.querySelector('[data-rol="cerrar"]')
+  ce.hidden = !v.cerrar.visible
+  ce.disabled = v.ocupada
+  if (v.cerrar.confirma && !ce.classList.contains('confirma')) ce.style.removeProperty('--ya')
+  ce.classList.toggle('confirma', v.cerrar.confirma)
+  if (ce.textContent !== v.cerrar.etiqueta) ce.textContent = v.cerrar.etiqueta
+  if (ce.getAttribute('aria-label') !== v.cerrar.nombre) ce.setAttribute('aria-label', v.cerrar.nombre)
   cola.hidden = !v.cola
   if (cola.textContent !== (v.cola ?? '')) cola.textContent = v.cola ?? ''
   const texto = v.linea?.texto ?? ''
@@ -383,7 +402,7 @@ function refrescarBarra(barra, ahora = Date.now()) {
     res.dataset.tono = v.linea?.tono ?? ''
     if (texto) reanimar(res)
   }
-  if ((enfocado === env || enfocado === fr) && (enfocado.disabled || enfocado.hidden)) campo.focus({ preventScroll: true })
+  if ((enfocado === env || enfocado === fr || enfocado === ce) && (enfocado.disabled || enfocado.hidden)) campo.focus({ preventScroll: true })
 }
 
 function refrescarBarras(ahora = Date.now()) {
@@ -397,10 +416,85 @@ function tocarFrenar(sesion) {
   const ahora = Date.now()
   const r = clicFrenar(ui, ahora)
   ui.confirmaHasta = r.confirmaHasta
+  // Una confirmación por vez: tocar Frenar deja de pedir la de Cerrar
+  ui.cierraHasta = null
   clearTimeout(ui.reloj)
   if (r.frenar) { ordenar(sesion, 'frenar'); return }
   refrescarBarras(ahora)
   ui.reloj = setTimeout(() => refrescarBarras(), MS_CONFIRMAR_FRENAR + 20)
+}
+
+/**
+ * Un clic en "Cerrar sesión" (#25): el primero pide confirmar por 3 s (vuelve solo); el segundo deja
+ * la orden `cerrar` y la sesión sale como con /exit. Nunca cierra por tiempo.
+ */
+function tocarCerrar(sesion) {
+  const ui = ctl(sesion)
+  if (ui.pendiente) return
+  const ahora = Date.now()
+  const r = clicCerrar(ui, ahora)
+  ui.cierraHasta = r.cierraHasta
+  ui.confirmaHasta = null
+  clearTimeout(ui.reloj)
+  if (r.cerrar) { ordenar(sesion, 'cerrar'); return }
+  refrescarBarras(ahora)
+  ui.reloj = setTimeout(() => refrescarBarras(), MS_CONFIRMAR_CERRAR + 20)
+}
+
+// ------------------------------------------------------------------ "Qué hizo" (#25)
+// Lo último de la conversación de una sesión, leído en solo lectura de su transcripción
+// (historial.rs); historial.js lo agrupa en turnos. Uno abierto por vez; Esc lo pliega.
+
+/** Cada cuánto se relee la transcripción mientras el detalle está abierto. */
+const MS_RELEER_HISTORIAL = 10000
+
+const botonHistorial = sesion => document.querySelector(`#sesiones .ses-hizo[data-sesion="${CSS.escape(sesion)}"]`)
+
+function cerrarHistorial() {
+  clearTimeout(st.relojHistorial)
+  st.historial = null
+}
+
+/** Lee la transcripción de la sesión abierta; si mientras tanto se cerró u otra se abrió, no hace nada. */
+async function leerHistorial(sesion) {
+  clearTimeout(st.relojHistorial)
+  let nuevo
+  try {
+    const r = await invocar('leer_historial', { sesion })
+    nuevo = { sesion, estado: 'listo', entradas: r?.entradas ?? [] }
+  } catch (e) {
+    registrar(`qué hizo ${sesion}: no se pudo leer (${e})`)
+    nuevo = { sesion, estado: 'error', error: String(e) }
+  }
+  if (st.historial?.sesion !== sesion) return
+  const primera = st.historial.estado === 'cargando'
+  st.historial = nuevo
+  pintar()
+  // La primera lectura reemplaza al "Leyendo…": la entrada sigue en el detalle nuevo
+  const det = primera && document.querySelector('.det-hist')
+  if (det) {
+    det.classList.add('entra')
+    setTimeout(() => det.classList.remove('entra'), 900)
+  }
+  st.relojHistorial = setTimeout(() => { if (st.historial?.sesion === sesion) leerHistorial(sesion) }, MS_RELEER_HISTORIAL)
+}
+
+/** Abre "Qué hizo" de una sesión (pliega el que hubiera) o lo pliega si ya estaba abierto. */
+function alternarHistorial(sesion) {
+  const abrir = st.historial?.sesion !== sesion
+  cerrarHistorial()
+  if (abrir) st.historial = { sesion, estado: 'cargando' }
+  pintar()
+  botonHistorial(sesion)?.focus({ preventScroll: true })
+  if (!abrir) return
+  const det = document.querySelector('.det-hist')
+  if (det) {
+    // La entrada corre solo al abrir, como el detalle de un subagente
+    det.classList.add('entra')
+    setTimeout(() => det.classList.remove('entra'), 900)
+    det.scrollIntoView({ block: 'nearest' })
+  }
+  if (tauri?.core) leerHistorial(sesion)
 }
 
 /** Pone el borrador de una sesión y su campo, solo si cambió (así no se mueve el cursor de lo escrito). */
@@ -1632,6 +1726,9 @@ document.addEventListener('click', async e => {
   // La barra de control (#19): cada botón hace solo lo suyo, y solo con el clic
   if (a === 'ctl-enviar') { if (!b.disabled) ordenar(b.dataset.sesion, 'mensaje'); return }
   if (a === 'ctl-frenar') { if (!b.disabled) tocarFrenar(b.dataset.sesion); return }
+  if (a === 'ctl-cerrar') { if (!b.disabled) tocarCerrar(b.dataset.sesion); return }
+  // "Qué hizo" (#25): despliega lo último de la conversación debajo de la cabecera; otro clic lo pliega
+  if (a === 'historial') { alternarHistorial(b.dataset.sesion); return }
   if (a === 'volver') {
     // "‹ vista anterior" o "Volver ahora" (5.2); antes de que termine, la descarta (10.4)
     cerrarConversacion({ descartar: true })
@@ -1753,11 +1850,12 @@ document.addEventListener('keydown', e => {
     if (teclaControl(e) === 'enviar') { e.preventDefault(); ordenar(e.target.dataset.sesion, 'mensaje'); return }
     if (e.key !== 'Escape') return
   }
-  // Esc en "¿Frenar? Sí" deja de pedir confirmación, sin frenar
-  if (e.key === 'Escape' && e.target.matches?.('#sesiones .ctl-frenar.confirma')) {
+  // Esc en "¿Frenar? Sí" o "¿Cerrar? Sí" deja de pedir confirmación, sin frenar ni cerrar
+  if (e.key === 'Escape' && e.target.matches?.('#sesiones .ctl-frenar.confirma, #sesiones .ctl-cerrar.confirma')) {
     e.preventDefault()
     const ui = ctl(e.target.dataset.sesion)
     ui.confirmaHasta = null
+    ui.cierraHasta = null
     clearTimeout(ui.reloj)
     refrescarBarras()
     return
@@ -1773,6 +1871,12 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { st.plegado = true; pintar(); $('[data-accion="ver"]')?.focus(); return }
   }
   if (teclaPasos(e)) return
+  // Esc con el foco en la tarjeta de "Qué hizo" lo pliega y el foco vuelve a su botón (#25)
+  if (e.key === 'Escape' && st.historial && e.target.closest?.('#sesiones .ses')?.querySelector(`.ses-hizo[data-sesion="${CSS.escape(st.historial.sesion)}"]`)) {
+    e.preventDefault()
+    alternarHistorial(st.historial.sesion)
+    return
+  }
   // Esc con el foco en una tarjeta pliega el detalle abierto del subagente y el foco vuelve a su Avi (#14)
   if (e.key === 'Escape' && st.detalleSub && e.target.closest?.('#sesiones')) {
     e.preventDefault()
