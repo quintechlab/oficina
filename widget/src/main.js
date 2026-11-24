@@ -18,7 +18,7 @@ import {
 import {
   vistaBarra, clicFrenar, validarTexto, teclaControl, lineaResultado, lineaError, pasoOrden,
   borradorTrasOrden, lineaAlEscribir, MS_CONFIRMAR_FRENAR, MS_SONDEO_ORDEN, MS_LINEA,
-  clicCerrar, MS_CONFIRMAR_CERRAR, cerrandoSesion, destinoFocoCierre, anuncioCierre,
+  clicCerrar, MS_CONFIRMAR_CERRAR, cerrandoSesion, destinoFocoCierre, anuncioCierre, MS_TOPE_CERRANDO, vencerCierre,
 } from './control.js'
 import { MS_RELEER as MS_RELEER_HISTORIAL } from './historial.js'
 import { globo, avisoOtroProyecto, quienPregunta, anuncioPregunta } from './pregunta.js'
@@ -654,7 +654,16 @@ async function ordenar(sesion, tipo) {
     // La sesión sale: la tarjeta queda "cerrando" hasta irse (B2); la línea de la tarjeta se redibuja
     if (tipo === 'cerrar' && resultado === 'cerrando') {
       ui.cerrando = true
+      ui.cerrandoDesde = Date.now()
       pintar()
+      // Tope (#25): si a los 30 s la tarjeta sigue, la sesión no salió; Cerrar vuelve a funcionar
+      setTimeout(() => {
+        const cambio = vencerCierre(st.control[sesion], Date.now())
+        if (!cambio) return
+        registrar(`orden cerrar ${id} a ${sesion} -> no se cerró en ${MS_TOPE_CERRANDO / 1000} s`)
+        Object.assign(st.control[sesion], cambio)
+        pintar()
+      }, MS_TOPE_CERRANDO + 20)
       return
     }
     refrescarBarras()

@@ -7,7 +7,7 @@ import {
   puedeControlar, trabajando, MS_CONFIRMAR_FRENAR, clicFrenar, confirmando, MAX_TEXTO, validarTexto,
   teclaControl, lineaResultado, lineaError, textoCola, MS_SONDEO_ORDEN, MS_ESPERA_ORDEN, pasoOrden,
   MS_LINEA, vistaBarra, barraControl, borradorTrasOrden, lineaAlEscribir, puedeCerrar, clicCerrar, MS_CONFIRMAR_CERRAR,
-  cerrandoSesion, destinoFocoCierre, anuncioCierre,
+  cerrandoSesion, destinoFocoCierre, anuncioCierre, MS_TOPE_CERRANDO, vencerCierre,
 } from '../src/control.js'
 import { ANIMOS_DE_TRABAJO, animoSesion } from '../src/logica.js'
 import { sesiones, prepararProyecto, firmaEscenas } from '../src/tablero.js'
@@ -316,6 +316,38 @@ test('B2: con la orden tomada ("cerrando") la barra queda apagada hasta que la t
   assert.equal(cerrandoSesion({ pendiente: { tipo: 'cerrar', desde: AHORA } }), true)
   assert.equal(cerrandoSesion({ pendiente: { tipo: 'mensaje', desde: AHORA } }), false)
   assert.equal(cerrandoSesion(undefined), false)
+})
+
+test('tope de "Cerrando…": a los 30 s sin que la sesión salga, avisa y Cerrar vuelve a funcionar', () => {
+  assert.equal(MS_TOPE_CERRANDO, 30000)
+  const s = ses({ puedeCerrar: true, rama: 'feat/48-precios' })
+  const ui = { borrador: '', cerrando: true, cerrandoDesde: AHORA, linea: { texto: 'Cerrando la sesión…', tono: 'ok', desde: AHORA } }
+  // Antes de los 30 s no cambia nada
+  assert.equal(vencerCierre(ui, AHORA + MS_TOPE_CERRANDO - 1), null)
+  // A los 30 s: deja de cerrarse y la línea dice qué pasó, como error (queda hasta que escriba o mande otra)
+  const cambio = vencerCierre(ui, AHORA + MS_TOPE_CERRANDO)
+  assert.deepEqual(cambio, {
+    cerrando: false,
+    cerrandoDesde: null,
+    linea: { texto: 'La sesión no se cerró. Probá de nuevo.', tono: 'error', desde: AHORA + MS_TOPE_CERRANDO },
+  })
+  const despues = { ...ui, ...cambio }
+  const t = AHORA + MS_TOPE_CERRANDO + 60000
+  const v = vistaBarra(s, despues, t)
+  assert.equal(v.cerrando, false)
+  assert.equal(v.ocupada, false)
+  assert.equal(v.cerrar.etiqueta, 'Cerrar sesión')
+  assert.equal(v.cerrar.deshabilitado, false)
+  assert.deepEqual(v.linea, { texto: 'La sesión no se cerró. Probá de nuevo.', tono: 'error' })
+  const html = barraControl(s, despues, t)
+  assert.doesNotMatch(html, /aria-disabled/)
+  assert.doesNotMatch(html, /<textarea[^>]* disabled>/)
+  // Se puede pedir el cierre otra vez: el primer clic vuelve a pedir confirmar
+  assert.deepEqual(clicCerrar(despues, t), { cierraHasta: t + MS_CONFIRMAR_CERRAR, cerrar: false })
+  // Sin cerrar (o sin la hora de inicio) no hay nada que vencer
+  assert.equal(vencerCierre({}, t), null)
+  assert.equal(vencerCierre({ cerrando: true }, t), null)
+  assert.equal(vencerCierre(undefined, t), null)
 })
 
 test('lo de antes sigue: con un mensaje o un frenar pendiente, Cerrar se deshabilita como antes y el campo no', () => {
