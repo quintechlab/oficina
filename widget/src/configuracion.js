@@ -184,6 +184,51 @@ export function desarmarVencido(config, ahoraMs) {
   return config.armado?.hasta != null && ahoraMs >= config.armado.hasta ? { ...config, armado: null } : config
 }
 
+// ------------------------------------------------------------------ charla e historial (entrega 5: 4.4, 5 y 7.4)
+
+/** "Quién responde" en las charlas nuevas (D10): el `motor` que guarda `guardar_chat`. */
+export const MOTORES = [['claude', 'Claude Code'], ['local', 'Local']]
+
+const MB = 1024 * 1024
+
+/**
+ * Test 7: "1 charla" / "24 charlas" y el tamaño en MB con coma decimal ("1,2 MB"; de 10 MB para
+ * arriba sin decimal). Algo que pesa menos de 0,1 MB dice "0,1 MB", nunca "0 MB".
+ */
+export function cifrasHistorial(charlas, bytes) {
+  const n = Number(charlas) || 0
+  const b = Math.max(0, Number(bytes) || 0)
+  let tam = '0 MB'
+  if (b > 0) {
+    const mb = b / MB
+    tam = mb >= 10 ? `${Math.round(mb)} MB` : `${Math.max(0.1, Math.round(mb * 10) / 10).toFixed(1).replace('.', ',')} MB`
+  }
+  return { charlas: n === 1 ? '1 charla' : `${n} charlas`, tam }
+}
+
+const DESC_HISTORIAL = 'En esta PC y, si Engram está prendido, una copia buscable en el proyecto avis. Se borran las dos.'
+
+/**
+ * El bloque "Historial del chat" de la pestaña Datos (7.4). `resumen`: `{ charlas, bytes }` de
+ * `chat_contar`, o null sin leer todavía ("Revisando…", 7.5); `borrando`: corre "Borrar todo";
+ * `fallidas`: cuántas no se pudieron borrar la última vez. Devuelve `{ estado, tono, pill, titulo,
+ * linea, accion, error }`; `accion.armado` es la pregunta del segundo clic (D5).
+ */
+export function textoHistorial({ resumen = null, borrando = false, fallidas = 0 } = {}) {
+  const t = (estado, tono, pill, titulo, linea = '', accion = null, error = null) => ({ estado, tono, pill, titulo, linea, accion, error })
+  if (!resumen) return t('revisando', 'nada', 'Revisando…', 'Historial')
+  const n = Number(resumen.charlas) || 0
+  if (n <= 0 && !borrando) return t('vacio', 'nada', 'Vacío', 'No hay charlas guardadas.')
+  const c = cifrasHistorial(n, resumen.bytes)
+  const titulo = `${c.charlas} · ${c.tam}`
+  if (borrando) return t('borrando', 'proc', 'Borrando…', titulo, DESC_HISTORIAL)
+  if (fallidas > 0) {
+    const error = fallidas === 1 ? 'No se pudo borrar 1 charla. Probá de nuevo.' : `No se pudieron borrar ${fallidas} charlas. Probá de nuevo.`
+    return t('error', null, null, titulo, DESC_HISTORIAL, { id: 'reintentar', texto: 'Reintentar' }, error)
+  }
+  return t('con', null, null, titulo, DESC_HISTORIAL, { id: 'borrar', texto: 'Borrar todo', armado: `¿Borrar ${c.charlas}? Sí` })
+}
+
 // ------------------------------------------------------------------ Instalación y modelo local (7.2 y 7.3)
 
 const MS_HORA = 3600000

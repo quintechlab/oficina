@@ -457,8 +457,14 @@ export function transicionChat(c, ev, ctx = {}) {
       return borrarCharla(c, ctx)
     case 'no-borrar':
       return c.menuCharla?.confirmar ? NADA({ ...c, menuCharla: { ...c.menuCharla, confirmar: false } }) : NADA(c)
+    case 'motor-nuevas':
+      // "Quién responde" de la configuración (#23, E5): solo la preferencia de las charlas nuevas;
+      // la charla abierta sigue con el suyo. main.js lo guarda con guardar_chat antes
+      if (ev.motor !== 'claude' && ev.motor !== 'local') return NADA(c)
+      return NADA({ ...c, motor: ev.motor })
     case 'nueva': {
-      const nueva = conversacionNueva(ctx.id, conv?.motor ?? c.motor, conv?.carpeta ?? c.carpeta, ctx.ahoraMs)
+      // Arranca con el motor de la preferencia (lo último elegido, en la hoja o en la configuración)
+      const nueva = conversacionNueva(ctx.id, c.motor ?? conv?.motor ?? 'claude', conv?.carpeta ?? c.carpeta, ctx.ahoraMs)
       const chat = { ...cambiarConversacion(c, nueva), borrador: c.borrador, adjuntos: c.adjuntos }
       return { chat, efectos: [efectoAbrir(nueva), { tipo: 'foco', a: 'campo' }] }
     }

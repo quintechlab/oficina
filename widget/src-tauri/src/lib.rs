@@ -865,15 +865,52 @@ async fn chat_borrar(id: String) -> Result<(), String> {
             let _cola = ENGRAM_COLA.lock().unwrap_or_else(PoisonError::into_inner);
             historial::borrar(&carpeta, &id)?
         };
-        if let Some(n) = engram_id {
-            let _ = std::thread::Builder::new().name(String::from("avis-engram")).spawn(move || {
-                let _cola = ENGRAM_COLA.lock().unwrap_or_else(PoisonError::into_inner);
-                if !engram::ENGRAM.get().is_some_and(|e| e.borrar(n)) {
-                    registrar(format!("chat: la copia {n} de Engram no se pudo borrar"));
-                }
-            });
-        }
+        borrar_de_engram(engram_id.into_iter().collect());
         Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Borra en otro hilo las copias de Engram de las charlas borradas (solo las de `avis`).
+fn borrar_de_engram(ids: Vec<u64>) {
+    if ids.is_empty() {
+        return;
+    }
+    let _ = std::thread::Builder::new().name(String::from("avis-engram")).spawn(move || {
+        let _cola = ENGRAM_COLA.lock().unwrap_or_else(PoisonError::into_inner);
+        for n in ids {
+            if !engram::ENGRAM.get().is_some_and(|e| e.borrar(n)) {
+                registrar(format!("chat: la copia {n} de Engram no se pudo borrar"));
+            }
+        }
+    });
+}
+
+/// Configuración, pestaña Datos (#23, E5): `{ charlas, bytes }` de todo el historial (sin tope).
+#[tauri::command]
+async fn chat_contar() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (charlas, bytes) = historial::contar(&el_chat()?.carpeta());
+        Ok(serde_json::json!({ "charlas": charlas, "bytes": bytes }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// "Borrar todo" de la pestaña Datos (#23, E5), solo con el segundo clic: cada charla y su copia en
+/// Engram (solo la de `avis`). Devuelve `{ borradas, fallidas }`.
+#[tauri::command]
+async fn chat_borrar_todo() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let carpeta = el_chat()?.carpeta();
+        let r = {
+            let _cola = ENGRAM_COLA.lock().unwrap_or_else(PoisonError::into_inner);
+            historial::borrar_todo(&carpeta)
+        };
+        registrar(format!("chat: borrar todo: {} borradas, {} sin borrar", r.borradas, r.fallidas));
+        borrar_de_engram(r.engram);
+        Ok(serde_json::json!({ "borradas": r.borradas, "fallidas": r.fallidas }))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1711,6 +1748,8 @@ pub fn run() {
             chat_historial,
             chat_leer,
             chat_borrar,
+            chat_contar,
+            chat_borrar_todo,
             guardar_chat,
             elegir_carpeta,
             borrar_modelo,
