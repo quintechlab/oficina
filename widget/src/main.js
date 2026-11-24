@@ -139,7 +139,7 @@ const st = {
    * El historial del chat de la pestaña Datos (7.4, entrega 5): `resumen` `{ charlas, bytes }` de
    * `chat_contar` (null hasta leerlo), si corre "Borrar todo" y cuántas no se pudieron borrar.
    */
-  historial: { resumen: null, borrando: false, fallidas: 0 },
+  historialChat: { resumen: null, borrando: false, fallidas: 0 },
   /** Acoplada, el panel quedó fijado mientras se escribe una clave (4.1) y vuelve a su marca al terminar. */
   cfgRet: { retuvo: false, fijaAntes: false, fijaTocada: false },
   mini: false,
@@ -3204,7 +3204,7 @@ function datosConfiguracion(local = modeloDesdeChat(st.chat), ahora = Date.now()
     recien: st.claveRecien,
     // Entrega 5: el motor de las charlas nuevas y el historial del chat
     motor: st.chat.motor,
-    historial: textoHistorial(st.historial),
+    historial: textoHistorial(st.historialChat),
   }
 }
 
@@ -3657,7 +3657,7 @@ async function leerHistorialConfig() {
   if (!tauri?.core) return
   try {
     const r = await invocar('chat_contar')
-    st.historial = { ...st.historial, resumen: { charlas: Number(r?.charlas) || 0, bytes: Number(r?.bytes) || 0 } }
+    st.historialChat = { ...st.historialChat, resumen: { charlas: Number(r?.charlas) || 0, bytes: Number(r?.bytes) || 0 } }
   } catch (err) {
     registrar(`configuración: historial: no se pudo contar (${err})`)
   }
@@ -3670,7 +3670,7 @@ async function leerHistorialConfig() {
  * error, borra sin volver a preguntar.
  */
 async function clicHistorialConfig(valor) {
-  if (st.historial.borrando) return
+  if (st.historialChat.borrando) return
   if (valor === 'borrar') {
     const { config, ejecutar } = clicBorrar(st.config, 'historial', Date.now())
     st.config = { ...config, error: null }
@@ -3678,7 +3678,7 @@ async function clicHistorialConfig(valor) {
     pintarConfiguracion()
     if (!ejecutar) return
   } else if (valor !== 'reintentar') return
-  st.historial = { ...st.historial, borrando: true, fallidas: 0 }
+  st.historialChat = { ...st.historialChat, borrando: true, fallidas: 0 }
   pintarConfiguracion()
   let fallidas = 0
   try {
@@ -3686,15 +3686,15 @@ async function clicHistorialConfig(valor) {
     fallidas = Number(r?.fallidas) || 0
   } catch (err) {
     registrar(`configuración: historial: no se pudo borrar (${err})`)
-    fallidas = st.historial.resumen?.charlas || 1
+    fallidas = st.historialChat.resumen?.charlas || 1
   }
-  st.historial = { ...st.historial, borrando: false, fallidas }
+  st.historialChat = { ...st.historialChat, borrando: false, fallidas }
   await leerHistorialConfig()
   // El cajón de la charla vuelve a leer la lista del disco
   invocar('chat_historial').then(lista => despacharChat({ tipo: 'historial', charlas: lista }))
     .catch(err => registrar(`chat historial: ${err}`))
   if (fallidas) {
-    decirConfig(textoHistorial(st.historial).error)
+    decirConfig(textoHistorial(st.historialChat).error)
     $('#cfg [data-k="hist-reintentar"]')?.focus({ preventScroll: true })
   } else {
     decirConfig('Historial del chat borrado')
