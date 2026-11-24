@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   iniciales, colorProyecto, COLORES_PROYECTO, conteos, lineaEncabezado, subagentesVisibles, textoMas,
-  animoMarca, colorEstado, barraProyectos, sesiones, prepararProyecto, estadoMarca,
+  animoMarca, colorEstado, barraProyectos, sesiones, prepararProyecto, estadoMarca, animoTexto,
   MAX_SUBAGENTES_VISIBLES, firmaTablero, figuraMarca, figuraVacio, carasMini, companero, cifraConUnidades, chips, tiempoCorto,
   ESCENA, geometriaEscena, trazoHilo, estadoCorto, tiempoMini, ESTADO_CORTO, firmaEscenas,
 } from '../src/tablero.js'
@@ -201,7 +201,7 @@ test('el tipo de un nombre inventado solo va en el title y para lectores, nunca 
 
 test('la tarjeta escenario: la rama en una línea con title y el tiempo vivo, que se reescribe en su lugar', () => {
   const h = escenario([])
-  assert.match(h, /<div class="ses-cab"><h3 class="ses-tit"><span class="tag">#14<\/span><b title="feat\/14-panel">feat\/14-panel<\/b><\/h3><span class="lleva"><span class="oculto">lleva <\/span><span data-vivo>42 min<\/span><\/span><\/div>/)
+  assert.match(h, /<div class="ses-cab"><h3 class="ses-tit"><span class="tag">#14<\/span><b title="feat\/14-panel">feat\/14-panel<\/b><\/h3><span class="lleva"><span class="oculto">lleva <\/span><span data-vivo>42 min<\/span><\/span><button type="button" class="ses-hizo" data-accion="historial" data-sesion="a" aria-label="Qué hizo en feat\/14-panel" aria-expanded="false">Qué hizo<\/button><\/div>/)
   assert.match(h, /<span class="pt" aria-hidden="true"><\/span><span data-vivo>ahora · /)
 })
 
@@ -477,4 +477,10 @@ test('la firma de las escenas cambia al abrir un detalle o sumar un paso, no con
   assert.notEqual(firma(otroPaso, abierto), firma(agentes, abierto))
   const masTarde = [{ ...agentes[0], pasos: agentes[0].pasos.map(p => ({ ...p, cuando: hace(0) })) }]
   assert.equal(firma(masTarde, abierto), firma(agentes, abierto))
+})
+
+test('el ánimo real describe al Avi-botón ("Claude, esperando"); pasó del resumen a tablero.js', () => {
+  assert.equal(animoTexto('esperando'), 'Claude, esperando')
+  assert.equal(animoTexto('coordinando'), 'Claude, coordinando el equipo')
+  assert.equal(animoTexto('teEspera'), 'Claude, esperándote')
 })

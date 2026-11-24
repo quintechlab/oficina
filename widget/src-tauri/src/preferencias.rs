@@ -1,8 +1,9 @@
 //! Preferencias del widget que sobreviven entre usos: el tamaño elegido en la bandeja, el borde
 //! donde está acoplada la muesca (docs/diseno/estilo-avis-ux.md, 7.5), la posición del tablero
 //! flotante, el monitor de la última vez (9.7), la última revisión automática del mod (#17) y la
-//! mascota de Claude (docs/diseno/mascotas-avi-ux.md 9.1) y los interruptores de la configuración
-//! (docs/diseno/configuracion-ux.md 9.1: `arriba`, `avisar`, `pausa`).
+//! mascota de Claude (docs/diseno/mascotas-avi-ux.md 9.1), los interruptores de la configuración
+//! (docs/diseno/configuracion-ux.md 9.1: `arriba`, `avisar`, `pausa`) y el motor, la carpeta y las
+//! carpetas recientes de la charla (docs/diseno/chat-avis-ux.md 3.4).
 //! Se guardan en `<carpeta de configuración de la app>/preferencias.json`. Nunca claves de API.
 
 use std::path::Path;
@@ -48,6 +49,8 @@ struct Preferencias {
     flotante: Option<Flotante>,
     monitor: Option<(f64, f64)>,
     revision_mod: Option<RevisionMod>,
+    /// La charla con la mascota (chat-avis-ux.md 3.4): sin la clave, nada.
+    chat: Option<Chat>,
     /// Claves sueltas de la configuración (`guardar_ajuste`), ya validadas.
     ajustes: Vec<(&'static str, Value)>,
 }
@@ -60,6 +63,7 @@ fn leer_todo(ruta: &Path) -> Preferencias {
         flotante: leer_flotante(ruta),
         monitor: leer_monitor(ruta),
         revision_mod: leer_revision_mod(ruta),
+        chat: leer_valor(ruta).and_then(|v| v.get("chat").map(chat_de_valor)),
         ajustes: Vec::new(),
     }
 }
@@ -84,6 +88,9 @@ fn escribir(ruta: &Path, p: Preferencias) -> Result<(), String> {
     valor.insert(String::from("mod"), revision_mod);
     for (clave, v) in p.ajustes {
         valor.insert(String::from(clave), v);
+    }
+    if let Some(c) = p.chat {
+        valor.insert(String::from("chat"), json!({ "motor": c.motor, "carpeta": c.carpeta, "recientes": c.recientes }));
     }
     std::fs::write(ruta, Value::Object(valor).to_string()).map_err(|e| e.to_string())
 }
@@ -152,6 +159,60 @@ pub fn leer_mascota(ruta: &Path) -> String {
 
 fn leer_valor(ruta: &Path) -> Option<Value> {
     serde_json::from_str::<Value>(&std::fs::read_to_string(ruta).ok()?).ok()
+}
+
+// ------------------------------------------------------------------ la charla (docs/diseno/chat-avis-ux.md 3.4)
+
+/// Cuántas carpetas recientes recuerda el menú de la charla.
+pub const RECIENTES: usize = 5;
+
+/// El motor y la carpeta de la próxima charla nueva (D11) y las últimas carpetas elegidas.
+/// `carpeta: None` es "Solo Avis" (D9). Que la carpeta exista lo revisa quien la usa.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Chat {
+    pub motor: Option<String>,
+    pub carpeta: Option<String>,
+    pub recientes: Vec<String>,
+}
+
+fn motor_valido(m: &str) -> bool {
+    m == "claude" || m == "local"
+}
+
+fn chat_de_valor(v: &Value) -> Chat {
+    Chat {
+        motor: v.get("motor").and_then(Value::as_str).filter(|m| motor_valido(m)).map(String::from),
+        carpeta: v.get("carpeta").and_then(Value::as_str).filter(|c| !c.is_empty()).map(String::from),
+        recientes: v.get("recientes").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).filter(|c| !c.is_empty()).take(RECIENTES).map(String::from).collect()).unwrap_or_default(),
+    }
+}
+
+/// Lo guardado de la charla. Sin archivo, sin la clave o con basura: nada.
+pub fn leer_chat(ruta: &Path) -> Chat {
+    leer_valor(ruta).and_then(|v| v.get("chat").map(chat_de_valor)).unwrap_or_default()
+}
+
+/// Las recientes con `carpeta` primera, sin repetir y con tope de `RECIENTES`.
+pub fn con_reciente(recientes: &[String], carpeta: &str) -> Vec<String> {
+    std::iter::once(carpeta.to_string()).chain(recientes.iter().filter(|r| r.as_str() != carpeta).cloned()).take(RECIENTES).collect()
+}
+
+/// Guarda el motor y la carpeta de la charla (la carpeta, también en las recientes) y conserva lo
+/// demás. Devuelve lo guardado.
+pub fn guardar_chat(ruta: &Path, motor: &str, carpeta: Option<&str>) -> Result<Chat, String> {
+    if !motor_valido(motor) {
+        return Err(format!("motor desconocido: {motor}"));
+    }
+    let todo = leer_todo(ruta);
+    let antes = todo.chat.clone().unwrap_or_default();
+    let carpeta = carpeta.filter(|c| !c.is_empty());
+    let chat = Chat {
+        motor: Some(motor.to_string()),
+        carpeta: carpeta.map(String::from),
+        recientes: carpeta.map_or(antes.recientes.clone(), |c| con_reciente(&antes.recientes, c)),
+    };
+    escribir(ruta, Preferencias { chat: Some(chat.clone()), ..todo })?;
+    Ok(chat)
 }
 
 // ------------------------------------------------------------------ ventana única (estilo-avis-ux.md 9.7)
@@ -558,6 +619,50 @@ mod tests {
             assert_eq!(leer_mascota(&r), especie);
         }
         assert_eq!(ESPECIES, ["avi", "ascua", "escarcha", "nodo", "bruma", "morro", "lumen"]);
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn sin_archivo_la_charla_no_tiene_motor_ni_carpeta_ni_recientes() {
+        let r = ruta_temporal("chat-defecto");
+        assert_eq!(leer_chat(&r), Chat::default());
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        // Basura: un motor desconocido, recientes que no son texto y de más
+        fs::write(&r, r#"{"chat":{"motor":"gpt","carpeta":7,"recientes":["a",3,"b","c","d","e","f","g"]}}"#).unwrap();
+        assert_eq!(leer_chat(&r), Chat { motor: None, carpeta: None, recientes: ["a", "b", "c", "d", "e"].map(String::from).to_vec() });
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn la_carpeta_elegida_va_primera_en_las_recientes_sin_repetir_y_con_tope_5() {
+        let lista: Vec<String> = ["a", "b", "c", "d", "e"].map(String::from).to_vec();
+        assert_eq!(con_reciente(&lista, "c"), ["c", "a", "b", "d", "e"].map(String::from).to_vec());
+        assert_eq!(con_reciente(&lista, "f"), ["f", "a", "b", "c", "d"].map(String::from).to_vec());
+        assert_eq!(con_reciente(&[], "x"), vec![String::from("x")]);
+    }
+
+    #[test]
+    fn guardar_la_charla_suma_la_carpeta_a_las_recientes_y_conserva_lo_demas() {
+        let r = ruta_temporal("chat-guarda");
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        fs::write(&r, r#"{"tamano":150,"mascota":"ascua"}"#).unwrap();
+        let c = guardar_chat(&r, "claude", Some("C:\\uno")).unwrap();
+        assert_eq!(c, Chat { motor: Some(String::from("claude")), carpeta: Some(String::from("C:\\uno")), recientes: vec![String::from("C:\\uno")] });
+        guardar_chat(&r, "claude", Some("C:\\dos")).unwrap();
+        // "Solo Avis" (sin carpeta) no toca las recientes
+        let c = guardar_chat(&r, "claude", None).unwrap();
+        assert_eq!(c.carpeta, None);
+        assert_eq!(c.recientes, ["C:\\dos", "C:\\uno"].map(String::from).to_vec());
+        // El motor local guarda el motor; un motor desconocido no se guarda
+        assert_eq!(guardar_chat(&r, "local", None).unwrap().motor, Some(String::from("local")));
+        assert!(guardar_chat(&r, "otro", None).is_err());
+        assert_eq!(leer_tamano(&r), 150);
+        assert_eq!(leer_mascota(&r), "ascua");
+        // Guardar otra preferencia no borra la charla
+        guardar_tamano(&r, 175).unwrap();
+        guardar_acople(&r, None).unwrap();
+        assert_eq!(leer_chat(&r).recientes, ["C:\\dos", "C:\\uno"].map(String::from).to_vec());
+        assert_eq!(leer_chat(&r).motor, Some(String::from("local")));
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 

@@ -11,8 +11,9 @@ import {
   limitesTamano, configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion,
   pestanaValida, valorInterruptor, FORMAS_VISTA, opcionesForma, elegirForma, rotuloEspecie, anuncioEspecie, anuncioForma,
   modoVistaPrevia, CLAVE_VISTA_PREVIA, horaArgentina, textoMod, textoModelo, puntoPestana, clicBorrar, armadoVigente,
-  desarmarVencido, MS_CONFIRMAR, filasEnEstaPC, marcoBajo,
+  desarmarVencido, MS_CONFIRMAR, filasEnEstaPC, marcoBajo, modeloDesdeChat, descargaDesdeConfig,
 } from '../src/configuracion.js'
+import { chatInicial, transicionChat } from '../src/chat.js'
 import {
   pestanasConfiguracion, seccionConfiguracion, avisoPreguntaConfiguracion, esqueletoConfiguracion, partesMascota, miniConfiguracion,
   nombrePestana,
@@ -538,6 +539,47 @@ test('textoModelo: sin saber todavía del modelo, "Revisando…"', () => {
   assert.equal(t.estado, 'revisando')
   assert.equal(t.pill, 'Revisando…')
   assert.deepEqual(t.acciones, [])
+})
+
+test('modeloDesdeChat: la tarjeta lee el modelo que guarda la charla (st.chat), la misma descarga', () => {
+  const prog = PROG(1.1 * 1024 ** 3)
+  assert.deepEqual(modeloDesdeChat(chatInicial()), { modelo: null, trabajo: null, progreso: null })
+  assert.deepEqual(modeloDesdeChat({ ...chatInicial(), local: 'instalado', progreso: prog }), { modelo: 'listo', trabajo: null, progreso: prog })
+  assert.deepEqual(modeloDesdeChat({ ...chatInicial(), local: 'bajando', progreso: prog }), { modelo: 'bajando', trabajo: 'descargando', progreso: prog })
+  assert.deepEqual(modeloDesdeChat({ ...chatInicial(), local: 'roto' }), { modelo: 'roto', trabajo: null, progreso: null })
+  assert.deepEqual(modeloDesdeChat({ ...chatInicial(), local: 'falta', progreso: prog }), { modelo: 'falta', trabajo: null, progreso: prog })
+  // De punta a punta con la máquina de la charla: el progreso de oficina://modelo llega a la tarjeta
+  const bajando = transicionChat(chatInicial(), { tipo: 'modelo', modelo: 'bajando', bajado: prog.bajado, total: prog.total }).chat
+  const t = textoModelo(modeloDesdeChat(bajando))
+  assert.equal(t.estado, 'bajando')
+  assert.equal(t.porcentaje, 42)
+  assert.equal(textoModelo(modeloDesdeChat(chatInicial())).estado, 'revisando')
+})
+
+test('descarga desde la configuración (7.2): baja solo si falta o está roto; en curso, listo o sin saber, nada', () => {
+  assert.equal(descargaDesdeConfig({ ...chatInicial(), local: 'falta' }), true)
+  assert.equal(descargaDesdeConfig({ ...chatInicial(), local: 'roto' }), true)
+  assert.equal(descargaDesdeConfig({ ...chatInicial(), local: 'bajando' }), false)
+  assert.equal(descargaDesdeConfig({ ...chatInicial(), local: 'instalado' }), false)
+  assert.equal(descargaDesdeConfig(chatInicial()), false)
+})
+
+test('descarga desde la configuración: bajar el modelo no abre la hoja ni manda nada al terminar (un clic, nunca solo)', () => {
+  const TOTAL = Math.round(2.6 * 1024 ** 3)
+  const conBorrador = { ...chatInicial(), local: 'falta', borrador: 'hola', progreso: { bajado: 0, total: TOTAL } }
+  const empieza = transicionChat(conBorrador, { tipo: 'modelo', modelo: 'bajando' })
+  assert.deepEqual(empieza.efectos, [])
+  assert.equal(empieza.chat.abierta, false, 'la hoja no se abre')
+  const avanza = transicionChat(empieza.chat, { tipo: 'modelo', modelo: 'bajando', bajado: TOTAL / 2, total: TOTAL })
+  assert.deepEqual(avanza.efectos, [])
+  const fin = transicionChat(avanza.chat, { tipo: 'modelo', modelo: 'listo', bajado: TOTAL, total: TOTAL })
+  assert.deepEqual(fin.efectos, [], 'al terminar no se manda nada')
+  assert.equal(fin.chat.abierta, false)
+  assert.equal(fin.chat.estado, 'vacio')
+  assert.equal(fin.chat.borrador, 'hola', 'lo escrito queda')
+  assert.equal(fin.chat.local, 'instalado')
+  assert.deepEqual(fin.chat.progreso, { bajado: TOTAL, total: TOTAL })
+  assert.equal(textoModelo(modeloDesdeChat(fin.chat)).estado, 'listo')
 })
 
 test('puntoPestana: las tres reglas de 6.3 y nada en el resto', () => {

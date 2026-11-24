@@ -10,8 +10,8 @@ import { especieValida, datosEspecie, datosVariante, partesEvolucion, variantesO
 /**
  * Poses que se dibujan. "proceso" (5.5): espera procesos en segundo plano. "saluda": el Avi base de
  * primeros pasos levanta la mano (docs/diseno/bienvenida-ux.md 6.3). "baja", "calienta", "contando",
- * "feliz" y "error": la voz del Avi de la marca con el globo del resumen abierto
- * (docs/diseno/resumen-ia-ux.md 6.2); solo las usa la marca, ningún ánimo de sesión las devuelve.
+ * "feliz" y "error": la voz de la mascota (docs/diseno/resumen-ia-ux.md 6.2), que hoy actúa en el
+ * escenario de la charla (chat-avis-ux.md 3.3, `animoChat`); ningún ánimo de sesión las devuelve.
  */
 export const POSES = ['esperando', 'escribiendo', 'leyendo', 'pensando', 'coordinando', 'teEspera', 'durmiendo', 'inactiva', 'listo', 'fallo', 'proceso', 'saluda', 'baja', 'calienta', 'contando', 'feliz', 'error']
 
@@ -53,7 +53,7 @@ const POSE_DE_ANIMO = {
   comiendo: 'escribiendo', reposo: 'listo',
   // Primeros pasos (bienvenida-ux.md 6.3); antes, heredado de escena.js, era "esperando"
   saluda: 'saluda',
-  // La voz del resumen (resumen-ia-ux.md 6.2): marcaMotion.js las pide por nombre
+  // La voz de la mascota (resumen-ia-ux.md 6.2; hoy, la charla: chat-avis-ux.md 3.3)
   baja: 'baja', calienta: 'calienta', contando: 'contando', feliz: 'feliz', error: 'error',
 }
 

@@ -189,8 +189,24 @@ export function ponerSesion(
     nombre: p.nombre,
     ausente: opciones.ausente ?? c?.ausente ?? false,
     actualizado: p.actualizado,
-    sesiones: [...otras, p],
+    sesiones: [...otras, p].map(sinCarpeta),
   }
+}
+
+/**
+ * La presencia del archivo local (v0.11): suma la carpeta de la sesión (`cwd`), para que el widget
+ * ofrezca la carpeta de cada proyecto de la barra en la charla. Sin carpeta conocida, sin la clave.
+ */
+export function presenciaLocal(p: Presencia, cwd: string | null): Presencia {
+  const base = sinCarpeta(p)
+  return cwd && cwd.trim() ? { ...base, cwd } : base
+}
+
+/** La carpeta es solo de esta máquina: nunca viaja en el comentario de GitHub (repositorio compartido). */
+function sinCarpeta(p: Presencia): Presencia {
+  if (!('cwd' in p)) return p
+  const { cwd: _cwd, ...resto } = p
+  return resto
 }
 
 /**
@@ -762,14 +778,14 @@ export function validarOrden(datos: unknown, t: { arranqueMs: number; ahoraMs: n
   if (d.v !== 1 || d.origen !== 'widget') return { error: 'formato desconocido' }
   const id = idDeOrden(d)
   if (!id) return { error: 'id inválido' }
-  if (d.tipo !== 'mensaje' && d.tipo !== 'frenar') return { error: 'tipo desconocido' }
+  if (d.tipo !== 'mensaje' && d.tipo !== 'frenar' && d.tipo !== 'cerrar') return { error: 'tipo desconocido' }
   const creadaMs = typeof d.creada === 'string' ? Date.parse(d.creada) : Number.NaN
   if (Number.isNaN(creadaMs)) return { error: 'sin fecha de creación' }
   if (creadaMs < t.arranqueMs) return { error: 'anterior al arranque de la sesión' }
   if (t.ahoraMs - creadaMs > MAX_EDAD_ORDEN_MS) return { error: 'demasiado vieja' }
   if (creadaMs - t.ahoraMs > MAX_FUTURO_ORDEN_MS) return { error: 'en el futuro' }
   const creada = d.creada as string
-  if (d.tipo === 'frenar') return { orden: { v: 1, origen: 'widget', id, tipo: 'frenar', creada } }
+  if (d.tipo === 'frenar' || d.tipo === 'cerrar') return { orden: { v: 1, origen: 'widget', id, tipo: d.tipo, creada } }
   if (typeof d.texto !== 'string' || d.texto.trim() === '') return { error: 'mensaje vacío' }
   if (d.texto.length > MAX_TEXTO_ORDEN) return { error: 'mensaje demasiado largo' }
   return { orden: { v: 1, origen: 'widget', id, tipo: 'mensaje', texto: d.texto, creada } }

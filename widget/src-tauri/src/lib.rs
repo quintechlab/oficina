@@ -1,10 +1,16 @@
+mod adjuntos;
 mod arranque;
+mod chat;
+mod chat_local;
 mod claves;
 mod diagnostico;
+mod engram;
 mod equipo;
+mod historial;
 mod preferencias;
 mod modelo;
 mod mod_auto;
+mod transcripcion;
 mod ordenes;
 mod primeros_pasos;
 mod respuestas;
@@ -630,17 +636,17 @@ fn abrir_enlace(cual: String) -> Result<(), String> {
     primeros_pasos::abrir_en_navegador(url)
 }
 
-// ------------------------------------------------------------------ resumen con IA (#11, resumen-ia-ux.md 8)
+// ------------------------------------------------------------------ el modelo de esta PC (#11; en la charla, chat-avis-ux.md 3.6)
 
 /// `{ modelo, bajado, total, motor, primeraVez, aceleracion }`: solo lee disco y procesos propios,
-/// nunca la red. Al arrancar y al tocar el Avi con el globo cerrado; nunca en el ciclo de 1,5 s.
+/// nunca la red. Al abrir la hoja de la charla; nunca en el ciclo de 1,5 s.
 #[tauri::command]
-async fn estado_resumen() -> Result<serde_json::Value, String> {
+async fn estado_modelo() -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(|| modelo::IA.estado()).await.map_err(|e| e.to_string())?
 }
 
 /// Solo con el clic en "Descargar": la única salida a la red, con URLs fijas. Lo que pasa llega como
-/// `oficina://resumen` (`progreso`, `bajado`, `fallo`).
+/// `oficina://modelo` (`progreso`, `bajado`, `fallo`).
 #[tauri::command]
 fn descargar_modelo(app: AppHandle) -> Result<(), String> {
     modelo::IA.descargar(move |v| {
@@ -650,14 +656,14 @@ fn descargar_modelo(app: AppHandle) -> Result<(), String> {
 
 /// "Borrar" del modelo local en la configuración (configuracion-ux.md 7.2), solo con el segundo clic
 /// de "¿Borrar …? Sí" (la confirmación es de la ventana, D5: sin cuadro nativo). Corta la descarga,
-/// apaga el motor y borra `%LOCALAPPDATA%\avis-ia` entero; avisa el estado nuevo (`oficina://resumen`)
-/// para que el globo y la tarjeta vuelvan a "falta". Devuelve los bytes liberados.
+/// apaga el motor y borra `%LOCALAPPDATA%\avis-ia` entero; avisa el estado nuevo (`oficina://modelo`)
+/// para que la hoja del chat y la tarjeta vuelvan a "falta". Devuelve los bytes liberados.
 #[tauri::command]
 async fn borrar_modelo(app: AppHandle) -> Result<u64, String> {
     let bytes = tauri::async_runtime::spawn_blocking(|| modelo::IA.borrar()).await.map_err(|e| e.to_string())?;
     match &bytes {
-        Ok(b) => registrar(format!("resumen: modelo de IA borrado desde la configuración ({b} bytes)")),
-        Err(e) => registrar(format!("resumen: no se pudo borrar el modelo: {e}")),
+        Ok(b) => registrar(format!("modelo: modelo de IA borrado desde la configuración ({b} bytes)")),
+        Err(e) => registrar(format!("modelo: no se pudo borrar el modelo: {e}")),
     }
     if let Ok(estado) = modelo::IA.estado() {
         let _ = app.emit(modelo::EVENTO, modelo::evento_estado(estado));
@@ -693,25 +699,215 @@ async fn probar_clave(proveedor: String) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || claves::probar(&proveedor)).await.map_err(|e| e.to_string())?
 }
 
-/// Solo con el clic en "Cancelar" (o a los 60 s de pensando): corta la descarga (queda para seguir),
-/// el arranque del motor o el pedido en curso.
+/// Solo con un clic: corta la descarga (queda para seguir) o el arranque del motor.
 #[tauri::command]
-fn cancelar_resumen(app: AppHandle) {
+fn cancelar_modelo(app: AppHandle) {
     modelo::IA.cancelar(&|v| {
         let _ = app.emit(modelo::EVENTO, v);
     });
 }
 
-/// Solo con un clic: pide un resumen de `datos` (lo que Avis ya ve). Gana el `pedido` más alto.
+// ------------------------------------------------------------------ charla con la mascota (#22, chat-avis-ux.md 7)
+
+fn el_chat() -> Result<&'static chat::Chat, String> {
+    chat::CHAT.get().ok_or_else(|| String::from("el chat no arrancó"))
+}
+
+/// `local` de `chat_abrir` (3.3): el estado del modelo de esta PC, sin red.
+fn estado_local() -> &'static str {
+    match modelo::IA.estado().ok().as_ref().and_then(|e| e["modelo"].as_str()) {
+        Some("listo") => "instalado",
+        Some("bajando") => "bajando",
+        Some("roto") => "roto",
+        _ => "falta",
+    }
+}
+
+/// Al abrir la hoja o cambiar de conversación: con Claude Code, precalienta el proceso sin mandarle
+/// nada (D19). `{ proceso, sesion, motivo?, engram, local }`. `sesionClaude`: la de una charla que
+/// ya tuvo mensajes (se retoma con `--resume`).
 #[tauri::command]
-fn pedir_resumen(app: AppHandle, pedido: u64, datos: serde_json::Value) -> Result<(), String> {
-    modelo::IA.pedir(pedido, datos, move |v| {
-        let _ = app.emit(modelo::EVENTO, v);
+async fn chat_abrir(conversacion: String, motor: String, carpeta: Option<String>, mascota: Option<String>, sesion_claude: Option<String>) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut r = el_chat()?.abrir(&conversacion, &motor, carpeta.map(std::path::PathBuf::from), mascota.as_deref().unwrap_or(""), sesion_claude)?;
+        // Si hay Engram (9.2): /health con 1 s, como mucho cada 5 min
+        r["engram"] = serde_json::json!(if engram::ENGRAM.get().is_some_and(engram::Engram::hay) { "si" } else { "no" });
+        r["local"] = serde_json::json!(estado_local());
+        Ok(r)
     })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Solo con Enter o Enviar: manda un turno. Lo que pasa llega como `oficina://chat`. `adjuntos`:
+/// las rutas de los archivos (10); los bytes los lee Rust, nunca la ventana. `historia`: los mensajes
+/// anteriores de la charla (`[{ rol, texto }]`), que solo usa el motor local (8).
+#[tauri::command]
+async fn chat_enviar(conversacion: String, turno: u64, texto: String, adjuntos: Option<Vec<String>>, datos: Option<serde_json::Value>, historia: Option<serde_json::Value>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        el_chat()?.enviar_con(&conversacion, turno, &texto, &adjuntos.unwrap_or_default(), &datos.unwrap_or_default(), &historia.unwrap_or_default())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Un archivo soltado sobre la hoja o elegido con el clip (10): `{ nombre, tipo, bytes, paginas }` o
+/// `{ error: "adjunto", nombre }`. Solo lee el archivo para revisarlo (el tipo, el tamaño, las páginas).
+#[tauri::command]
+async fn chat_adjunto(ruta: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || adjuntos::info(std::path::Path::new(&ruta)))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// El clip y "Resumime un PDF" (10, D10): el selector nativo de archivos con los tipos que se leen,
+/// solo con ese clic. Las rutas elegidas, o ninguna si se canceló.
+#[tauri::command]
+async fn elegir_adjuntos(app: AppHandle) -> Result<Vec<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut dialogo = app
+            .dialog()
+            .file()
+            .set_title("Elegí qué archivo leer")
+            .add_filter("PDF, imágenes, texto o código", &adjuntos::EXTENSIONES);
+        if let Some(v) = ventana(&app) {
+            dialogo = dialogo.set_parent(&v);
+        }
+        dialogo
+            .blocking_pick_files()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|r| r.into_path().ok())
+            .map(|r| r.to_string_lossy().into_owned())
+            .collect()
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Frenar (o Esc): la interrupción del turno en curso (7.6).
+#[tauri::command]
+fn chat_frenar(conversacion: String, turno: u64) -> Result<(), String> {
+    el_chat()?.frenar(&conversacion, turno);
+    Ok(())
+}
+
+/// Cierra stdin del proceso de la conversación: termina su turno y sale.
+#[tauri::command]
+fn chat_cerrar(conversacion: String) -> Result<(), String> {
+    el_chat()?.cerrar(&conversacion);
+    Ok(())
+}
+
+/// Una copia a Engram por vez, con lo último del archivo: un guardado viejo nunca pisa a uno nuevo, y
+/// borrar una charla espera a que termine la copia que estaba en curso (9.2).
+static ENGRAM_COLA: Mutex<()> = Mutex::new(());
+
+/// Copia la charla a Engram (en cada `fin`, 9.2), en otro hilo: la ventana no espera. El id de la
+/// observación queda en el archivo (`engramId`).
+fn copiar_a_engram(carpeta: std::path::PathBuf, id: String, mascota: String) {
+    let _ = std::thread::Builder::new().name(String::from("avis-engram")).spawn(move || {
+        let Some(e) = engram::ENGRAM.get() else { return };
+        let _cola = ENGRAM_COLA.lock().unwrap_or_else(PoisonError::into_inner);
+        // Lo último del archivo, no lo de este pedido; si ya se borró, nada
+        let Ok(doc) = historial::leer(&carpeta, &id) else { return };
+        if let Some(n) = e.guardar(&doc, &mascota) {
+            if doc["engramId"].as_u64() != Some(n) {
+                if let Err(err) = historial::poner_engram(&carpeta, &id, n) {
+                    registrar(format!("chat: no se anotó el id de Engram: {err}"));
+                }
+            }
+        }
+    });
+}
+
+/// Guarda la charla en la PC (9.1): al mandar, en cada final y cada 2 s mientras llega el texto. Con
+/// `engram` (el `fin` de un turno), también la copia a Engram si está.
+#[tauri::command]
+async fn chat_guardar(conversacion: serde_json::Value, mascota: Option<String>, engram: Option<bool>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let carpeta = el_chat()?.carpeta();
+        let guardado = historial::guardar(&carpeta, &conversacion)?;
+        if engram == Some(true) {
+            let id = guardado["id"].as_str().unwrap_or_default().to_string();
+            copiar_a_engram(carpeta, id, chat::nombre_mascota(mascota.as_deref().unwrap_or("")));
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// El cajón "Charlas" (9.1): las 100 más recientes, sin los mensajes y con `texto` para buscar.
+#[tauri::command]
+async fn chat_historial() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || Ok(serde_json::json!(historial::listar(&el_chat()?.carpeta()))))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Una charla completa, para retomarla.
+#[tauri::command]
+async fn chat_leer(id: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || historial::leer(&el_chat()?.carpeta(), &id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Borra la charla de Avis: el archivo y su copia en Engram (solo la de `avis`). La transcripción de
+/// Claude Code no se toca (D29).
+#[tauri::command]
+async fn chat_borrar(id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let carpeta = el_chat()?.carpeta();
+        let engram_id = {
+            let _cola = ENGRAM_COLA.lock().unwrap_or_else(PoisonError::into_inner);
+            historial::borrar(&carpeta, &id)?
+        };
+        if let Some(n) = engram_id {
+            let _ = std::thread::Builder::new().name(String::from("avis-engram")).spawn(move || {
+                let _cola = ENGRAM_COLA.lock().unwrap_or_else(PoisonError::into_inner);
+                if !engram::ENGRAM.get().is_some_and(|e| e.borrar(n)) {
+                    registrar(format!("chat: la copia {n} de Engram no se pudo borrar"));
+                }
+            });
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// El motor y la carpeta de la charla (chat-avis-ux.md 3.4): quedan para la próxima charla nueva y
+/// la carpeta va primera en las recientes. Devuelve `{ motor, carpeta, recientes }` como el `chat` de `leer_configuracion`.
+#[tauri::command]
+fn guardar_chat(app: AppHandle, motor: String, carpeta: Option<String>) -> Result<serde_json::Value, String> {
+    let ruta = ruta_preferencias(&app).ok_or_else(|| String::from("sin carpeta de configuración"))?;
+    if carpeta.as_deref().is_some_and(|c| !std::path::Path::new(c).is_dir()) {
+        return Err(String::from("la carpeta no existe"));
+    }
+    preferencias::guardar_chat(&ruta, &motor, carpeta.as_deref()).map(valor_chat)
+}
+
+/// "＋ Elegir otra carpeta…" (D10): el selector nativo de carpetas, solo con ese clic. `null` si se
+/// canceló. Corre fuera del hilo principal (el diálogo bloquea hasta que el usuario elige).
+#[tauri::command]
+async fn elegir_carpeta(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut dialogo = app.dialog().file().set_title("Elegí la carpeta de la charla");
+        if let Some(v) = ventana(&app) {
+            dialogo = dialogo.set_parent(&v);
+        }
+        dialogo.blocking_pick_folder().and_then(|r| r.into_path().ok()).map(|r| r.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// Todo lo que la ventana necesita al arrancar y para la configuración (configuracion-ux.md 9.2):
-/// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version }`. `arranque` sale
+/// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version, chat }`. `arranque` sale
 /// del sistema, no del archivo. Sin carpeta de configuración, los valores de fábrica.
 #[tauri::command]
 fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
@@ -727,6 +923,18 @@ fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::
         "pausa": interruptores.pausa,
         "arranque": arranque::marca_real(app.autolaunch().is_enabled()),
         "version": app.package_info().version.to_string(),
+        "chat": valor_chat(ruta.as_deref().map(preferencias::leer_chat).unwrap_or_default()),
+    })
+}
+
+/// La charla guardada para la ventana: la carpeta y las recientes, solo las que siguen existiendo
+/// (una carpeta borrada no se ofrece ni se abre). Sin carpeta, "Solo Avis" (D9).
+fn valor_chat(c: preferencias::Chat) -> serde_json::Value {
+    let existe = |r: &String| std::path::Path::new(r).is_dir();
+    serde_json::json!({
+        "motor": c.motor,
+        "carpeta": c.carpeta.filter(existe),
+        "recientes": c.recientes.into_iter().filter(existe).collect::<Vec<_>>(),
     })
 }
 
@@ -981,8 +1189,8 @@ fn carpeta_de_ordenes() -> Result<std::path::PathBuf, String> {
     ordenes::carpeta_ordenes().ok_or_else(|| String::from("no se conoce la carpeta del usuario"))
 }
 
-/// Deja una orden para una sesión (#19): `mensaje` (con `texto`) o `frenar`. Devuelve su id. Solo
-/// se llama desde un clic o un Enter del usuario: el widget nunca ordena por su cuenta.
+/// Deja una orden para una sesión (#19): `mensaje` (con `texto`), `frenar` o `cerrar` (#25). Devuelve
+/// su id. Solo se llama desde un clic o un Enter del usuario: el widget nunca ordena por su cuenta.
 #[tauri::command]
 fn ordenar(sesion: String, tipo: String, texto: Option<String>) -> Result<String, String> {
     ordenes::escribir_orden(&carpeta_de_ordenes()?, &sesion, &tipo, texto.as_deref(), chrono::Utc::now())
@@ -997,6 +1205,16 @@ fn estado_orden(sesion: String, id: String) -> Result<serde_json::Value, String>
 #[tauri::command]
 fn borrar_orden(sesion: String) -> Result<(), String> {
     ordenes::borrar_orden(&carpeta_de_ordenes()?, &sesion)
+}
+
+/// Lo último de la conversación de una sesión (#25), en solo lectura de su transcripción:
+/// `{ entradas: [{ rol, texto, cuando }] }`. Fuera del hilo principal: puede leer hasta 8 MB.
+#[tauri::command]
+async fn leer_historial(sesion: String) -> Result<serde_json::Value, String> {
+    let claude = transcripcion::carpeta_claude().ok_or_else(|| String::from("no se conoce la carpeta del usuario"))?;
+    tauri::async_runtime::spawn_blocking(move || transcripcion::leer_historial_de(&claude, &sesion))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Una línea en el log de diagnóstico (clics del globo, envíos y errores del frontend).
@@ -1353,6 +1571,8 @@ pub fn run() {
         // Primero, como pide el plugin: una sola Avis por máquina; abrir otra muestra la que hay
         .plugin(tauri_plugin_single_instance::init(|app, _argumentos, _carpeta| al_segundo_arranque(app)))
         .plugin(tauri_plugin_notification::init())
+        // El selector de carpetas de la charla (D10), llamado solo desde Rust
+        .plugin(tauri_plugin_dialog::init())
         // Registrar el plugin no prende nada: el arranque con Windows solo cambia desde el menú
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .manage(Estado {
@@ -1404,6 +1624,30 @@ pub fn run() {
                     let _ = para_mod.emit(evento, v);
                 })
             })?;
+            // La charla con la mascota (#22): el ajustes.json fijo (7.2) y el proceso, que lanza el primer chat_abrir
+            if let Ok(config) = handle.path().app_config_dir() {
+                let carpeta_chat = config.join("chat");
+                if let Err(e) = chat::escribir_ajustes(&carpeta_chat) {
+                    registrar(format!("chat: no se pudo escribir ajustes.json: {e}"));
+                }
+                let para_chat = handle.clone();
+                let emisor: chat::Emisor = std::sync::Arc::new(move |v| {
+                    let _ = para_chat.emit(chat::EVENTO, v);
+                });
+                let el = chat::Chat::nuevo(carpeta_chat, std::sync::Arc::new(chat::comando_claude), emisor, chat::Tiempos::default());
+                // El motor local (8): el de `modelo.rs`, que avisa su arranque por `oficina://modelo`
+                let para_modelo = handle.clone();
+                el.poner_motor_local(std::sync::Arc::new(move || {
+                    let avisar = |v: serde_json::Value| {
+                        let _ = para_modelo.emit(modelo::EVENTO, v);
+                    };
+                    modelo::IA.motor_charla(&avisar).map(|(puerto, uso)| (puerto, Box::new(uso) as Box<dyn chat_local::UsoMotor>))
+                }));
+                let _ = chat::CHAT.set(el);
+            }
+            // La copia del historial en Engram (9.2): una sesión por arranque, que se abre con la primera copia
+            let arranque = format!("avis-{}-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"), std::process::id());
+            let _ = engram::ENGRAM.set(engram::Engram::desde_entorno(arranque));
             // Clic en la notificación: mostrar la ventana
             let al_clic = handle.clone();
             let _ = handle.notification().on_action(move |_| mostrar(&al_clic));
@@ -1446,6 +1690,7 @@ pub fn run() {
             ordenar,
             estado_orden,
             borrar_orden,
+            leer_historial,
             registrar,
             revisar_primeros_pasos,
             estado_mod,
@@ -1453,15 +1698,26 @@ pub fn run() {
             cancelar_paso,
             abrir_enlace,
             tomar_aviso_mod,
-            estado_resumen,
+            estado_modelo,
             descargar_modelo,
+            cancelar_modelo,
+            chat_abrir,
+            chat_enviar,
+            chat_adjunto,
+            elegir_adjuntos,
+            chat_frenar,
+            chat_cerrar,
+            chat_guardar,
+            chat_historial,
+            chat_leer,
+            chat_borrar,
+            guardar_chat,
+            elegir_carpeta,
             borrar_modelo,
             claves_estado,
             guardar_clave,
             borrar_clave,
-            probar_clave,
-            cancelar_resumen,
-            pedir_resumen
+            probar_clave
         ])
         .build(tauri::generate_context!())
         .expect("no se pudo iniciar el widget de la oficina")
@@ -1469,9 +1725,17 @@ pub fn run() {
             // Cualquier salida de la aplicación, no solo "Salir" de la bandeja
             if let tauri::RunEvent::Exit = evento {
                 apagar_paso();
-                // El motor del resumen y la descarga no quedan corriendo (el trabajo de Windows
+                // El motor del modelo local y la descarga no quedan corriendo (el trabajo de Windows
                 // lo mata igual si la aplicación se cae)
                 modelo::IA.apagar();
+                // El chat: la interrupción si hay un turno, cerrar stdin, 2 s y el trabajo de Windows (7.3)
+                if let Some(c) = chat::CHAT.get() {
+                    c.apagar();
+                }
+                // La sesión de Engram de este arranque, si se abrió (9.2)
+                if let Some(e) = engram::ENGRAM.get() {
+                    e.cerrar();
+                }
             }
         });
 }

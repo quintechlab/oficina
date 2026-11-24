@@ -5,7 +5,7 @@
 // lo conecta main.js.
 
 import { NOMBRES_ESPECIES, datosEspecie, especieValida } from './especies.js'
-import { cifrasDescarga, formatoGB } from './resumen.js'
+import { cifrasDescarga, formatoGB } from './chat.js'
 
 /** Orden fijo de las pestañas (4.4). */
 export const PESTANAS = [
@@ -238,8 +238,28 @@ export function textoMod(lectura, revision, aviso, ahora, { instalando = false, 
 }
 
 /**
- * La tarjeta del modelo local (7.2), a partir de `st.resumen` (`modelo`, `trabajo`, `progreso`): la
- * descarga que corre por detrás es la misma del globo. La cifra la da el backend (`progreso.total`),
+ * El modelo local como lo lee la tarjeta (`{ modelo, trabajo, progreso }`), a partir del estado que
+ * guarda la charla (`st.chat`: `local` y `progreso`, chat.js): la descarga es una sola, la de la hoja
+ * y la de la configuración. `bajando` es una descarga en curso (Rust solo lo dice con el hilo andando);
+ * "sin-saber" todavía no se leyó (`modelo: null`, "Revisando…").
+ */
+export function modeloDesdeChat({ local = 'sin-saber', progreso = null } = {}) {
+  const modelo = { instalado: 'listo', bajando: 'bajando', roto: 'roto', falta: 'falta' }[local] ?? null
+  return { modelo, trabajo: local === 'bajando' ? 'descargando' : null, progreso }
+}
+
+/**
+ * ¿"Descargar" de la configuración baja el modelo? Solo si falta o está roto: con una descarga en
+ * curso, con el modelo listo o sin saber todavía, no hace nada (7.2). Bajar desde acá no abre la hoja
+ * de la charla ni manda nada al terminar (un clic, nunca solo).
+ */
+export function descargaDesdeConfig({ local = 'sin-saber' } = {}) {
+  return local === 'falta' || local === 'roto'
+}
+
+/**
+ * La tarjeta del modelo local (7.2), a partir de `modeloDesdeChat(st.chat)` (`modelo`, `trabajo`,
+ * `progreso`): la descarga que corre por detrás es la misma de la charla. La cifra la da el backend (`progreso.total`),
  * nunca fija. Devuelve `{ estado, tono, pill, linea, acciones: [{ id, texto, armado? }] }` y, bajando,
  * `porcentaje` y `fraccion` de la barra. Sin saber todavía del modelo, "Revisando…" (7.5).
  */

@@ -521,36 +521,10 @@ fn cada_texto_y_cada_lista_tienen_tope() {
 }
 
 #[test]
-fn el_pedido_lleva_la_instruccion_fija_160_tokens_temperatura_0_y_cache() {
-    let c = cuerpo_pedido(&datos_de_ejemplo());
-    assert_eq!(c["max_tokens"], 160);
-    assert_eq!(c["temperature"], 0);
-    assert_eq!(c["cache_prompt"], true);
-    assert_eq!(c["messages"][0]["role"], "system");
-    assert_eq!(c["messages"][0]["content"], INSTRUCCION);
-    let usuario = c["messages"][1]["content"].as_str().unwrap();
-    assert!(usuario.ends_with("En que anda Claude? Resumime lo importante."));
-    assert!(usuario.contains("editando modelo.rs"));
-}
-
-#[test]
 fn la_instruccion_solo_resume_y_nunca_responde_una_pregunta() {
     for regla in ["2 a 4 frases cortas", "sin listas ni markdown", "No inventes datos", "No recomiendes ni decidas nada", "nunca la respondas ni sugieras una respuesta", "castellano rioplatense"] {
         assert!(INSTRUCCION.contains(regla), "falta {regla:?}");
     }
-}
-
-#[test]
-fn la_respuesta_se_limpia_y_se_corta_en_un_fin_de_frase() {
-    assert_eq!(recortar_respuesta("  <think>pienso</think>\n**Claude** está en `oficina`.\n\n\n\nTodo bien.  ", false), Some(String::from("Claude está en oficina.\n\nTodo bien.")));
-    let largo = format!("{} Fin.", "Una frase cualquiera que se repite.".repeat(30));
-    let r = recortar_respuesta(&largo, false).unwrap();
-    assert!(r.chars().count() <= TOPE_RESPUESTA);
-    assert!(r.ends_with('.'));
-    // Sin tokens: se corta en la última frase entera
-    assert_eq!(recortar_respuesta("Claude edita modelo.rs. Hay una pregunta sobre el mot", true), Some(String::from("Claude edita modelo.rs.")));
-    assert_eq!(recortar_respuesta("  \n <think>solo pienso</think> ", false), None);
-    assert_eq!(recortar_respuesta("<think>sin cerrar", false), None);
 }
 
 #[test]
@@ -567,11 +541,11 @@ fn el_chat_va_al_motor_local_con_el_pedido_entero() {
     let (puerto, hilo) = servidor(1, |_, _| {
         http("200 OK", &[("Content-Type", String::from("application/json"))], br#"{"choices":[{"message":{"content":"Listo."},"finish_reason":"stop"}]}"#)
     });
-    let r = chat(puerto, &cuerpo_pedido(&datos_de_ejemplo()), Duration::from_secs(5));
+    let r = chat(puerto, &cuerpo_calentar(), Duration::from_secs(5));
     assert_eq!(r, Ok((String::from("Listo."), false)));
     let pedido = &hilo.join().unwrap()[0];
     assert!(pedido.starts_with("POST /v1/chat/completions "));
-    assert!(pedido.contains("\"max_tokens\":160"));
+    assert!(pedido.contains("\"max_tokens\":1"));
 }
 
 #[test]
@@ -596,25 +570,12 @@ fn un_motor_que_no_contesta_es_tiempo() {
 // ---------------------------------------------------------------- un pedido por vez y la salida
 
 #[test]
-fn gana_el_pedido_mas_alto_y_uno_viejo_se_descarta() {
-    assert!(aceptar(1, None));
-    assert!(aceptar(3, Some(2)));
-    assert!(!aceptar(2, Some(3)));
-    assert!(!aceptar(3, Some(3)));
-    // La ventana recargada vuelve a contar desde 1: sin nada en curso, se acepta
-    assert!(aceptar(1, None));
-    assert!(vigente(3, Some(3)));
-    assert!(!vigente(2, Some(3)));
-    // Cancelado: ninguno sigue valiendo
-    assert!(!vigente(3, None));
-}
-
-#[test]
 fn al_salir_no_empieza_ninguna_descarga_ni_ningun_pedido() {
     let ia: &'static Ia = Box::leak(Box::new(Ia::default()));
     ia.apagar();
     assert!(ia.descargar(|_| {}).is_err());
-    assert!(ia.pedir(1, json!({}), |_| {}).is_err());
+    // Ni un turno de la charla: no arranca el motor
+    assert_eq!(ia.motor_charla(&|_| {}).err().as_deref(), Some("Avis se está cerrando"));
     assert!(ia.motor.lock().unwrap().is_none());
 }
 
@@ -633,7 +594,7 @@ fn cancelar_un_pedido_avisa_cancelado_y_lo_descarta() {
     let avisos = Mutex::new(Vec::new());
     ia.cancelar(&|v| avisos.lock().unwrap().push(v));
     assert_eq!(avisos.lock().unwrap().as_slice(), [json!({ "tipo": "cancelado", "pedido": 4 })]);
-    assert!(!vigente(4, *ia.en_curso.lock().unwrap()));
+    assert!(ia.en_curso.lock().unwrap().is_none());
 }
 
 // ---------------------------------------------------------------- borrar el modelo (configuración, 7.2)
@@ -660,7 +621,7 @@ fn borrar_la_carpeta_quita_todo_y_no_falla_si_no_esta() {
 
 #[test]
 fn al_borrar_el_modelo_la_ventana_recibe_el_estado_nuevo_como_evento() {
-    // La UI espera { tipo: 'estado', ...lo mismo que estado_resumen } para volver el globo a "apagado"
+    // La UI espera { tipo: 'estado', ...lo mismo que estado_modelo } para volver el globo a "apagado"
     let estado = serde_json::json!({ "modelo": "falta", "bajado": 0, "total": 2497281120u64, "motor": "apagado", "primeraVez": true, "aceleracion": "cpu" });
     let ev = evento_estado(estado.clone());
     assert_eq!(ev["tipo"], "estado");
@@ -698,7 +659,7 @@ fn la_linea_de_diagnostico_dice_el_plan_cada_pieza_y_el_estado() {
     let hecha = EstadoPieza { bytes: 1, bajado: 1, hecha: true, mal: false };
     let falta = EstadoPieza { bytes: 10, bajado: 4, hecha: false, mal: false };
     let linea = linea_diagnostico("estado", Variante::Cuda, &piezas, &[hecha, falta, hecha], EstadoModelo::Falta, false, true);
-    assert!(linea.starts_with("resumen estado: plan=cuda"), "{linea}");
+    assert!(linea.starts_with("modelo estado: plan=cuda"), "{linea}");
     assert!(linea.contains("llama-b12606-bin-win-cuda-12.4-x64.zip=hecha"), "{linea}");
     assert!(linea.contains("cudart-llama-bin-win-cuda-12.4-x64.zip=falta(4/10)"), "{linea}");
     assert!(linea.contains("Qwen3-4B-Instruct-2507-Q4_K_M.gguf=hecha"), "{linea}");

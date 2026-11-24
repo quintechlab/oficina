@@ -29,6 +29,7 @@ import {
   esActividadEnEspera,
   preguntaDesdeEntrada,
   latidoLocal,
+  presenciaLocal,
   leerMarca,
   marcarMensaje,
   podarConversas,
@@ -118,6 +119,11 @@ let arranqueOrdenesMs = 0
 const ordenesVistas = new Set<string>()
 let vigilandoOrdenes = false
 let timerOrdenes: Timer | null = null
+/**
+ * La sesión es de terminal (`CLAUDE_CODE_ENTRYPOINT` = cli): solo esas se pueden cerrar desde el widget
+ * (v0.11). En la app de escritorio o en VS Code, salir cerraría su ventana o su panel.
+ */
+let esTerminal = false
 
 // ------------------------------------------------------------------ gh
 async function gh($: EngineInterface, args: readonly string[], cwd?: string): Promise<string> {
@@ -150,7 +156,7 @@ async function obtenerYo($: EngineInterface): Promise<Yo> {
 }
 
 // ------------------------------------------------------------------ qué estoy haciendo
-type Local = { repo: string | null; rama: string | null; archivos: string[] }
+type Local = { repo: string | null; rama: string | null; archivos: string[]; cwd: string }
 
 async function leerLocal($: EngineInterface): Promise<Local> {
   const cwd = await $.session.cwd()
@@ -158,7 +164,7 @@ async function leerLocal($: EngineInterface): Promise<Local> {
   if (!sr) {
     // Sin git: el nombre de la carpeta abierta (salvo la del usuario o un borrador)
     const casa = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME')) ?? null
-    return { repo: proyectoDesdeCarpeta(cwd, casa), rama: null, archivos: [] }
+    return { repo: proyectoDesdeCarpeta(cwd, casa), rama: null, archivos: [], cwd }
   }
   const repo = proyectoDesdeRepo(sr.root, sr.remote)
   const rama = (await git($, ['branch', '--show-current'], cwd)).trim() || null
@@ -173,7 +179,7 @@ async function leerLocal($: EngineInterface): Promise<Local> {
   // Lo que todavía no se commiteó también cuenta para avisar un choque
   const pendientes = archivosDesdeStatus(await git($, ['status', '--porcelain'], cwd))
   archivos = [...new Set([...archivos, ...pendientes])].slice(0, 40)
-  return { repo, rama, archivos }
+  return { repo, rama, archivos, cwd }
 }
 
 type Mio = { id: number; comentario: ComentarioPresencia } | null
@@ -253,8 +259,11 @@ async function publicar($: EngineInterface, forzar = false, ausente?: boolean): 
     puedeControlar: true,
     enCola,
     enTurno: turnoEnCurso !== null,
+    // Desde la v0.11: el widget la puede cerrar, solo si es de terminal
+    puedeCerrar: esTerminal,
   }
-  await escribirEstadoLocal($, p)
+  // La carpeta va solo en el archivo local (v0.11): `p`, lo que se publica en GitHub, no la lleva
+  await escribirEstadoLocal($, presenciaLocal(p, local.cwd))
   // Sin cambios de fondo desde la última vez: no gastar llamadas (el latido igual publica cada 5 min)
   const huella = JSON.stringify({ ...p, actualizado: '', ausente })
   if (!forzar && huella === ultimaPublicacion) return
@@ -389,6 +398,7 @@ async function ejecutarOrden($: EngineInterface, orden: OrdenWidget): Promise<{ 
     cola = cola.then(() => publicar($)).catch(() => undefined)
     return { resultado: 'en-cola' }
   }
+  if (orden.tipo === 'cerrar') return cerrarSesion($)
   const turnId = turnoEnCurso
   if (turnId === null) return { resultado: 'sin-turno' }
   try {
@@ -400,6 +410,29 @@ async function ejecutarOrden($: EngineInterface, orden: OrdenWidget): Promise<{ 
   actividad = actividadEnEspera(procesos.size)
   cola = cola.then(() => publicar($)).catch(() => undefined)
   return { resultado: 'frenado' }
+}
+
+/**
+ * Cierra la sesión (v0.11) como si el usuario escribiera /exit: corta antes el turno en curso (un
+ * comando espera a que la sesión quede libre) y sale. Medido el 23/11 contra Claude Code 2.1.331:
+ * `$.command.run({ command: 'exit' })` resuelve enseguida y la sesión termina unos 2 s después con
+ * `session.end` `prompt_input_exit`, que marca el archivo local como cerrado; el resultado `cerrando`
+ * llega a escribirse antes. Solo en una sesión de terminal.
+ */
+async function cerrarSesion($: EngineInterface): Promise<{ resultado: ResultadoOrden; motivo?: string }> {
+  if (!esTerminal) return { resultado: 'descartada', motivo: 'solo se cierran las sesiones de terminal' }
+  const turnId = turnoEnCurso
+  if (turnId !== null) {
+    // Si no se puede cortar, igual se sale: /exit queda esperando a que termine el turno
+    await $.turn.abort({ turnId }).catch(() => undefined)
+    if (turnoEnCurso === turnId) turnoEnCurso = null
+  }
+  try {
+    await $.command.run({ command: 'exit' })
+  } catch (err) {
+    return { resultado: 'fallo', motivo: err instanceof Error ? err.message : String(err) }
+  }
+  return { resultado: 'cerrando' }
 }
 
 /** Escribe el estado de esta sesión en un archivo propio; el widget lee la carpeta entera. */
@@ -686,6 +719,7 @@ export const register: Register = (on, options) => {
     await $.command.register({ name: 'avis', description: 'Avis de Quintech: quién trabaja en qué', argumentHint })
     await $.command.register({ name: 'oficina', description: 'Lo mismo que /avis (nombre anterior)', argumentHint })
     const resultado = await next(e)
+    esTerminal = (await $.env.get('CLAUDE_CODE_ENTRYPOINT').catch(() => undefined)) === 'cli'
     // Desde la v0.10: las órdenes del widget, solo las creadas desde ahora
     arranqueOrdenesMs = await $.clock.now()
     vigilarOrdenes($)
