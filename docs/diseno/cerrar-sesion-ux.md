@@ -100,3 +100,7 @@ Todas en la rama, con las propuestas de 1 a 3 aprobadas por el usuario. Medido c
 - **D-g:** el rótulo dice "lo último".
 - **D-h:** no se tocó (viene de antes; lo resuelve otra rama).
 - La consola no mostró errores ni advertencias en ningún estado.
+
+## Tope de "Cerrando…" (decidido por el usuario el 24/11/2026)
+
+Si la sesión tomó la orden (`cerrando`) y a los 30 s la tarjeta sigue, la sesión no salió: la tarjeta deja de estar "cerrando", campo, Enviar y Frenar vuelven, el botón dice otra vez "Cerrar sesión" y la línea de la barra dice "La sesión no se cerró. Probá de nuevo." como error (queda hasta que el usuario escribe o manda otra orden). Un nuevo cierre vuelve a pedir confirmar. Código: `MS_TOPE_CERRANDO` y `vencerCierre` en `control.js`; el temporizador en `ordenar` de `main.js`.

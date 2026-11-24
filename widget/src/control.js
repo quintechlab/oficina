@@ -68,6 +68,22 @@ export function clicCerrar(ui, ahoraMs) {
  */
 export const cerrandoSesion = ui => ui?.cerrando === true || ui?.pendiente?.tipo === 'cerrar'
 
+/** Cuánto se espera a que una sesión "cerrando" se vaya antes de darla por no cerrada (#25). */
+export const MS_TOPE_CERRANDO = 30000
+
+/**
+ * El tope de "Cerrando…": si la sesión tomó la orden (`ui.cerrando`, desde `ui.cerrandoDesde`) y a
+ * los 30 s sigue ahí, deja de cerrarse, Cerrar vuelve a funcionar y la línea lo dice como error.
+ * Devuelve los cambios para `ui`, o null si no hay nada que vencer.
+ */
+export function vencerCierre(ui, ahoraMs) {
+  if (ui?.cerrando !== true || ui.cerrandoDesde == null) return null
+  if (ahoraMs - ui.cerrandoDesde < MS_TOPE_CERRANDO) return null
+  return { cerrando: false, cerrandoDesde: null, linea: { ...LINEA_NO_CERRO, desde: ahoraMs } }
+}
+
+const LINEA_NO_CERRO = { texto: 'La sesión no se cerró. Probá de nuevo.', tono: 'error' }
+
 /** Lo que dice la línea de la tarjeta mientras se cierra (en --tenue, con el punto sin color). */
 export const LINEA_TARJETA_CERRANDO = 'cerrando la sesión'
 
