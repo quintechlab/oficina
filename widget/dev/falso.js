@@ -92,27 +92,37 @@
 // Cada paso que corre avisa como Rust (oficina://primeros-pasos) y, si termina bien, cambia la
 // máquina falsa. El ítem de la bandeja se imita con window.__bandeja('oficina://primeros-pasos-abrir');
 // su texto queda en window.__menuPasos.
-// Resumen con IA (#11, docs/diseno/resumen-ia-ux.md): el backend falso de estado_resumen,
-// descargar_modelo, cancelar_resumen y pedir_resumen, con el evento oficina://resumen. Se toca el Avi
-// de la marca para abrir el globo. Sin ?resumen, el modelo no está (apagado).
-//   ?resumen=apagado     sin modelo: "Descargar 2,6 GB"
-//   ?resumen=parcial     una descarga cancelada antes: "Seguir descargando · 1,1 de 2,6 GB"
-//   ?resumen=descargando Rust ya está bajando el modelo (se recargó la ventana): el globo abre en la descarga
-//   ?resumen=preparando  modelo bajado y motor apagado: el primer pedido prepara (primera vez)
-//   ?resumen=pensando    modelo listo: el pedido piensa 20 s (para mirarlo)
-//   ?resumen=listo       modelo y motor listos: el resumen sale enseguida
-//   ?resumen=sinmodelo   el modelo está roto o no se encuentra: "Descargar de nuevo"
-//   ?resumen=fallo       el primer pedido falla (el motor se cierra); el segundo sale bien
-//   &rapido=1            descarga en ~3 s y preparación en 2,5 s (sin esto, ~10 s y 8 s)
-//   &acel=cpu            el motor corre solo con CPU ("~11 s solo con CPU")
-//   &rzfalla=descarga|vacio  la descarga se corta a la mitad, o el modelo devuelve texto vacío
-//   &inyecta             el texto del modelo trae HTML (tiene que verse escapado)
-//   &largo               el texto del modelo es largo (desborda: se desplaza y se funde abajo)
-// Desde la consola del iframe: window.__borrarModelo() imita "Borrar el modelo" de la bandeja (el
-// evento { tipo: 'estado', modelo: 'falta' }); window.__resumen('fallo', { motivo: 'cerrado' }) emite
-// cualquier evento. Lo último pedido queda en window.__datosResumen.
+// La charla con la mascota (#22, docs/diseno/chat-avis-ux.md): el backend falso de chat_abrir,
+// chat_enviar, chat_frenar, chat_cerrar, guardar_chat, elegir_carpeta, estado_modelo, descargar_modelo
+// y cancelar_modelo, con los eventos oficina://chat y oficina://modelo; el historial (chat_guardar,
+// chat_historial, chat_leer, chat_borrar) vive en memoria, con una charla de ayer ya guardada. Se toca el Avi de la marca para
+// abrir la hoja. Con ?chat=…, la hoja se abre sola y va a ese estado (por window.__chat, el mismo
+// camino que el usuario); sin ?flotante, el tablero queda a la izquierda para que la hoja entre:
+//   ?chat=vacio        la charla vacía, con la carpeta "catalogo" (&sinCarpeta: "Solo Avis")
+//   ?chat=esperando    la espera: el proceso queda despierto y nunca responde (a los 120 s, "tiempo")
+//   ?chat=escribiendo  la respuesta llega lenta y no termina (el cursor y los bloques que se cierran)
+//   ?chat=listo        la respuesta entera (Markdown, código, tabla, un enlace y HTML escapado)
+//   ?chat=frenada      se frena a los 2,6 s: el parcial y "■ frenaste acá"
+//   ?chat=error-red    tres reintentos sin respuesta y el error `red` (D33), con el modelo local instalado
+//   ?chat=historial    dos charlas rápidas y el cajón "Charlas" abierto
+//   ?chat=soltar       la capa de soltar un archivo, quieta (el arrastre en curso sobre la hoja)
+//   ?chat=adjuntos     se sueltan un PDF y unas notas sobre la hoja: los dos chips (el PDF con sus páginas)
+//   ?chat=error-adjunto se suelta una planilla .xlsx: la tarjeta "No puedo leer planilla.xlsx"
+//   &cancelaAdjunto    el clip se cancela (sin esto, elige presupuesto-2027.pdf de Descargas)
+//   ?chat=encima       al 200 % (si no hay ?zoom): la hoja no entra al costado y tapa la columna (D1)
+//   &motor=local       la próxima charla con el modelo local; &modelo=listo|bajando su estado (sin esto, falta).
+//                      Con &modelo=listo, ?chat=esperando|escribiendo|listo|frenada responde el modelo falso
+//                      (despierta en 1,2 s la primera vez, como "Despertando el modelo de esta PC")
+//   &cancelaCarpeta    "Elegir otra carpeta…" se cancela (sin esto, elige quintech-crm del escritorio)
+//   &engram            el pie del cajón dice "también en Engram" (sin esto, "Engram apagado")
+// window.__arrastrar({ type: 'enter' | 'over' | 'drop' | 'leave', paths, position }) imita el arrastre
+// de Tauri (onDragDropEvent, px físicos); window.__soltarEnHoja([ruta]) suelta en el medio de la hoja.
+// Desde la consola del iframe: window.__chat.despachar({ tipo: 'soltando', nombre: 'a.pdf' }) manda
+// cualquier evento a la hoja y window.__chat.estado() la lee; window.__borrarModelo() imita "Borrar el
+// modelo de IA" de la bandeja.
 ;(() => {
   const url = new URLSearchParams(location.search)
+  const chatEsc = url.get('chat')
   // Las mascotas (especies.css) van junto a avis.css, como en src/index.html
   if (!document.querySelector('link[href="especies.css"]')) document.write('<link rel="stylesheet" href="especies.css">')
   // ?muesca: atajos de los estados de la muesca A
@@ -161,6 +171,8 @@
     {
       v: 1, sesion: 'ses-catalogo', usuario: 'nicoequintana', nombre: 'Quintana', estado: 'trabajando',
       repo: 'quintechlab/catalogo', rama: 'feat/48-precios', tarea: 48, nota: null,
+      // Desde la v0.11 el mod deja la carpeta en el archivo local: el menú de la charla la ofrece (entrega 7)
+      cwd: 'C:\\Users\\quintana\\Desktop\\catalogo',
       inicio: hace(18), tareaDesde: hace(18), actualizado: hace(0), archivos: [], actividad: 'pensando',
       puedeResponder: !url.has('sololectura'),
       agentes: url.get('preguntas') === 'varias' ? [sub('c9', 'Camila', 'copy del aviso de precios', 'trabajando', { desde: hace(3) })] : [],
@@ -408,7 +420,7 @@
     return lista
   }
 
-  let paso = PASOS.includes(Number(url.get('zoom'))) ? Number(url.get('zoom')) : 100
+  let paso = PASOS.includes(Number(url.get('zoom'))) ? Number(url.get('zoom')) : chatEsc === 'encima' ? 200 : 100
   /** El iframe que hace de ventana (dev/vista.html); abierta sola, no hay. */
   const marco = window.frameElement
   if (marco) document.documentElement.classList.add('en-iframe')
@@ -421,6 +433,8 @@
   window.__ventana = { ...ventana }
   const [fx, fy] = (url.get('flotante') ?? '').split(',').map(Number)
   let flotante = Number.isFinite(fx) && Number.isFinite(fy) ? { x: fx, y: fy } : null
+  // La hoja de la charla al costado: el tablero a la izquierda, salvo ?chat=encima
+  if (chatEsc && !flotante && chatEsc !== 'encima') flotante = { x: 0.05, y: 0.4 }
   let mini = false
   const libres = { arriba: true, derecha: !url.has('sinderecha'), abajo: true, izquierda: true }
   /** Mueve y redimensiona el iframe como Tauri a la ventana. */
@@ -571,23 +585,6 @@
     }
   }
 
-  // ---- resumen con IA: el modelo falso, la descarga, la preparación y los pedidos
-  const rz = url.get('resumen') ?? 'apagado'
-  const GB = 1024 ** 3
-  const TOTAL_RZ = Math.round(2.6 * GB)
-  const rapido = url.has('rapido')
-  const conModelo = ['preparando', 'pensando', 'listo', 'fallo'].includes(rz)
-  const modeloRz = {
-    modelo: rz === 'sinmodelo' ? 'roto' : rz === 'descargando' ? 'bajando' : conModelo ? 'listo' : 'falta',
-    bajado: rz === 'parcial' ? Math.round(1.1 * GB) : rz === 'descargando' ? Math.round(0.4 * GB) : conModelo ? TOTAL_RZ : 0,
-    total: TOTAL_RZ,
-    motor: ['pensando', 'listo', 'fallo'].includes(rz) ? 'listo' : 'apagado',
-    primeraVez: !['pensando', 'listo', 'fallo'].includes(rz),
-    aceleracion: url.get('acel') === 'cpu' ? 'cpu' : 'gpu',
-  }
-  let relojesRz = []
-  let fallaRz = rz === 'fallo'
-  let fallaDescarga = url.get('rzfalla') === 'descarga'
   // ?pp=sinmod&modauto=solo: Avis instala el mod solo, como mod_auto.rs (el paso 2 corre sin clic)
   if (modauto === 'solo' && maquina.claude && maquina.mod === 'ausente') {
     setTimeout(() => {
@@ -599,100 +596,240 @@
     }, 1500)
   }
 
-  const emitirRz = (tipo, datos = {}) => emitir('oficina://resumen', { tipo, ...datos })
-  const luegoRz = (ms, f) => relojesRz.push(setTimeout(f, ms))
-  const pararRz = () => { relojesRz.forEach(clearTimeout); relojesRz = [] }
-  /** Un texto verosímil a partir de los datos que recibió (nunca de lo que no se le pasó). */
-  const textoFalso = datos => {
-    const pr = datos?.proyectos ?? []
-    const n = pr.reduce((k, p) => k + p.sesiones.length, 0)
-    const frases = [`Tenés ${n} ${n === 1 ? 'sesión abierta' : 'sesiones abiertas'}.`]
-    for (const p of pr) {
-      for (const s of p.sesiones) {
-        const trabajan = s.subagentes.filter(a => a.estado === 'trabajando')
-        if (s.preguntas.length) frases.push(`En ${p.nombre} te espera una pregunta sobre ${s.preguntas[0].encabezado.toLowerCase()}.`)
-        else if (trabajan.length) frases.push(`En ${p.nombre} Claude coordina a ${trabajan.length} subagentes: ${trabajan.map(a => a.nombre).join(', ')}.`)
-        else if (s.procesos.length) frases.push(`${p.nombre} espera ${s.procesos.length} procesos en segundo plano.`)
-        else frases.push(`${p.nombre} espera tu próximo mensaje.`)
-      }
-    }
-    if (url.has('largo')) frases.push(...frases.slice(1), 'Nada más por ahora: el resto sigue igual que hace un rato y no hay errores a la vista.')
-    if (url.has('inyecta')) frases.push('<img src=x onerror="alert(1)"> <b>negrita</b> & más.')
-    return frases.join(' ')
+  // ---- la charla con la mascota (#22): el modelo de esta PC falso y el proceso de Claude Code falso
+  const GB = 1024 ** 3
+  const TOTAL_MODELO = Math.round(2.6 * GB)
+  const modeloLocal = {
+    modelo: url.get('modelo') === 'listo' || chatEsc === 'error-red' ? 'listo' : url.get('modelo') === 'bajando' ? 'bajando' : 'falta',
+    bajado: url.get('modelo') === 'bajando' ? Math.round(0.4 * GB) : 0,
+    total: TOTAL_MODELO, motor: 'apagado', primeraVez: true, aceleracion: 'gpu',
   }
-  const bajar = () => {
-    const paso = TOTAL_RZ / (rapido ? 12 : 40)
+  if (modeloLocal.modelo === 'listo') modeloLocal.bajado = TOTAL_MODELO
+  let relojesModelo = []
+  const emitirModelo = (tipo, datos = {}) => emitir('oficina://modelo', { tipo, ...datos })
+  const bajarModelo = () => {
     const tic = () => {
-      modeloRz.bajado = Math.min(TOTAL_RZ, modeloRz.bajado + paso)
-      if (fallaDescarga && modeloRz.bajado >= TOTAL_RZ / 2) {
-        fallaDescarga = false
-        modeloRz.modelo = 'falta'
-        return emitirRz('fallo', { motivo: 'descarga', detalle: 'HTTP 503 al bajar el modelo (falso)' })
-      }
-      if (modeloRz.bajado >= TOTAL_RZ) {
-        modeloRz.modelo = 'listo'
-        return emitirRz('bajado', { total: TOTAL_RZ })
-      }
-      emitirRz('progreso', { bajado: Math.round(modeloRz.bajado), total: TOTAL_RZ })
-      luegoRz(250, tic)
+      modeloLocal.bajado = Math.min(TOTAL_MODELO, modeloLocal.bajado + TOTAL_MODELO / 30)
+      if (modeloLocal.bajado >= TOTAL_MODELO) { modeloLocal.modelo = 'listo'; return emitirModelo('bajado', { total: TOTAL_MODELO }) }
+      emitirModelo('progreso', { bajado: Math.round(modeloLocal.bajado), total: TOTAL_MODELO })
+      relojesModelo.push(setTimeout(tic, 250))
     }
-    luegoRz(250, tic)
+    relojesModelo.push(setTimeout(tic, 250))
   }
-  if (rz === 'descargando') bajar()
-  const responderPedido = pedido => {
-    luegoRz(rz === 'pensando' ? 20000 : rapido ? 1200 : 3000, () => {
-      if (fallaRz) {
-        fallaRz = false
-        return emitirRz('fallo', { pedido, motivo: 'cerrado', detalle: 'llama-server · código de salida 3221225477' })
-      }
-      const texto = url.get('rzfalla') === 'vacio' ? '   ' : textoFalso(window.__datosResumen)
-      emitirRz('listo', { pedido, texto, ms: modeloRz.aceleracion === 'cpu' ? 10800 : 3100, aceleracion: modeloRz.aceleracion })
-    })
-  }
-  const comandosResumen = {
-    estado_resumen: () => ({ ...modeloRz, bajado: Math.round(modeloRz.bajado) }),
-    descargar_modelo: () => {
-      if (modeloRz.modelo === 'bajando') throw new Error('ya se está bajando (falso)')
-      modeloRz.modelo = 'bajando'
-      console.info('[resumen] descargar_modelo')
-      bajar()
-    },
-    cancelar_resumen: () => {
-      pararRz()
-      if (modeloRz.modelo === 'bajando') modeloRz.modelo = 'falta'
-      console.info('[resumen] cancelar_resumen')
-      emitirRz('cancelado', {})
-    },
-    pedir_resumen: ({ pedido, datos }) => {
-      if (modeloRz.modelo !== 'listo') throw new Error('no hay modelo (falso)')
-      // Un pedido nuevo cancela el anterior
-      pararRz()
-      window.__datosResumen = datos
-      console.info('[resumen] pedir_resumen', pedido, JSON.stringify(datos))
-      if (modeloRz.motor !== 'listo') {
-        luegoRz(100, () => emitirRz('preparando', { pedido, primeraVez: modeloRz.primeraVez }))
-        luegoRz(rapido ? 2500 : 8000, () => {
-          modeloRz.motor = 'listo'
-          modeloRz.primeraVez = false
-          emitirRz('pensando', { pedido })
-          responderPedido(pedido)
-        })
-      } else {
-        luegoRz(60, () => emitirRz('pensando', { pedido }))
-        responderPedido(pedido)
-      }
-    },
-  }
+  if (modeloLocal.modelo === 'bajando') bajarModelo()
   /** "Borrar el modelo" de la bandeja (lo hace el backend): avisa que no hay modelo. */
   window.__borrarModelo = () => {
-    pararRz()
-    Object.assign(modeloRz, { modelo: 'falta', bajado: 0, motor: 'apagado', primeraVez: true })
-    emitirRz('estado', comandosResumen.estado_resumen())
+    relojesModelo.forEach(clearTimeout)
+    Object.assign(modeloLocal, { modelo: 'falta', bajado: 0 })
+    emitirModelo('estado', { ...modeloLocal })
   }
-  window.__resumen = emitirRz
+
+  const ESCRITORIO = 'C:\\Users\\quintana\\Desktop'
+  const DESCARGAS = 'C:\\Users\\quintana\\Downloads'
+  /** Lo que diría chat_adjunto de un archivo (10): por el nombre, sin leer nada. */
+  function adjuntoFalso(ruta) {
+    const nombre = ruta.split(/[\\/]/).at(-1)
+    const ext = (/\.([^.]+)$/.exec(nombre)?.[1] ?? '').toLowerCase()
+    if (/grande/.test(nombre)) return { error: 'adjunto', nombre }
+    if (ext === 'pdf') return { nombre, tipo: 'pdf', bytes: 1468006, paginas: 14 }
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return { nombre, tipo: 'imagen', bytes: 245760, paginas: null }
+    if (['txt', 'md', 'json', 'csv', 'js', 'ts', 'rs', 'py', 'log'].includes(ext)) return { nombre, tipo: 'texto', bytes: 3200, paginas: null }
+    return { error: 'adjunto', nombre }
+  }
+  let prefsChat = {
+    motor: url.get('motor') === 'local' ? 'local' : 'claude',
+    carpeta: url.has('sinCarpeta') ? null : `${ESCRITORIO}\\catalogo`,
+    recientes: [`${ESCRITORIO}\\catalogo`, 'C:\\Users\\quintana\\Downloads'],
+  }
+  const conocidas = new Map()
+  let enCurso = null
+  /** El historial falso (9.1): los archivos de `<config>/chat/<id>.json`, en memoria. */
+  const ayer = new Date(Date.now() - 26 * 3600 * 1000).toISOString()
+  const archivos = new Map([['c-falsa-ayer', {
+    v: 1, id: 'c-falsa-ayer', titulo: 'Qué cambió en catalogo', creada: ayer, actualizada: ayer, motor: 'claude', carpeta: `${ESCRITORIO}\\catalogo`, sesionClaude: null, engramId: null,
+    mensajes: [
+      { rol: 'usuario', texto: '¿Qué cambió ayer en catalogo?', cuando: ayer, estado: 'ok', adjuntos: [] },
+      { rol: 'mascota', texto: 'Se sumó el **filtro por marca** y se arregló el pedido duplicado.', cuando: ayer, estado: 'ok', herramientas: [{ nombre: 'Grep', detalle: 'filtro' }], ms: 2400 },
+    ],
+  }]])
+  const emitirChat = (c, turno, tipo, datos = {}) => emitir('oficina://chat', { conversacion: c, turno, tipo, ...datos })
+  const RESPUESTA = [
+    'Tenés **3 sesiones** abiertas. Esto es lo importante:', '',
+    '## En qué anda cada una', '',
+    '- **oficina**: Claude coordina a Delfina, Ramiro y Lucas (`feat/6-estilo-avis-marco`).',
+    '- **catalogo**: te hace una pregunta sobre el *merge*.',
+    '  - Espera tu respuesta desde hace 3 min.',
+    '- **central-nucleo**: espera dos procesos en segundo plano.', '',
+    'Para mirar la rama de oficina:', '',
+    '```bash', 'git log --oneline -3 feat/6-estilo-avis-marco', '```', '',
+    '| Sesión | Estado |', '|---|---|', '| oficina | trabajando |', '| catalogo | te espera |', '',
+    'Más en [la guía](https://ejemplo.dev/guia). Nada de HTML: <img src=x onerror="alert(1)">.',
+  ].join('\n')
+  const trozos = t => t.match(/[\s\S]{1,14}/g) ?? []
+  /** El turno falso: como Rust, `listo` (el init), `pidiendo`, herramientas, texto de a tramos y un final. */
+  function turnoFalso(c, turno, texto) {
+    const relojes = []
+    enCurso = { c, turno, relojes }
+    const luego = (ms, f) => relojes.push(setTimeout(f, ms))
+    const terminar = () => { if (enCurso?.turno === turno && enCurso.c === c) enCurso = null }
+    const rapido = chatEsc === 'historial'
+    luego(80, () => emitirChat(c, turno, 'recibido'))
+    luego(rapido ? 120 : 420, () => emitirChat(c, turno, 'listo', { sesion: conocidas.get(c).sesion }))
+    luego(rapido ? 160 : 900, () => emitirChat(c, turno, 'pidiendo'))
+    if (chatEsc === 'esperando') return
+    if (chatEsc === 'error-red') {
+      // D33: el tercer reintento sin respuesta es el error `red`
+      for (const k of [1, 2, 3]) luego(900 + k * 900, () => emitirChat(c, turno, 'reintento', { intento: k, maximo: 10 }))
+      luego(3700, () => { emitirChat(c, turno, 'error', { motivo: 'red' }); terminar() })
+      return
+    }
+    const respuesta = rapido ? `Sobre «${texto}»: todo tranquilo por ahora.` : RESPUESTA
+    let t = rapido ? 200 : 1300
+    if (!rapido) {
+      luego(1100, () => emitirChat(c, turno, 'herramienta', { nombre: 'Read', detalle: 'README.md' }))
+      luego(1200, () => emitirChat(c, turno, 'herramienta', { nombre: 'Grep', detalle: 'merge' }))
+    }
+    const lento = chatEsc === 'escribiendo' ? 420 : rapido ? 15 : 70
+    for (const p of trozos(respuesta)) luego((t += lento), () => emitirChat(c, turno, 'texto', { texto: p }))
+    if (chatEsc === 'escribiendo') return
+    luego(t + 120, () => { emitirChat(c, turno, 'fin', { ms: t + 120 }); terminar() })
+  }
+  /**
+   * El turno del modelo de esta PC (8), como Rust: `listo` cuando despertó el motor (1,2 s la primera
+   * vez), `recibido` con el pedido aceptado, `pensando` con el primer tramo y el texto de a tramos.
+   * Con ?chat=esperando no responde; con ?chat=escribiendo no termina. Usa la historia que llega.
+   */
+  let motorDespierto = false
+  function turnoLocalFalso(c, turno, texto, historia) {
+    const relojes = []
+    enCurso = { c, turno, relojes }
+    const luego = (ms, f) => relojes.push(setTimeout(f, ms))
+    const despierta = motorDespierto ? 60 : 1200
+    luego(despierta, () => { motorDespierto = true; emitirChat(c, turno, 'listo', { sesion: '' }) })
+    if (chatEsc === 'esperando') return
+    luego(despierta + 30, () => emitirChat(c, turno, 'recibido'))
+    luego(despierta + 600, () => emitirChat(c, turno, 'pensando'))
+    const antes = (historia ?? []).filter(m => m.rol === 'usuario').length
+    const respuesta = `Sobre «${texto}»: **oficina** está trabajando y **catalogo** te hace una pregunta.${antes ? ` (Me acuerdo de ${antes} ${antes === 1 ? 'pregunta' : 'preguntas'} de antes.)` : ''}`
+    let t = despierta + 600
+    const lento = chatEsc === 'escribiendo' ? 420 : 45
+    for (const p of trozos(respuesta)) luego((t += lento), () => emitirChat(c, turno, 'texto', { texto: p }))
+    if (chatEsc === 'escribiendo') return
+    luego(t + 80, () => { emitirChat(c, turno, 'fin', { ms: t + 80 }); if (enCurso?.turno === turno && enCurso.c === c) enCurso = null })
+  }
+  const comandosChat = {
+    estado_modelo: () => ({ ...modeloLocal, bajado: Math.round(modeloLocal.bajado) }),
+    descargar_modelo: () => {
+      if (modeloLocal.modelo === 'bajando') throw new Error('ya se está bajando (falso)')
+      modeloLocal.modelo = 'bajando'
+      bajarModelo()
+    },
+    cancelar_modelo: () => {
+      relojesModelo.forEach(clearTimeout)
+      if (modeloLocal.modelo === 'bajando') modeloLocal.modelo = 'falta'
+      emitirModelo('cancelado', {})
+    },
+    chat_abrir: ({ conversacion, motor, sesionClaude }) => {
+      const antes = conocidas.get(conversacion)
+      const sesion = antes?.sesion ?? sesionClaude ?? crypto.randomUUID()
+      conocidas.set(conversacion, { motor, sesion })
+      console.info('[chat] abrir', conversacion, motor)
+      const local = { listo: 'instalado', bajando: 'bajando', roto: 'roto' }[modeloLocal.modelo] ?? 'falta'
+      return { proceso: motor === 'claude' ? 'arrancando' : 'apagado', sesion, engram: url.has('engram') ? 'si' : 'no', local }
+    },
+    chat_enviar: ({ conversacion, turno, texto, adjuntos = [], historia = null }) => {
+      const c = conocidas.get(conversacion)
+      if (!c) throw new Error('la charla no está abierta')
+      if (enCurso?.c === conversacion) throw new Error('hay una respuesta en curso')
+      console.info('[chat] enviar', conversacion, turno, texto, adjuntos, historia)
+      if (c.motor === 'local') {
+        if (adjuntos.length) throw new Error('el modelo de esta PC no lee archivos')
+        if (modeloLocal.modelo !== 'listo') return setTimeout(() => emitirChat(conversacion, turno, 'error', { motivo: 'local', detalle: 'falta descargar el modelo de esta PC' }), 30)
+        return turnoLocalFalso(conversacion, turno, texto, historia)
+      }
+      turnoFalso(conversacion, turno, texto)
+    },
+    chat_frenar: ({ conversacion, turno }) => {
+      if (enCurso?.c !== conversacion || enCurso.turno !== turno) return
+      enCurso.relojes.forEach(clearTimeout)
+      enCurso = null
+      setTimeout(() => emitirChat(conversacion, turno, 'frenada'), 10)
+    },
+    chat_cerrar: () => null,
+    chat_guardar: ({ conversacion, engram }) => {
+      const antes = archivos.get(conversacion.id)
+      archivos.set(conversacion.id, { ...conversacion, engramId: antes?.engramId ?? (engram && url.has('engram') ? archivos.size + 1 : null) })
+      console.info('[chat] guardar', conversacion.id, conversacion.mensajes.length, engram ? '+ engram' : '')
+    },
+    chat_historial: () => [...archivos.values()].sort((a, b) => Date.parse(b.actualizada) - Date.parse(a.actualizada))
+      .map(({ mensajes, ...cab }) => ({ ...cab, texto: mensajes.map(m => m.texto).filter(Boolean).join('\n') })),
+    chat_leer: ({ id }) => {
+      const doc = archivos.get(id)
+      if (!doc) throw new Error('no existe (falso)')
+      return structuredClone(doc)
+    },
+    chat_borrar: ({ id }) => { archivos.delete(id); console.info('[chat] borrar', id) },
+    guardar_chat: ({ motor, carpeta }) => {
+      prefsChat = { motor, carpeta: carpeta ?? null, recientes: carpeta ? [carpeta, ...prefsChat.recientes.filter(r => r !== carpeta)].slice(0, 5) : prefsChat.recientes }
+      console.info('[chat] preferencias', JSON.stringify(prefsChat))
+      return prefsChat
+    },
+    elegir_carpeta: () => (url.has('cancelaCarpeta') ? null : `${ESCRITORIO}\\quintech-crm`),
+    chat_adjunto: ({ ruta }) => adjuntoFalso(ruta),
+    elegir_adjuntos: () => (url.has('cancelaAdjunto') ? [] : [`${DESCARGAS}\\presupuesto-2027.pdf`]),
+  }
+  /** Suelta archivos en el medio de la hoja, como Tauri: enter, over y drop en px físicos. */
+  window.__soltarEnHoja = (rutas, { soltar = true } = {}) => {
+    const r = document.querySelector('#hoja')?.getBoundingClientRect()
+    if (!r || !window.__arrastrar) return
+    const position = { x: (r.left + r.width / 2) * devicePixelRatio, y: (r.top + r.height / 2) * devicePixelRatio }
+    window.__arrastrar({ type: 'enter', paths: rutas, position })
+    window.__arrastrar({ type: 'over', position })
+    if (soltar) setTimeout(() => window.__arrastrar({ type: 'drop', paths: rutas, position }), 700)
+  }
+  // ?chat=…: abre la hoja y la lleva a ese estado por el mismo camino que el usuario (window.__chat)
+  window.__vistaDev = true
+  if (chatEsc) {
+    setTimeout(() => {
+      const ch = window.__chat
+      if (!ch) return
+      // Acoplada, primero se abre el panel (la marca solo se ve con el panel abierto)
+      if (acople) emitir('oficina://abrir')
+      document.querySelector('#marca-boton')?.click()
+      const preguntar = t => ch.despachar({ tipo: 'enviar', texto: t })
+      const cuandoListo = f => { const r = setInterval(() => { if (ch.estado().estado === 'listo') { clearInterval(r); f() } }, 100) }
+      switch (chatEsc) {
+        case 'esperando': case 'escribiendo': case 'listo': case 'error-red':
+          preguntar('¿En qué anda cada sesión?')
+          break
+        case 'frenada':
+          preguntar('Armame la documentación de catalogo')
+          setTimeout(() => ch.despachar({ tipo: 'frenar' }), 2600)
+          break
+        case 'historial':
+          preguntar('¿Quién me está esperando?')
+          cuandoListo(() => {
+            ch.despachar({ tipo: 'nueva' })
+            preguntar('¿Qué cambió hoy en catalogo?')
+            cuandoListo(() => ch.despachar({ tipo: 'hist' }))
+          })
+          break
+        case 'soltar':
+          ch.despachar({ tipo: 'soltando', nombre: 'presupuesto-2027.pdf' })
+          break
+        // Después de la mudanza (6.1), como el usuario: arrastrar y soltar sobre la hoja
+        case 'adjuntos':
+          setTimeout(() => window.__soltarEnHoja([`${DESCARGAS}\\presupuesto-2027.pdf`, `${DESCARGAS}\\notas.md`]), 1300)
+          break
+        case 'error-adjunto':
+          setTimeout(() => window.__soltarEnHoja([`${DESCARGAS}\\planilla.xlsx`]), 1300)
+          break
+      }
+    }, 1500)
+  }
 
   const comandos = {
-    ...comandosResumen,
+    ...comandosChat,
     registrar: ({ linea }) => console.debug('[widget.log]', linea),
     revisar_primeros_pasos: () => new Promise(r => setTimeout(() => r(revisionFalsa()), url.has('pplento') ? 2000 : 600)),
     menu_primeros_pasos: ({ faltan }) => { window.__menuPasos = faltan == null || faltan === 0 ? 'Primeros pasos…' : faltan === 1 ? 'Primeros pasos (falta 1)…' : `Primeros pasos (faltan ${faltan})…`; console.info('[bandeja]', window.__menuPasos) },
@@ -713,7 +850,7 @@
     abrir_enlace: ({ cual }) => console.info('[navegador]', cual),
     tomar_aviso_mod: () => { const a = avisoModPendiente; avisoModPendiente = null; return a },
     poner_bandeja: ({ texto }) => { document.title = texto },
-    estado_menu: () => ({ arriba: true, avisar: true, pausa: url.has('pausa'), tamano: paso, acople, flotante }),
+    estado_menu: () => ({ arriba: true, avisar: true, pausa: url.has('pausa'), tamano: paso, acople, flotante, chat: prefsChat }),
     // Como Rust (leer_mascota): lo que no es una especie es el Avi; la ventana lo valida otra vez
     mascota: () => (['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen'].includes(url.get('mascota')) ? url.get('mascota') : 'avi'),
     leer_sesiones: () => {
@@ -816,6 +953,15 @@
     },
     window: {
       getCurrentWindow: () => ({ isVisible: async () => true, isMinimized: async () => false }),
+    },
+    // Los archivos que se arrastran (10): window.__arrastrar(payload) hace de Tauri
+    webview: {
+      getCurrentWebview: () => ({
+        onDragDropEvent: async f => {
+          window.__arrastrar = payload => f({ payload })
+          return () => { window.__arrastrar = null }
+        },
+      }),
     },
   }
 })()

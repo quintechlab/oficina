@@ -144,6 +144,11 @@ export function animoMarca(proyectos, ahoraMs) {
   return 'esperando'
 }
 
+/** La descripción del Avi-botón de la marca: el ánimo real ("Claude, esperando"), nunca un juego. */
+export function animoTexto(animo) {
+  return `Claude, ${ANIMO[animo] ?? animo}`
+}
+
 /** "4 sesiones abiertas" debajo de "Avis". */
 export function estadoMarca(n) {
   return plural(n, 'sesión abierta', 'sesiones abiertas')
