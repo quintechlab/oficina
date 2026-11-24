@@ -478,11 +478,3 @@ fn el_final_de_cada_paso_para_la_ventana() {
     assert_eq!(e["permiso"], true);
     assert_eq!(e["detalle"], "x\ny");
 }
-
-#[test]
-fn texto_del_item_de_la_bandeja() {
-    assert_eq!(texto_menu(None), "Primeros pasos…");
-    assert_eq!(texto_menu(Some(0)), "Primeros pasos…");
-    assert_eq!(texto_menu(Some(1)), "Primeros pasos (falta 1)…");
-    assert_eq!(texto_menu(Some(3)), "Primeros pasos (faltan 3)…");
-}

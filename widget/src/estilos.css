@@ -1439,6 +1439,62 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .esp-error:empty { display: none }
 #cfg .esp-error .aj-error { margin: var(--e-4) 0 0 }
 
+/* Modelos e Instalación (6.1, entrega 3): píldoras de estado con su texto siempre, tarjetas del
+   modelo local y del mod, y el "¿Borrar? Sí" que confirma en el mismo botón (D5) */
+#cfg .t-ok { --c: var(--verde) }
+#cfg .t-aviso { --c: var(--ambar) }
+#cfg .t-proc { --c: var(--celeste) }
+#cfg .t-error { --c: var(--rojo) }
+#cfg .t-nada { --c: var(--tenue) }
+/* El punto de estado de una pestaña (6.3): el texto va oculto al lado, el color nunca solo */
+#cfg .pes .pt { width: 6px; height: 6px; box-shadow: none }
+#cfg .pill {
+  display: inline-flex; align-items: center; gap: var(--e-3); flex: none; padding: 4px 9px 4px 7px; border-radius: var(--r-pildora);
+  background: var(--s2); font: var(--t-mono-s); color: var(--crema2); white-space: nowrap;
+}
+#cfg .pill .pt { width: 6px; height: 6px; box-shadow: none }
+#cfg .tarj { display: grid; gap: var(--e-4); padding: 12px 14px; margin-top: var(--e-3); border: 1px solid var(--linea); border-radius: var(--r-cuadro); background: var(--s1) }
+#cfg .tarj-t { display: flex; align-items: center; justify-content: space-between; gap: var(--e-4) }
+#cfg .tarj-t b { font: var(--t-cuerpo-f) }
+#cfg .tarj-de { font: var(--t-chico); color: var(--tenue) }
+#cfg .tarj p { margin: 0; font: var(--t-chico); color: var(--crema2) }
+#cfg .tarj .aj-error { color: var(--rojo) }
+#cfg .acc { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-3) }
+#cfg .btn[aria-disabled="true"] { opacity: .38; cursor: not-allowed; filter: none; transform: none }
+/* La barra de la descarga: la del globo, sobre fondo oscuro y en celeste */
+#cfg .barra { background: var(--s3) }
+#cfg .barra i { background: linear-gradient(90deg, var(--celeste), #B5D3FF); transition: transform .4s var(--ease) }
+#cfg .barra i::after { display: none }
+#cfg .cifras { font: var(--t-mono-s); color: var(--tenue); font-variant-numeric: tabular-nums }
+#cfg .lnk {
+  min-height: 32px; padding: 0 var(--e-3); border: 0; border-radius: var(--r-tag); background: none; color: var(--crema2);
+  font: 700 12px/1 var(--f); cursor: pointer; transition: color var(--d-color) ease, transform var(--d-presion) ease;
+}
+#cfg .lnk:hover { color: var(--crema); text-decoration: underline }
+#cfg .lnk:active { transform: scale(.97) }
+#cfg .lnk.peligro { color: var(--rojo) }
+#cfg .armado {
+  position: relative; overflow: hidden; min-height: 32px; padding: 0 var(--e-6); border: 0; border-radius: var(--r-pildora);
+  background: var(--rojo); color: var(--negro); font: 800 12px/1 var(--f); white-space: nowrap; cursor: pointer;
+}
+#cfg .armado:focus-visible { outline-color: var(--crema) }
+/* La línea que se vacía en los 3 s (`--ya` la retoma donde iba si la sección se redibuja) */
+#cfg .armado::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--negro); opacity: .45;
+  transform-origin: 0 50%; animation: drena var(--d-confirma) linear var(--ya, 0ms) both;
+}
+#cfg .ver-avis { margin: var(--e-7) 0 0; font: var(--t-mono-s); color: var(--tenue) }
+@keyframes cfgLate { 50% { opacity: .35 } }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) #cfg .t-proc .pt { animation: cfgLate 1.2s ease-in-out infinite }
+}
+@media (prefers-reduced-motion: reduce) {
+  #cfg .barra i, #cfg .lnk { transition: none }
+  #cfg .armado::after { animation: none }
+}
+body.pausa #cfg .barra i { transition: none }
+body.pausa #cfg .armado::after { animation: none }
+
 /* El Avi de 40 junto al título, fuera de Mascota (6.1 `.mini`) */
 .cfg-mini { display: none }
 #marco.con-cfg.con-mini .cab-t { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: var(--e-5); align-items: center }

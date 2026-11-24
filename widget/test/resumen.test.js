@@ -124,6 +124,28 @@ test('descarga: el progreso no redibuja el estado; completa, prepara y pide el p
   assert.equal(falla.resumen.motivo, 'descarga')
 })
 
+test('descarga desde la configuración (configuracion-ux.md 7.2): baja sin abrir el globo y al terminar no pide un resumen', () => {
+  const inicio = { ...resumenInicial(), modelo: 'falta', progreso: { bajado: 0, total: TOTAL } }
+  const r = paso(inicio, { tipo: 'descargar', desde: 'config' })
+  assert.deepEqual(comandos(r), ['descargar_modelo'])
+  assert.equal(r.resumen.estado, 'cerrado', 'el globo no se abre')
+  assert.equal(r.resumen.trabajo, 'descargando')
+  assert.equal(r.resumen.modelo, 'bajando')
+  const fin = paso(r.resumen, { tipo: 'bajado', total: TOTAL })
+  assert.deepEqual(fin.llamadas, [], 'un clic, nunca solo: bajar el modelo no pide un resumen')
+  assert.equal(fin.resumen.modelo, 'listo')
+  assert.equal(fin.resumen.trabajo, null)
+  assert.equal(fin.resumen.estado, 'cerrado')
+  assert.deepEqual(fin.resumen.progreso, { bajado: TOTAL, total: TOTAL })
+  // Roto también se baja de nuevo; con algo en curso o el modelo listo, no hace nada
+  assert.deepEqual(comandos(paso({ ...inicio, modelo: 'roto' }, { tipo: 'descargar', desde: 'config' })), ['descargar_modelo'])
+  assert.deepEqual(comandos(paso({ ...inicio, trabajo: 'descargando', modelo: 'bajando' }, { tipo: 'descargar', desde: 'config' })), [])
+  assert.deepEqual(comandos(paso({ ...inicio, modelo: 'listo' }, { tipo: 'descargar', desde: 'config' })), [])
+  // Después, el "Descargar" del globo sigue incluyendo el primer resumen
+  const delGlobo = paso(paso(en('apagado', { modelo: 'falta' }), { tipo: 'descargar' }).resumen, { tipo: 'bajado', total: TOTAL })
+  assert.deepEqual(comandos(delGlobo), ['pedir_resumen'])
+})
+
 test('preparando → pensando → listo con el pedido vigente; un resultado con un pedido viejo se descarta', () => {
   let r = en('preparando', { trabajo: 'preparando', pedido: 3 })
   r = paso(r, { tipo: 'pensando', pedido: 3 }).resumen

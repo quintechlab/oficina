@@ -1,7 +1,8 @@
 // Tests de la configuración dentro del panel (#23, docs/diseno/configuracion-ux.md, opción B "Taller"):
 // las pestañas y su teclado, la validación de cada ajuste, Esc en sus tres capas, el atajo Ctrl ,, la
 // ubicación del panel y lo que dibuja la hoja (entrega 1: la hoja y la pestaña Panel; entrega 2: la
-// pestaña Mascota, su vista previa y el Avi de 40 junto al título). Funciones puras
+// pestaña Mascota, su vista previa y el Avi de 40 junto al título; entrega 3: Instalación, el modelo
+// local, los puntos de las pestañas y el borrado que confirma en el mismo botón). Funciones puras
 // de configuracion.js y configuracionVista.js; el DOM, el foco y Rust viven en main.js.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -9,10 +10,12 @@ import {
   PESTANAS, IDS_PESTANAS, pestanaSiguiente, validarAjuste, UBICACIONES, ubicacionDe, bordeDeUbicacion,
   limitesTamano, configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion,
   pestanaValida, valorInterruptor, FORMAS_VISTA, opcionesForma, elegirForma, rotuloEspecie, anuncioEspecie, anuncioForma,
-  modoVistaPrevia, CLAVE_VISTA_PREVIA,
+  modoVistaPrevia, CLAVE_VISTA_PREVIA, horaArgentina, textoMod, textoModelo, puntoPestana, clicBorrar, armadoVigente,
+  desarmarVencido, MS_CONFIRMAR, filasEnEstaPC,
 } from '../src/configuracion.js'
 import {
   pestanasConfiguracion, seccionConfiguracion, avisoPreguntaConfiguracion, esqueletoConfiguracion, partesMascota, miniConfiguracion,
+  nombrePestana,
 } from '../src/configuracionVista.js'
 import { NOMBRES_ESPECIES } from '../src/especies.js'
 
@@ -225,7 +228,7 @@ test('Panel: un error al guardar queda debajo de su fila, y solo en esa', () => 
 })
 
 test('las pestañas que todavía no tienen contenido muestran solo su rótulo', () => {
-  for (const { id, nombre } of PESTANAS.filter(p => p.id !== 'panel' && p.id !== 'mascota')) {
+  for (const { id, nombre } of PESTANAS.filter(p => p.id === 'datos')) {
     assert.equal(seccionConfiguracion(id, PANEL), `<h3 class="sub">${nombre}</h3>`, id)
   }
 })
@@ -352,4 +355,291 @@ test('el Avi de 40 junto al título: fuera de Mascota, decorativo y sin las part
   assert.match(html, /m-ascua/)
   // La forma chica (mascotas 5.5): nunca evoluciona ni lleva el detalle de la otra forma
   assert.doesNotMatch(html, /data-evo|evo-p/)
+})
+
+// ------------------------------------------------------------------ entrega 3: Instalación y modelo local (7.2, 7.3, 6.3 y caso 6 de la sección 10)
+
+const AHORA_AR = Date.parse('2026-11-23T13:33:00Z') // 10:33 en Argentina
+const V = '0.9.0'
+const lectura = (mod = {}, claude = { encontrado: true, version: '2.1.329' }) => ({
+  claude, mod: { instalado: true, activo: true, version: V, error: null, ...mod },
+})
+
+test('horaArgentina: la hora en Argentina (UTC−3), en 24 h', () => {
+  assert.equal(horaArgentina(AHORA_AR), '10:33')
+  assert.equal(horaArgentina(Date.parse('2026-11-23T02:05:00Z')), '23:05')
+})
+
+test('textoMod: al día, con la última revisión de hoy en hora de Argentina', () => {
+  const t = textoMod(lectura(), { revisado: AHORA_AR - 60000, fallo: false }, null, AHORA_AR)
+  assert.equal(t.estado, 'al-dia')
+  assert.equal(t.tono, 'ok')
+  assert.equal(t.pill, `Prendido · ${V}`)
+  assert.equal(t.linea, 'Al día. Se actualiza solo, una vez por día. Revisado hoy 10:32.')
+  assert.equal(t.accion, null)
+})
+
+test('textoMod: "hoy" es el día de Argentina, no el de UTC; ayer dice "ayer"; antes, sin hora', () => {
+  const ahora = Date.parse('2026-11-23T02:00:00Z') // 22/11 23:00 en Argentina
+  assert.match(textoMod(lectura(), { revisado: Date.parse('2026-11-22T12:00:00Z'), fallo: false }, null, ahora).linea, /Revisado hoy 09:00\.$/)
+  assert.match(textoMod(lectura(), { revisado: AHORA_AR - 20 * 3600000, fallo: false }, null, AHORA_AR).linea, /Revisado ayer 14:33\.$/)
+  assert.equal(textoMod(lectura(), { revisado: AHORA_AR - 3 * 86400000, fallo: false }, null, AHORA_AR).linea, 'Al día. Se actualiza solo, una vez por día.')
+  assert.equal(textoMod(lectura(), null, null, AHORA_AR).linea, 'Al día. Se actualiza solo, una vez por día.')
+})
+
+test('textoMod: recién actualizado (el aviso de tomar_aviso_mod de hoy)', () => {
+  const aviso = { tipo: 'actualizo', version: V, desde: '0.8.2', cuando: AHORA_AR - 5 * 60000 }
+  const t = textoMod(lectura(), { revisado: AHORA_AR - 5 * 60000, fallo: false }, aviso, AHORA_AR)
+  assert.equal(t.estado, 'actualizado')
+  assert.equal(t.tono, 'ok')
+  assert.equal(t.pill, `Prendido · ${V}`)
+  assert.equal(t.linea, `Se actualizó solo de 0.8.2 a ${V} hoy a las 10:28.`)
+  // Un aviso de otro día, de otra versión o de una instalación no cuenta como "recién actualizado"
+  assert.equal(textoMod(lectura(), null, { ...aviso, cuando: AHORA_AR - 2 * 86400000 }, AHORA_AR).estado, 'al-dia')
+  assert.equal(textoMod(lectura(), null, { ...aviso, version: '0.8.9' }, AHORA_AR).estado, 'al-dia')
+  assert.equal(textoMod(lectura(), null, { tipo: 'instalo', version: V, cuando: AHORA_AR }, AHORA_AR).estado, 'al-dia')
+})
+
+test('textoMod: apagado, con "Prender"', () => {
+  const t = textoMod(lectura({ activo: false }), null, null, AHORA_AR)
+  assert.equal(t.estado, 'apagado')
+  assert.equal(t.tono, 'aviso')
+  assert.equal(t.pill, `Apagado · ${V}`)
+  assert.equal(t.linea, 'Claude Code no lo carga: sin el mod, Avis no ve tus sesiones.')
+  assert.deepEqual(t.accion, { id: 'activar', texto: 'Prender', ocupado: false })
+  // Mientras se prende, el botón sigue a la vista pero no corre otra vez
+  assert.equal(textoMod(lectura({ activo: false }), null, null, AHORA_AR, { prendiendo: true }).accion.ocupado, true)
+})
+
+test('textoMod: instalando (mod-auto "empieza")', () => {
+  const t = textoMod(lectura({ instalado: false, activo: false, version: null }), null, null, AHORA_AR, { instalando: true })
+  assert.equal(t.estado, 'instalando')
+  assert.equal(t.tono, 'proc')
+  assert.equal(t.pill, 'Instalando…')
+  assert.equal(t.linea, 'Faltaba el mod: Avis lo instala solo, no hace falta que hagas nada.')
+  assert.equal(t.accion, null)
+  // Antes de la primera lectura también se ve
+  assert.equal(textoMod(null, null, null, AHORA_AR, { instalando: true }).estado, 'instalando')
+})
+
+test('textoMod: no pudo revisar hoy (fallo)', () => {
+  const t = textoMod(lectura(), { revisado: AHORA_AR - 60000, fallo: true }, null, AHORA_AR)
+  assert.equal(t.estado, 'fallo')
+  assert.equal(t.tono, 'aviso')
+  assert.equal(t.pill, `Prendido · ${V}`)
+  assert.equal(t.linea, 'Hoy no se pudo revisar si hay versión nueva. Vuelve a probar mañana.')
+})
+
+test('textoMod: sin Claude Code, con "Abrir primeros pasos"', () => {
+  const t = textoMod(lectura({ instalado: false, activo: false, version: null }, { encontrado: false, version: null }), null, null, AHORA_AR)
+  assert.equal(t.estado, 'sin-claude')
+  assert.equal(t.tono, 'error')
+  assert.equal(t.pill, 'Sin Claude Code')
+  assert.equal(t.linea, 'Avis no encontró Claude Code en esta PC.')
+  assert.deepEqual(t.accion, { id: 'pp', texto: 'Abrir primeros pasos', ocupado: false })
+})
+
+test('textoMod: sin el mod y sin instalación en curso, "Sin instalar" (14: fuera de la tabla de 7.3)', () => {
+  const sin = lectura({ instalado: false, activo: false, version: null })
+  const t = textoMod(sin, null, null, AHORA_AR)
+  assert.equal(t.estado, 'sin-instalar')
+  assert.equal(t.tono, 'aviso')
+  assert.equal(t.pill, 'Sin instalar')
+  assert.equal(t.linea, 'Avis lo instala solo en la próxima revisión.')
+  assert.deepEqual(t.accion, { id: 'pp', texto: 'Abrir primeros pasos', ocupado: false })
+  assert.equal(textoMod(sin, { revisado: AHORA_AR, fallo: true }, null, AHORA_AR).linea, 'Hoy no se pudo instalar. Vuelve a probar mañana.')
+})
+
+test('textoMod: sin lectura todavía, "Revisando…" (7.5)', () => {
+  const t = textoMod(null, null, null, AHORA_AR)
+  assert.equal(t.estado, 'revisando')
+  assert.equal(t.tono, 'nada')
+  assert.equal(t.pill, 'Revisando…')
+  assert.equal(t.accion, null)
+})
+
+const PROG = (bajado, total = 2.6 * 1024 ** 3) => ({ bajado: Math.round(bajado), total: Math.round(total) })
+
+test('textoModelo: listo, con "Borrar {cifra}" que pide confirmar en el mismo botón', () => {
+  const t = textoModelo({ modelo: 'listo', trabajo: null, progreso: PROG(2.6 * 1024 ** 3) })
+  assert.equal(t.estado, 'listo')
+  assert.equal(t.tono, 'ok')
+  assert.equal(t.pill, 'Listo')
+  assert.equal(t.linea, 'Se apaga solo a los 10 min sin uso.')
+  assert.deepEqual(t.acciones, [{ id: 'borrar', texto: 'Borrar 2,6 GB', armado: '¿Borrar 2,6 GB? Sí' }])
+})
+
+test('textoModelo: la cifra la da el backend, nunca fija', () => {
+  const t = textoModelo({ modelo: 'falta', trabajo: null, progreso: PROG(0, 3.1 * 1024 ** 3) })
+  assert.deepEqual(t.acciones, [{ id: 'descargar', texto: 'Descargar 3,1 GB' }])
+  const sinTotal = textoModelo({ modelo: 'falta', trabajo: null, progreso: { bajado: 0, total: 0 } })
+  assert.deepEqual(sinTotal.acciones, [{ id: 'descargar', texto: 'Descargar' }])
+})
+
+test('textoModelo: falta, con "Descargar"', () => {
+  const t = textoModelo({ modelo: 'falta', trabajo: null, progreso: PROG(0) })
+  assert.equal(t.estado, 'falta')
+  assert.equal(t.tono, 'nada')
+  assert.equal(t.pill, 'Sin instalar')
+  assert.equal(t.linea, 'Hace falta para charlar sin internet. Se baja una sola vez.')
+  assert.deepEqual(t.acciones, [{ id: 'descargar', texto: 'Descargar 2,6 GB' }])
+  // Una descarga que se cortó (sin nada que la siga) vuelve a ofrecer descargar
+  assert.equal(textoModelo({ modelo: 'bajando', trabajo: null, progreso: PROG(1024 ** 3) }).estado, 'falta')
+})
+
+test('textoModelo: bajando, con el porcentaje, la barra y las cifras', () => {
+  const t = textoModelo({ modelo: 'bajando', trabajo: 'descargando', progreso: PROG(1.1 * 1024 ** 3) })
+  assert.equal(t.estado, 'bajando')
+  assert.equal(t.tono, 'proc')
+  assert.equal(t.pill, 'Bajando 42 %')
+  assert.equal(t.porcentaje, 42)
+  assert.equal(t.linea, '1,1 de 2,6 GB · si se corta, sigue donde quedó')
+  assert.deepEqual(t.acciones, [])
+})
+
+test('textoModelo: roto, con "Bajar de nuevo" y "Borrar"', () => {
+  const t = textoModelo({ modelo: 'roto', trabajo: null, progreso: PROG(0) })
+  assert.equal(t.estado, 'roto')
+  assert.equal(t.tono, 'error')
+  assert.equal(t.pill, 'Roto')
+  assert.equal(t.linea, 'Faltan piezas o no coinciden. Bajalo de nuevo.')
+  assert.deepEqual(t.acciones, [{ id: 'descargar', texto: 'Bajar de nuevo' }, { id: 'borrar', texto: 'Borrar', armado: '¿Borrar? Sí' }])
+})
+
+test('textoModelo: sin saber todavía del modelo, "Revisando…"', () => {
+  const t = textoModelo({ modelo: null, trabajo: null, progreso: { bajado: 0, total: 0 } })
+  assert.equal(t.estado, 'revisando')
+  assert.equal(t.pill, 'Revisando…')
+  assert.deepEqual(t.acciones, [])
+})
+
+test('puntoPestana: las tres reglas de 6.3 y nada en el resto', () => {
+  assert.deepEqual(puntoPestana({ modelo: 'bajando' }, 'modelos'), { tono: 'proc', texto: ', bajando el modelo' })
+  assert.deepEqual(puntoPestana({ modelo: 'listo', claves: { openai: { estado: 'rechazada' } } }, 'modelos'), { tono: 'error', texto: ', una clave rechazada' })
+  for (const mod of ['apagado', 'sin-claude', 'sin-instalar']) {
+    assert.deepEqual(puntoPestana({ mod }, 'instalacion'), { tono: 'aviso', texto: ', el mod necesita atención' }, mod)
+  }
+  for (const mod of ['al-dia', 'actualizado', 'instalando', 'fallo', 'revisando']) assert.equal(puntoPestana({ mod }, 'instalacion'), null, mod)
+  assert.equal(puntoPestana({ modelo: 'listo' }, 'modelos'), null)
+  for (const p of ['mascota', 'panel', 'datos']) assert.equal(puntoPestana({ modelo: 'bajando', mod: 'apagado' }, p), null, p)
+})
+
+test('confirmar en el mismo botón: arma, a los 3 s se desarma solo y el segundo clic antes ejecuta una vez', () => {
+  const c0 = configInicial()
+  const uno = clicBorrar(c0, 'local', 1000)
+  assert.equal(uno.ejecutar, false)
+  assert.deepEqual(uno.config.armado, { id: 'local', hasta: 1000 + MS_CONFIRMAR })
+  assert.equal(armadoVigente(uno.config, 'local', 2000), true)
+  const dos = clicBorrar(uno.config, 'local', 3999)
+  assert.equal(dos.ejecutar, true)
+  assert.equal(dos.config.armado, null)
+  // Un tercer clic vuelve a armar: no ejecuta dos veces
+  assert.equal(clicBorrar(dos.config, 'local', 4000).ejecutar, false)
+  // Pasados los 3 s, el clic vuelve a armar en lugar de borrar
+  assert.equal(clicBorrar(uno.config, 'local', 4000).ejecutar, false)
+  assert.equal(armadoVigente(uno.config, 'local', 4000), false)
+  assert.equal(desarmarVencido(uno.config, 3999), uno.config)
+  assert.equal(desarmarVencido(uno.config, 4000).armado, null)
+  // Otro botón armado no confirma este
+  assert.equal(clicBorrar({ ...c0, armado: { id: 'otro', hasta: 9999 } }, 'local', 1000).ejecutar, false)
+  // Esc lo desarma (alEsc, la capa del medio)
+  assert.equal(alEsc({ ...uno.config, abierta: true }).accion, 'desarmar')
+  assert.equal(MS_CONFIRMAR, 3000)
+})
+
+test('filasEnEstaPC: Claude Code con su versión y GitHub conectado; sin leer, "Revisando…"', () => {
+  const r = { claude: { encontrado: true, version: '2.1.329' }, gh: { instalado: true }, cuenta: { estado: 'conectada' } }
+  const f = filasEnEstaPC(lectura(), r)
+  assert.deepEqual(f.claude, { descripcion: 'Versión 2.1.329', tono: 'ok', pill: 'Encontrado' })
+  assert.deepEqual(f.github, { tono: 'ok', pill: 'Conectado' })
+  const sin = filasEnEstaPC(null, null)
+  assert.equal(sin.claude.pill, 'Revisando…')
+  assert.equal(sin.github.pill, 'Revisando…')
+  // Sin la lectura del mod, Claude Code sale de la revisión de primeros pasos
+  assert.equal(filasEnEstaPC(null, r).claude.descripcion, 'Versión 2.1.329')
+  const nada = filasEnEstaPC(lectura({}, { encontrado: false, version: null }), { gh: { instalado: false }, cuenta: { estado: 'sin-gh' } })
+  assert.deepEqual(nada.claude, { descripcion: 'Avis no encontró Claude Code en esta PC.', tono: 'error', pill: 'Sin instalar' })
+  assert.deepEqual(nada.github, { tono: 'aviso', pill: 'Sin instalar' })
+  assert.deepEqual(filasEnEstaPC(null, { gh: { instalado: true }, cuenta: { estado: 'sin-sesion' } }).github, { tono: 'aviso', pill: 'Sin conectar' })
+})
+
+const DATOS3 = {
+  ...PANEL,
+  modelo: textoModelo({ modelo: 'listo', trabajo: null, progreso: PROG(2.6 * 1024 ** 3) }),
+  mod: textoMod(lectura(), { revisado: AHORA_AR - 60000, fallo: false }, null, AHORA_AR),
+  enEstaPC: filasEnEstaPC(lectura(), { gh: { instalado: true }, cuenta: { estado: 'conectada' } }),
+  version: '0.10.0', armado: null,
+}
+
+test('Modelos: la tarjeta del modelo local con su píldora, su línea y sus acciones', () => {
+  const html = seccionConfiguracion('modelos', DATOS3)
+  assert.match(html, /<h3 class="sub">Modelo local<\/h3>/)
+  assert.match(html, /<b>Qwen3-4B<\/b>/)
+  assert.match(html, /en esta PC, sin internet/)
+  assert.match(html, /class="pill t-ok"/)
+  assert.match(html, /Se apaga solo a los 10 min sin uso\./)
+  assert.match(html, /data-accion="cfg-local" data-valor="borrar"[^>]*>Borrar 2,6 GB</)
+  // "Quién responde" y el historial no se muestran hasta que llegue el chat (D6)
+  assert.doesNotMatch(html, /Quién responde/)
+})
+
+test('Modelos: armado, el botón dice "¿Borrar 2,6 GB? Sí" con la línea que se vacía en 3 s', () => {
+  const html = seccionConfiguracion('modelos', { ...DATOS3, armado: 'local', transcurrido: 1200 })
+  assert.match(html, /class="armado"[^>]*data-accion="cfg-local" data-valor="borrar"[^>]*>¿Borrar 2,6 GB\? Sí</)
+  assert.match(html, /--ya:-1200ms/)
+  // El mismo data-k en los dos estados: el foco sigue en el botón
+  assert.match(seccionConfiguracion('modelos', DATOS3), /data-k="local-borrar"/)
+  assert.match(html, /data-k="local-borrar"/)
+})
+
+test('Modelos: bajando, la barra es un progressbar con su valor y no hay acciones', () => {
+  const html = seccionConfiguracion('modelos', { ...DATOS3, modelo: textoModelo({ modelo: 'bajando', trabajo: 'descargando', progreso: PROG(1.1 * 1024 ** 3) }) })
+  assert.match(html, /role="progressbar"[^>]*aria-valuenow="42"/)
+  assert.match(html, /aria-label="Descarga del modelo local"/)
+  assert.match(html, /1,1 de 2,6 GB · si se corta, sigue donde quedó/)
+  assert.match(html, /class="pill t-proc"/)
+  assert.doesNotMatch(html, /data-accion="cfg-local"/)
+})
+
+test('Modelos: falta, "Descargar" es el botón primario; un error al borrar queda debajo de la tarjeta', () => {
+  const html = seccionConfiguracion('modelos', { ...DATOS3, modelo: textoModelo({ modelo: 'falta', trabajo: null, progreso: PROG(0) }), error: 'modelo' })
+  assert.match(html, /class="btn" data-accion="cfg-local" data-valor="descargar" data-k="local-descargar">Descargar 2,6 GB</)
+  assert.match(html, /No se pudo borrar\. Probá de nuevo\./)
+})
+
+test('Instalación: la tarjeta del mod, "En esta PC", Primeros pasos y la versión de Avis', () => {
+  const html = seccionConfiguracion('instalacion', DATOS3)
+  const orden = ['>Mod<', 'Mod de Claude Code', `Prendido · ${V}`, 'Al día.', '>En esta PC<', 'Claude Code', 'Versión 2.1.329', 'Encontrado', 'GitHub', 'Para ver al equipo.', 'Conectado', 'Primeros pasos', 'Revisa y arregla la instalación, paso por paso.', 'Abrir →', 'Avis 0.10.0 · widget']
+  let desde = 0
+  for (const t of orden) {
+    const i = html.indexOf(t, desde)
+    assert.ok(i >= 0, `falta o fuera de orden: ${t}`)
+    desde = i
+  }
+  assert.match(html, /data-accion="cfg-pp"/)
+})
+
+test('Instalación: apagado, "Prender" corre el paso activar; sin Claude Code, "Abrir primeros pasos"', () => {
+  const apagado = seccionConfiguracion('instalacion', { ...DATOS3, mod: textoMod(lectura({ activo: false }), null, null, AHORA_AR) })
+  assert.match(apagado, /class="btn" data-accion="cfg-mod" data-valor="activar" data-k="mod-activar">Prender</)
+  const prendiendo = seccionConfiguracion('instalacion', { ...DATOS3, mod: textoMod(lectura({ activo: false }), null, null, AHORA_AR, { prendiendo: true }) })
+  assert.match(prendiendo, /data-valor="activar"[^>]*aria-disabled="true"/)
+  const sinClaude = seccionConfiguracion('instalacion', { ...DATOS3, mod: textoMod(lectura({}, { encontrado: false, version: null }), null, null, AHORA_AR) })
+  assert.match(sinClaude, /data-accion="cfg-mod" data-valor="pp"[^>]*>Abrir primeros pasos</)
+})
+
+test('Instalación: las versiones se escapan', () => {
+  const html = seccionConfiguracion('instalacion', { ...DATOS3, version: '<b>1</b>', mod: textoMod(lectura({ version: '<i>x</i>' }), null, null, AHORA_AR) })
+  assert.doesNotMatch(html, /<b>1<\/b>|<i>x<\/i>/)
+})
+
+test('Datos sigue mostrando solo su rótulo hasta su entrega', () => {
+  assert.equal(seccionConfiguracion('datos', DATOS3), '<h3 class="sub">Datos</h3>')
+})
+
+test('pestanasConfiguracion: el punto de estado con su texto oculto; sin estado, sin punto', () => {
+  const html = pestanasConfiguracion('mascota', { instalacion: { tono: 'aviso', texto: ', el mod necesita atención' } })
+  assert.match(html, /id="cfg-t-instalacion"[^>]*>Instalación<i class="pt t-aviso" aria-hidden="true"><\/i><span class="oculto">, el mod necesita atención<\/span><\/button>/)
+  assert.match(html, /id="cfg-t-modelos"[^>]*>Modelos<\/button>/)
+  assert.equal(nombrePestana('modelos', null), 'Modelos')
 })

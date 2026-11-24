@@ -54,8 +54,11 @@ import * as movimientoDividida from './divididaMotion.js'
 import {
   configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion, pestanaSiguiente, validarAjuste,
   valorInterruptor, INTERRUPTORES, ubicacionDe, bordeDeUbicacion, IDS_PESTANAS, elegirForma, anuncioEspecie, anuncioForma,
+  textoMod, textoModelo, puntoPestana, filasEnEstaPC, clicBorrar, armadoVigente, desarmarVencido, MS_CONFIRMAR,
 } from './configuracion.js'
-import { esqueletoConfiguracion, avisoPreguntaConfiguracion, seccionConfiguracion, partesMascota, miniConfiguracion } from './configuracionVista.js'
+import {
+  esqueletoConfiguracion, avisoPreguntaConfiguracion, seccionConfiguracion, partesMascota, miniConfiguracion, nombrePestana,
+} from './configuracionVista.js'
 import * as movimientoConfig from './configuracionMotion.js'
 
 const INTERVALO_MS = 1500
@@ -104,6 +107,15 @@ const st = {
   config: configInicial(),
   /** Partes de la hoja ya dibujadas, para no redibujar lo que no cambió. */
   cfgFirmas: {},
+  /**
+   * La lectura del mod para la pestaña Instalación (`estado_mod`, configuracion-ux.md 9.2):
+   * `{ claude, mod, revisado, fallo }`, o null hasta leerla (al abrir la configuración y cuando cambia el mod).
+   */
+  cfgMod: null,
+  /** El último aviso del mod automático (`tomar_aviso_mod`) con la hora en que llegó: "Se actualizó solo…" (7.3). */
+  ultimoAvisoMod: null,
+  /** La versión de Avis (`leer_configuracion`), al pie de la pestaña Instalación. */
+  version: null,
   mini: false,
   /** La ventana está escondida en la bandeja o minimizada: los Avis se pausan (6.5). */
   fuera: false,
@@ -2709,7 +2721,6 @@ function revisarPasos({ aLaVista = true } = {}) {
     }
     st.pp.revisando = false
     st.pp.leyendo = false
-    invocar('menu_primeros_pasos', { faltan: modeloPasos().faltan }).catch(() => {})
     pintar()
   })()
   return st.pp.promesa
@@ -2740,6 +2751,8 @@ function alEventoPaso(payload) {
     revisarPasos({ aLaVista: false }).then(() => {
       if (payload.estado === 'listo' && (payload.accion === 'conectar' || payload.accion === 'permiso')) leerEquipo()
     })
+    // El mod cambió (prendido o instalado): la pestaña Instalación lo vuelve a leer
+    if (st.config.abierta && (payload.accion === 'mod' || payload.accion === 'activar')) leerEstadoMod()
   }
   pintar()
 }
@@ -2761,6 +2774,9 @@ async function tomarAvisoMod() {
     const texto = textoAvisoMod(aviso)
     if (!texto) return
     st.pp.avisoMod = aviso
+    // La tarjeta del mod de la configuración dice "Se actualizó solo…" el mismo día (7.3)
+    st.ultimoAvisoMod = { ...aviso, cuando: Date.now() }
+    if (st.config.abierta) leerEstadoMod()
     anunciar(texto)
     // La versión nueva ya está: el asistente la lee sin pasar los pasos a "Revisando"
     revisarPasos({ aLaVista: false })
@@ -2859,12 +2875,34 @@ function retenerPanel(modelo, forma) {
 // que no se pudo guardar vuelve a su valor y lo dice debajo de su fila; lo que no existe todavía no
 // se muestra. La hoja vive en #cfg, en la columna principal, como la de primeros pasos.
 
-/** Lo que muestran las pestañas Mascota y Panel. */
-function datosConfiguracion() {
+/**
+ * Lo que muestran las pestañas. `resumen`: el estado del modelo local (por defecto el de st.resumen;
+ * la firma de la sección lo pasa sin el progreso de la descarga, que se cambia en su lugar).
+ */
+function datosConfiguracion(resumen = st.resumen, ahora = Date.now()) {
+  const ejecMod = st.pp.ejec.mod
+  const corriendo = ejecMod?.fase === 'corriendo' || ejecMod?.fase === 'verificando'
+  // La lectura del mod: la de estado_mod; sin ella todavía, la de primeros pasos (sin la hora de revisión)
+  const lectura = st.cfgMod ?? (st.pp.revision?.claude ? st.pp.revision : null)
+  const armado = st.config.armado
   return {
     tamano: st.tamano, ubicacion: ubicacionDe(st.acople), arriba: st.arriba, avisar: st.avisar, pausa: st.pausa,
     arranque: st.arranque, error: st.config.error, mascota: st.mascota, forma: st.config.forma,
+    modelo: textoModelo(resumen),
+    mod: textoMod(lectura, st.cfgMod, st.ultimoAvisoMod, ahora, { instalando: corriendo && ejecMod.accion === 'mod', prendiendo: corriendo && ejecMod.accion === 'activar' }),
+    enEstaPC: filasEnEstaPC(st.cfgMod, st.pp.revision),
+    version: st.version,
+    armado: armado && armadoVigente(st.config, armado.id, ahora) ? armado.id : null,
+    transcurrido: armado ? Math.max(0, MS_CONFIRMAR - (armado.hasta - ahora)) : 0,
   }
+}
+
+/** Las mismas pestañas sin el progreso de la descarga: lo que decide si la sección se redibuja. */
+function firmaConfiguracion(tab, ahora) {
+  const r = st.resumen
+  const datos = datosConfiguracion(r.trabajo === 'descargando' ? { ...r, progreso: { bajado: 0, total: r.progreso.total } } : r, ahora)
+  // El "¿Borrar? Sí" lleva cuánto lleva armado (para retomar la línea): no cuenta para la firma
+  return seccionConfiguracion(tab, { ...datos, transcurrido: 0 })
 }
 
 /** El encabezado y la barra con la configuración abierta: ningún proyecto elegido, la hoja abajo. */
@@ -2905,17 +2943,31 @@ function pintarConfiguracion() {
   const pendientes = st.proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
   const aviso = avisoPreguntaConfiguracion(pendientes)
   if (st.cfgFirmas.aviso !== aviso) { $('#cfg-aviso').innerHTML = aviso; st.cfgFirmas.aviso = aviso }
-  // Las pestañas no se redibujan: cambia cuál está elegida, así el indicador viaja desde donde estaba
+  const ahora = Date.now()
+  const datos = datosConfiguracion(st.resumen, ahora)
+  // Las pestañas no se redibujan: cambia cuál está elegida, así el indicador viaja desde donde estaba.
+  // El punto de estado (6.3) se reescribe solo si cambió; la pestaña elegida que cambia de ancho
+  // vuelve a poner el indicador, sin viaje
+  const puntos = { modelo: datos.modelo.estado, mod: datos.mod.estado }
+  let anchoCambio = false
   for (const b of document.querySelectorAll('#cfg [role="tab"]')) {
     const sel = b.dataset.valor === st.config.tab
     b.setAttribute('aria-selected', String(sel))
     b.tabIndex = sel ? 0 : -1
+    const nombre = nombrePestana(b.dataset.valor, puntoPestana(puntos, b.dataset.valor))
+    if (st.cfgFirmas[`tab-${b.dataset.valor}`] !== nombre) {
+      b.innerHTML = nombre
+      st.cfgFirmas[`tab-${b.dataset.valor}`] = nombre
+      anchoCambio = true
+    }
   }
   const lista = $('#cfg .pestanas')
-  if (!$('#cfg .ind').style.width) movimientoConfig.colocarIndicador(lista, false)
-  const datos = datosConfiguracion()
+  if (!$('#cfg .ind').style.width || anchoCambio) movimientoConfig.colocarIndicador(lista, false)
   const html = seccionConfiguracion(st.config.tab, datos)
-  if (st.cfgFirmas.seccion !== html) {
+  const firma = firmaConfiguracion(st.config.tab, ahora)
+  // Lo único que cambia sin redibujar: el progreso de la descarga del modelo local (7.2)
+  if (st.cfgFirmas.seccion === firma && st.config.tab === 'modelos') ponerProgresoConfig(datos.modelo)
+  else if (st.cfgFirmas.seccion !== firma) {
     const cont = $('#cfg-cont')
     const k = cont.contains(document.activeElement) ? document.activeElement.closest('[data-k]')?.dataset.k : null
     // Mascota ya dibujada: cambia solo la parte que cambió (la figura sigue si cambia la forma, y la
@@ -2934,8 +2986,19 @@ function pintarConfiguracion() {
     }
     $('#cfg-p').setAttribute('aria-labelledby', `cfg-t-${st.config.tab}`)
     if (k && cont.contains(document.activeElement) === false) cont.querySelector(`[data-k="${CSS.escape(k)}"]`)?.focus({ preventScroll: true })
-    st.cfgFirmas.seccion = html
+    st.cfgFirmas.seccion = firma
   }
+}
+
+/** El progreso de la descarga en la tarjeta del modelo local, en su lugar (la barra sigue su transición). */
+function ponerProgresoConfig(m) {
+  if (m.estado !== 'bajando') return
+  const barra = $('#cfg [data-cfg-barra]')
+  if (barra) {
+    barra.style.setProperty('--p', String(m.fraccion))
+    barra.setAttribute('aria-valuenow', String(m.porcentaje))
+  }
+  for (const [sel, valor] of [['#cfg [data-cfg-cifras]', m.linea], ['#cfg [data-cfg-pill] > span', m.pill]]) if ($(sel)) texto(sel, valor)
 }
 
 /**
@@ -2952,6 +3015,8 @@ async function abrirConfig({ tab, foco = true } = {}) {
   if (st.dividida.clave) await cerrarConversacion({ descartar: true })
   if (st.mini) await ponerMini(false)
   st.config = { ...abrirConfiguracion(st.config, tab), error: null }
+  // El mod se lee al abrir (solo lectura): el punto de Instalación se ve desde cualquier pestaña
+  leerEstadoMod()
   pintar()
   movimientoConfig.abrirHoja($('#marco .cab'), $('#cfg-tabs'), $('#cfg-cont'))
   if (st.acople) {
@@ -3113,6 +3178,59 @@ async function ubicarConfig(ubicacion) {
   }
 }
 
+/**
+ * Lee el mod para la pestaña Instalación (`estado_mod`: solo comandos de lectura). Al abrir la
+ * configuración y cuando el mod cambia con ella abierta; nunca en el ciclo de 1,5 s.
+ */
+async function leerEstadoMod() {
+  if (!tauri?.core) return
+  try {
+    const e = await invocar('estado_mod')
+    if (e && typeof e === 'object') st.cfgMod = e
+  } catch (err) {
+    registrar(`configuración: estado del mod: ${err}`)
+  }
+  if (st.config.abierta) pintarConfiguracion()
+}
+
+let relojArmado = null
+/** El "¿Borrar? Sí" vuelve solo a los 3 s (D5). */
+function vigilarArmado() {
+  clearTimeout(relojArmado)
+  const a = st.config.armado
+  if (!a) return
+  relojArmado = setTimeout(() => {
+    const c = desarmarVencido(st.config, Date.now())
+    if (c === st.config) return vigilarArmado()
+    st.config = c
+    pintarConfiguracion()
+  }, Math.max(0, a.hasta - Date.now()) + 20)
+}
+
+/**
+ * "Borrar" del modelo local (7.2): el primer clic arma "¿Borrar …? Sí" 3 s; el segundo borra una vez
+ * (`borrar_modelo`, sin cuadro nativo). Rust avisa el estado nuevo y la tarjeta vuelve a "Sin
+ * instalar"; el foco va a "Descargar". Si no se pudo, lo dice debajo de la tarjeta.
+ */
+async function clicBorrarModelo() {
+  const { config, ejecutar } = clicBorrar(st.config, 'local', Date.now())
+  st.config = { ...config, error: null }
+  vigilarArmado()
+  pintarConfiguracion()
+  if (!ejecutar) return
+  try {
+    await invocar('borrar_modelo')
+    decirConfig('Modelo local borrado')
+    await leerEstadoResumen()
+    if (st.config.abierta) $('#cfg [data-k="local-descargar"]')?.focus({ preventScroll: true })
+  } catch (err) {
+    registrar(`configuración: no se pudo borrar el modelo: ${err}`)
+    st.config = { ...st.config, error: 'modelo' }
+    await leerEstadoResumen()
+    pintarConfiguracion()
+  }
+}
+
 /** Los botones de la hoja (`data-accion="cfg-…"`). Cada uno hace solo lo suyo, y solo con el clic. */
 async function accionConfiguracion(a, b) {
   switch (a) {
@@ -3138,6 +3256,20 @@ async function accionConfiguracion(a, b) {
     case 'cfg-ubic': await ubicarConfig(b.dataset.valor); break
     case 'cfg-esp': await elegirEspecieConfig(b.dataset.valor); break
     case 'cfg-forma': cambiarFormaConfig(b.dataset.valor); break
+    case 'cfg-local':
+      // El modelo local (7.2): bajarlo sin abrir el globo ni pedir un resumen, o borrarlo con el segundo clic
+      if (b.dataset.valor === 'descargar') {
+        st.config = { ...st.config, error: null }
+        despacharResumen({ tipo: 'descargar', desde: 'config' })
+      } else if (b.dataset.valor === 'borrar') await clicBorrarModelo()
+      break
+    case 'cfg-mod':
+      // "Prender" corre el paso activar de primeros pasos (el mismo botón del asistente); sin Claude
+      // Code o sin el mod, "Abrir primeros pasos"
+      if (b.dataset.valor === 'activar') await correrPaso('activar')
+      else if (b.dataset.valor === 'pp') abrirAsistente({ foco: true })
+      break
+    case 'cfg-pp': abrirAsistente({ foco: true }); break
     case 'cfg-ver': {
       // La pregunta pendiente (4.1): cierra la configuración y la muestra, en su proyecto
       const k = st.proyectos.findIndex(p => preguntasPendientes(p).length)
@@ -3258,6 +3390,8 @@ function despacharResumen(evento) {
   }
   for (const l of llamadas) llamarResumen(l)
   vigilarPensando()
+  // La tarjeta del modelo local de la configuración sigue la misma descarga (configuracion-ux.md 7.2)
+  if (st.config.abierta) pintarConfiguracion()
   const r = st.resumen
   if (r.estado !== antes.estado) anunciarResumen(anuncioResumen(r.estado, { texto: r.texto, primeraVez: r.primeraVez }))
   else if (r.estado === 'cerrado' && r.sinVer && r.resultado === 'listo' && !(antes.sinVer && antes.resultado === 'listo')) {
@@ -3434,6 +3568,7 @@ async function iniciar() {
       st.avisar = valorInterruptor(m.avisar, INTERRUPTORES.avisar)
       ponerPausa(valorInterruptor(m.pausa, INTERRUPTORES.pausa))
       st.arranque = m.arranque === true
+      st.version = typeof m.version === 'string' ? m.version : null
       // Dónde quedó el tablero flotante la última vez (fracciones del área, 9.7)
       if (m.flotante && typeof m.flotante === 'object') st.fraccion = { x: Number(m.flotante.x), y: Number(m.flotante.y) }
       // Acoplada al cerrar la última vez: vuelve como muesca. Rust ya puso la ventana en el área del
@@ -3478,8 +3613,8 @@ async function iniciar() {
       st.zonaN = n
       ponerDentro(!!ev.payload.dentro)
     })
-    // Primeros pasos: el ítem de la bandeja abre el asistente (3.5) y cada paso que corre avisa (9.5)
-    escuchar('oficina://primeros-pasos-abrir', () => abrirAsistente({ foco: true }))
+    // Primeros pasos: cada paso que corre avisa (9.5). Se abre desde la pestaña Instalación de la
+    // configuración (la bandeja ya no lo tiene, configuracion-ux.md 4.5) o desde el aviso del tablero
     escuchar('oficina://primeros-pasos', ev => alEventoPaso(ev.payload))
     // El mod automático (#17): la instalación sola que empieza y el aviso de una vez
     escuchar('oficina://mod-auto', ev => alEventoModAuto(ev.payload))

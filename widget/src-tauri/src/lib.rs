@@ -309,17 +309,13 @@ fn despertar(estado: &Estado) {
 
 struct MenuBandeja {
     pausa: CheckMenuItem<Wry>,
-    /// "Primeros pasos (falta n)…" (bienvenida-ux.md 3.5): el texto sigue a la última revisión.
-    primeros_pasos: MenuItem<Wry>,
 }
 
 /// Orden del menú de la bandeja (configuracion-ux.md 4.5): "Configuración…" debajo de "Mostrar
-/// Avis"; tamaño, acople, siempre arriba, avisar y arrancar con Windows viven en la configuración.
-/// "Primeros pasos" (3.5) y "Borrar el modelo de IA…" (#11) se quedan hasta que la configuración
-/// tenga sus pestañas Instalación y Modelos (entrega 3): sin ellos no habría cómo llegar ahí.
-const ORDEN_BANDEJA: [&str; 7] = ["mostrar", "configuracion", "primeros-pasos", "pausa", "borrar-modelo", "separador", "salir"];
-/// Texto del ítem que borra el modelo y el motor del resumen con IA (con confirmación nativa).
-const TEXTO_BORRAR_MODELO: &str = "Borrar el modelo de IA…";
+/// Avis", "Pausar animaciones" (se necesita rápido y sin abrir el panel) y "Salir". Lo demás vive en
+/// la configuración: tamaño, acople, siempre arriba, avisar y arrancar con Windows (Panel), borrar el
+/// modelo de IA (Modelos) y primeros pasos (Instalación).
+const ORDEN_BANDEJA: [&str; 5] = ["mostrar", "configuracion", "pausa", "separador", "salir"];
 /// Evento a la ventana: abrir la configuración (`{ abrir: true, tab? }`, configuracion-ux.md 9.3).
 const EVENTO_CONFIGURACION: &str = "oficina://configuracion";
 
@@ -336,19 +332,6 @@ fn mostrar(app: &AppHandle) {
     despertar(&app.state::<Estado>());
     // Acoplada, "Mostrar Avis" abre el panel (7.3); flotando, la ventana lo ignora
     let _ = app.emit("oficina://abrir", ());
-}
-
-/// "Primeros pasos…" de la bandeja (bienvenida-ux.md 3.5): muestra la ventana como "Mostrar
-/// oficina" y la ventana abre el asistente (acoplada, también el panel) con el foco en su
-/// encabezado. Abrirlo solo revisa: no corre ningún paso.
-fn abrir_primeros_pasos(app: &AppHandle) {
-    if let Some(v) = ventana(app) {
-        let _ = v.unminimize();
-        let _ = v.show();
-        let _ = v.set_focus();
-    }
-    despertar(&app.state::<Estado>());
-    let _ = app.emit("oficina://primeros-pasos-abrir", ());
 }
 
 /// "Configuración…" de la bandeja (configuracion-ux.md 4.1): muestra el panel como "Mostrar Avis" y
@@ -523,79 +506,6 @@ fn apagar_paso() {
     }
 }
 
-/// "Borrar el modelo de IA…" de la bandeja (#11): pregunta con un cuadro de Windows (en otro hilo,
-/// así la bandeja y la ventana siguen andando) y solo con "Sí" apaga el motor, corta la descarga y
-/// borra `%LOCALAPPDATA%avis-ia`. Sin nada instalado, solo lo dice.
-fn borrar_modelo(app: &AppHandle) {
-    let app = app.clone();
-    let _ = std::thread::Builder::new().name(String::from("avis-ia-borrar")).spawn(move || {
-        let bytes = modelo::IA.peso();
-        if bytes == 0 {
-            dialogo::avisar("No hay ningún modelo de IA en esta PC.", false);
-            return;
-        }
-        if !modelo::debe_borrar(dialogo::preguntar(&modelo::texto_confirmar_borrado(bytes))) {
-            return;
-        }
-        match modelo::IA.borrar() {
-            Ok(_) => {
-                registrar(String::from("resumen: modelo de IA borrado desde la bandeja"));
-                // El globo abierto vuelve a "apagado" sin esperar a reabrirse
-                if let Ok(estado) = modelo::IA.estado() {
-                    let _ = app.emit(modelo::EVENTO, modelo::evento_estado(estado));
-                }
-            }
-            Err(e) => {
-                registrar(format!("resumen: no se pudo borrar el modelo: {e}"));
-                dialogo::avisar(&format!("No se pudo borrar el modelo de IA.
-
-{e}"), true);
-            }
-        }
-    });
-}
-
-/// Cuadros nativos de Windows (MessageBoxW), sin dependencias: arriba de todo y con "No" por defecto.
-#[cfg(windows)]
-mod dialogo {
-    #[link(name = "user32")]
-    extern "system" {
-        fn MessageBoxW(hwnd: isize, texto: *const u16, titulo: *const u16, tipo: u32) -> i32;
-    }
-    const MB_OK: u32 = 0x0;
-    const MB_YESNO: u32 = 0x4;
-    const MB_ICONERROR: u32 = 0x10;
-    const MB_ICONWARNING: u32 = 0x30;
-    const MB_ICONINFORMATION: u32 = 0x40;
-    const MB_DEFBUTTON2: u32 = 0x100;
-    const MB_SETFOREGROUND: u32 = 0x1_0000;
-    const MB_TOPMOST: u32 = 0x4_0000;
-
-    fn cuadro(texto: &str, tipo: u32) -> i32 {
-        let ancho = |s: &str| s.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
-        let (t, titulo) = (ancho(texto), ancho("Avis"));
-        // SAFETY: cadenas terminadas en cero que viven durante la llamada; sin ventana dueña
-        unsafe { MessageBoxW(0, t.as_ptr(), titulo.as_ptr(), tipo | MB_SETFOREGROUND | MB_TOPMOST) }
-    }
-
-    /// Sí o No, con "No" por defecto: un Enter de más no borra nada.
-    pub fn preguntar(texto: &str) -> i32 {
-        cuadro(texto, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2)
-    }
-
-    pub fn avisar(texto: &str, error: bool) {
-        cuadro(texto, MB_OK | if error { MB_ICONERROR } else { MB_ICONINFORMATION });
-    }
-}
-
-#[cfg(not(windows))]
-mod dialogo {
-    pub fn preguntar(_texto: &str) -> i32 {
-        0
-    }
-    pub fn avisar(_texto: &str, _error: bool) {}
-}
-
 fn salir(app: &AppHandle) {
     apagar_paso();
     modelo::IA.apagar();
@@ -649,13 +559,15 @@ async fn revisar_primeros_pasos() -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(primeros_pasos::revisar).await.map_err(|e| e.to_string())
 }
 
-/// Pone el texto del ítem "Primeros pasos" de la bandeja según los pasos que faltan (3.5).
+/// La tarjeta "Mod de Claude Code" de la configuración (configuracion-ux.md 9.2 y 7.3):
+/// `{ claude, mod, revisado, fallo }`. Solo comandos de lectura (`revisar_claude`) y la última
+/// revisión guardada; se llama al abrir la configuración y cuando cambia el mod, nunca en el ciclo.
 #[tauri::command]
-fn menu_primeros_pasos(estado: State<'_, Estado>, faltan: Option<u32>) -> Result<(), String> {
-    if let Some(m) = estado.menu.lock().unwrap().as_ref() {
-        m.primeros_pasos.set_text(primeros_pasos::texto_menu(faltan)).map_err(|e| e.to_string())?;
-    }
-    Ok(())
+async fn estado_mod(app: AppHandle) -> Result<serde_json::Value, String> {
+    let guardada = ruta_preferencias(&app).as_deref().and_then(preferencias::leer_revision_mod);
+    tauri::async_runtime::spawn_blocking(move || mod_auto::estado_para_ventana(&primeros_pasos::revisar_claude(&primeros_pasos::lugares()), guardada))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Corre un paso de primeros pasos porque el usuario tocó su botón (bienvenida-ux.md 9.5). Un paso
@@ -733,6 +645,23 @@ fn descargar_modelo(app: AppHandle) -> Result<(), String> {
     modelo::IA.descargar(move |v| {
         let _ = app.emit(modelo::EVENTO, v);
     })
+}
+
+/// "Borrar" del modelo local en la configuración (configuracion-ux.md 7.2), solo con el segundo clic
+/// de "¿Borrar …? Sí" (la confirmación es de la ventana, D5: sin cuadro nativo). Corta la descarga,
+/// apaga el motor y borra `%LOCALAPPDATA%\avis-ia` entero; avisa el estado nuevo (`oficina://resumen`)
+/// para que el globo y la tarjeta vuelvan a "falta". Devuelve los bytes liberados.
+#[tauri::command]
+async fn borrar_modelo(app: AppHandle) -> Result<u64, String> {
+    let bytes = tauri::async_runtime::spawn_blocking(|| modelo::IA.borrar()).await.map_err(|e| e.to_string())?;
+    match &bytes {
+        Ok(b) => registrar(format!("resumen: modelo de IA borrado desde la configuración ({b} bytes)")),
+        Err(e) => registrar(format!("resumen: no se pudo borrar el modelo: {e}")),
+    }
+    if let Ok(estado) = modelo::IA.estado() {
+        let _ = app.emit(modelo::EVENTO, modelo::evento_estado(estado));
+    }
+    bytes
 }
 
 /// Solo con el clic en "Cancelar" (o a los 60 s de pensando): corta la descarga (queda para seguir),
@@ -1062,17 +991,13 @@ fn crear_bandeja(app: &AppHandle, pausa_guardada: bool) -> tauri::Result<()> {
     let pausa = CheckMenuItem::with_id(app, "pausa", "Pausar animaciones", true, pausa_guardada, None::<&str>)?;
     let salir_item = MenuItem::with_id(app, "salir", "Salir", true, None::<&str>)?;
     let separador = PredefinedMenuItem::separator(app)?;
-    let primeros_pasos_item = MenuItem::with_id(app, "primeros-pasos", primeros_pasos::texto_menu(None), true, None::<&str>)?;
-    let borrar_modelo_item = MenuItem::with_id(app, "borrar-modelo", TEXTO_BORRAR_MODELO, true, None::<&str>)?;
     let items: Vec<&dyn IsMenuItem<Wry>> = ORDEN_BANDEJA
         .iter()
         .map(|id| -> &dyn IsMenuItem<Wry> {
             match *id {
                 "mostrar" => &mostrar_item,
                 "configuracion" => &configuracion_item,
-                "primeros-pasos" => &primeros_pasos_item,
                 "pausa" => &pausa,
-                "borrar-modelo" => &borrar_modelo_item,
                 "separador" => &separador,
                 _ => &salir_item,
             }
@@ -1087,8 +1012,6 @@ fn crear_bandeja(app: &AppHandle, pausa_guardada: bool) -> tauri::Result<()> {
         .on_menu_event(|app, evento| match evento.id().as_ref() {
             "mostrar" => mostrar(app),
             "configuracion" => abrir_configuracion(app),
-            "primeros-pasos" => abrir_primeros_pasos(app),
-            "borrar-modelo" => borrar_modelo(app),
             "pausa" => {
                 let valor = app.state::<Estado>().menu.lock().unwrap().as_ref().and_then(|m| m.pausa.is_checked().ok()).unwrap_or(false);
                 // Se guarda como desde la configuración: sobrevive al reinicio
@@ -1114,7 +1037,7 @@ fn crear_bandeja(app: &AppHandle, pausa_guardada: bool) -> tauri::Result<()> {
         bandeja = bandeja.icon(icono.clone());
     }
     bandeja.build(app)?;
-    *app.state::<Estado>().menu.lock().unwrap() = Some(MenuBandeja { pausa, primeros_pasos: primeros_pasos_item });
+    *app.state::<Estado>().menu.lock().unwrap() = Some(MenuBandeja { pausa });
     Ok(())
 }
 
@@ -1125,17 +1048,12 @@ mod tests {
     const PRINCIPAL: Rect = (0, 0, 1920, 1080);
 
     #[test]
-    fn la_bandeja_lleva_configuracion_debajo_de_mostrar_y_conserva_pausa_primeros_pasos_y_borrar_la_ia() {
-        // configuracion-ux.md 4.5: tamaño, acople, siempre arriba, avisar y arrancar con Windows se
-        // mudan a la configuración. "Primeros pasos" y "Borrar el modelo de IA…" se quedan hasta la
-        // entrega 3 (sus pestañas); "Pausar animaciones" se queda siempre; "Salir" al final
-        assert_eq!(ORDEN_BANDEJA, ["mostrar", "configuracion", "primeros-pasos", "pausa", "borrar-modelo", "separador", "salir"]);
+    fn la_bandeja_queda_con_mostrar_configuracion_pausar_y_salir() {
+        // configuracion-ux.md 4.5 (entrega 3): "Primeros pasos" y "Borrar el modelo de IA…" se mudan
+        // a las pestañas Instalación y Modelos. Siguen "Mostrar Avis", "Configuración…" debajo,
+        // "Pausar animaciones" (se necesita rápido y sin abrir el panel) y "Salir" al final
+        assert_eq!(ORDEN_BANDEJA, ["mostrar", "configuracion", "pausa", "separador", "salir"]);
         assert_eq!(EVENTO_CONFIGURACION, "oficina://configuracion");
-    }
-
-    #[test]
-    fn el_item_de_borrar_el_modelo_tiene_su_texto() {
-        assert_eq!(TEXTO_BORRAR_MODELO, "Borrar el modelo de IA…");
     }
 
     #[test]
@@ -1501,13 +1419,14 @@ pub fn run() {
             borrar_orden,
             registrar,
             revisar_primeros_pasos,
-            menu_primeros_pasos,
+            estado_mod,
             correr_paso,
             cancelar_paso,
             abrir_enlace,
             tomar_aviso_mod,
             estado_resumen,
             descargar_modelo,
+            borrar_modelo,
             cancelar_resumen,
             pedir_resumen
         ])

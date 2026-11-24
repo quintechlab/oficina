@@ -5,6 +5,7 @@
 // lo conecta main.js.
 
 import { NOMBRES_ESPECIES, datosEspecie, especieValida } from './especies.js'
+import { cifrasDescarga, formatoGB } from './resumen.js'
 
 /** Orden fijo de las pestañas (4.4). */
 export const PESTANAS = [
@@ -155,4 +156,137 @@ export function anuncioForma(especie, forma) {
 export function modoVistaPrevia(forma, { reducido, pausa }) {
   if (reducido || pausa) return 'al-instante'
   return forma === 'evo' ? 'evolucionar' : 'devolver'
+}
+
+// ------------------------------------------------------------------ confirmar en el mismo botón (D5)
+
+/** "¿Borrar …? Sí" espera el segundo clic este tiempo y vuelve solo (el de "¿Frenar? Sí" de control.js). */
+export const MS_CONFIRMAR = 3000
+
+/** ¿El botón `id` está pidiendo el segundo clic? */
+export function armadoVigente(config, id, ahoraMs) {
+  return config.armado?.id === id && ahoraMs < config.armado.hasta
+}
+
+/**
+ * Un clic en un botón que borra (7.1, 7.2, 7.4): el primero, o uno pasados los 3 s, arma
+ * "¿Borrar …? Sí"; el segundo dentro de la ventana borra una sola vez (`ejecutar`) y desarma.
+ */
+export function clicBorrar(config, id, ahoraMs) {
+  if (armadoVigente(config, id, ahoraMs)) return { config: { ...config, armado: null }, ejecutar: true }
+  return { config: { ...config, armado: { id, hasta: ahoraMs + MS_CONFIRMAR } }, ejecutar: false }
+}
+
+/** Pasados los 3 s sin el segundo clic, el botón vuelve solo; antes, nada cambia (el mismo objeto). */
+export function desarmarVencido(config, ahoraMs) {
+  return config.armado?.hasta != null && ahoraMs >= config.armado.hasta ? { ...config, armado: null } : config
+}
+
+// ------------------------------------------------------------------ Instalación y modelo local (7.2 y 7.3)
+
+const MS_HORA = 3600000
+const MS_DIA = 24 * MS_HORA
+/** Argentina es UTC−3 todo el año (sin horario de verano desde 2009): la hora no depende de la PC. */
+const DESFASE_AR = 3 * MS_HORA
+const dos = n => String(n).padStart(2, '0')
+const diaArgentina = ms => Math.floor((ms - DESFASE_AR) / MS_DIA)
+
+/** "10:33": la hora de Argentina, en 24 h (la regla del perfil: nunca UTC). */
+export function horaArgentina(ms) {
+  const d = new Date(ms - DESFASE_AR)
+  return `${dos(d.getUTCHours())}:${dos(d.getUTCMinutes())}`
+}
+
+const versionDe = v => (typeof v === 'string' && v ? v : null)
+const conVersion = (texto, v) => (v ? `${texto} · ${v}` : texto)
+const ABRIR_PP = { id: 'pp', texto: 'Abrir primeros pasos', ocupado: false }
+
+/**
+ * La tarjeta "Mod de Claude Code" (7.3). `lectura`: la de `estado_mod` (o la de primeros pasos),
+ * `{ claude: { encontrado, version }, mod: { instalado, activo, version, error } }`, o null si
+ * todavía no se leyó; `revision`: `{ revisado, fallo }` de preferencias.json; `aviso`: el último de
+ * `tomar_aviso_mod` con la hora en que se tomó (`cuando`); `instalando`: el mod automático lo está
+ * instalando; `prendiendo`: corre el paso "activar". Devuelve `{ estado, tono, pill, linea, accion }`.
+ * Fuera de la tabla de 7.3 (sección 14): sin lectura, "Revisando…" (7.5); sin el mod y sin
+ * instalación en curso, "Sin instalar".
+ */
+export function textoMod(lectura, revision, aviso, ahora, { instalando = false, prendiendo = false } = {}) {
+  const t = (estado, tono, pill, linea, accion = null) => ({ estado, tono, pill, linea, accion })
+  if (instalando) return t('instalando', 'proc', 'Instalando…', 'Faltaba el mod: Avis lo instala solo, no hace falta que hagas nada.')
+  if (!lectura) return t('revisando', 'nada', 'Revisando…', '')
+  if (lectura.claude?.encontrado !== true) return t('sin-claude', 'error', 'Sin Claude Code', 'Avis no encontró Claude Code en esta PC.', ABRIR_PP)
+  const m = lectura.mod ?? {}
+  const v = versionDe(m.version)
+  if (!m.instalado) {
+    const linea = revision?.fallo ? 'Hoy no se pudo instalar. Vuelve a probar mañana.' : 'Avis lo instala solo en la próxima revisión.'
+    return t('sin-instalar', 'aviso', 'Sin instalar', linea, ABRIR_PP)
+  }
+  if (!m.activo) {
+    return t('apagado', 'aviso', conVersion('Apagado', v), 'Claude Code no lo carga: sin el mod, Avis no ve tus sesiones.', { id: 'activar', texto: 'Prender', ocupado: !!prendiendo })
+  }
+  const prendido = conVersion('Prendido', v)
+  const hoy = diaArgentina(ahora)
+  if (aviso?.tipo === 'actualizo' && aviso.version === v && Number.isFinite(aviso.cuando) && diaArgentina(aviso.cuando) === hoy) {
+    return t('actualizado', 'ok', prendido, `Se actualizó solo de ${aviso.desde ?? '…'} a ${v} hoy a las ${horaArgentina(aviso.cuando)}.`)
+  }
+  if (revision?.fallo) return t('fallo', 'aviso', prendido, 'Hoy no se pudo revisar si hay versión nueva. Vuelve a probar mañana.')
+  const r = Number.isFinite(revision?.revisado) ? revision.revisado : null
+  const cuando = r == null ? '' : diaArgentina(r) === hoy ? 'hoy' : diaArgentina(r) === hoy - 1 ? 'ayer' : ''
+  return t('al-dia', 'ok', prendido, `Al día. Se actualiza solo, una vez por día.${cuando ? ` Revisado ${cuando} ${horaArgentina(r)}.` : ''}`)
+}
+
+/**
+ * La tarjeta del modelo local (7.2), a partir de `st.resumen` (`modelo`, `trabajo`, `progreso`): la
+ * descarga que corre por detrás es la misma del globo. La cifra la da el backend (`progreso.total`),
+ * nunca fija. Devuelve `{ estado, tono, pill, linea, acciones: [{ id, texto, armado? }] }` y, bajando,
+ * `porcentaje` y `fraccion` de la barra. Sin saber todavía del modelo, "Revisando…" (7.5).
+ */
+export function textoModelo({ modelo = null, trabajo = null, progreso = null } = {}) {
+  const total = progreso?.total > 0 ? formatoGB(progreso.total) : null
+  const t = (estado, tono, pill, linea, acciones = []) => ({ estado, tono, pill, linea, acciones })
+  if (trabajo === 'descargando') {
+    const c = cifrasDescarga(progreso)
+    return { ...t('bajando', 'proc', `Bajando ${c.porcentaje} %`, `${c.cifra} de ${c.total} · si se corta, sigue donde quedó`), porcentaje: c.porcentaje, fraccion: c.fraccion }
+  }
+  const borrar = total ? { id: 'borrar', texto: `Borrar ${total}`, armado: `¿Borrar ${total}? Sí` } : { id: 'borrar', texto: 'Borrar', armado: '¿Borrar? Sí' }
+  switch (modelo) {
+    case 'listo': return t('listo', 'ok', 'Listo', 'Se apaga solo a los 10 min sin uso.', [borrar])
+    case 'roto': return t('roto', 'error', 'Roto', 'Faltan piezas o no coinciden. Bajalo de nuevo.', [{ id: 'descargar', texto: 'Bajar de nuevo' }, { id: 'borrar', texto: 'Borrar', armado: '¿Borrar? Sí' }])
+    // Una descarga cortada sin nada que la siga es lo mismo que nada: se ofrece descargar
+    case 'falta': case 'bajando':
+      return t('falta', 'nada', 'Sin instalar', 'Hace falta para charlar sin internet. Se baja una sola vez.', [{ id: 'descargar', texto: total ? `Descargar ${total}` : 'Descargar' }])
+    default: return t('revisando', 'nada', 'Revisando…', '')
+  }
+}
+
+/**
+ * El punto de estado de una pestaña (6.3), o null: Modelos, una clave rechazada (entrega 4) o el
+ * modelo bajando; Instalación, el mod que necesita atención (apagado, sin Claude Code o sin instalar).
+ * `datos`: `{ claves?, modelo, mod }` con los `estado` de `textoModelo` y `textoMod`.
+ */
+export function puntoPestana(datos, pestana) {
+  if (pestana === 'modelos') {
+    if (Object.values(datos?.claves ?? {}).some(c => c?.estado === 'rechazada')) return { tono: 'error', texto: ', una clave rechazada' }
+    if (datos?.modelo === 'bajando') return { tono: 'proc', texto: ', bajando el modelo' }
+  }
+  if (pestana === 'instalacion' && ['apagado', 'sin-claude', 'sin-instalar'].includes(datos?.mod)) return { tono: 'aviso', texto: ', el mod necesita atención' }
+  return null
+}
+
+/**
+ * Las filas de solo lectura de "En esta PC" (5): Claude Code ("Versión {v}") y GitHub ("Para ver al
+ * equipo."), cada una con su píldora. Claude sale de la lectura del mod o, sin ella, de la revisión de
+ * primeros pasos; GitHub, de esa revisión. Sin datos, "Revisando…".
+ */
+export function filasEnEstaPC(lectura, revisionPasos) {
+  const revisando = { tono: 'nada', pill: 'Revisando…' }
+  const c = lectura?.claude ?? revisionPasos?.claude
+  const claude = !c ? { descripcion: '', ...revisando }
+    : c.encontrado === true ? { descripcion: c.version ? `Versión ${c.version}` : '', tono: 'ok', pill: 'Encontrado' }
+      : { descripcion: 'Avis no encontró Claude Code en esta PC.', tono: 'error', pill: 'Sin instalar' }
+  const r = revisionPasos
+  const github = !r?.gh ? revisando
+    : r.gh.instalado !== true ? { tono: 'aviso', pill: 'Sin instalar' }
+      : r.cuenta?.estado === 'conectada' ? { tono: 'ok', pill: 'Conectado' } : { tono: 'aviso', pill: 'Sin conectar' }
+  return { claude, github }
 }

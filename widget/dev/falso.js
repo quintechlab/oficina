@@ -33,6 +33,11 @@
 //   &cfgfalla     guardar_ajuste falla: el interruptor (o la especie) vuelve y dice "No se pudo guardar. Probá de nuevo."
 //   ?cfg=mascota  la pestaña Mascota: elegir una especie cambia toda la ventana; "Base · {evo}" corre el acto
 //                 (con ?pausa o movimiento reducido, al instante)
+//   ?cfg=instalacion&mod=al-dia|actualizado|apagado|instalando|fallo|sin-claude|sin-instalar  la tarjeta
+//                 "Mod de Claude Code" (7.3): estado_mod falso, con la última revisión y el aviso de una vez;
+//                 instalando no termina nunca (para mirarlo). "Prender" corre el paso activar falso
+//   ?cfg=modelos&modelo=falta|bajando|listo|roto  la tarjeta del modelo local (7.2), el mismo modelo falso
+//                 del resumen (bajando avanza solo; &rapido más rápido). &borrarfalla: borrar_modelo falla
 //   Lo guardado queda en window.__ajustes.
 //   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
 //                 docs/diseno/mascotas-avi-ux.md 9.1), con su forma evolucionada, sus bucles y sus actos;
@@ -98,8 +103,8 @@
 //   &modauto=instalo|actualizo  Avis instaló o actualizó el mod solo (#17): el aviso de una vez
 //   &modauto=solo  con ?pp=sinmod: a los 1,5 s Avis instala el mod solo (oficina://mod-auto) y avisa
 // Cada paso que corre avisa como Rust (oficina://primeros-pasos) y, si termina bien, cambia la
-// máquina falsa. El ítem de la bandeja se imita con window.__bandeja('oficina://primeros-pasos-abrir');
-// su texto queda en window.__menuPasos.
+// máquina falsa. El asistente se abre desde la pestaña Instalación de la configuración o desde el
+// aviso del tablero (la bandeja ya no lo tiene, configuracion-ux.md 4.5).
 // Resumen con IA (#11, docs/diseno/resumen-ia-ux.md): el backend falso de estado_resumen,
 // descargar_modelo, cancelar_resumen y pedir_resumen, con el evento oficina://resumen. Se toca el Avi
 // de la marca para abrir el globo. Sin ?resumen, el modelo no está (apagado).
@@ -503,10 +508,13 @@
 
   // ---- primeros pasos: la máquina falsa y los pasos que corren
   const pp = url.get('pp')
+  // ?mod=…: el estado de la tarjeta del mod de la configuración (7.3)
+  const modCfg = url.get('mod')
   const maquina = {
-    claude: !['nada', 'sinclaude'].includes(pp),
+    claude: !['nada', 'sinclaude'].includes(pp) && modCfg !== 'sin-claude',
     catalogo: !['sinmod'].includes(pp),
-    mod: pp === 'sinmod' || pp === 'nada' || pp === 'sinclaude' ? 'ausente' : pp === 'apagado' ? 'apagado' : 'activo',
+    mod: pp === 'sinmod' || pp === 'nada' || pp === 'sinclaude' || ['instalando', 'sin-instalar'].includes(modCfg) ? 'ausente'
+      : pp === 'apagado' || modCfg === 'apagado' ? 'apagado' : 'activo',
     gh: !['nada', 'singh', 'sinwinget'].includes(pp),
     winget: pp !== 'sinwinget',
     cuenta: ['nada', 'singh', 'sinwinget', 'sinsesion'].includes(pp) ? 'sin-sesion' : pp === 'sinred' ? 'sin-conexion' : 'conectada',
@@ -514,10 +522,13 @@
     membresia: pp === 'nomiembro' ? 'no-miembro' : pp === 'invitacion' ? 'pendiente' : 'activa',
   }
   let fallaPendiente = url.get('ppfalla')
+  const versionMod = modCfg ? '0.9.1' : '0.6.0'
+  // La última revisión automática guardada (preferencias.json, `mod`): hace 40 min; ?mod=fallo, falló
+  const revisionMod = modCfg ? { revisado: Date.now() - 40 * 60000, fallo: modCfg === 'fallo' } : null
   const revisionFalsa = () => ({
     claude: { encontrado: maquina.claude, version: maquina.claude ? '2.1.329' : null },
     mod: maquina.claude
-      ? { instalado: maquina.mod !== 'ausente', activo: maquina.mod === 'activo', version: maquina.mod === 'ausente' ? null : '0.6.0', catalogo: maquina.catalogo, error: null }
+      ? { instalado: maquina.mod !== 'ausente', activo: maquina.mod === 'activo', version: maquina.mod === 'ausente' ? null : versionMod, catalogo: maquina.catalogo, error: null }
       : { instalado: false, activo: false, version: null, catalogo: false, error: null },
     gh: { instalado: maquina.gh, version: maquina.gh ? '2.103.3' : null, winget: !maquina.gh && maquina.winget },
     cuenta: maquina.gh
@@ -532,7 +543,7 @@
   // El mod automático (#17): el aviso pendiente que la ventana toma una vez (tomar_aviso_mod)
   const modauto = url.get('modauto')
   let avisoModPendiente = modauto === 'instalo' ? { tipo: 'instalo', version: '0.9.1' }
-    : modauto === 'actualizo' ? { tipo: 'actualizo', version: '0.9.1', desde: '0.9.0' } : null
+    : modauto === 'actualizo' || modCfg === 'actualizado' ? { tipo: 'actualizo', version: '0.9.1', desde: '0.9.0' } : null
   const despues = (ms, f) => relojesPaso.push(setTimeout(f, ms))
   const avisarPaso = (accion, cuerpo) => emitir('oficina://primeros-pasos', { accion, paso: ['mod', 'activar'].includes(accion) ? 'mod' : 'gh', ...cuerpo })
   const terminar = (accion, cuerpo) => { corriendo = null; relojesPaso = []; avisarPaso(accion, cuerpo) }
@@ -585,8 +596,18 @@
     }
   }
 
+  // ?mod=instalando: Avis instala el mod solo y no termina nunca (para mirar "Instalando…")
+  if (modCfg === 'instalando') {
+    setTimeout(() => {
+      corriendo = 'mod'
+      emitir('oficina://mod-auto', { estado: 'empieza', accion: 'mod' })
+      avisarPaso('mod', { estado: 'comando', comando: 'claude plugin install oficina@quintech' })
+    }, 1500)
+  }
+
   // ---- resumen con IA: el modelo falso, la descarga, la preparación y los pedidos
-  const rz = url.get('resumen') ?? 'apagado'
+  // ?modelo=… (la tarjeta del modelo local de la configuración, 7.2) usa el mismo modelo falso
+  const rz = url.get('resumen') ?? ({ falta: 'apagado', bajando: 'descargando', listo: 'listo', roto: 'sinmodelo' }[url.get('modelo')] ?? 'apagado')
   const GB = 1024 ** 3
   const TOTAL_RZ = Math.round(2.6 * GB)
   const rapido = url.has('rapido')
@@ -697,11 +718,18 @@
       }
     },
   }
-  /** "Borrar el modelo" de la bandeja (lo hace el backend): avisa que no hay modelo. */
+  /** "Borrar" del modelo local en la configuración (lo hace el backend): avisa que no hay modelo. */
   window.__borrarModelo = () => {
     pararRz()
     Object.assign(modeloRz, { modelo: 'falta', bajado: 0, motor: 'apagado', primeraVez: true })
     emitirRz('estado', comandosResumen.estado_resumen())
+  }
+  // Como Rust (borrar_modelo): sin cuadro nativo (la confirmación es de la ventana); &borrarfalla falla
+  comandosResumen.borrar_modelo = () => {
+    if (url.has('borrarfalla')) throw new Error('no se pudo borrar %LOCALAPPDATA%\\avis-ia (falso)')
+    window.__borrarModelo()
+    console.info('[resumen] borrar_modelo')
+    return TOTAL_RZ
   }
   window.__resumen = emitirRz
 
@@ -709,7 +737,11 @@
     ...comandosResumen,
     registrar: ({ linea }) => console.debug('[widget.log]', linea),
     revisar_primeros_pasos: () => new Promise(r => setTimeout(() => r(revisionFalsa()), url.has('pplento') ? 2000 : 600)),
-    menu_primeros_pasos: ({ faltan }) => { window.__menuPasos = faltan == null || faltan === 0 ? 'Primeros pasos…' : faltan === 1 ? 'Primeros pasos (falta 1)…' : `Primeros pasos (faltan ${faltan})…`; console.info('[bandeja]', window.__menuPasos) },
+    // Como Rust (estado_mod): la lectura del mod y la última revisión guardada, solo lectura
+    estado_mod: () => new Promise(r => setTimeout(() => {
+      const rev = revisionFalsa()
+      r({ claude: rev.claude, mod: rev.mod, revisado: revisionMod?.revisado ?? null, fallo: !!revisionMod?.fallo })
+    }, url.has('pplento') ? 2000 : 400)),
     correr_paso: ({ paso }) => {
       if (corriendo) throw new Error('ya corre otro paso (falso)')
       if (!['mod', 'activar', 'gh', 'conectar', 'permiso'].includes(paso)) throw new Error('paso desconocido')

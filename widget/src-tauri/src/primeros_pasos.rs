@@ -322,15 +322,6 @@ pub fn es_permiso_negado(texto: &str) -> bool {
     t.contains("0x800704c7") || t.contains("canceled by the user") || t.contains("cancelled by the user") || t.contains("access is denied") || t.contains("0x80070005")
 }
 
-/// Texto del ítem de la bandeja (3.5) según los pasos que faltan; sin revisar todavía, sin número.
-pub fn texto_menu(faltan: Option<u32>) -> String {
-    match faltan {
-        Some(1) => String::from("Primeros pasos (falta 1)…"),
-        Some(n) if n > 1 => format!("Primeros pasos (faltan {n})…"),
-        _ => String::from("Primeros pasos…"),
-    }
-}
-
 // ------------------------------------------------------------------ revisar (3.3): solo lectura
 
 /// Lo que hay en la máquina, solo con comandos de lectura: Claude Code, el mod y su catálogo,

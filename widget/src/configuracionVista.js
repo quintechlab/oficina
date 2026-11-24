@@ -23,11 +23,21 @@ export function esqueletoConfiguracion(tab) {
     + `<p class="oculto" role="status" id="cfg-vivo"></p>`
 }
 
+/**
+ * Lo de adentro de una pestaña: su nombre y, con estado (6.3), un punto de 6 con su texto oculto
+ * (el color nunca solo). `punto`: `{ tono, texto }` de `puntoPestana`, o null.
+ */
+export function nombrePestana(id, punto) {
+  const nombre = PESTANAS.find(p => p.id === id)?.nombre ?? ''
+  if (!punto) return nombre
+  return `${nombre}<i class="pt t-${escapar(punto.tono)}" aria-hidden="true"></i><span class="oculto">${escapar(punto.texto)}</span>`
+}
+
 /** Las cinco pestañas (`tablist`, activación automática): una sola en el orden de tabulación. */
-export function pestanasConfiguracion(tab) {
-  const tabs = PESTANAS.map(({ id, nombre }) => {
+export function pestanasConfiguracion(tab, puntos = {}) {
+  const tabs = PESTANAS.map(({ id }) => {
     const sel = id === tab
-    return `<button type="button" class="pes" role="tab" id="cfg-t-${id}" aria-selected="${sel}" aria-controls="cfg-p" tabindex="${sel ? 0 : -1}" data-accion="cfg-tab" data-valor="${id}" data-k="tab-${id}">${nombre}</button>`
+    return `<button type="button" class="pes" role="tab" id="cfg-t-${id}" aria-selected="${sel}" aria-controls="cfg-p" tabindex="${sel ? 0 : -1}" data-accion="cfg-tab" data-valor="${id}" data-k="tab-${id}">${nombrePestana(id, puntos[id])}</button>`
   }).join('')
   return `<div class="pestanas" role="tablist" aria-label="Configuración">${tabs}<span class="ind" aria-hidden="true"></span></div>`
 }
@@ -45,6 +55,8 @@ export function avisoPreguntaConfiguracion(pendientes) {
 export function seccionConfiguracion(tab, datos) {
   if (tab === 'panel') return seccionPanel(datos)
   if (tab === 'mascota') return seccionMascota(datos)
+  if (tab === 'modelos') return seccionModelos(datos)
+  if (tab === 'instalacion') return seccionInstalacion(datos)
   const p = PESTANAS.find(x => x.id === tab)
   return p ? `<h3 class="sub">${p.nombre}</h3>` : ''
 }
@@ -139,6 +151,79 @@ export function seccionMascota(datos) {
   return `<div class="esc-m"><div class="esc-fig" data-parte="fig">${p.fig}</div><div class="esc-t" data-parte="texto">${p.texto}</div></div>`
     + `<div class="especies" role="radiogroup" aria-label="Mascota de Claude" data-parte="fichas">${p.fichas}</div>`
     + `<div class="esp-error" data-parte="error">${p.error}</div>`
+}
+
+// ------------------------------------------------------------------ Modelos e Instalación (entrega 3: 7.2 y 7.3)
+
+/** El texto debajo de la tarjeta del modelo local cuando no se pudo borrar (sección 14). */
+export const TEXTO_ERROR_BORRAR = 'No se pudo borrar. Probá de nuevo.'
+
+/** Píldora de estado (6.1): el punto con el color del tono y siempre su texto. */
+function pill(tono, texto, extra = '') {
+  return `<span class="pill t-${escapar(tono)}"${extra}><i class="pt" aria-hidden="true"></i><span>${escapar(texto)}</span></span>`
+}
+
+/**
+ * Un botón que borra y confirma en el mismo lugar (D5): "Borrar …" (`.lnk.peligro`) y, armado,
+ * "¿Borrar …? Sí" (`.armado`) con la línea que se vacía en 3 s; `transcurrido` (ms) la retoma donde
+ * iba si la sección se redibuja. El mismo `data-k` en los dos estados: el foco sigue en el botón.
+ */
+function confirmable(accion, valor, k, texto, pregunta, armado, transcurrido = 0) {
+  if (armado) {
+    return `<button type="button" class="armado" data-accion="${accion}" data-valor="${valor}" data-k="${k}" aria-live="polite" style="--ya:-${Math.max(0, Math.round(transcurrido))}ms">${escapar(pregunta)}</button>`
+  }
+  return `<button type="button" class="lnk peligro" data-accion="${accion}" data-valor="${valor}" data-k="${k}">${escapar(texto)}</button>`
+}
+
+/**
+ * La tarjeta del modelo local (7.2). `m`: lo de `textoModelo`. Bajando, la barra (`role=progressbar`)
+ * y las cifras llevan `data-cfg-…` para que main.js las cambie en su lugar con cada progreso.
+ */
+function tarjetaLocal(m, { armado = false, transcurrido = 0, error = false } = {}) {
+  const bajando = m.estado === 'bajando'
+  const acciones = m.acciones.map(a => (a.id === 'borrar'
+    ? confirmable('cfg-local', 'borrar', 'local-borrar', a.texto, a.armado, armado, transcurrido)
+    : `<button type="button" class="btn" data-accion="cfg-local" data-valor="${a.id}" data-k="local-${a.id}">${escapar(a.texto)}</button>`)).join('')
+  const barra = bajando
+    ? `<div class="barra" role="progressbar" aria-label="Descarga del modelo local" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${m.porcentaje}" style="--p:${m.fraccion}" data-cfg-barra><i></i></div>`
+      + `<span class="cifras" data-cfg-cifras>${escapar(m.linea)}</span>`
+    : (m.linea ? `<p>${escapar(m.linea)}</p>` : '')
+  return `<div class="tarj"><div class="tarj-t"><div><b>Qwen3-4B</b> <span class="tarj-de">en esta PC, sin internet</span></div>${pill(m.tono, m.pill, bajando ? ' data-cfg-pill' : '')}</div>`
+    + barra
+    + (acciones ? `<div class="acc">${acciones}</div>` : '')
+    + (error ? `<p class="aj-error">${TEXTO_ERROR_BORRAR}</p>` : '')
+    + '</div>'
+}
+
+/**
+ * Pestaña Modelos (4.4). Por ahora, solo el modelo local: "Quién responde" llega con el chat (D6) y
+ * las claves de API con la entrega 4. `datos`: { modelo, armado, transcurrido, error }.
+ */
+export function seccionModelos(datos) {
+  return `<h3 class="sub">Modelo local</h3>${tarjetaLocal(datos.modelo, { armado: datos.armado === 'local', transcurrido: datos.transcurrido, error: datos.error === 'modelo' })}`
+}
+
+/** La tarjeta "Mod de Claude Code" (7.3). `m`: lo de `textoMod`. Sin botón para buscar actualizaciones (D12). */
+function tarjetaMod(m) {
+  const a = m.accion
+  const boton = a
+    ? `<div class="acc"><button type="button" class="btn" data-accion="cfg-mod" data-valor="${a.id}" data-k="mod-${a.id}"${a.ocupado ? ' aria-disabled="true" title="Prendiendo…"' : ''}>${escapar(a.texto)}</button></div>`
+    : ''
+  return `<div class="tarj"><div class="tarj-t"><b>Mod de Claude Code</b>${pill(m.tono, m.pill)}</div>${m.linea ? `<p>${escapar(m.linea)}</p>` : ''}${boton}</div>`
+}
+
+/**
+ * Pestaña Instalación (4.4 y 5): la tarjeta del mod, "En esta PC" (Claude Code y GitHub, de solo
+ * lectura), "Primeros pasos" con "Abrir →" y la versión de Avis al pie. `datos`: { mod, enEstaPC, version }.
+ */
+export function seccionInstalacion(datos) {
+  const { claude, github } = datos.enEstaPC
+  return `<h3 class="sub">Mod</h3>${tarjetaMod(datos.mod)}`
+    + '<h3 class="sub">En esta PC</h3>'
+    + fila('Claude Code', escapar(claude.descripcion), pill(claude.tono, claude.pill))
+    + fila('GitHub', 'Para ver al equipo.', pill(github.tono, github.pill))
+    + fila('Primeros pasos', 'Revisa y arregla la instalación, paso por paso.', '<button type="button" class="btn sec" data-accion="cfg-pp" data-k="pp">Abrir →</button>')
+    + `<p class="ver-avis">Avis${datos.version ? ` ${escapar(datos.version)}` : ''} · widget</p>`
 }
 
 /** El Avi de 40 junto al título (6.1 `.mini`): solo fuera de Mascota, en la forma chica y decorativo. */

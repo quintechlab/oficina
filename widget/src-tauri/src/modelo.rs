@@ -843,22 +843,6 @@ pub fn formato_gb(bytes: u64) -> String {
     format!("{:.1} GB", gb).replace('.', ",")
 }
 
-/// Botón "Sí" del cuadro de confirmación de Windows (`IDYES`).
-pub const IDYES: i32 = 6;
-
-/// El texto del cuadro "Borrar el modelo de IA…" de la bandeja.
-pub fn texto_confirmar_borrado(bytes: u64) -> String {
-    format!(
-        "¿Borrar el modelo de IA?\n\nSe borran de esta PC el modelo y el motor ({}). El resumen con IA queda apagado hasta que lo vuelvas a descargar.",
-        formato_gb(bytes)
-    )
-}
-
-/// Solo el "Sí" del usuario borra: "No" o cerrar el cuadro no hacen nada.
-pub fn debe_borrar(respuesta: i32) -> bool {
-    respuesta == IDYES
-}
-
 // ------------------------------------------------------------------ lo que corre
 
 struct Motor {
@@ -1339,7 +1323,7 @@ impl Ia {
         self.apagar_motor();
     }
 
-    /// "Borrar el modelo de IA…" de la bandeja: corta la descarga, apaga el motor y borra
+    /// "Borrar" del modelo local en la configuración (`borrar_modelo`, sin cuadro nativo): corta la descarga, apaga el motor y borra
     /// `%LOCALAPPDATA%\avis-ia` entero (modelo, motor, marcas). Devuelve los bytes liberados.
     pub fn borrar(&self) -> Result<u64, String> {
         let base = base()?;
@@ -1354,11 +1338,6 @@ impl Ia {
         let bytes = peso(&base);
         borrar_carpeta(&base)?;
         Ok(bytes)
-    }
-
-    /// ¿Hay algo para borrar? Los bytes de la carpeta (0 si no está).
-    pub fn peso(&self) -> u64 {
-        carpeta_base().map(|b| peso(&b)).unwrap_or(0)
     }
 }
 

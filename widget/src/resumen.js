@@ -42,7 +42,7 @@ export function resumenInicial() {
     estado: 'cerrado', trabajo: null, modelo: null, motor: 'apagado', primeraVez: true,
     progreso: { bajado: 0, total: 0 },
     resultado: null, texto: null, hora: null, ms: null, aceleracion: null, detalle: null, motivo: null,
-    firma: null, leyendo: null, cambio: false, pedido: 0, sinVer: false, hablando: false,
+    firma: null, leyendo: null, cambio: false, pedido: 0, sinVer: false, hablando: false, soloBajar: false,
   }
 }
 
@@ -65,9 +65,17 @@ function pedir(r, ctx, trabajo = 'pensando') {
   }
 }
 
-function descargar(r) {
+/**
+ * Empieza a bajar el modelo. Desde el globo (`solo` falso), al terminar prepara y pide el primer
+ * resumen (el clic lo incluía). Desde la configuración (`solo`, configuracion-ux.md 7.2) baja y nada
+ * más: el globo no se abre y bajar no pide un resumen (un clic, nunca solo).
+ */
+function descargar(r, { solo = false } = {}) {
   return {
-    resumen: { ...r, trabajo: 'descargando', estado: 'descargando', modelo: 'bajando', resultado: null, motivo: null, detalle: null, sinVer: false, hablando: false },
+    resumen: {
+      ...r, trabajo: 'descargando', estado: solo && !abierto(r) ? 'cerrado' : 'descargando', modelo: 'bajando', soloBajar: solo,
+      resultado: null, motivo: null, detalle: null, sinVer: false, hablando: false,
+    },
     llamadas: [{ comando: 'descargar_modelo', args: {} }],
   }
 }
@@ -109,6 +117,8 @@ export function transicion(r, ev, ctx = {}) {
     case 'cerrar':
       return abierto(r) ? NADA({ ...r, estado: 'cerrado', sinVer: false, hablando: false }) : NADA(r)
     case 'descargar':
+      // Desde la configuración: con el modelo que falta o roto y nada en curso, esté o no el globo abierto
+      if (ev.desde === 'config') return !r.trabajo && ['falta', 'roto', 'bajando'].includes(r.modelo) ? descargar(r, { solo: true }) : NADA(r)
       return r.estado === 'apagado' || r.estado === 'sinModelo' || (r.estado === 'fallo' && r.motivo === 'descarga') ? descargar(r) : NADA(r)
     case 'pedir':
       return r.estado === 'listo' || (r.estado === 'fallo' && r.motivo !== 'descarga') ? pedir(r, ctx) : NADA(r)
@@ -163,6 +173,8 @@ export function transicion(r, ev, ctx = {}) {
     case 'bajado': {
       if (r.trabajo !== 'descargando') return NADA(r)
       const total = numero(ev.total) || r.progreso.total
+      // Bajado desde la configuración: queda listo, sin pedir nada (si el globo estaba abierto, se cierra)
+      if (r.soloBajar) return NADA({ ...r, trabajo: null, modelo: 'listo', soloBajar: false, progreso: { bajado: total, total }, estado: 'cerrado', hablando: false })
       // El clic en "Descargar" incluye el primer resumen
       return pedir({ ...r, modelo: 'listo', progreso: { bajado: total, total } }, ctx, 'preparando')
     }
