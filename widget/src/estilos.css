@@ -66,6 +66,8 @@
   --celeste-borde: rgba(127, 179, 255, .40); --celeste-borde-f: rgba(127, 179, 255, .45);
   --ancho-riel: 56px; --ancho-principal-d: 592px; --mitad: 272px; --costura: 26px; --alto-esc-d: 218px;
   --d-cruza: 1680ms; --d-anillo: 1230ms; --d-cose: 500ms; --d-riel: 450ms; --espera-vuelta: 60s;
+  /* Configuración (configuracion-ux.md 6): el escenario de la mascota */
+  --alto-escena-cfg: 176px;
 
   /* 3.4 radios */
   --r-ventana: 26px; --r-panel: 26px; --r-muesca: 22px; --r-hombro: 16px; --r-tarjeta: 18px;
@@ -1386,12 +1388,72 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .pb[aria-disabled="true"] { opacity: .38; cursor: not-allowed; transform: none }
 #cfg .pv { min-width: 58px; text-align: center; font: 600 12px/1 var(--m); font-variant-numeric: tabular-nums }
 
-/* Movimiento (8): el engranaje gira 45° al pasar; con movimiento reducido o pausa, nada se desliza */
+/* Mascota (6.1): el escenario con la luz de la especie y las siete fichas. La luz (--cc) la pone
+   main.js en #cfg, que no se redibuja; registrada como color, cambia con su transición (8) */
+@property --cc { syntax: '<color>'; inherits: true; initial-value: #F2B632 }
+#cfg .esc-m {
+  position: relative; display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: var(--e-2);
+  height: var(--alto-escena-cfg); padding: 0 var(--e-8) 0 var(--e-3); border: 1px solid var(--linea); border-radius: var(--r-tarjeta); overflow: hidden;
+  background:
+    radial-gradient(160px 70px at 80px 140px, color-mix(in srgb, var(--cc) 30%, transparent), transparent 72%),
+    radial-gradient(260px 160px at 80px 120px, color-mix(in srgb, var(--cc) 10%, transparent), transparent 70%),
+    linear-gradient(var(--s1), var(--negro));
+  transition: --cc .5s ease;
+}
+/* El piso: una línea de 120 con el color de la especie */
+#cfg .esc-m::before {
+  content: ""; position: absolute; left: 20px; top: 142px; width: 120px; height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--cc) 70%, transparent), transparent);
+}
+#cfg .esc-fig { display: grid; place-items: center; padding-top: var(--e-2) }
+#cfg .esc-t { display: grid; gap: 5px; align-content: center; min-width: 0 }
+#cfg .esc-t .kick { font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+#cfg .esc-n { margin: 0; font: 800 26px/1 var(--f); letter-spacing: -.04em; color: var(--crema) }
+#cfg .esc-c { margin: 0; max-width: 34ch; font: var(--t-chico); color: var(--crema2) }
+#cfg .esc-t .seg { justify-self: start; margin-top: var(--e-2) }
+#cfg .esc-q { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+
+/* Fichas (6.1): grilla de 4; la elegida con el borde, el anillo y la insignia ✓ del color de su especie
+   (`--c` nunca lleva texto: solo luz, borde y la insignia, 6.2) */
+#cfg .especies { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--e-4); margin-top: var(--e-5) }
+#cfg .esp {
+  position: relative; display: grid; justify-items: center; align-content: start; gap: 1px; min-height: 96px;
+  padding: var(--e-3) var(--e-2) var(--e-4); border: 1px solid var(--linea); border-radius: var(--r-ficha); background: var(--s1);
+  color: var(--crema); cursor: pointer; transition: background var(--d-color) ease, border-color var(--d-color) ease, transform var(--d-presion) ease;
+}
+#cfg .esp:hover { background: var(--s2) }
+#cfg .esp .avi { transition: transform .35s var(--rebote) }
+#cfg .esp:hover .avi { transform: translateY(-3px) }
+#cfg .esp:active { transform: scale(.96) }
+#cfg .esp[aria-checked="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 9%, var(--s1)); box-shadow: 0 0 0 1px var(--c) inset }
+#cfg .esp-n { font: var(--t-cuerpo-f) }
+#cfg .esp-e { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#cfg .esp-ok {
+  position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--c); color: var(--negro); font: 800 11px/1 var(--f); font-style: normal;
+}
+#cfg .esp-nota {
+  margin: 0; display: grid; align-content: center; padding: var(--e-4) var(--e-5); border: 1px dashed var(--linea-hover);
+  border-radius: var(--r-ficha); font: var(--t-chico); color: var(--tenue);
+}
+#cfg .esp-error:empty { display: none }
+#cfg .esp-error .aj-error { margin: var(--e-4) 0 0 }
+
+/* El Avi de 40 junto al título, fuera de Mascota (6.1 `.mini`) */
+.cfg-mini { display: none }
+#marco.con-cfg.con-mini .cab-t { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: var(--e-5); align-items: center }
+#marco.con-cfg.con-mini .cfg-mini { display: grid; place-items: center; grid-row: 1 / span 2; width: 40px; height: 40px }
+#marco.con-cfg.con-mini .cab-t > h1, #marco.con-cfg.con-mini .cab-t > p { grid-column: 2 }
+
+/* Movimiento (8): el engranaje gira 45° al pasar; con movimiento reducido o pausa, nada se desliza y
+   la luz de la mascota cambia sin transición */
 @media (prefers-reduced-motion: no-preference) {
   body:not(.pausa) .pj.engr svg { transition: transform .6s var(--rebote) }
   body:not(.pausa) .pj.engr:not([aria-current]):hover svg { transform: rotate(45deg) }
 }
 @media (prefers-reduced-motion: reduce) {
-  #cfg .pes, #cfg .sw, #cfg .sw i, #cfg .seg > button, #cfg .pb { transition: none }
+  #cfg .pes, #cfg .sw, #cfg .sw i, #cfg .seg > button, #cfg .pb, #cfg .esc-m, #cfg .esp, #cfg .esp .avi { transition: none }
+  #cfg .esp:hover .avi { transform: none }
 }
-body.pausa #cfg .sw i { transition: none }
+body.pausa #cfg .sw i, body.pausa #cfg .esc-m, body.pausa #cfg .esp .avi { transition: none }
+body.pausa #cfg .esp:hover .avi { transform: none }

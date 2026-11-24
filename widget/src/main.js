@@ -21,7 +21,7 @@ import {
 } from './control.js'
 import { globo, avisoOtroProyecto, quienPregunta, anuncioPregunta } from './pregunta.js'
 import { defsAvis, nombreClaude } from './avis.js'
-import { especieValida, ESPECIE_POR_DEFECTO } from './especies.js'
+import { especieValida, ESPECIE_POR_DEFECTO, datosEspecie } from './especies.js'
 import { avanzarEvolucion, coordinaciones, debeActuar, ordenActos, actoPendiente, CLAVE_MARCA, TAMANO_MIN_ACTO } from './evolucion.js'
 import * as movimientoEvolucion from './evolucionMotion.js'
 import { entrada, cambioProyecto, hayMovimiento } from './tableroMotion.js'
@@ -53,9 +53,9 @@ import { fichasConversan, riel, cabConversa, pestanas as pestanasConv, mitades, 
 import * as movimientoDividida from './divididaMotion.js'
 import {
   configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion, pestanaSiguiente, validarAjuste,
-  valorInterruptor, INTERRUPTORES, ubicacionDe, bordeDeUbicacion, IDS_PESTANAS,
+  valorInterruptor, INTERRUPTORES, ubicacionDe, bordeDeUbicacion, IDS_PESTANAS, elegirForma, anuncioEspecie, anuncioForma,
 } from './configuracion.js'
-import { esqueletoConfiguracion, avisoPreguntaConfiguracion, seccionConfiguracion } from './configuracionVista.js'
+import { esqueletoConfiguracion, avisoPreguntaConfiguracion, seccionConfiguracion, partesMascota, miniConfiguracion } from './configuracionVista.js'
 import * as movimientoConfig from './configuracionMotion.js'
 
 const INTERVALO_MS = 1500
@@ -111,7 +111,8 @@ const st = {
   revelado: false,
   /**
    * La mascota elegida para Claude (docs/diseno/mascotas-avi-ux.md 9.1): `mascota` de preferencias.json,
-   * leída al arrancar. Hasta Configuración (#23) no cambia con la ventana abierta.
+   * leída al arrancar. Cambia en la pestaña Mascota de la configuración y con `oficina://mascota`
+   * (configuracion-ux.md 9.3): toda la ventana se redibuja con la especie nueva, sin acto.
    */
   mascota: ESPECIE_POR_DEFECTO,
   /**
@@ -724,6 +725,8 @@ function aplicarFormas() {
     else movimientoEvolucion.devolver(a.svg, st.mascota, { retraso: a.retraso })
   }
   for (const svg of document.querySelectorAll('svg[data-evo]')) {
+    // La vista previa de la configuración no es de ninguna clave: su forma la elige "Base · {evo}"
+    if (svg.closest('#cfg')) continue
     const nueva = !vistasEvo.has(svg)
     vistasEvo.add(svg)
     // Con un acto en curso, la forma es de evolucionMotion.js
@@ -2856,11 +2859,11 @@ function retenerPanel(modelo, forma) {
 // que no se pudo guardar vuelve a su valor y lo dice debajo de su fila; lo que no existe todavía no
 // se muestra. La hoja vive en #cfg, en la columna principal, como la de primeros pasos.
 
-/** Lo que muestra la pestaña Panel. */
-function datosPanel() {
+/** Lo que muestran las pestañas Mascota y Panel. */
+function datosConfiguracion() {
   return {
     tamano: st.tamano, ubicacion: ubicacionDe(st.acople), arriba: st.arriba, avisar: st.avisar, pausa: st.pausa,
-    arranque: st.arranque, error: st.config.error,
+    arranque: st.arranque, error: st.config.error, mascota: st.mascota, forma: st.config.forma,
   }
 }
 
@@ -2879,14 +2882,26 @@ function pintarHojaConfiguracion() {
 /**
  * Dibuja la hoja en #cfg por partes (4.6): el esqueleto una vez, la línea de la pregunta, la pestaña
  * elegida y la sección solo si cambiaron. El foco vuelve a la misma pieza (`data-k`). Cerrada, vacía.
+ * La luz de la mascota (`--cc`) va en #cfg, que no se redibuja: así cambia con su transición (8).
  */
 function pintarConfiguracion() {
   const raiz = $('#cfg')
+  const mini = $('#cfg-mini')
   if (!st.config.abierta) {
     if (raiz.firstChild) { raiz.innerHTML = ''; st.cfgFirmas = {} }
+    if (mini.firstChild) mini.innerHTML = ''
+    $('#marco').classList.remove('con-mini')
     return
   }
   if (!raiz.firstChild) { raiz.innerHTML = esqueletoConfiguracion(st.config.tab); st.cfgFirmas = {} }
+  raiz.style.setProperty('--cc', datosEspecie(st.mascota).c)
+  // El Avi de 40 junto al título, fuera de Mascota (6.1 `.mini`)
+  const htmlMini = miniConfiguracion(st.mascota, st.config.tab)
+  if (st.cfgFirmas.mini !== htmlMini) {
+    mini.innerHTML = htmlMini
+    $('#marco').classList.toggle('con-mini', !!htmlMini)
+    st.cfgFirmas.mini = htmlMini
+  }
   const pendientes = st.proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
   const aviso = avisoPreguntaConfiguracion(pendientes)
   if (st.cfgFirmas.aviso !== aviso) { $('#cfg-aviso').innerHTML = aviso; st.cfgFirmas.aviso = aviso }
@@ -2898,13 +2913,27 @@ function pintarConfiguracion() {
   }
   const lista = $('#cfg .pestanas')
   if (!$('#cfg .ind').style.width) movimientoConfig.colocarIndicador(lista, false)
-  const html = seccionConfiguracion(st.config.tab, datosPanel())
+  const datos = datosConfiguracion()
+  const html = seccionConfiguracion(st.config.tab, datos)
   if (st.cfgFirmas.seccion !== html) {
     const cont = $('#cfg-cont')
     const k = cont.contains(document.activeElement) ? document.activeElement.closest('[data-k]')?.dataset.k : null
-    cont.innerHTML = html
+    // Mascota ya dibujada: cambia solo la parte que cambió (la figura sigue si cambia la forma, y la
+    // luz del escenario hace su transición porque el escenario no se reemplaza)
+    const partes = st.config.tab === 'mascota' ? partesMascota(datos) : null
+    if (partes && cont.querySelector('.esc-m')) {
+      for (const [parte, h] of Object.entries(partes)) {
+        if (st.cfgFirmas[`m-${parte}`] === h) continue
+        const el = cont.querySelector(`[data-parte="${parte}"]`)
+        if (el) el.innerHTML = h
+        st.cfgFirmas[`m-${parte}`] = h
+      }
+    } else {
+      cont.innerHTML = html
+      for (const [parte, h] of Object.entries(partes ?? {})) st.cfgFirmas[`m-${parte}`] = h
+    }
     $('#cfg-p').setAttribute('aria-labelledby', `cfg-t-${st.config.tab}`)
-    if (k) cont.querySelector(`[data-k="${CSS.escape(k)}"]`)?.focus({ preventScroll: true })
+    if (k && cont.contains(document.activeElement) === false) cont.querySelector(`[data-k="${CSS.escape(k)}"]`)?.focus({ preventScroll: true })
     st.cfgFirmas.seccion = html
   }
 }
@@ -2946,10 +2975,12 @@ function cerrarConfig({ foco = true } = {}) {
 function cambiarPestanaConfig(tab, { foco = false } = {}) {
   if (!IDS_PESTANAS.includes(tab) || tab === st.config.tab) return
   const direccion = Math.sign(IDS_PESTANAS.indexOf(tab) - IDS_PESTANAS.indexOf(st.config.tab))
-  st.config = { ...st.config, tab, editando: null, armado: null, error: null }
+  const salioDeMascota = st.config.tab === 'mascota'
+  // La vista previa vuelve a la base: la figura se redibuja al volver a Mascota
+  st.config = { ...st.config, tab, editando: null, armado: null, error: null, forma: 'base' }
   pintarConfiguracion()
   movimientoConfig.colocarIndicador($('#cfg .pestanas'), true)
-  movimientoConfig.cambioPestana($('#cfg-cont'), direccion)
+  movimientoConfig.cambioPestana($('#cfg-cont'), direccion, { mini: salioDeMascota ? $('#cfg-mini > .avi') : null })
   $('#cfg-p').scrollTop = 0
   if (foco) $(`#cfg-t-${tab}`)?.focus()
 }
@@ -2981,6 +3012,65 @@ async function guardarAjusteConfig(clave, valor) {
     pintarConfiguracion()
     return false
   }
+}
+
+/** Un anuncio en la región `role=status` de la hoja: se vacía antes, así el mismo texto se vuelve a oír. */
+function decirConfig(mensaje) {
+  const el = $('#cfg-vivo')
+  if (!el) return
+  el.textContent = ''
+  setTimeout(() => { el.textContent = mensaje }, 30)
+}
+
+/**
+ * Cambia la mascota en toda la ventana (configuracion-ux.md 9.3): la marca, la muesca, la tira, las
+ * tarjetas, los subagentes y el equipo se redibujan con la especie nueva, sin acto. Las firmas no
+ * llevan la mascota, así que se olvidan; la forma evolucionada de cada clave sigue (st.formas). La
+ * vista previa de la configuración vuelve a la base. Devuelve si cambió.
+ */
+function ponerMascota(especie) {
+  if (!validarAjuste('mascota', especie) || especie === st.mascota) return false
+  st.mascota = especie
+  st.config = { ...st.config, forma: 'base' }
+  for (const k of Object.keys(st.firmas)) if (k.startsWith('#')) st.firmas[k] = null
+  marca.redibujar()
+  muescaAvi.redibujar()
+  pintar()
+  return true
+}
+
+/**
+ * Elige la especie en la pestaña Mascota: se ve en toda la ventana en el clic, con su acto en el
+ * escenario (8), y se guarda (`guardar_ajuste`, que también avisa `oficina://mascota`). Si no se pudo
+ * guardar, vuelve la de antes y lo dice debajo de las fichas (7.5).
+ */
+async function elegirEspecieConfig(especie) {
+  if (!validarAjuste('mascota', especie) || especie === st.mascota) return
+  const antes = st.mascota
+  st.config = { ...st.config, error: null }
+  ponerMascota(especie)
+  movimientoConfig.elegirEspecie({
+    figura: $('#cfg .esc-fig > .avi'), textos: [...document.querySelectorAll('#cfg .esc-t > *')], marca: $('#marca-avi > .avi'),
+  })
+  decirConfig(anuncioEspecie(especie))
+  try {
+    await invocar('guardar_ajuste', { clave: 'mascota', valor: especie })
+  } catch (err) {
+    registrar(`configuración: no se pudo guardar mascota: ${err}`)
+    st.config = { ...st.config, error: 'mascota' }
+    // Si mientras tanto se eligió otra, esa manda: solo se vuelve si sigue la que falló
+    if (st.mascota !== especie || !ponerMascota(antes)) pintarConfiguracion()
+  }
+}
+
+/** "Base · {evo}" (8): la forma de la vista previa, con el acto real de la especie o al instante. */
+function cambiarFormaConfig(forma) {
+  const config = elegirForma(st.config, forma)
+  if (config.forma === st.config.forma) return
+  st.config = config
+  pintarConfiguracion()
+  movimientoConfig.vistaPrevia($('#cfg .esc-fig svg'), st.mascota, forma, $('#cfg .esc-m'))
+  decirConfig(anuncioForma(st.mascota, forma))
 }
 
 /** "Arrancar con Windows": solo con este clic cambia el inicio de Windows; la marca es la real. */
@@ -3046,6 +3136,8 @@ async function accionConfiguracion(a, b) {
       }
       break
     case 'cfg-ubic': await ubicarConfig(b.dataset.valor); break
+    case 'cfg-esp': await elegirEspecieConfig(b.dataset.valor); break
+    case 'cfg-forma': cambiarFormaConfig(b.dataset.valor); break
     case 'cfg-ver': {
       // La pregunta pendiente (4.1): cierra la configuración y la muestra, en su proyecto
       const k = st.proyectos.findIndex(p => preguntasPendientes(p).length)
@@ -3359,6 +3451,9 @@ async function iniciar() {
     // "Pausar animaciones" de la bandeja o de la configuración
     escuchar('oficina://pausa', ev => ponerPausa(!!ev.payload))
     escuchar('oficina://tamano', ev => aplicarTamano(Number(ev.payload)))
+    // La mascota guardada (configuracion-ux.md 9.3): toda la ventana se redibuja con ella, sin acto;
+    // si la eligió esta misma ventana, ya está puesta y no pasa nada
+    escuchar('oficina://mascota', ev => ponerMascota(ev.payload?.mascota))
     // "Configuración…" de la bandeja (configuracion-ux.md 4.1): muestra el panel y abre la hoja
     escuchar('oficina://configuracion', ev => { if (ev.payload?.abrir) abrirConfig({ tab: ev.payload.tab }) })
     // Se abrió Avis otra vez estando en la tira mini: volver a la ventana completa

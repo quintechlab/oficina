@@ -1,10 +1,13 @@
 // La hoja de la configuración (#23, docs/diseno/configuracion-ux.md 4.3 y 5): el esqueleto, las
 // pestañas, la línea de la pregunta pendiente y el contenido de cada pestaña. Solo HTML, como
 // primerosPasosVista.js: los datos llegan armados desde main.js y nada de acá toca el DOM.
-// Entrega 1: la pestaña Panel; las demás muestran solo su rótulo hasta su entrega.
+// Entrega 1: la pestaña Panel. Entrega 2: Mascota (el escenario con la vista previa y las fichas) y el
+// Avi de 40 junto al título. Las demás muestran solo su rótulo hasta su entrega.
 
 import { escapar } from './logica.js'
-import { PESTANAS, UBICACIONES, limitesTamano } from './configuracion.js'
+import { PESTANAS, UBICACIONES, limitesTamano, CLAVE_VISTA_PREVIA, opcionesForma, rotuloEspecie } from './configuracion.js'
+import { NOMBRES_ESPECIES, datosEspecie, especieValida } from './especies.js'
+import { avi, claudeDe } from './avis.js'
 
 /** El texto debajo de una fila cuyo ajuste no se pudo guardar (7.5). */
 export const TEXTO_ERROR_GUARDAR = 'No se pudo guardar. Probá de nuevo.'
@@ -41,6 +44,7 @@ export function avisoPreguntaConfiguracion(pendientes) {
 /** El contenido de una pestaña. Las que todavía no tienen el suyo muestran solo su rótulo. */
 export function seccionConfiguracion(tab, datos) {
   if (tab === 'panel') return seccionPanel(datos)
+  if (tab === 'mascota') return seccionMascota(datos)
   const p = PESTANAS.find(x => x.id === tab)
   return p ? `<h3 class="sub">${p.nombre}</h3>` : ''
 }
@@ -92,4 +96,53 @@ export function seccionPanel(datos) {
     + fila('Avisarme con cada pregunta', 'Una notificación de Windows cuando Claude te pregunta algo.', interruptor('avisar', 'Avisarme con cada pregunta', datos.avisar), { error: errorDe(datos, 'avisar') })
     + fila('Pausar animaciones', 'Las mascotas quedan quietas en su pose.', interruptor('pausa', 'Pausar animaciones', datos.pausa), { error: errorDe(datos, 'pausa') })
     + fila('Arrancar con Windows', 'Apagado de fábrica: solo lo cambia tu clic.', interruptor('arranque', 'Arrancar con Windows', datos.arranque), { error: errorDe(datos, 'arranque') })
+}
+
+// ------------------------------------------------------------------ Mascota (4.4, 5 y 6.1)
+
+/**
+ * La pestaña Mascota por partes, para que main.js cambie solo la que cambió (4.6): `fig` (el Avi de
+ * 120 del escenario, con su clave de evolución: depende solo de la especie, así cambiar la forma no
+ * corta el acto), `texto` (rótulo, nombre, concepto, "Base · {evo}" y la nota), `fichas` (las siete
+ * y la celda 8) y `error`. `datos`: { mascota, forma, error }.
+ */
+export function partesMascota(datos) {
+  const especie = especieValida(datos.mascota)
+  const d = datosEspecie(especie)
+  return {
+    fig: avi(claudeDe(especie), 'esperando', 120, { claveEvo: CLAVE_VISTA_PREVIA }),
+    texto: `<span class="kick">${escapar(rotuloEspecie(especie))}</span><h3 class="esc-n">${escapar(d.nombre)}</h3>`
+      + `<p class="esc-c">${escapar(d.concepto)}</p>`
+      + segmentos('cfg-forma', opcionesForma(especie), datos.forma === 'evo' ? 'evo' : 'base', 'Vista previa de la forma')
+      + '<span class="esc-q">Evoluciona sola mientras Claude coordina un equipo</span>',
+    fichas: NOMBRES_ESPECIES.map((e, i) => fichaEspecie(e, e === especie, i)).join('')
+      + '<p class="esp-nota">Se ve en la marca, la muesca y cada sesión. Sus subagentes son de su especie.</p>',
+    error: errorDe(datos, 'mascota'),
+  }
+}
+
+/** Una ficha de especie (`radio`): el Avi de 54 en la base, nombre y forma; la elegida con ✓. */
+function fichaEspecie(especie, elegida, indice) {
+  const { nombre, evoNombre, c } = datosEspecie(especie)
+  return `<button type="button" class="esp" role="radio" aria-checked="${elegida}" tabindex="${elegida ? 0 : -1}" data-accion="cfg-esp" data-valor="${especie}" data-k="esp-${especie}"`
+    + ` style="--c:${c}" aria-label="${escapar(`${nombre}, evoluciona a ${evoNombre}`)}" title="${escapar(`${nombre} › ${evoNombre}`)}">`
+    + `${avi(claudeDe(especie), 'esperando', 54, { indice })}<span class="esp-n">${escapar(nombre)}</span><span class="esp-e">› ${escapar(evoNombre)}</span>`
+    + `${elegida ? '<i class="esp-ok" aria-hidden="true">✓</i>' : ''}</button>`
+}
+
+/**
+ * Pestaña Mascota (4.4): el escenario (la luz es `--cc`, que main.js pone en #cfg para que cambie con
+ * transición) y las fichas en un `radiogroup`; el error de guardar, debajo de las fichas.
+ */
+export function seccionMascota(datos) {
+  const p = partesMascota(datos)
+  return `<div class="esc-m"><div class="esc-fig" data-parte="fig">${p.fig}</div><div class="esc-t" data-parte="texto">${p.texto}</div></div>`
+    + `<div class="especies" role="radiogroup" aria-label="Mascota de Claude" data-parte="fichas">${p.fichas}</div>`
+    + `<div class="esp-error" data-parte="error">${p.error}</div>`
+}
+
+/** El Avi de 40 junto al título (6.1 `.mini`): solo fuera de Mascota, en la forma chica y decorativo. */
+export function miniConfiguracion(especie, tab) {
+  if (tab === 'mascota') return ''
+  return avi(claudeDe(especieValida(especie)), 'esperando', 40)
 }

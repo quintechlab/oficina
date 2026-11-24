@@ -545,6 +545,22 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
     quiereCursor: () => puede() && sigue(),
 
     /**
+     * Vuelve a dibujar la figura con lo que da `figura` ahora: otra mascota elegida en la
+     * configuración (configuracion-ux.md 9.3, sin acto). Corta el juego y la siesta (sus piezas eran
+     * de la especie de antes), conserva la pose, la voz y la mirada, y vuelve a programar el reposo.
+     */
+    redibujar() {
+      const dibujo = s.voz ?? s.animo
+      if (dibujo == null) return
+      cancelar()
+      dibujar(dibujo)
+      aplicar(s.V)
+      aplicarMirada()
+      programar()
+      despertar()
+    },
+
+    /**
      * La voz del resumen (resumen-ia-ux.md 6.2): con una pose, cancela el juego y la siesta (salvo el
      * despertar, que termina y sigue a la voz), no programa reposo, redibuja la pose con un rebote y
      * lleva los canales a los de la voz en 360 ms; "contando" mueve el pico mientras `hablando`.

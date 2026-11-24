@@ -30,7 +30,9 @@
 //   ?cfg=panel    abre la configuración al arrancar en esa pestaña (mascota, panel, modelos, datos,
 //                 instalacion), como "Configuración…" de la bandeja (window.__bandeja('oficina://configuracion', { abrir: true }))
 //   &arranque     "Arrancar con Windows" ya prendido   &arranquefalla  el sistema no deja cambiarlo
-//   &cfgfalla     guardar_ajuste falla: el interruptor vuelve y dice "No se pudo guardar. Probá de nuevo."
+//   &cfgfalla     guardar_ajuste falla: el interruptor (o la especie) vuelve y dice "No se pudo guardar. Probá de nuevo."
+//   ?cfg=mascota  la pestaña Mascota: elegir una especie cambia toda la ventana; "Base · {evo}" corre el acto
+//                 (con ?pausa o movimiento reducido, al instante)
 //   Lo guardado queda en window.__ajustes.
 //   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
 //                 docs/diseno/mascotas-avi-ux.md 9.1), con su forma evolucionada, sus bucles y sus actos;
@@ -441,7 +443,8 @@
     : null
   window.__acople = acople
   /** preferencias.json falso (configuracion-ux.md 9.1): los interruptores; guardar_ajuste los cambia. */
-  const ajustes = { arriba: true, avisar: true, pausa: url.has('pausa') }
+  const ESPECIES = ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']
+  const ajustes = { arriba: true, avisar: true, pausa: url.has('pausa'), mascota: ESPECIES.includes(url.get('mascota')) ? url.get('mascota') : 'avi' }
   let arranqueFalso = url.has('arranque')
   const oyentes = {}
   let lecturas = 0
@@ -727,18 +730,19 @@
     // Como Rust (leer_configuracion): la mascota que no es una especie es el Avi (la ventana la valida
     // otra vez); los interruptores, lo guardado con guardar_ajuste; el arranque, el "sistema" falso
     leer_configuracion: () => ({
-      mascota: ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen'].includes(url.get('mascota')) ? url.get('mascota') : 'avi',
       tamano: paso, acople, flotante, ...ajustes, arranque: arranqueFalso, version: '0.10.0',
     }),
     // Como `ajuste_valido` de preferencias.rs; ?cfgfalla hace fallar el guardado (la fila vuelve y lo dice)
     guardar_ajuste: ({ clave, valor }) => {
-      const valido = clave === 'mascota' ? typeof valor === 'string' : ['arriba', 'avisar', 'pausa'].includes(clave) && typeof valor === 'boolean'
+      const valido = clave === 'mascota' ? ESPECIES.includes(valor) : ['arriba', 'avisar', 'pausa'].includes(clave) && typeof valor === 'boolean'
       if (!valido) throw new Error(`ajuste inválido: ${clave}`)
       if (url.has('cfgfalla')) throw new Error('no se pudo escribir preferencias.json (falso)')
       ajustes[clave] = valor
       window.__ajustes = { ...ajustes }
       console.info('[preferencias]', JSON.stringify(ajustes))
       if (clave === 'pausa') emitir('oficina://pausa', valor)
+      // Como Rust: la mascota guardada avisa a la ventana, que redibuja todo con ella (sin acto)
+      if (clave === 'mascota') emitir('oficina://mascota', { mascota: valor })
       return { ok: true, valor }
     },
     // "Arrancar con Windows": ?arranquefalla imita un sistema que no deja prenderlo (vuelve la marca real)

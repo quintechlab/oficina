@@ -288,40 +288,56 @@ export function especieValida(especie) {
  * se dibujan los ojos ∪, ∩ y x; `emisor`: el punto de donde salen las ondas de "coordinando";
  * `flota`: no camina (Bruma: contacto de `rx` 20); `piezas`: el dibujo de la forma base de las
  * especies nuevas (el Avi se dibuja con el generador de siempre, avis.js); `evo`: su forma evolucionada.
+ * `tipo` y `concepto`: los del boceto de mascotas (`M`), para la pestaña Mascota de la configuración
+ * (configuracion-ux.md 5).
  */
 export const ESPECIES = {
   avi: {
     nombre: 'Avi', evoNombre: 'Faro', c: '#F2B632', mano: '#EFE6D2', trazo: '#1B1712',
+    tipo: 'Familia · el de siempre',
+    concepto: 'El Avi de Claude de hoy, sin cambios: huevo crema, pico y antena ámbar. Ahora también evoluciona.',
     ojo: { x1: 49, x2: 71, y: 70, r: 4.5 }, emisor: [60, 14], firma: 'la antena con foco',
     evo: FARO,
   },
   ascua: {
     nombre: 'Ascua', evoNombre: 'Pira', c: '#FF7A2E', mano: '#E27A52', trazo: '#2A0F08',
+    tipo: 'Dracónico · brasa',
+    concepto: 'Un dragoncito que guarda una brasa en el pecho: cuanto más trabaja, más brilla.',
     ojo: { x1: 46, x2: 74, y: 59, r: 4.6 }, emisor: [60, 20], firma: 'escamas naranja, cuernos hueso curvos y cresta',
     piezas: ASCUA, evo: PIRA,
   },
   escarcha: {
     nombre: 'Escarcha', evoNombre: 'Glaciar', c: '#7DF9FF', mano: '#BFE6FA', trazo: '#0B1E4A',
+    tipo: 'Dracónico · cristal',
+    concepto: 'Un dragón tallado en hielo, todo facetas: piensa en frío y nunca pierde la forma.',
     ojo: { x1: 50, x2: 70, y: 66, r: 4.4 }, emisor: [61, 4], firma: 'las tres púas y el celeste hielo',
     piezas: ESCARCHA, evo: GLACIAR,
   },
   nodo: {
     nombre: 'Nodo', evoNombre: 'Nodo Ω', c: '#C6FF3D', mano: '#56635B', trazo: '#C6FF3D',
+    tipo: 'Digital · datos',
+    concepto: 'Nació en la memoria caché: cara de pantalla, orejas de antena y una evolución guardada.',
     ojo: { x1: 48, x2: 72, y: 61, r: 4.2 }, emisor: [60, 22], firma: 'orejas de antena y pantalla lima',
     piezas: NODO, evo: NODO_OMEGA,
   },
   bruma: {
     nombre: 'Bruma', evoNombre: 'Regia', c: '#FF5FD2', mano: '#B88CFF', trazo: '#170A33',
+    tipo: 'Abisal · bioluz',
+    concepto: 'Viene del fondo del mar de datos: no camina, flota, y brilla cuando piensa.',
     ojo: { x1: 49, x2: 71, y: 53, r: 4.6 }, emisor: [60, 28], firma: 'campana violeta con bioluz magenta', flota: true,
     piezas: BRUMA, evo: REGIA,
   },
   morro: {
     nombre: 'Morro', evoNombre: 'Monolito', c: '#FFC24A', mano: '#726E82', trazo: '#FFC24A',
+    tipo: 'Gólem · runas',
+    concepto: 'Un gólem petiso de basalto: lento, firme, y sus runas se encienden cuando algo importa.',
     ojo: { x1: 47, x2: 73, y: 60, r: 4 }, emisor: [60, 40], firma: 'basalto con runas ámbar y musgo',
     piezas: MORRO, evo: MONOLITO,
   },
   lumen: {
     nombre: 'Lumen', evoNombre: 'Aurora', c: '#FFB37A', mano: '#F0C08F', trazo: '#1E1220',
+    tipo: 'Polilla · luz',
+    concepto: 'Una polilla mullida que junta la luz de las pantallas y la devuelve en polvo.',
     ojo: { x1: 48, x2: 72, y: 63, r: 5 }, emisor: [60, 24], firma: 'alas coral con ocelos turquesa',
     piezas: LUMEN, evo: AURORA,
   },
