@@ -229,7 +229,9 @@ pub fn evento_de_linea(v: &Value) -> Option<EventoChat> {
     }
 }
 
-/// Lo mismo desde el texto de la línea: un JSON roto o una línea suelta es `None`.
+/// Lo mismo desde el texto de la línea: un JSON roto o una línea suelta es `None`. (`leer_stdout` hace
+/// lo mismo con el valor ya leído, porque además mira `sesion_perdida`.)
+#[cfg(test)]
 pub fn evento_de_texto(linea: &str) -> Option<EventoChat> {
     serde_json::from_str::<Value>(linea).ok().as_ref().and_then(evento_de_linea)
 }
@@ -252,6 +254,12 @@ pub fn motivo_de_result(v: &Value) -> &'static str {
         return "red";
     }
     "otro"
+}
+
+/// `--resume` con una sesión que Claude Code ya no tiene (medido en E4: un `result`
+/// `error_during_execution` con "No conversation found…" en `errors`, y sale con código 1).
+pub fn sesion_perdida(v: &Value) -> bool {
+    v["type"] == "result" && v["errors"].as_array().is_some_and(|e| e.iter().any(|x| x.as_str().is_some_and(|x| x.contains("No conversation found"))))
 }
 
 /// El último tramo de una ruta (con `/` o `\`).
@@ -508,6 +516,8 @@ enum Linea {
     Evento(EventoChat),
     /// stderr: "Session ID … is already in use" (medido en E0): la sesión ya existe.
     SesionEnUso,
+    /// stdout: `--resume` de una sesión que Claude Code ya no tiene (medido en E4).
+    SesionPerdida,
     /// stdout terminó.
     Fin,
 }
@@ -639,6 +649,11 @@ impl Chat {
 
     fn estado(&self) -> MutexGuard<'_, Estado> {
         bloquear(&self.0.estado)
+    }
+
+    /// `<config>/chat`: también la carpeta del historial (`historial.rs`, 9.1).
+    pub fn carpeta(&self) -> PathBuf {
+        self.0.carpeta.clone()
     }
 
     /// `chat_abrir` (7.8): conoce la conversación y, con el motor Claude Code, precalienta el
@@ -859,6 +874,7 @@ impl Chat {
             match rx.recv_timeout(espera) {
                 Ok(Linea::Evento(ev)) => self.al_evento(generacion, ev, &mut juntador, &mut destino),
                 Ok(Linea::SesionEnUso) => self.sesion_en_uso(generacion),
+                Ok(Linea::SesionPerdida) => self.sesion_perdida(generacion),
                 Ok(Linea::Fin) | Err(RecvTimeoutError::Disconnected) => break,
                 Err(RecvTimeoutError::Timeout) => {}
             }
@@ -937,6 +953,19 @@ impl Chat {
         }
     }
 
+    /// Claude Code ya no tiene la sesión de la charla (se borró su transcripción): la próxima vez
+    /// empieza una nueva, con otro id. Lo hablado sigue en el historial de Avis, no en Claude Code.
+    fn sesion_perdida(&self, generacion: u64) {
+        let mut e = self.estado();
+        let Some(conversacion) = e.proceso_mut(generacion).map(|p| p.conversacion.clone()) else { return };
+        if let Some(c) = e.conversaciones.get_mut(&conversacion) {
+            registrar("chat: Claude Code ya no tiene la sesión de la charla; la próxima empieza una nueva");
+            c.sesion = nuevo_uuid();
+            c.usada = false;
+            c.firma = None;
+        }
+    }
+
     /// Cada vuelta: el eco de 15 s del turno en curso y la inactividad sin turno.
     fn revisar(&self, generacion: u64, ahora: Instant) {
         let sin_eco = {
@@ -974,7 +1003,11 @@ fn leer_stdout(stdout: std::process::ChildStdout, tx: Sender<Linea>) {
                 Ok(0) | Err(_) => break,
                 Ok(_) => {}
             }
-            let ev = std::str::from_utf8(&linea).ok().and_then(evento_de_texto);
+            let v = std::str::from_utf8(&linea).ok().and_then(|l| serde_json::from_str::<Value>(l).ok());
+            if v.as_ref().is_some_and(sesion_perdida) && tx.send(Linea::SesionPerdida).is_err() {
+                break;
+            }
+            let ev = v.as_ref().and_then(evento_de_linea);
             if linea.capacity() > 1024 * 1024 {
                 linea = Vec::new();
             }

@@ -1132,6 +1132,12 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .h-it span { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #hoja .h-it span em { font-style: normal; color: var(--crema2) }
 #hoja .hist-vacio { padding: 12px 8px; font: var(--t-chico); color: var(--tenue) }
+/* El menú de una charla (clic derecho o la tecla Menú): "Borrar", que confirma en el mismo botón (D24) */
+#hoja .h-menu { display: grid; margin: 2px 8px 6px; padding: 4px; border-radius: var(--r-campo); background: var(--s2); border: 1px solid var(--linea-hover); box-shadow: 0 18px 36px -18px #000 }
+#hoja .h-borrar { min-height: 32px; padding: 0 10px; border-radius: var(--r-icono); text-align: left; font: var(--t-cuerpo-f); color: var(--rojo) }
+#hoja .h-borrar:hover, #hoja .h-borrar:focus-visible { background: var(--s3) }
+#hoja .h-borrar.confirma { background: var(--rojo); color: var(--negro) }
+#hoja .h-borrar.confirma:focus-visible { outline-color: var(--crema) }
 #hoja .guardado { display: flex; gap: 6px; align-items: center; padding: 8px 8px 0; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
 #hoja .guardado i { width: 6px; height: 6px; border-radius: 50%; background: var(--verde) }
 
@@ -1155,7 +1161,7 @@ body:not(.colocada) #hoja { visibility: hidden }
   /* El cajón entra desde la izquierda con su velo; el menú de carpeta cae 6 px */
   body:not(.pausa) #hoja .cajon { animation: entra-cajon 420ms var(--ease) both }
   body:not(.pausa) #hoja .velo { animation: aparece-velo 300ms ease both }
-  body:not(.pausa) #hoja #chat-menu .menu { animation: cae 260ms var(--ease) both }
+  body:not(.pausa) #hoja #chat-menu .menu, body:not(.pausa) #hoja .h-menu { animation: cae 260ms var(--ease) both }
 }
 body.mini #hoja *, body.mini #hoja *::before, body.mini #hoja *::after,
 body.acoplada:not(.desplegada) #hoja *, body.acoplada:not(.desplegada) #hoja *::before, body.acoplada:not(.desplegada) #hoja *::after { animation-play-state: paused !important }

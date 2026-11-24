@@ -246,6 +246,18 @@ Un proceso lanzado con `--session-id <uuid>` y cerrado sin mandarle nada (stdin 
 
 Con `chat.rs` y el `claude` real (`cargo test real_ -- --ignored`, Haiku): precalentado 3 s, el primer `texto` llegó a 4,0 s del envío (con pensamiento); frenar con ese texto dio `frenada` y el turno siguiente, en el mismo proceso, respondió "Ascua" (la mascota del primer mensaje).
 
+### 7.11 Retomar después de cerrar Avis, y Engram (medido en E4, 24/11)
+
+- **Retomar recuerda lo hablado (medido, Haiku):** un `Chat` mandó "Mi color favorito es el turquesa", se apagó, y otro `Chat` nuevo (como otro arranque de Avis), con la sesión leída del archivo del historial, abrió con `--resume <sesión>` y a "¿Cuál es mi color favorito?" respondió "Turquesa." El `init` del turno retomado trae la misma `session_id`. Test: `real_retomar_despues_de_cerrar_avis_recuerda_lo_hablado`.
+- **`--resume` de una sesión que Claude Code ya no tiene (medido):** sale enseguida con código 1, stderr "No conversation found with session ID: …" y una sola línea en stdout: `result` `error_during_execution`, `is_error: true`, sin `terminal_reason`, con el texto en `errors` (no en `result`). Costo 0. Fixture `sin-conversacion.jsonl`. Rust la marca (`sesion_perdida`) y la próxima vez empieza una sesión nueva: lo hablado sigue en el historial de Avis, pero Claude Code ya no lo recuerda.
+- **Engram 3.7.2, contra un `engram serve 7499` aparte** (`ENGRAM_DATA_DIR` propio en un temporal; contra el del usuario, solo `GET /health`). Las respuestas que usa el falso de `engram_tests.rs`:
+  - `POST /sessions` → `201 {"id","status":"created"}`; repetirlo con el mismo id también da `201`. `POST /sessions/{id}/end` con `{}` → `200 {"status":"completed"}`, y una sesión terminada sigue aceptando observaciones.
+  - `POST /observations` → `201 {"id":N,"status":"saved"}`; con una sesión que no existe, `404 {"error":"session not found"}`; la misma `operation_id` con otro contenido, `409 {"error":"observation operation id conflicts with a different payload"}`. El mismo `topic_key` actualiza la misma observación (`revision_count` sube).
+  - `GET /observations/save-result?operation_id=…` → `200 {"id":N,"status":"committed"}`, o `404 {"code":"observation_save_result_not_found",…}`.
+  - `GET /search?q=…&project=avis&type=conversation&response_format=compact` → `{"result":"Found 1 memories.","results":[{id,title,topic_key,preview,…}]}`; sin nada, `"results":[]`.
+  - `GET /context?project=oficina` con una observación de `oficina` y la charla en `avis`: lista solo la de `oficina` (test `real_engram_guardar_buscar_sin_tocar_otro_proyecto_y_borrar`). Con un proyecto que no existe: `404 {"code":"unknown_project","available_projects":[…]}`.
+  - `DELETE /observations/{id}?expected_project=oficina` sobre una de `avis` → `409 {"error":"expected_project does not match observation owner"}`; con `avis` → `200 {"hard_delete":false,"status":"deleted"}`. Borrada (sin `hard`), deja de aparecer en `/search` y `GET /observations/{id}` da `404`. Guardar después el mismo `topic_key` crea otra observación (otro id).
+
 ## Flags recomendados para Avis
 
 Actualizado con las mediciones de E0 (7.1):

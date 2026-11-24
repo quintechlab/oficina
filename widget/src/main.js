@@ -42,7 +42,7 @@ import { esqueleto, rotulo, pestanas, indicePestana, escena as escenaPasos, pie 
 import * as movimientoPasos from './primerosPasosMotion.js'
 import {
   chatInicial, transicionChat, ocupado, datosAvis, relojEspera, tramoVivo, markdownSeguro, sugerencias, nombreCarpeta,
-  carpetasDeProyectos, ladoHoja, rectHoja, SALUDA_MS, FELIZ_MS, ADELANTO_PLIEGUE_MS,
+  carpetasDeProyectos, ladoHoja, rectHoja, SALUDA_MS, FELIZ_MS, ADELANTO_PLIEGUE_MS, aArchivo, guardadosPendientes, GUARDAR_CADA_MS,
 } from './chat.js'
 import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, cajon, listaHistorial, capaSoltar, htmlPalabras } from './chatVista.js'
 import * as movimientoChat from './chatMotion.js'
@@ -2867,6 +2867,9 @@ let abriendo = Promise.resolve()
 let cuadroHoja = 0
 /** Lo buscado en el cajón del historial (se pierde al cerrarlo). */
 let buscarChat = ''
+/** El guardado de la respuesta que llega (cada 2 s, 9.1), la cola de guardados y el "¿Borrar? Sí" de 3 s (D24). */
+let guardadoLuego = null, temporizadorBorrar = null
+let colaGuardar = Promise.resolve()
 /**
  * La respuesta en curso ya dibujada (6.2): de qué turno y qué texto. Lo que llega después entra con
  * `.w`; lo ya puesto no se toca. `quieto`: lo próximo se agrega sin animar (la hoja vuelve a verse).
@@ -2916,6 +2919,13 @@ function despacharChat(ev) {
   if (chat === antes && !efectos.length) return
   const seVeia = hojaSeVe()
   st.chat = chat
+  // El historial en la PC (9.1): al mandar, en cada final y cada 2 s mientras llega el texto
+  guardarCharlas(guardadosPendientes(antes, chat))
+  // "¿Borrar? Sí" vuelve solo a los 3 s sin el segundo clic (D24, como Frenar)
+  if (chat.menuCharla?.confirmar && !antes.menuCharla?.confirmar) {
+    clearTimeout(temporizadorBorrar)
+    temporizadorBorrar = setTimeout(() => despacharChat({ tipo: 'no-borrar' }), MS_CONFIRMAR_FRENAR)
+  }
   const abre = chat.abierta && !antes.abierta, cierra = !chat.abierta && antes.abierta
   // Al cerrar, la hoja y el fantasma siguen a la vista mientras la mascota vuelve (6.1)
   if (abre) hojaCerrando = false
@@ -2940,7 +2950,7 @@ function despacharChat(ev) {
     if (e.tipo !== 'foco') continue
     // Al abrir, el foco va al campo cuando la mascota aterrizó (3.5)
     if (actoHoja && e.a === 'campo') actoHoja.then(() => enfocarEnHoja('campo'))
-    else enfocarEnHoja(e.a)
+    else enfocarEnHoja(e.a, e.id)
   }
 }
 
@@ -3016,6 +3026,35 @@ function poseDeUnRato(clave, ms) {
   temporizadorPose = setTimeout(programarHoja, ms + 20)
 }
 
+/**
+ * Guarda en la PC lo que pide `guardadosPendientes` (9.1): `ya`, enseguida (y cancela el guardado
+ * pendiente de esa charla); `luego`, una vez cada 2 s con lo último que haya. De a uno por vez, en
+ * orden: un guardado viejo nunca llega después de uno nuevo.
+ */
+function guardarCharlas(pendientes) {
+  for (const g of pendientes) {
+    if (g.cuando === 'luego') {
+      if (!guardadoLuego) {
+        guardadoLuego = setTimeout(() => {
+          guardadoLuego = null
+          const conv = st.chat.conversacion
+          if (conv?.id === g.conversacion.id) guardarCharla(conv, false)
+        }, GUARDAR_CADA_MS)
+      }
+      continue
+    }
+    if (guardadoLuego && st.chat.conversacion?.id === g.conversacion.id) { clearTimeout(guardadoLuego); guardadoLuego = null }
+    guardarCharla(g.conversacion, g.engram)
+  }
+}
+
+/** `chat_guardar`: el archivo de la charla y, en un `fin`, la copia en Engram (9.2). */
+function guardarCharla(conv, engram) {
+  if (!tauri?.core) return
+  const pedido = { conversacion: aArchivo(conv), mascota: nombreMascota(), engram }
+  colaGuardar = colaGuardar.then(() => invocar('chat_guardar', pedido)).catch(err => registrar(`chat guardar: ${err}`))
+}
+
 /** Los efectos de una transición: comandos de Rust, el selector de carpetas y los anuncios. */
 function efectoChat(e) {
   if (!tauri?.core && e.tipo !== 'anunciar' && e.tipo !== 'foco') return
@@ -3056,15 +3095,32 @@ function efectoChat(e) {
     case 'anunciar':
       anunciarChat(e.texto)
       break
+    case 'historial':
+      // La lista del disco (9.1): al arrancar y al abrir el cajón
+      invocar('chat_historial').then(lista => despacharChat({ tipo: 'historial', charlas: lista }))
+        .catch(err => registrar(`chat historial: ${err}`))
+      break
+    case 'leer':
+      // Una charla del disco: para retomarla desde el cajón, o la última al arrancar (D11)
+      invocar('chat_leer', { id: e.id })
+        .then(doc => despacharChat(e.para === 'recordar' ? { tipo: 'recordar', conversacion: doc } : { tipo: 'retomar', id: e.id, conversacion: doc }))
+        .catch(err => registrar(`chat leer: ${err}`))
+      break
+    case 'borrar':
+      // El archivo y su copia en Engram (solo la de avis); la de Claude Code queda (D29)
+      colaGuardar = colaGuardar.then(() => invocar('chat_borrar', { id: e.id })).catch(err => registrar(`chat borrar: ${err}`))
+      break
   }
 }
 
-/** Lleva el foco adonde dice la transición (3.5), cuando la hoja ya está dibujada. */
-function enfocarEnHoja(a) {
+/** Lleva el foco adonde dice la transición (3.5), cuando la hoja ya está dibujada. `id`: la charla del cajón. */
+function enfocarEnHoja(a, id = null) {
   if (a === 'marca') { marcaBoton.focus({ preventScroll: true }); return }
   if (!hojaSeVe()) return
   const destino = {
     campo: campoChat, carpeta: $('#chat-cab .carpeta'), hist: $('#hoja .arriba [data-accion="ch-hist"]'), buscar: $('#chat-buscar'),
+    borrar: $('#chat-hist-lista .h-borrar'),
+    charla: id ? [...$$('#chat-hist-lista [data-accion="ch-retomar"]')].find(x => x.dataset.id === id) : null,
   }[a]
   destino?.focus({ preventScroll: true })
 }
@@ -3252,7 +3308,8 @@ function pintarCajon(m) {
     lugar.innerHTML = cajon(m, buscarChat)
     st.firmas['#chat-hist-lista'] = listaHistorial(m, buscarChat)
   } else {
-    poner('#chat-hist-lista', listaHistorial(m, buscarChat))
+    // Con el foco en "Borrar", sigue ahí cuando pasa a "¿Borrar? Sí"
+    ponerConFoco('#chat-hist-lista', listaHistorial(m, buscarChat))
   }
 }
 
@@ -3306,6 +3363,7 @@ async function accionChat(a, b) {
       } catch (err) { registrar(`chat descargar: ${err}`) }
       break
     case 'ch-retomar': despacharChat({ tipo: 'retomar', id: b.dataset.id }); break
+    case 'ch-borrar': despacharChat({ tipo: 'borrar-charla' }); break
     case 'ch-copiar': await copiarDeHoja(b, c.conversacion?.mensajes[Number(b.dataset.i)]?.texto ?? ''); break
     case 'ch-copiar-codigo': await copiarDeHoja(b, b.closest('pre')?.querySelector('code')?.textContent ?? ''); break
   }
@@ -3343,6 +3401,9 @@ function teclaChat(e) {
   const c = st.chat
   if (e.target === campoChat && teclaControl(e) === 'enviar') { e.preventDefault(); mandarCampo(); return true }
   if (e.key === 'Escape') { e.preventDefault(); despacharChat({ tipo: 'esc' }); return true }
+  // El menú de una charla del cajón con la tecla Menú o Shift+F10 (D24)
+  const charla = e.target.closest?.('#chat-hist-lista [data-accion="ch-retomar"]')
+  if (charla && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) { e.preventDefault(); despacharChat({ tipo: 'menu-charla', id: charla.dataset.id }); return true }
   if (c.menu && e.target.closest('#chat-menu')) {
     const items = [...$$('#chat-menu [role^="menuitem"]')]
     const k = items.indexOf(e.target)
@@ -3378,9 +3439,17 @@ document.addEventListener('input', e => {
   buscarChat = e.target.value
   poner('#chat-hist-lista', listaHistorial(modeloVista(), buscarChat))
 })
-// Un clic afuera del menú de carpeta lo cierra (3.5)
+// Un clic afuera del menú de carpeta lo cierra (3.5); lo mismo el menú de una charla del cajón
 document.addEventListener('pointerdown', e => {
   if (st.chat.menu && !e.target.closest?.('#chat-menu, #chat-cab .carpeta')) despacharChat({ tipo: 'menu' })
+  if (st.chat.menuCharla && !e.target.closest?.('#chat-hist-lista .h-menu')) despacharChat({ tipo: 'menu-charla', id: st.chat.menuCharla.id })
+})
+// Clic derecho en una charla del cajón: su menú, con "Borrar" (D24)
+document.addEventListener('contextmenu', e => {
+  const charla = e.target.closest?.('#chat-hist-lista [data-accion="ch-retomar"]')
+  if (!charla) return
+  e.preventDefault()
+  despacharChat({ tipo: 'menu-charla', id: charla.dataset.id })
 })
 
 /** Pinta la marca: su ánimo real y la descripción del Avi-botón. Con la hoja abierta, su motor está quieto (3.2). */
@@ -3470,6 +3539,8 @@ async function iniciar() {
     escuchar('oficina://chat', ev => despacharChat({ tipo: 'backend', payload: ev.payload }))
     // El modelo de esta PC (3.6): la descarga y el borrado desde la bandeja
     escuchar('oficina://modelo', ev => alEventoModelo(ev.payload))
+    // El historial de la charla (9.1): la lista del disco y, si es de las últimas 12 h, la última (D11)
+    efectoChat({ tipo: 'historial' })
   } else {
     // Sin Tauri (el HTML abierto solo): la ventana del navegador hace de área
     await aplicarTamano(PASO_POR_DEFECTO)

@@ -16,6 +16,8 @@ const SIN_RED_DNS: &str = include_str!("fixtures/chat/sin-red-dns.jsonl");
 const SIN_SESION: &str = include_str!("fixtures/chat/sin-sesion.jsonl");
 const TOPE: &str = include_str!("fixtures/chat/tope.jsonl");
 const PDF: &str = include_str!("fixtures/chat/pdf-15mb.jsonl");
+/// Medido en E4: `--resume` con una sesión que Claude Code ya no tiene (sale enseguida, código 1).
+const SIN_CONVERSACION: &str = include_str!("fixtures/chat/sin-conversacion.jsonl");
 const TODOS: [&str; 9] = [TEXTO, HERRAMIENTAS, IMAGEN, FRENADA, SIN_RED, SIN_RED_DNS, SIN_SESION, TOPE, PDF];
 
 fn lineas(fixture: &str) -> Vec<Value> {
@@ -839,6 +841,56 @@ fn una_charla_del_motor_local_nunca_lanza_claude() {
     borrar(&carpeta);
 }
 
+// ---------------------------------------------------------------- 7. una sesión que Claude Code ya no tiene (E4)
+
+#[test]
+fn sesion_perdida_solo_con_el_result_de_sin_conversacion() {
+    assert!(sesion_perdida(&linea(SIN_CONVERSACION, |v| v["type"] == "result")));
+    for f in TODOS {
+        assert!(lineas(f).iter().all(|v| !sesion_perdida(v)));
+    }
+    // Sigue siendo un error del turno, con el texto de siempre
+    assert!(matches!(evento_de_linea(&linea(SIN_CONVERSACION, |v| v["type"] == "result")), Some(EventoChat::Error { motivo: "otro", .. })));
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_retomar_una_sesion_perdida_empieza_una_nueva() {
+    let base = carpeta_temporal();
+    let f = fixture_en_archivo(&base, SIN_CONVERSACION, None);
+    let lanzados: Arc<Mutex<Vec<Vec<String>>>> = Arc::default();
+    let anotar = lanzados.clone();
+    let interno = lanzador_cmd(format!("set /p x= & type \"{}\"", f.display()));
+    let lanzador: Lanzador = Arc::new(move |l: &Lanzamiento| {
+        anotar.lock().unwrap().push(l.args.clone());
+        interno(l)
+    });
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    let vieja = "11111111-2222-4333-8444-555555555555";
+    chat.abrir("c-9", "claude", None, "Avi", Some(String::from(vieja))).unwrap();
+    chat.enviar("c-9", 1, "Hola", &Value::Null).unwrap();
+    r.esperar_final();
+    assert_eq!(r.todos().last().unwrap()["motivo"], "otro");
+    let primero = lanzados.lock().unwrap()[0].clone();
+    assert!(primero.windows(2).any(|w| w[0] == "--resume" && w[1] == vieja));
+    // Reintentar: otra sesión, nueva, nunca la perdida
+    let limite = Instant::now() + Duration::from_secs(10);
+    while chat.vivo("c-9") && Instant::now() < limite {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    chat.enviar("c-9", 2, "Hola", &Value::Null).unwrap();
+    let ultimo = lanzados.lock().unwrap().last().unwrap().clone();
+    assert!(!ultimo.contains(&String::from("--resume")), "{ultimo:?}");
+    let k = ultimo.iter().position(|a| a == "--session-id").expect("sin --session-id");
+    assert_ne!(ultimo[k + 1], vieja);
+    assert!(sesion_valida(&ultimo[k + 1]));
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
 // ---------------------------------------------------------------- con el claude real (a mano)
 //
 // `cargo test real_ -- --ignored --nocapture`. Gastan unos centavos: usan Haiku por
@@ -934,5 +986,49 @@ fn real_texto_en_streaming_frenar_y_el_proceso_sigue_vivo() {
     assert_eq!(segundo.last().unwrap()["tipo"], "fin");
     assert!(texto.contains("Ascua"));
     chat.apagar();
+    borrar(&carpeta);
+}
+
+/// E4: el historial sobrevive a cerrar Avis y la charla retomada con `--resume` recuerda lo hablado.
+/// Dos `Chat` distintos (como dos arranques de Avis) y el archivo de `historial.rs` en el medio.
+#[cfg(windows)]
+#[test]
+#[ignore]
+fn real_retomar_despues_de_cerrar_avis_recuerda_lo_hablado() {
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador_real_haiku(), r.emisor(), Tiempos::default());
+    chat.abrir("c-recuerda", "claude", None, "Avi", None).unwrap();
+    chat.enviar("c-recuerda", 1, "Mi color favorito es el turquesa. Respondé solo: anotado.", &Value::Null).unwrap();
+    r.esperar_final();
+    assert_eq!(r.tipos().last().map(String::as_str), Some("fin"), "{:?}", r.tipos());
+    let sesion = r.todos().iter().find(|v| v["tipo"] == "listo").and_then(|v| v["sesion"].as_str().map(String::from)).expect("sin init");
+    // Lo que guarda la ventana (9.1), con la sesión ya usada
+    let doc = json!({
+        "v": 1, "id": "c-recuerda", "titulo": "Mi color favorito", "creada": "2026-11-24T12:00:00.000Z", "actualizada": "2026-11-24T12:00:05.000Z",
+        "motor": "claude", "carpeta": null, "sesionClaude": sesion,
+        "mensajes": [
+            { "rol": "usuario", "texto": "Mi color favorito es el turquesa.", "cuando": "2026-11-24T12:00:00.000Z", "estado": "ok", "adjuntos": [] },
+            { "rol": "mascota", "texto": "anotado", "cuando": "2026-11-24T12:00:05.000Z", "estado": "ok", "herramientas": [], "ms": 1000 },
+        ],
+    });
+    crate::historial::guardar(&carpeta, &doc).unwrap();
+    chat.apagar();
+    drop(chat);
+    // "Avis se abre de nuevo": otro Chat, que solo sabe lo que hay en el archivo
+    let leido = crate::historial::leer(&carpeta, "c-recuerda").unwrap();
+    let r2 = Recibidos::default();
+    let chat2 = Chat::nuevo(carpeta.clone(), lanzador_real_haiku(), r2.emisor(), Tiempos::default());
+    let abierto = chat2.abrir("c-recuerda", "claude", None, "Avi", leido["sesionClaude"].as_str().map(String::from)).unwrap();
+    assert_eq!(abierto["sesion"], json!(sesion));
+    chat2.enviar("c-recuerda", 1, "¿Cuál es mi color favorito? Una palabra.", &Value::Null).unwrap();
+    r2.esperar_final();
+    let texto: String = r2.todos().iter().filter(|v| v["tipo"] == "texto").map(|v| v["texto"].as_str().unwrap_or("").to_string()).collect();
+    println!("sesión {sesion}; retomada responde: {texto:?}; eventos {:?}", r2.tipos());
+    assert_eq!(r2.tipos().last().map(String::as_str), Some("fin"));
+    assert!(texto.to_lowercase().contains("turquesa"));
+    let listo2 = r2.todos().iter().find(|v| v["tipo"] == "listo").and_then(|v| v["sesion"].as_str().map(String::from));
+    assert_eq!(listo2.as_deref(), Some(sesion.as_str()), "retomar sigue en la misma sesión");
+    chat2.apagar();
     borrar(&carpeta);
 }

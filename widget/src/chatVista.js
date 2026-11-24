@@ -289,11 +289,14 @@ export function listaHistorial(m, buscar = '') {
     if (!grupos.has(g)) grupos.set(g, [])
     grupos.get(g).push(x)
   }
-  const item = x => `<button type="button" class="h-it${x.id === actual ? ' on' : ''}" data-accion="ch-retomar" data-id="${escapar(x.id)}"${x.id === actual ? ' aria-current="true"' : ''}><b>${escapar(x.titulo ?? 'Charla')}</b><span><em>${escapar(x.motor === 'local' ? 'Sesiones de Avis' : nombreCarpeta(x.carpeta))}</em> · ${x.motor === 'local' ? 'local · ' : ''}${horaCharla(x.actualizada, m.ahoraMs)}</span></button>`
+  const mc = m.chat.menuCharla
+  // El menú de la charla (clic derecho o la tecla Menú): "Borrar", que confirma en el mismo botón (D24, D29)
+  const menu = x => (mc?.id !== x.id ? '' : `<div class="h-menu" role="menu" aria-label="${escapar(x.titulo ?? 'Charla')}"><button type="button" role="menuitem" class="h-borrar${mc.confirmar ? ' confirma' : ''}" data-accion="ch-borrar" data-id="${escapar(x.id)}" title="Borra la charla de Avis. Claude Code guarda su propia copia">${mc.confirmar ? '¿Borrar? Sí' : 'Borrar'}</button></div>`)
+  const item = x => `<button type="button" class="h-it${x.id === actual ? ' on' : ''}" data-accion="ch-retomar" data-id="${escapar(x.id)}"${x.id === actual ? ' aria-current="true"' : ''}><b>${escapar(x.titulo ?? 'Charla')}</b><span><em>${escapar(x.motor === 'local' ? 'Sesiones de Avis' : nombreCarpeta(x.carpeta))}</em> · ${x.motor === 'local' ? 'local · ' : ''}${horaCharla(x.actualizada, m.ahoraMs)}</span></button>${menu(x)}`
   return [...grupos].map(([g, xs]) => `<span class="dia">${g}</span>${xs.map(item).join('')}`).join('')
 }
 
-/** El pie del cajón: dónde quedó guardado (sin saber de Engram todavía, nada). */
+/** El pie del cajón: dónde quedó guardado (9.1 y 9.2). Hasta que `chat_abrir` diga si hay Engram, nada. */
 function guardado(m) {
   if (m.chat.engram === 'si') return '<div class="guardado"><i aria-hidden="true"></i>Guardado en esta PC · también en Engram</div>'
   if (m.chat.engram === 'no') return '<div class="guardado"><i aria-hidden="true"></i>Guardado en esta PC · Engram apagado</div>'

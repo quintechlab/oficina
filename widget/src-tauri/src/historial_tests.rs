@@ -1,0 +1,250 @@
+// Tests de historial.rs (#22, docs/diseno/chat-avis-ux.md 9.1 y 14.2.7): escribir y leer de nuevo,
+// un archivo roto que se salta (y nunca se borra), listar en orden y con tope, borrar, y guardar dos
+// veces a la vez sin romper el archivo.
+use super::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, SystemTime};
+
+static CONTADOR: AtomicUsize = AtomicUsize::new(0);
+
+fn carpeta_temporal() -> PathBuf {
+    let n = CONTADOR.fetch_add(1, Ordering::SeqCst);
+    let c = std::env::temp_dir().join(format!("avis-historial-test-{}-{n}", std::process::id()));
+    let _ = fs::remove_dir_all(&c);
+    fs::create_dir_all(&c).unwrap();
+    c
+}
+
+fn charla(id: &str, titulo: &str) -> Value {
+    json!({
+        "v": 1, "id": id, "titulo": titulo, "creada": "2026-11-24T12:00:00.000Z", "actualizada": "2026-11-24T12:05:00.000Z",
+        "motor": "claude", "carpeta": "C:\\Desktop\\catalogo", "sesionClaude": "0a1b2c3d-0000-4000-8000-000000000000",
+        "mensajes": [
+            { "rol": "usuario", "texto": "¿En qué anda cada sesión?", "cuando": "2026-11-24T12:00:00.000Z", "estado": "ok",
+              "adjuntos": [{ "nombre": "presupuesto-2027.pdf", "tipo": "pdf", "bytes": 1468006, "paginas": 14 }] },
+            { "rol": "mascota", "texto": "Todo tranquilo.", "cuando": "2026-11-24T12:00:02.000Z", "estado": "ok",
+              "herramientas": [{ "nombre": "Read", "detalle": "README.md" }], "ms": 1800, "avis": true },
+        ],
+    })
+}
+
+fn modificado(ruta: &Path, hace_segundos: u64) {
+    let f = fs::OpenOptions::new().write(true).open(ruta).unwrap();
+    f.set_modified(SystemTime::now() - Duration::from_secs(hace_segundos)).unwrap();
+}
+
+// ---------------------------------------------------------------- ids y rutas
+
+#[test]
+fn solo_ids_de_charla_c_guion_y_sin_rutas() {
+    assert!(id_valido("c-0a1b2c3d-0000-4000-8000-000000000000"));
+    assert!(id_valido("c-abc_1"));
+    for malo in ["", "ajustes", "c-", "c-../x", "c-a b", "c-a\\b", "x-123", &format!("c-{}", "a".repeat(200))] {
+        assert!(!id_valido(malo), "{malo:?}");
+    }
+    let c = PathBuf::from("C:\\config\\chat");
+    assert_eq!(ruta(&c, "c-1"), Some(c.join("c-1.json")));
+    assert_eq!(ruta(&c, "../c-1"), None);
+}
+
+// ---------------------------------------------------------------- escribir y leer
+
+#[test]
+fn guardar_y_leer_de_nuevo_da_lo_mismo() {
+    let c = carpeta_temporal();
+    let doc = charla("c-1", "¿En qué anda cada sesión");
+    guardar(&c, &doc).unwrap();
+    let leido = leer(&c, "c-1").unwrap();
+    let mut esperado = doc.clone();
+    esperado["engramId"] = Value::Null;
+    assert_eq!(leido, esperado);
+    // Escritura atómica: no queda ningún temporal
+    let sobras: Vec<_> = fs::read_dir(&c).unwrap().filter_map(Result::ok).filter(|e| e.file_name().to_string_lossy().ends_with(".tmp")).collect();
+    assert!(sobras.is_empty());
+    let _ = fs::remove_dir_all(&c);
+}
+
+#[test]
+fn los_adjuntos_quedan_solo_con_nombre_y_tamano_y_lo_desconocido_no_se_guarda() {
+    // D23: ni la ruta ni los bytes del archivo; tampoco campos que no son del formato (9.1)
+    let c = carpeta_temporal();
+    let mut doc = charla("c-1", "Presupuesto");
+    doc["mensajes"][0]["adjuntos"][0]["ruta"] = json!("C:\\Users\\x\\presupuesto-2027.pdf");
+    doc["mensajes"][0]["rutas"] = json!([{ "ruta": "C:\\Users\\x\\presupuesto-2027.pdf" }]);
+    doc["mensajes"][0]["turno"] = json!(3);
+    doc["otra"] = json!("cosa");
+    guardar(&c, &doc).unwrap();
+    let texto = fs::read_to_string(ruta(&c, "c-1").unwrap()).unwrap();
+    assert!(!texto.contains("C:\\\\Users"), "{texto}");
+    assert!(!texto.contains("turno") && !texto.contains("otra"));
+    let leido = leer(&c, "c-1").unwrap();
+    assert_eq!(leido["mensajes"][0]["adjuntos"], json!([{ "nombre": "presupuesto-2027.pdf", "tipo": "pdf", "bytes": 1468006, "paginas": 14 }]));
+    let _ = fs::remove_dir_all(&c);
+}
+
+#[test]
+fn guardar_rechaza_lo_que_no_es_una_charla() {
+    let c = carpeta_temporal();
+    let mut malos = vec![json!(null), json!({ "v": 1 })];
+    let mut d = charla("c-1", "x");
+    d["v"] = json!(2);
+    malos.push(d);
+    let mut d = charla("../c-1", "x");
+    malos.push(d.take());
+    let mut d = charla("c-1", "x");
+    d["motor"] = json!("bash");
+    malos.push(d);
+    let mut d = charla("c-1", "x");
+    d["sesionClaude"] = json!("no-es-un-uuid");
+    malos.push(d);
+    let mut d = charla("c-1", "x");
+    d["mensajes"][0]["rol"] = json!("sistema");
+    malos.push(d);
+    let mut d = charla("c-1", "x");
+    d["mensajes"][1]["estado"] = json!("escribiendo");
+    malos.push(d);
+    let mut d = charla("c-1", "x");
+    d["mensajes"][0]["adjuntos"] = json!(vec![json!({ "nombre": "a.pdf", "tipo": "pdf", "bytes": 1 }); 6]);
+    malos.push(d);
+    for d in &malos {
+        assert!(guardar(&c, d).is_err(), "{d}");
+    }
+    assert_eq!(fs::read_dir(&c).unwrap().count(), 0);
+    let _ = fs::remove_dir_all(&c);
+}
+
+#[test]
+fn el_motor_local_no_tiene_carpeta() {
+    let c = carpeta_temporal();
+    let mut d = charla("c-1", "x");
+    d["motor"] = json!("local");
+    d["sesionClaude"] = Value::Null;
+    guardar(&c, &d).unwrap();
+    assert_eq!(leer(&c, "c-1").unwrap()["carpeta"], Value::Null);
+    let _ = fs::remove_dir_all(&c);
+}
+
+#[test]
+fn guardar_conserva_el_engram_id_que_ya_tenia() {
+    // La ventana no conoce el id de Engram: lo pone Rust (9.2) y un guardado nuevo no lo pierde
+    let c = carpeta_temporal();
+    guardar(&c, &charla("c-1", "x")).unwrap();
+    poner_engram(&c, "c-1", 123).unwrap();
+    let mut d = charla("c-1", "x");
+    d["engramId"] = json!(999);
+    guardar(&c, &d).unwrap();
+    assert_eq!(leer(&c, "c-1").unwrap()["engramId"], json!(123));
+    // Sin el archivo, poner el id no lo crea
+    assert!(poner_engram(&c, "c-2", 5).is_err());
+    assert!(!c.join("c-2.json").exists());
+    let _ = fs::remove_dir_all(&c);
+}
+
+// ---------------------------------------------------------------- listar
+
+#[test]
+fn listar_de_la_mas_nueva_a_la_mas_vieja_sin_los_mensajes_y_con_el_texto_para_buscar() {
+    let c = carpeta_temporal();
+    for (k, id) in ["c-a", "c-b", "c-c"].iter().enumerate() {
+        guardar(&c, &charla(id, id)).unwrap();
+        modificado(&c.join(format!("{id}.json")), 100 - k as u64 * 10);
+    }
+    // Lo que no es una charla en la misma carpeta (ajustes.json, la carpeta de trabajo) no aparece
+    fs::write(c.join("ajustes.json"), "{}").unwrap();
+    fs::create_dir_all(c.join("trabajo")).unwrap();
+    let lista = listar(&c);
+    assert_eq!(lista.iter().map(|x| x["id"].as_str().unwrap()).collect::<Vec<_>>(), ["c-c", "c-b", "c-a"]);
+    let x = &lista[0];
+    assert!(x.get("mensajes").is_none());
+    assert_eq!(x["titulo"], "c-c");
+    assert_eq!(x["motor"], "claude");
+    assert_eq!(x["carpeta"], "C:\\Desktop\\catalogo");
+    assert_eq!(x["actualizada"], "2026-11-24T12:05:00.000Z");
+    assert_eq!(x["texto"], "¿En qué anda cada sesión?\nTodo tranquilo.");
+    let _ = fs::remove_dir_all(&c);
+}
+
+#[test]
+fn listar_con_tope_de_100_y_el_texto_para_buscar_con_tope() {
+    let c = carpeta_temporal();
+    for k in 0..105 {
+        let id = format!("c-{k}");
+        let mut d = charla(&id, &id);
+        if k == 104 {
+            d["mensajes"][1]["texto"] = json!("x".repeat(TOPE_TEXTO_BUSCAR + 500));
+        }
+        guardar(&c, &d).unwrap();
+        modificado(&c.join(format!("{id}.json")), 1000 - k as u64);
+    }
+    let lista = listar(&c);
+    assert_eq!(lista.len(), TOPE_LISTA);
+    assert_eq!(lista[0]["id"], "c-104");
+    assert_eq!(lista[99]["id"], "c-5");
+    assert!(lista[0]["texto"].as_str().unwrap().len() <= TOPE_TEXTO_BUSCAR);
+    let _ = fs::remove_dir_all(&c);
+}
+
+#[test]
+fn un_archivo_roto_se_salta_y_nunca_se_borra_solo() {
+    let c = carpeta_temporal();
+    guardar(&c, &charla("c-bien", "bien")).unwrap();
+    fs::write(c.join("c-roto.json"), "{ esto no es json").unwrap();
+    fs::write(c.join("c-otro.json"), "{\"v\":1,\"id\":\"c-otro\"}").unwrap();
+    let lista = listar(&c);
+    assert_eq!(lista.iter().map(|x| x["id"].as_str().unwrap()).collect::<Vec<_>>(), ["c-bien"]);
+    assert!(leer(&c, "c-roto").is_err());
+    assert!(c.join("c-roto.json").exists());
+    assert!(c.join("c-otro.json").exists());
+    let _ = fs::remove_dir_all(&c);
+}
+
+#[test]
+fn listar_sin_carpeta_es_una_lista_vacia() {
+    let c = std::env::temp_dir().join(format!("avis-historial-no-existe-{}", std::process::id()));
+    assert!(listar(&c).is_empty());
+}
+
+// ---------------------------------------------------------------- borrar
+
+#[test]
+fn borrar_quita_el_archivo_y_devuelve_el_id_de_engram() {
+    let c = carpeta_temporal();
+    guardar(&c, &charla("c-1", "x")).unwrap();
+    guardar(&c, &charla("c-2", "y")).unwrap();
+    poner_engram(&c, "c-1", 42).unwrap();
+    assert_eq!(borrar(&c, "c-1").unwrap(), Some(42));
+    assert!(!c.join("c-1.json").exists());
+    assert_eq!(borrar(&c, "c-2").unwrap(), None);
+    // Lo que no existe: no es un error (ya está borrado); un id inválido sí
+    assert_eq!(borrar(&c, "c-1").unwrap(), None);
+    assert!(borrar(&c, "../c-1").is_err());
+    assert!(listar(&c).is_empty());
+    let _ = fs::remove_dir_all(&c);
+}
+
+// ---------------------------------------------------------------- a la vez
+
+#[test]
+fn guardar_dos_veces_a_la_vez_no_rompe_el_archivo() {
+    let c = carpeta_temporal();
+    let hilos: Vec<_> = (0..8)
+        .map(|k| {
+            let c = c.clone();
+            std::thread::spawn(move || {
+                for n in 0..10 {
+                    let mut d = charla("c-1", &format!("hilo {k} vuelta {n}"));
+                    d["mensajes"][1]["texto"] = json!("y".repeat(20_000 + k * 100 + n));
+                    guardar(&c, &d).unwrap();
+                }
+            })
+        })
+        .collect();
+    for h in hilos {
+        h.join().unwrap();
+    }
+    let leido = leer(&c, "c-1").unwrap();
+    assert!(leido["titulo"].as_str().unwrap().starts_with("hilo "));
+    let nombres: Vec<String> = fs::read_dir(&c).unwrap().filter_map(Result::ok).map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+    assert_eq!(nombres, ["c-1.json"]);
+    let _ = fs::remove_dir_all(&c);
+}

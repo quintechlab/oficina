@@ -94,7 +94,8 @@
 // su texto queda en window.__menuPasos.
 // La charla con la mascota (#22, docs/diseno/chat-avis-ux.md): el backend falso de chat_abrir,
 // chat_enviar, chat_frenar, chat_cerrar, guardar_chat, elegir_carpeta, estado_modelo, descargar_modelo
-// y cancelar_modelo, con los eventos oficina://chat y oficina://modelo. Se toca el Avi de la marca para
+// y cancelar_modelo, con los eventos oficina://chat y oficina://modelo; el historial (chat_guardar,
+// chat_historial, chat_leer, chat_borrar) vive en memoria, con una charla de ayer ya guardada. Se toca el Avi de la marca para
 // abrir la hoja. Con ?chat=…, la hoja se abre sola y va a ese estado (por window.__chat, el mismo
 // camino que el usuario); sin ?flotante, el tablero queda a la izquierda para que la hoja entre:
 //   ?chat=vacio        la charla vacía, con la carpeta "catalogo" (&sinCarpeta: "Solo Avis")
@@ -108,6 +109,7 @@
 //   ?chat=encima       al 200 % (si no hay ?zoom): la hoja no entra al costado y tapa la columna (D1)
 //   &motor=local       la próxima charla con el modelo local; &modelo=listo|bajando su estado (sin esto, falta)
 //   &cancelaCarpeta    "Elegir otra carpeta…" se cancela (sin esto, elige quintech-crm del escritorio)
+//   &engram            el pie del cajón dice "también en Engram" (sin esto, "Engram apagado")
 // Desde la consola del iframe: window.__chat.despachar({ tipo: 'soltando', nombre: 'a.pdf' }) manda
 // cualquier evento a la hoja y window.__chat.estado() la lee; window.__borrarModelo() imita "Borrar el
 // modelo de IA" de la bandeja.
@@ -621,6 +623,15 @@
   }
   const conocidas = new Map()
   let enCurso = null
+  /** El historial falso (9.1): los archivos de `<config>/chat/<id>.json`, en memoria. */
+  const ayer = new Date(Date.now() - 26 * 3600 * 1000).toISOString()
+  const archivos = new Map([['c-falsa-ayer', {
+    v: 1, id: 'c-falsa-ayer', titulo: 'Qué cambió en catalogo', creada: ayer, actualizada: ayer, motor: 'claude', carpeta: `${ESCRITORIO}\\catalogo`, sesionClaude: null, engramId: null,
+    mensajes: [
+      { rol: 'usuario', texto: '¿Qué cambió ayer en catalogo?', cuando: ayer, estado: 'ok', adjuntos: [] },
+      { rol: 'mascota', texto: 'Se sumó el **filtro por marca** y se arregló el pedido duplicado.', cuando: ayer, estado: 'ok', herramientas: [{ nombre: 'Grep', detalle: 'filtro' }], ms: 2400 },
+    ],
+  }]])
   const emitirChat = (c, turno, tipo, datos = {}) => emitir('oficina://chat', { conversacion: c, turno, tipo, ...datos })
   const RESPUESTA = [
     'Tenés **3 sesiones** abiertas. Esto es lo importante:', '',
@@ -681,7 +692,7 @@
       conocidas.set(conversacion, { motor, sesion })
       console.info('[chat] abrir', conversacion, motor)
       const local = { listo: 'instalado', bajando: 'bajando', roto: 'roto' }[modeloLocal.modelo] ?? 'falta'
-      return { proceso: motor === 'claude' ? 'arrancando' : 'apagado', sesion, engram: 'sin-saber', local }
+      return { proceso: motor === 'claude' ? 'arrancando' : 'apagado', sesion, engram: url.has('engram') ? 'si' : 'no', local }
     },
     chat_enviar: ({ conversacion, turno, texto }) => {
       const c = conocidas.get(conversacion)
@@ -698,6 +709,19 @@
       setTimeout(() => emitirChat(conversacion, turno, 'frenada'), 10)
     },
     chat_cerrar: () => null,
+    chat_guardar: ({ conversacion, engram }) => {
+      const antes = archivos.get(conversacion.id)
+      archivos.set(conversacion.id, { ...conversacion, engramId: antes?.engramId ?? (engram && url.has('engram') ? archivos.size + 1 : null) })
+      console.info('[chat] guardar', conversacion.id, conversacion.mensajes.length, engram ? '+ engram' : '')
+    },
+    chat_historial: () => [...archivos.values()].sort((a, b) => Date.parse(b.actualizada) - Date.parse(a.actualizada))
+      .map(({ mensajes, ...cab }) => ({ ...cab, texto: mensajes.map(m => m.texto).filter(Boolean).join('\n') })),
+    chat_leer: ({ id }) => {
+      const doc = archivos.get(id)
+      if (!doc) throw new Error('no existe (falso)')
+      return structuredClone(doc)
+    },
+    chat_borrar: ({ id }) => { archivos.delete(id); console.info('[chat] borrar', id) },
     guardar_chat: ({ motor, carpeta }) => {
       prefsChat = { motor, carpeta: carpeta ?? null, recientes: carpeta ? [carpeta, ...prefsChat.recientes.filter(r => r !== carpeta)].slice(0, 5) : prefsChat.recientes }
       console.info('[chat] preferencias', JSON.stringify(prefsChat))

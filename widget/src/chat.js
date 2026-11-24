@@ -50,19 +50,22 @@ export const TARDA_MS = 45000
 export const SIN_NOTICIAS_MS = 120000
 /** Cuántas charlas recuerda el cajón (9.1). */
 export const TOPE_CHARLAS = 100
+/** Mientras llega el texto, la charla se guarda cada 2 s (9.1). */
+export const GUARDAR_CADA_MS = 2000
 
 /**
  * La forma de `st.chat`. `motor` y `carpeta`: los de la próxima charla nueva (preferencias.json);
- * `recientes`: las carpetas que devuelve Rust; `charlas`: las otras conversaciones de esta ejecución
- * (el historial en disco llega con la entrega 4); `frenado`: el turno frenado, cuyos eventos se
- * descartan; `soltando`: `{ nombre }` mientras se arrastra un archivo encima.
+ * `recientes`: las carpetas que devuelve Rust; `charlas`: las otras conversaciones, enteras (las de
+ * esta ejecución) o solo su cabecera (las del disco, `charlaDeCabecera`: se leen al retomarlas);
+ * `frenado`: el turno frenado, cuyos eventos se descartan; `soltando`: `{ nombre }` mientras se
+ * arrastra un archivo encima; `menuCharla`: `{ id, confirmar }`, el menú de una charla del cajón (D24).
  */
 export function chatInicial() {
   return {
     abierta: false, lado: null, conversacion: null, estado: 'vacio', paso: 0, desdeMs: null, ultimoMs: null, listoMs: null,
     borrador: '', adjuntos: [], menu: false, cajon: false, soltando: null, error: null, todos: false,
     proceso: 'apagado', engram: 'sin-saber', local: 'falta', progreso: null,
-    motor: 'claude', carpeta: null, recientes: [], turno: 0, frenado: null, charlas: [], firmas: {},
+    motor: 'claude', carpeta: null, recientes: [], turno: 0, frenado: null, charlas: [], firmas: {}, menuCharla: null,
   }
 }
 
@@ -98,7 +101,7 @@ const estadoQuieto = conv => (conv?.mensajes.length ? 'listo' : 'vacio')
 function cambiarConversacion(c, conv) {
   return {
     ...c, charlas: guardarCharla(c).filter(x => x.id !== conv.id), conversacion: conv, estado: estadoQuieto(conv),
-    paso: 0, desdeMs: null, ultimoMs: null, listoMs: null, error: null, frenado: null, menu: false, cajon: false, todos: false,
+    paso: 0, desdeMs: null, ultimoMs: null, listoMs: null, error: null, frenado: null, menu: false, cajon: false, todos: false, menuCharla: null,
   }
 }
 
@@ -192,7 +195,8 @@ function delBackend(c, p, ctx) {
   const turno = c.turno
   switch (p.tipo) {
     case 'recibido':
-      return NADA({ ...c, conversacion: conUsuario(conv, turno, m => ({ ...m, estado: m.estado === 'no-enviado' ? 'ok' : m.estado })) })
+      // El eco: el mensaje entró y la sesión de Claude Code ya es de esta charla (se retoma con --resume)
+      return NADA({ ...c, conversacion: { ...conUsuario(conv, turno, m => ({ ...m, estado: m.estado === 'no-enviado' ? 'ok' : m.estado })), sesionUsada: true } })
     case 'listo':
     case 'pidiendo':
     case 'pensando':
@@ -200,7 +204,8 @@ function delBackend(c, p, ctx) {
       if (!vivo) return NADA(c)
       const proceso = p.tipo === 'listo' ? 'listo' : c.proceso
       const sesionClaude = p.tipo === 'listo' && p.sesion ? p.sesion : conv.sesionClaude
-      return NADA({ ...c, paso: pasoEspera(c.paso, p.tipo), ultimoMs: ahora, proceso, conversacion: { ...conv, sesionClaude } })
+      const sesionUsada = !!conv.sesionUsada || p.tipo === 'listo'
+      return NADA({ ...c, paso: pasoEspera(c.paso, p.tipo), ultimoMs: ahora, proceso, conversacion: { ...conv, sesionClaude, sesionUsada } })
     }
     case 'texto': {
       if (!vivo || typeof p.texto !== 'string') return NADA(c)
@@ -273,9 +278,49 @@ function repetir(c, ctx, { quitarFallido }) {
 }
 
 /**
+ * La lista del disco (`chat_historial`): se suma a las charlas enteras de esta ejecución (que ganan,
+ * porque son las de la ventana) y a la de ahora. Sin charla todavía (al arrancar), la última de las
+ * últimas 12 h se lee para retomarla al abrir la hoja (D11).
+ */
+function conHistorial(c, lista, ctx) {
+  const disco = (Array.isArray(lista) ? lista : []).map(charlaDeCabecera).filter(Boolean)
+  const enteras = c.charlas.filter(x => Array.isArray(x.mensajes))
+  const ya = new Set([...enteras.map(x => x.id), ...(c.conversacion ? [c.conversacion.id] : [])])
+  const charlas = [...enteras, ...disco.filter(x => !ya.has(x.id))].sort((a, b) => b.actualizada - a.actualizada).slice(0, TOPE_CHARLAS)
+  const efectos = []
+  const ultima = disco.slice().sort((a, b) => b.actualizada - a.actualizada)[0]
+  if (!c.conversacion && !c.abierta && ultima && ctx.ahoraMs - ultima.actualizada <= RETOMAR_MS) efectos.push({ tipo: 'leer', id: ultima.id, para: 'recordar' })
+  return { chat: { ...c, charlas }, efectos }
+}
+
+/**
+ * "Borrar" en el menú de una charla (D24): el primer clic pide confirmar ("¿Borrar? Sí", 3 s; main.js
+ * manda `no-borrar` al vencer), el segundo borra. La charla de ahora con una respuesta en curso no se
+ * borra; borrada la de ahora, queda una vacía con el mismo motor y la misma carpeta.
+ */
+function borrarCharla(c, ctx) {
+  const mc = c.menuCharla
+  if (!mc) return NADA(c)
+  if (!mc.confirmar) return NADA({ ...c, menuCharla: { ...mc, confirmar: true } })
+  const conv = c.conversacion
+  const actual = conv?.id === mc.id
+  if (actual && ocupado(c)) return NADA(c)
+  let chat = { ...c, charlas: c.charlas.filter(x => x.id !== mc.id), menuCharla: null }
+  const efectos = [{ tipo: 'borrar', id: mc.id }]
+  if (actual) {
+    const nueva = conversacionNueva(ctx.id, conv.motor, conv.carpeta, ctx.ahoraMs)
+    chat = { ...chat, conversacion: nueva, estado: 'vacio', paso: 0, desdeMs: null, ultimoMs: null, listoMs: null, error: null, frenado: null, todos: false }
+    efectos.push(efectoAbrir(nueva))
+  }
+  efectos.push({ tipo: 'foco', a: 'buscar' })
+  return { chat, efectos }
+}
+
+/**
  * La máquina de la charla (3.3): `{ chat, efectos }`. Pura, como `transicion` del resumen que
  * reemplaza. Efectos: `abrir`, `enviar`, `frenar` (comandos de Rust), `preferencias`, `elegir-carpeta`,
- * `adjuntar`, `primeros-pasos`, `descargar`, `foco` y `anunciar`. `ctx`: `{ ahoraMs, id }` (el id de
+ * `adjuntar`, `primeros-pasos`, `descargar`, `foco`, `anunciar` y, del historial (9.1), `historial`
+ * (leer la lista del disco), `leer` (`{ id, para: 'retomar' | 'recordar' }`) y `borrar`. `ctx`: `{ ahoraMs, id }` (el id de
  * una conversación nueva), `mascota` (su nombre) y `datos` (`datosAvis`).
  */
 export function transicionChat(c, ev, ctx = {}) {
@@ -344,16 +389,42 @@ export function transicionChat(c, ev, ctx = {}) {
     case 'elegir-otra':
       return { chat: { ...c, menu: false }, efectos: [{ tipo: 'elegir-carpeta' }] }
     case 'hist':
-      return { chat: { ...c, cajon: !c.cajon, menu: false }, efectos: [{ tipo: 'foco', a: c.cajon ? 'hist' : 'buscar' }] }
+      // Al abrir el cajón se vuelve a leer la lista del disco (9.1)
+      return { chat: { ...c, cajon: !c.cajon, menu: false, menuCharla: null }, efectos: c.cajon ? [{ tipo: 'foco', a: 'hist' }] : [{ tipo: 'historial' }, { tipo: 'foco', a: 'buscar' }] }
+    case 'historial':
+      return conHistorial(c, ev.charlas, ctx)
+    case 'recordar': {
+      // La última charla de las últimas 12 h, al arrancar (D11): queda lista para cuando se abra la hoja
+      if (conv || c.abierta) return NADA(c)
+      const leida = deArchivo(ev.conversacion)
+      if (!leida) return NADA(c)
+      return NADA({ ...c, conversacion: leida, estado: estadoQuieto(leida), charlas: c.charlas.filter(x => x.id !== leida.id) })
+    }
+    case 'menu-charla': {
+      // El menú contextual de una charla del cajón (clic derecho o la tecla Menú): "Borrar" (D24)
+      if (!c.cajon || typeof ev.id !== 'string') return NADA(c)
+      if (c.menuCharla?.id === ev.id) return NADA({ ...c, menuCharla: null })
+      return { chat: { ...c, menuCharla: { id: ev.id, confirmar: false } }, efectos: [{ tipo: 'foco', a: 'borrar' }] }
+    }
+    case 'borrar-charla':
+      return borrarCharla(c, ctx)
+    case 'no-borrar':
+      return c.menuCharla?.confirmar ? NADA({ ...c, menuCharla: { ...c.menuCharla, confirmar: false } }) : NADA(c)
     case 'nueva': {
       const nueva = conversacionNueva(ctx.id, conv?.motor ?? c.motor, conv?.carpeta ?? c.carpeta, ctx.ahoraMs)
       const chat = { ...cambiarConversacion(c, nueva), borrador: c.borrador, adjuntos: c.adjuntos }
       return { chat, efectos: [efectoAbrir(nueva), { tipo: 'foco', a: 'campo' }] }
     }
     case 'retomar': {
-      const otra = c.charlas.find(x => x.id === ev.id) ?? (conv?.id === ev.id ? conv : null)
-      if (!otra) return NADA(c)
-      if (otra === conv) return { chat: { ...c, cajon: false }, efectos: [{ tipo: 'foco', a: 'campo' }] }
+      if (conv && conv.id === ev.id) return { chat: { ...c, cajon: false, menuCharla: null }, efectos: [{ tipo: 'foco', a: 'campo' }] }
+      let otra = c.charlas.find(x => x.id === ev.id && Array.isArray(x.mensajes)) ?? null
+      if (!otra && ev.conversacion) {
+        // Lo leído del disco (`chat_leer`), solo si es esa charla
+        otra = deArchivo(ev.conversacion)
+        if (!otra || otra.id !== ev.id) return NADA(c)
+      }
+      // Una charla del disco que todavía no se leyó: primero se lee
+      if (!otra) return c.charlas.some(x => x.id === ev.id) ? { chat: c, efectos: [{ tipo: 'leer', id: ev.id, para: 'retomar' }] } : NADA(c)
       const chat = { ...cambiarConversacion(c, otra), borrador: c.borrador, adjuntos: c.adjuntos }
       return { chat, efectos: [efectoAbrir(otra), { tipo: 'foco', a: 'campo' }] }
     }
@@ -369,6 +440,7 @@ export function transicionChat(c, ev, ctx = {}) {
     case 'esc':
       // 3.5: menú > cajón > frenar > cerrar; el foco vuelve al disparador de lo que se cerró
       if (c.menu) return { chat: { ...c, menu: false }, efectos: [{ tipo: 'foco', a: 'carpeta' }] }
+      if (c.menuCharla) return { chat: { ...c, menuCharla: null }, efectos: [{ tipo: 'foco', a: 'charla', id: c.menuCharla.id }] }
       if (c.cajon) return { chat: { ...c, cajon: false }, efectos: [{ tipo: 'foco', a: 'hist' }] }
       if (ocupado(c)) return transicionChat(c, { tipo: 'frenar' }, ctx)
       return transicionChat(c, { tipo: 'cerrar' }, ctx)
@@ -647,7 +719,87 @@ const normal = s => String(s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLo
 export function coincideBusqueda(conv, buscar) {
   const q = normal(buscar).trim()
   if (!q) return true
-  return normal(conv?.titulo).includes(q) || (conv?.mensajes ?? []).some(m => normal(m.texto).includes(q))
+  return normal(conv?.titulo).includes(q) || normal(conv?.texto).includes(q) || (conv?.mensajes ?? []).some(m => normal(m.texto).includes(q))
+}
+
+// ------------------------------------------------------------------ el archivo de cada charla (9.1)
+
+const iso = ms => new Date(Number.isFinite(ms) ? ms : 0).toISOString()
+const msDe = t => { const n = Date.parse(t); return Number.isFinite(n) ? n : 0 }
+const textoONulo = t => (typeof t === 'string' ? t : null)
+
+/**
+ * La conversación de la ventana → el formato v1 de `<config>/chat/<id>.json` (9.1). De los adjuntos,
+ * solo el nombre y el tamaño (D23). La sesión de Claude Code va solo si ya se usó (su `init` o su
+ * eco): una que nunca respondió no se retoma. Una respuesta que quedó a medias (se cambió de charla
+ * con el turno en curso) se guarda como `error`; sin texto, no se guarda. `engramId` lo pone Rust.
+ */
+export function aArchivo(conv) {
+  const mensajes = []
+  for (const m of conv.mensajes) {
+    if (m.rol === 'usuario') {
+      mensajes.push({
+        rol: 'usuario', texto: m.texto, cuando: iso(m.cuando), estado: m.estado === 'no-enviado' ? 'no-enviado' : 'ok',
+        adjuntos: (m.adjuntos ?? []).map(({ nombre, tipo, bytes, paginas }) => ({ nombre, tipo, bytes, paginas: paginas ?? null })),
+      })
+      continue
+    }
+    if (m.estado === 'escribiendo' && !m.texto) continue
+    mensajes.push({
+      rol: 'mascota', texto: m.texto, cuando: iso(m.cuando), estado: m.estado === 'escribiendo' ? 'error' : m.estado,
+      herramientas: (m.herramientas ?? []).map(({ nombre, detalle }) => ({ nombre, detalle })), ms: m.ms ?? null, avis: !!m.avis,
+    })
+  }
+  return {
+    v: 1, id: conv.id, titulo: conv.titulo ?? null, creada: iso(conv.creada), actualizada: iso(conv.actualizada),
+    motor: conv.motor, carpeta: conv.motor === 'local' ? null : conv.carpeta ?? null,
+    sesionClaude: conv.sesionUsada ? conv.sesionClaude ?? null : null, engramId: null, mensajes,
+  }
+}
+
+/**
+ * Un archivo de charla (`chat_leer`) → la conversación de la ventana, o `null` si no es una charla.
+ * Los mensajes retomados son del turno 0: los turnos nuevos empiezan en 1 y nunca chocan.
+ */
+export function deArchivo(doc) {
+  if (!doc || doc.v !== 1 || typeof doc.id !== 'string' || !doc.id || !Array.isArray(doc.mensajes)) return null
+  const motor = doc.motor === 'local' ? 'local' : 'claude'
+  const sesionClaude = textoONulo(doc.sesionClaude)
+  const mensajes = doc.mensajes.filter(m => m && (m.rol === 'usuario' || m.rol === 'mascota')).map(m => (m.rol === 'usuario'
+    ? { rol: 'usuario', texto: String(m.texto ?? ''), cuando: msDe(m.cuando), estado: m.estado === 'no-enviado' ? 'no-enviado' : 'ok', adjuntos: Array.isArray(m.adjuntos) ? m.adjuntos : [], turno: 0, rutas: [] }
+    : { rol: 'mascota', texto: String(m.texto ?? ''), cuando: msDe(m.cuando), estado: ['ok', 'frenada', 'error'].includes(m.estado) ? m.estado : 'error', herramientas: Array.isArray(m.herramientas) ? m.herramientas : [], turno: 0, avis: !!m.avis, ms: m.ms ?? null }))
+  return {
+    id: doc.id, titulo: textoONulo(doc.titulo), motor, carpeta: motor === 'local' ? null : textoONulo(doc.carpeta),
+    sesionClaude, sesionUsada: !!sesionClaude, creada: msDe(doc.creada), actualizada: msDe(doc.actualizada), nuevaEn: null, mensajes,
+  }
+}
+
+/** Una charla de la lista del disco (`chat_historial`: sin mensajes, con `texto` para buscar), o `null`. */
+export function charlaDeCabecera(h) {
+  if (!h || typeof h.id !== 'string' || !h.id) return null
+  return {
+    id: h.id, titulo: textoONulo(h.titulo), motor: h.motor === 'local' ? 'local' : 'claude', carpeta: textoONulo(h.carpeta),
+    creada: msDe(h.creada), actualizada: msDe(h.actualizada), texto: typeof h.texto === 'string' ? h.texto : '',
+  }
+}
+
+/**
+ * Qué guardar después de una transición (9.1): `[{ conversacion, cuando: 'ya' | 'luego', engram }]`.
+ * Al mandar, en cada fin (y entonces también en Engram), frenada o error, ya; mientras llega el texto,
+ * `luego` (main.js lo junta cada 2 s). Al cambiar de charla con una respuesta en curso, la de antes, ya.
+ */
+export function guardadosPendientes(antes, despues) {
+  const a = antes?.conversacion
+  const d = despues?.conversacion
+  const pendientes = []
+  if (a && a.id !== d?.id && ocupado(antes) && a.mensajes.length) pendientes.push({ conversacion: a, cuando: 'ya', engram: false })
+  if (!a || !d || a.id !== d.id || a === d || !d.mensajes.length) return pendientes
+  const fin = despues.estado === 'listo' && antes.estado !== 'listo'
+  const corta = (despues.estado === 'frenada' || despues.estado === 'error') && despues.estado !== antes.estado
+  const mando = d.mensajes.length > a.mensajes.length
+  if (fin || corta || mando) pendientes.push({ conversacion: d, cuando: 'ya', engram: fin })
+  else if (despues.estado === 'escribiendo' && d.mensajes !== a.mensajes) pendientes.push({ conversacion: d, cuando: 'luego', engram: false })
+  return pendientes
 }
 
 // ------------------------------------------------------------------ datos de Avis (7.4, antes del resumen)

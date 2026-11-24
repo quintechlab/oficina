@@ -1,7 +1,9 @@
 mod arranque;
 mod chat;
 mod diagnostico;
+mod engram;
 mod equipo;
+mod historial;
 mod preferencias;
 // Sin el resumen, el arranque del motor local queda sin usar hasta que la charla lo pida (entrega 6)
 #[allow(dead_code)]
@@ -773,8 +775,8 @@ fn estado_local() -> &'static str {
 async fn chat_abrir(conversacion: String, motor: String, carpeta: Option<String>, mascota: Option<String>, sesion_claude: Option<String>) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let mut r = el_chat()?.abrir(&conversacion, &motor, carpeta.map(std::path::PathBuf::from), mascota.as_deref().unwrap_or(""), sesion_claude)?;
-        // Engram llega con la entrega 4 (9.2)
-        r["engram"] = serde_json::json!("sin-saber");
+        // Si hay Engram (9.2): /health con 1 s, como mucho cada 5 min
+        r["engram"] = serde_json::json!(if engram::ENGRAM.get().is_some_and(engram::Engram::hay) { "si" } else { "no" });
         r["local"] = serde_json::json!(estado_local());
         Ok(r)
     })
@@ -802,6 +804,85 @@ fn chat_frenar(conversacion: String, turno: u64) -> Result<(), String> {
 fn chat_cerrar(conversacion: String) -> Result<(), String> {
     el_chat()?.cerrar(&conversacion);
     Ok(())
+}
+
+/// Una copia a Engram por vez, con lo último del archivo: un guardado viejo nunca pisa a uno nuevo, y
+/// borrar una charla espera a que termine la copia que estaba en curso (9.2).
+static ENGRAM_COLA: Mutex<()> = Mutex::new(());
+
+/// Copia la charla a Engram (en cada `fin`, 9.2), en otro hilo: la ventana no espera. El id de la
+/// observación queda en el archivo (`engramId`).
+fn copiar_a_engram(carpeta: std::path::PathBuf, id: String, mascota: String) {
+    let _ = std::thread::Builder::new().name(String::from("avis-engram")).spawn(move || {
+        let Some(e) = engram::ENGRAM.get() else { return };
+        let _cola = ENGRAM_COLA.lock().unwrap_or_else(PoisonError::into_inner);
+        // Lo último del archivo, no lo de este pedido; si ya se borró, nada
+        let Ok(doc) = historial::leer(&carpeta, &id) else { return };
+        if let Some(n) = e.guardar(&doc, &mascota) {
+            if doc["engramId"].as_u64() != Some(n) {
+                if let Err(err) = historial::poner_engram(&carpeta, &id, n) {
+                    registrar(format!("chat: no se anotó el id de Engram: {err}"));
+                }
+            }
+        }
+    });
+}
+
+/// Guarda la charla en la PC (9.1): al mandar, en cada final y cada 2 s mientras llega el texto. Con
+/// `engram` (el `fin` de un turno), también la copia a Engram si está.
+#[tauri::command]
+async fn chat_guardar(conversacion: serde_json::Value, mascota: Option<String>, engram: Option<bool>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let carpeta = el_chat()?.carpeta();
+        let guardado = historial::guardar(&carpeta, &conversacion)?;
+        if engram == Some(true) {
+            let id = guardado["id"].as_str().unwrap_or_default().to_string();
+            copiar_a_engram(carpeta, id, chat::nombre_mascota(mascota.as_deref().unwrap_or("")));
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// El cajón "Charlas" (9.1): las 100 más recientes, sin los mensajes y con `texto` para buscar.
+#[tauri::command]
+async fn chat_historial() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || Ok(serde_json::json!(historial::listar(&el_chat()?.carpeta()))))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Una charla completa, para retomarla.
+#[tauri::command]
+async fn chat_leer(id: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || historial::leer(&el_chat()?.carpeta(), &id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Borra la charla de Avis: el archivo y su copia en Engram (solo la de `avis`). La transcripción de
+/// Claude Code no se toca (D29).
+#[tauri::command]
+async fn chat_borrar(id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let carpeta = el_chat()?.carpeta();
+        let engram_id = {
+            let _cola = ENGRAM_COLA.lock().unwrap_or_else(PoisonError::into_inner);
+            historial::borrar(&carpeta, &id)?
+        };
+        if let Some(n) = engram_id {
+            let _ = std::thread::Builder::new().name(String::from("avis-engram")).spawn(move || {
+                let _cola = ENGRAM_COLA.lock().unwrap_or_else(PoisonError::into_inner);
+                if !engram::ENGRAM.get().is_some_and(|e| e.borrar(n)) {
+                    registrar(format!("chat: la copia {n} de Engram no se pudo borrar"));
+                }
+            });
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// El motor y la carpeta de la charla (chat-avis-ux.md 3.4): quedan para la próxima charla nueva y
@@ -1593,6 +1674,9 @@ pub fn run() {
                 });
                 let _ = chat::CHAT.set(chat::Chat::nuevo(carpeta_chat, std::sync::Arc::new(chat::comando_claude), emisor, chat::Tiempos::default()));
             }
+            // La copia del historial en Engram (9.2): una sesión por arranque, que se abre con la primera copia
+            let arranque = format!("avis-{}-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"), std::process::id());
+            let _ = engram::ENGRAM.set(engram::Engram::desde_entorno(arranque));
             // Clic en la notificación: mostrar la ventana
             let al_clic = handle.clone();
             let _ = handle.notification().on_action(move |_| mostrar(&al_clic));
@@ -1649,6 +1733,10 @@ pub fn run() {
             chat_enviar,
             chat_frenar,
             chat_cerrar,
+            chat_guardar,
+            chat_historial,
+            chat_leer,
+            chat_borrar,
             guardar_chat,
             elegir_carpeta
         ])
@@ -1664,6 +1752,10 @@ pub fn run() {
                 // El chat: la interrupción si hay un turno, cerrar stdin, 2 s y el trabajo de Windows (7.3)
                 if let Some(c) = chat::CHAT.get() {
                     c.apagar();
+                }
+                // La sesión de Engram de este arranque, si se abrió (9.2)
+                if let Some(e) = engram::ENGRAM.get() {
+                    e.cerrar();
                 }
             }
         });
