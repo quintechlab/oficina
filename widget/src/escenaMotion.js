@@ -79,6 +79,25 @@ export function marcarNuevos(raiz, ids) {
   }
 }
 
+/** La salida de una tarjeta cerrada (estilo-avis 6.2: lo que se va se funde en 240 ms). */
+export const SALIDA_MS = 240
+
+/**
+ * Las tarjetas de las sesiones que se cerraron desde el widget salen (B1 de cerrar-sesion-ux.md):
+ * opacidad de 1 a 0 y el alto plegado a 0 en 240 ms con `--ease-cierra` (estilos.css: `.ses.sale`).
+ * Resuelve cuando terminaron; con movimiento reducido o "Pausar animaciones", al instante.
+ */
+export function salirTarjetas(tarjetas) {
+  if (!tarjetas.length || !hayMovimiento()) return Promise.resolve()
+  for (const t of tarjetas) {
+    // El alto de partida queda fijo, así la transición tiene desde dónde plegar
+    t.style.height = `${t.offsetHeight}px`
+    void t.offsetWidth
+    t.classList.add('sale')
+  }
+  return new Promise(listo => setTimeout(listo, SALIDA_MS + 20))
+}
+
 let observador = null
 
 /**

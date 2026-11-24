@@ -201,7 +201,7 @@ test('el tipo de un nombre inventado solo va en el title y para lectores, nunca 
 
 test('la tarjeta escenario: la rama en una línea con title y el tiempo vivo, que se reescribe en su lugar', () => {
   const h = escenario([])
-  assert.match(h, /<div class="ses-cab"><h3 class="ses-tit"><span class="tag">#14<\/span><b title="feat\/14-panel">feat\/14-panel<\/b><\/h3><span class="lleva"><span class="oculto">lleva <\/span><span data-vivo>42 min<\/span><\/span><button type="button" class="ses-hizo" data-accion="historial" data-sesion="a" aria-expanded="false">Qué hizo<\/button><\/div>/)
+  assert.match(h, /<div class="ses-cab"><h3 class="ses-tit"><span class="tag">#14<\/span><b title="feat\/14-panel">feat\/14-panel<\/b><\/h3><span class="lleva"><span class="oculto">lleva <\/span><span data-vivo>42 min<\/span><\/span><button type="button" class="ses-hizo" data-accion="historial" data-sesion="a" aria-label="Qué hizo en feat\/14-panel" aria-expanded="false">Qué hizo<\/button><\/div>/)
   assert.match(h, /<span class="pt" aria-hidden="true"><\/span><span data-vivo>ahora · /)
 })
 

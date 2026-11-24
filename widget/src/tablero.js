@@ -6,7 +6,7 @@
 import { avi, claudeDe, nombreClaude } from './avis.js'
 import { CLAVE_MARCA } from './evolucion.js'
 import { detalleSubagente } from './detalleSub.js'
-import { barraControl, puedeControlar } from './control.js'
+import { barraControl, puedeControlar, LINEA_TARJETA_CERRANDO } from './control.js'
 import { vistaHistorial, firmaHistorial } from './historial.js'
 import {
   animoSesion, animoSubagente, personajeDeNombre, personajeSubagente, variantesEquipo, tiempoSubagente, textoActividad, tituloActividad,
@@ -77,10 +77,11 @@ export function firmaTablero(preparadas) {
  * reescribe en su lugar (los `data-vivo`), sin redibujar ni reiniciar los bucles ni los hilos.
  * `rastros` (sesión → rastro, dividida-ux.md 5.10): cuenta si hay rastro y si terminó, no su texto.
  */
-export function firmaEscenas(repo, preparadas, rastros = new Map(), abierto = null, historial = null) {
+export function firmaEscenas(repo, preparadas, rastros = new Map(), abierto = null, historial = null, control = {}) {
   const r = preparadas.map(({ s }) => rastros.get(s.sesion)).filter(Boolean).map(x => `${x.clave}:${x.fin ? 'fin' : 'activa'}`)
-  // Las sesiones con la barra de control (#19); su borrador, botones y línea se actualizan en su lugar
-  const c = preparadas.filter(({ s }) => puedeControlar(s)).map(({ s }) => s.sesion)
+  // Las sesiones con la barra de control (#19); su borrador, botones y línea se actualizan en su lugar.
+  // Una que se está cerrando (#25) cambia la línea de la tarjeta y su campo: se redibuja
+  const c = preparadas.filter(({ s }) => puedeControlar(s)).map(({ s }) => `${s.sesion}${control?.[s.sesion]?.cerrando === true ? ':cierra' : ''}`)
   return `${repo}/${firmaTablero(preparadas)}${r.length ? `#${r.join(',')}` : ''}${c.length ? `~${c.join(',')}` : ''}${firmaDetalle(preparadas, abierto)}${historialDe(preparadas, historial) ? firmaHistorial(historial) : ''}`
 }
 
@@ -391,9 +392,13 @@ function rastro(r) {
 
 const idHistorial = sesion => escapar(`hist-${sesion}`)
 
-/** "Qué hizo" (#25): despliega debajo de la cabecera los últimos turnos de la sesión. */
+/**
+ * "Qué hizo" (#25): despliega debajo del escenario los últimos turnos de la sesión. El nombre lleva
+ * el texto visible y la rama (o el repo), así cada tarjeta se llama distinto (M5).
+ */
 function botonHistorial(s, abierto) {
-  return `<button type="button" class="ses-hizo" data-accion="historial" data-sesion="${escapar(s.sesion)}" aria-expanded="${abierto}"${abierto ? ` aria-controls="${idHistorial(s.sesion)}"` : ''}>Qué hizo</button>`
+  const nombre = `Qué hizo en ${s.rama || s.repo || 'esta sesión'}`
+  return `<button type="button" class="ses-hizo" data-accion="historial" data-sesion="${escapar(s.sesion)}" aria-label="${escapar(nombre)}" aria-expanded="${abierto}"${abierto ? ` aria-controls="${idHistorial(s.sesion)}"` : ''}>Qué hizo</button>`
 }
 
 /**
@@ -409,9 +414,11 @@ function detalleHistorial(s, h, ahoraMs) {
       + (t.pedido ? `<p class="hist-pedido"><span class="hist-quien">Vos</span> <span>${escapar(t.pedido)}</span></p>` : '')
       + (t.respuesta ? `<p class="hist-resp"><span class="hist-quien">Claude</span> <span>${escapar(t.respuesta)}</span></p>` : '<p class="hist-resp sin">todavía sin respuesta</p>')
       + `<time data-vivo>${escapar(t.hace)}</time></li>`).join('')}</ol>`
-    : `<p class="det-vacio"${v.estado === 'error' ? ' data-tono="error"' : ''}>${escapar(v.texto)}</p>`
+    // Leyendo, vacío o el error: se anuncia (D-d)
+    : `<p class="det-vacio" role="status"${v.estado === 'error' ? ' data-tono="error"' : ''}>${escapar(v.texto)}</p>`
   return `<div class="det-sub det-hist" id="${idHistorial(s.sesion)}" role="region" aria-label="${escapar(nombre)}"${v.estado === 'cargando' ? ' aria-busy="true"' : ''}>`
-    + `<p class="det-rot">últimos pedidos</p>${cuerpo}</div>`
+    // "Lo último": la lista lleva los pedidos y las respuestas (D-g)
+    + `<p class="det-rot">lo último</p>${cuerpo}</div>`
 }
 
 function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto, control, mascota, formas, historial) {
@@ -420,12 +427,17 @@ function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto, control, mascota, fo
   const titulo = s.rama ? `<b${s.tarea ? '' : ' class="sin"'} title="${escapar(s.rama)}">${escapar(s.rama)}</b>` : ''
   const lleva = s.inicio ? `<span class="lleva"><span class="oculto">lleva </span><span data-vivo>${escapar(tiempoRelativo(s.inicio, ahoraMs))}</span></span>` : ''
   const h = historial?.sesion === s.sesion ? historial : null
+  // Cerrándose (B2 de cerrar-sesion-ux.md): la línea lo dice en --tenue, con el punto sin color
+  const linea = control?.[s.sesion]?.cerrando === true
+    ? `<p class="linea cerrando" style="--c:var(--tenue)" title="${LINEA_TARJETA_CERRANDO}"><span class="pt" aria-hidden="true"></span><span data-vivo>${LINEA_TARJETA_CERRANDO}</span></p>`
+    : `<p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span><span data-vivo>${escapar(textoActividad(s, ahoraMs))}</span></p>`
   return `<article class="ses"><div class="ses-cab"><h3 class="ses-tit">${tag}${titulo}</h3>${lleva}${botonHistorial(s, !!h)}</div>`
-    + `<p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span><span data-vivo>${escapar(textoActividad(s, ahoraMs))}</span></p>`
+    + linea
     + rastro(r)
-    + (h ? detalleHistorial(s, h, ahoraMs) : '')
     + escena(animo, sub, ahoraMs, base, s.sesion, abierto?.sesion === s.sesion ? abierto.id : null, mascota, formas)
     + detalleAbierto({ s, sub }, ahoraMs, abierto)
+    // "Qué hizo" va entre el escenario y la barra: "Cerrar sesión" queda cerca de lo que se lee (M1)
+    + (h ? detalleHistorial(s, h, ahoraMs) : '')
     + barraControl(s, control?.[s.sesion], ahoraMs)
     + '</article>'
 }

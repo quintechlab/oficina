@@ -2,7 +2,7 @@
 // Lógica pura de historial.js; la lectura del archivo es de historial.rs y el DOM de main.js.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_TURNOS, LARGO_PEDIDO, LARGO_RESPUESTA, limpiarPedido, recortar, turnos, vistaHistorial } from '../src/historial.js'
+import { MAX_TURNOS, LARGO_PEDIDO, LARGO_RESPUESTA, limpiarPedido, recortar, turnos, vistaHistorial, MS_RELEER } from '../src/historial.js'
 import { sesiones, prepararProyecto, firmaEscenas } from '../src/tablero.js'
 import { agruparPorProyecto } from '../src/logica.js'
 
@@ -55,7 +55,9 @@ test('los textos largos se recortan: el pedido y la respuesta con su largo', () 
 
 test('la vista: cargando, error, vacío y los turnos del más nuevo al más viejo con hace cuánto', () => {
   assert.deepEqual(vistaHistorial({ estado: 'cargando' }, AHORA), { estado: 'cargando', texto: 'Leyendo la conversación…', turnos: [] })
-  assert.deepEqual(vistaHistorial({ estado: 'error', error: 'permiso denegado' }, AHORA), { estado: 'error', texto: 'No se pudo leer la conversación', turnos: [] })
+  assert.deepEqual(vistaHistorial({ estado: 'error', error: 'permiso denegado' }, AHORA), { estado: 'error', texto: 'No se pudo leer la conversación · vuelvo a probar en 10 s', turnos: [] })
+  // D-d: el texto sale del mismo intervalo con el que main.js relee
+  assert.equal(MS_RELEER, 10000)
   assert.deepEqual(vistaHistorial({ estado: 'listo', entradas: [] }, AHORA), { estado: 'vacio', texto: 'Todavía no hay conversación', turnos: [] })
   // Solo avisos del sistema: tampoco hay conversación
   assert.equal(vistaHistorial({ estado: 'listo', entradas: [u('<command-name>/clear</command-name>', 3)] }, AHORA).estado, 'vacio')
@@ -74,20 +76,27 @@ const prep = s => prepararProyecto(agruparPorProyecto([s])[0], AHORA)
 
 test('cada tarjeta lleva "Qué hizo" en la cabecera, plegado, con su sesión', () => {
   const h = sesiones(prep(ses()), AHORA)
-  assert.match(h, /<div class="ses-cab">[\s\S]*<button type="button" class="ses-hizo" data-accion="historial" data-sesion="ses-1" aria-expanded="false">Qué hizo<\/button><\/div>/)
+  // M5: el nombre lleva el texto visible y la rama, así cada tarjeta se llama distinto
+  assert.match(h, /<div class="ses-cab">[\s\S]*<button type="button" class="ses-hizo" data-accion="historial" data-sesion="ses-1" aria-label="Qué hizo en feat\/25-cerrar" aria-expanded="false">Qué hizo<\/button><\/div>/)
+  assert.match(sesiones(prep(ses({ rama: null })), AHORA), /aria-label="Qué hizo en q\/oficina"/)
   assert.doesNotMatch(h, /class="det-sub det-hist"/)
 })
 
-test('abierto: el detalle va debajo de la cabecera, con sus estados y nombrado por la rama', () => {
+test('abierto: el detalle va debajo del escenario, con sus estados y nombrado por la rama', () => {
   const abierto = estado => sesiones(prep(ses()), AHORA, new Map(), null, {}, 'avi', new Set(), { sesion: 'ses-1', ...estado })
   const cargando = abierto({ estado: 'cargando' })
-  assert.match(cargando, /data-accion="historial" data-sesion="ses-1" aria-expanded="true" aria-controls="hist-ses-1"/)
+  assert.match(cargando, /data-accion="historial" data-sesion="ses-1" aria-label="Qué hizo en feat\/25-cerrar" aria-expanded="true" aria-controls="hist-ses-1"/)
   assert.match(cargando, /<div class="det-sub det-hist" id="hist-ses-1" role="region" aria-label="Qué hizo feat\/25-cerrar" aria-busy="true">/)
   assert.match(cargando, /Leyendo la conversación…/)
-  // Antes del escenario: se despliega debajo del botón
-  assert.ok(cargando.indexOf('det-hist') < cargando.indexOf('class="esc'))
-  assert.match(abierto({ estado: 'error', error: 'x' }), /class="det-vacio" data-tono="error">No se pudo leer la conversación</)
-  assert.match(abierto({ estado: 'listo', entradas: [] }), /class="det-vacio">Todavía no hay conversación</)
+  // M1: entre el escenario y la barra, así "Cerrar sesión" queda cerca de lo que se lee
+  assert.ok(cargando.indexOf('class="esc') < cargando.indexOf('det-hist'))
+  assert.ok(cargando.indexOf('det-hist') < cargando.indexOf('class="ctl"'))
+  // D-g: el rótulo cubre pedidos y respuestas
+  assert.match(cargando, /<p class="det-rot">lo último<\/p>/)
+  assert.doesNotMatch(cargando, /últimos pedidos/)
+  // D-d: el error dice qué pasa después y se anuncia (role="status")
+  assert.match(abierto({ estado: 'error', error: 'x' }), /class="det-vacio" role="status" data-tono="error">No se pudo leer la conversación · vuelvo a probar en 10 s</)
+  assert.match(abierto({ estado: 'listo', entradas: [] }), /class="det-vacio" role="status">Todavía no hay conversación</)
   const listo = abierto({ estado: 'listo', entradas: [u('arreglá <b>el</b> header', 10), c('Listo & probado', 9)] })
   assert.match(listo, /<ol class="hist-turnos">/)
   assert.match(listo, /<span class="hist-quien">Vos<\/span>[\s\S]*arreglá &lt;b&gt;el&lt;\/b&gt; header/)

@@ -59,7 +59,15 @@ export function turnos(entradas, max = MAX_TURNOS) {
   return lista.slice(-max)
 }
 
-const TEXTO = { cargando: 'Leyendo la conversación…', error: 'No se pudo leer la conversación', vacio: 'Todavía no hay conversación' }
+/** Cada cuánto se relee la transcripción mientras el detalle está abierto (main.js). */
+export const MS_RELEER = 10000
+
+// El error dice qué pasa después: se reintenta solo (D-d de cerrar-sesion-ux.md)
+const TEXTO = {
+  cargando: 'Leyendo la conversación…',
+  error: `No se pudo leer la conversación · vuelvo a probar en ${MS_RELEER / 1000} s`,
+  vacio: 'Todavía no hay conversación',
+}
 
 /**
  * Lo que muestra el detalle. `h`: `{ estado: 'cargando' }`, `{ estado: 'error', error }` o
