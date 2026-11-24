@@ -3,10 +3,10 @@
 // primerosPasosVista.js: los datos llegan armados desde main.js y nada de acá toca el DOM.
 // Entrega 1: la pestaña Panel. Entrega 2: Mascota (el escenario con la vista previa y las fichas) y el
 // Avi de 40 junto al título. Entrega 3: Instalación y el modelo local. Entrega 4: las claves de API.
-// Datos muestra "Dónde queda cada cosa"; el historial del chat se suma con él (E5).
+// Entrega 5: "Quién responde" en Modelos y el historial del chat en Datos.
 
 import { escapar } from './logica.js'
-import { PESTANAS, UBICACIONES, limitesTamano, CLAVE_VISTA_PREVIA, opcionesForma, rotuloEspecie, PROVEEDORES, textoClave } from './configuracion.js'
+import { PESTANAS, UBICACIONES, limitesTamano, CLAVE_VISTA_PREVIA, opcionesForma, rotuloEspecie, PROVEEDORES, textoClave, MOTORES, textoHistorial } from './configuracion.js'
 import { NOMBRES_ESPECIES, datosEspecie, especieValida } from './especies.js'
 import { avi, claudeDe } from './avis.js'
 
@@ -63,21 +63,40 @@ export function seccionConfiguracion(tab, datos) {
     : tab === 'mascota' ? seccionMascota(datos)
       : tab === 'modelos' ? seccionModelos(datos)
         : tab === 'instalacion' ? seccionInstalacion(datos)
-          : seccionDatos()
+          : seccionDatos(datos)
   return `<h2 class="oculto">${p.nombre}</h2>${cuerpo}`
 }
 
-/** Dónde queda cada cosa (4.4 y 5), de solo lectura. "Charlas → carpeta de Avis\chat" llega con el chat (E5). */
+/** Dónde queda cada cosa (4.4 y 5), de solo lectura. */
 export const UBICACIONES_DATOS = [
   ['Preferencias', 'preferencias.json, en la carpeta de Avis'],
   ['Claves', 'Administrador de credenciales de Windows · Avis/api/…'],
   ['Modelo local', '%LOCALAPPDATA%\\avis-ia'],
+  ['Charlas', 'carpeta de Avis\\chat'],
 ]
 
-/** Pestaña Datos: por ahora solo la lista; el historial del chat se suma con E5 (D6). */
-function seccionDatos() {
+/**
+ * La tarjeta "Historial del chat" (7.4). `h`: lo de `textoHistorial`. "Borrar todo" confirma en el
+ * mismo botón (D5); con error, el texto en rojo y "Reintentar".
+ */
+function tarjetaHistorial(h, { armado = false, transcurrido = 0 } = {}) {
+  const a = h.accion
+  const boton = !a ? ''
+    : a.id === 'borrar' ? confirmable('cfg-hist', 'borrar', 'hist-borrar', a.texto, a.armado, armado, transcurrido)
+      : `<button type="button" class="btn" data-accion="cfg-hist" data-valor="${a.id}" data-k="hist-${a.id}">${escapar(a.texto)}</button>`
+  return `<div class="tarj"><div class="tarj-t"><b>${escapar(h.titulo)}</b>${h.pill ? pill(h.tono, h.pill) : ''}</div>`
+    + (h.linea ? `<p>${escapar(h.linea)}</p>` : '')
+    + (boton ? `<div class="acc">${boton}</div>` : '')
+    + (h.error ? `<p class="aj-error" role="alert">${escapar(h.error)}</p>` : '')
+    + '</div>'
+}
+
+/** Pestaña Datos (4.4): el historial del chat y dónde queda cada cosa. `datos`: { historial, armado, transcurrido }. */
+function seccionDatos(datos = {}) {
   const filas = UBICACIONES_DATOS.map(([t, d]) => `<dt>${escapar(t)}</dt><dd>${escapar(d)}</dd>`).join('')
-  return `<h3 class="sub">Dónde queda cada cosa</h3><dl class="datos">${filas}</dl>`
+  const h = datos.historial ?? textoHistorial()
+  return `<h3 class="sub">Historial del chat</h3>${tarjetaHistorial(h, { armado: datos.armado === 'historial', transcurrido: datos.transcurrido })}`
+    + `<h3 class="sub">Dónde queda cada cosa</h3><dl class="datos">${filas}</dl>`
 }
 
 // ------------------------------------------------------------------ piezas (6.1)
@@ -299,6 +318,9 @@ export function filaClave(p, t, { recien = false, errorBorrar = false, transcurr
  */
 export function partesModelos(datos) {
   const partes = {}
+  // "Quién responde" (4.4, D10): el motor de las charlas nuevas; sin guardar, Claude Code
+  const motor = datos.motor === 'local' ? 'local' : 'claude'
+  partes.charla = fila('Quién responde', 'En las charlas nuevas. Cada una puede cambiarlo.', segmentos('cfg-motor', MOTORES, motor, 'Quién responde'), { error: errorDe(datos, 'motor') })
   for (const p of PROVEEDORES) {
     const t = datos.claves?.[p.id] ?? textoClave(p.id, {})
     partes[`clave-${p.id}`] = filaClave(p, t, { recien: datos.recien === p.id, errorBorrar: datos.error === `clave:${p.id}`, transcurrido: datos.transcurrido })
@@ -308,12 +330,13 @@ export function partesModelos(datos) {
 }
 
 /**
- * Pestaña Modelos (4.4): las claves de API (entrega 4) y el modelo local. "Quién responde" llega con el
- * chat (D6); las claves se muestran desde ya, con la línea que dice que las usará la charla.
+ * Pestaña Modelos (4.4): "Quién responde" (entrega 5), las claves de API (entrega 4) y el modelo
+ * local. Las claves llevan la línea que dice que las usará la charla por API.
  */
 export function seccionModelos(datos) {
   const p = partesModelos(datos)
-  return '<h3 class="sub">Claves de API</h3>'
+  return `<h3 class="sub">Charla</h3><div data-parte="charla">${p.charla}</div>`
+    + '<h3 class="sub">Claves de API</h3>'
     + `<p class="cand">${CANDADO}<span>Se guardan en el Administrador de credenciales de Windows, nunca en un archivo. Avis solo vuelve a mostrar los últimos 4 caracteres.</span></p>`
     + PROVEEDORES.map(x => `<div data-parte="clave-${x.id}">${p[`clave-${x.id}`]}</div>`).join('')
     + '<p class="cl-nota">Las usa la charla por API cuando llegue</p>'

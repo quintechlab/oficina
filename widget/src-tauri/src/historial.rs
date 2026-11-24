@@ -211,6 +211,54 @@ pub fn borrar(carpeta: &Path, id: &str) -> Result<Option<u64>, String> {
     }
 }
 
+/// Todas las charlas de la carpeta, sin tope y rotas incluidas: `(id, bytes)` de cada `c-….json`.
+/// Lo que no es una charla de Avis (otro nombre, una carpeta) no cuenta.
+fn charlas(carpeta: &Path) -> Vec<(String, u64)> {
+    let Ok(entradas) = fs::read_dir(carpeta) else { return Vec::new() };
+    entradas
+        .filter_map(Result::ok)
+        .filter_map(|e| {
+            let nombre = e.file_name().to_string_lossy().into_owned();
+            let id = nombre.strip_suffix(".json")?.to_string();
+            let meta = e.metadata().ok().filter(fs::Metadata::is_file)?;
+            id_valido(&id).then(|| (id, meta.len()))
+        })
+        .collect()
+}
+
+/// Cuántas charlas hay y cuánto ocupan (configuración, pestaña Datos: "{n} charlas · {mb} MB").
+pub fn contar(carpeta: &Path) -> (usize, u64) {
+    let todas = charlas(carpeta);
+    (todas.len(), todas.iter().map(|(_, b)| b).sum())
+}
+
+/// Lo que dejó "Borrar todo": cuántas se borraron, cuántas no, y los ids de sus copias en Engram.
+#[derive(Debug, Clone, Default)]
+pub struct BorradoTodo {
+    pub borradas: usize,
+    pub fallidas: usize,
+    pub engram: Vec<u64>,
+}
+
+/// "Borrar todo" de la pestaña Datos: borra cada charla (como `borrar`, de a una) y junta los ids
+/// de Engram para borrar también sus copias. Lo que no es una charla de Avis queda.
+pub fn borrar_todo(carpeta: &Path) -> BorradoTodo {
+    let mut r = BorradoTodo::default();
+    for (id, _) in charlas(carpeta) {
+        match borrar(carpeta, &id) {
+            Ok(engram) => {
+                r.borradas += 1;
+                r.engram.extend(engram);
+            }
+            Err(e) => {
+                r.fallidas += 1;
+                registrar(&format!("chat: borrar todo: no se borró {id}.json ({e})"));
+            }
+        }
+    }
+    r
+}
+
 /// El texto de la charla para buscar (título aparte): los mensajes, uno por línea, con tope.
 fn texto_para_buscar(doc: &Value) -> String {
     let mut t = String::new();

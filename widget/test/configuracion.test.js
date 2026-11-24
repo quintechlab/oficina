@@ -12,11 +12,12 @@ import {
   pestanaValida, valorInterruptor, FORMAS_VISTA, opcionesForma, elegirForma, rotuloEspecie, anuncioEspecie, anuncioForma,
   modoVistaPrevia, CLAVE_VISTA_PREVIA, horaArgentina, textoMod, textoModelo, puntoPestana, clicBorrar, armadoVigente,
   desarmarVencido, MS_CONFIRMAR, filasEnEstaPC, marcoBajo, modeloDesdeChat, descargaDesdeConfig,
+  cifrasHistorial, textoHistorial, MOTORES,
 } from '../src/configuracion.js'
 import { chatInicial, transicionChat } from '../src/chat.js'
 import {
   pestanasConfiguracion, seccionConfiguracion, avisoPreguntaConfiguracion, esqueletoConfiguracion, partesMascota, miniConfiguracion,
-  nombrePestana,
+  nombrePestana, partesModelos,
 } from '../src/configuracionVista.js'
 import { NOMBRES_ESPECIES } from '../src/especies.js'
 
@@ -229,7 +230,7 @@ test('Panel: un error al guardar queda debajo de su fila, y solo en esa', () => 
   assert.doesNotMatch(seccionConfiguracion('panel', PANEL), /No se pudo guardar/)
 })
 
-test('Datos: "Dónde queda cada cosa" con las tres filas de 5, sin las charlas hasta el chat (16, B1)', () => {
+test('Datos: "Dónde queda cada cosa" con las cuatro filas de 5, charlas incluidas (E5)', () => {
   const html = seccionConfiguracion('datos', PANEL)
   assert.match(html, /<h3 class="sub">Dónde queda cada cosa<\/h3><dl class="datos">/)
   const filas = [...html.matchAll(/<dt>([^<]+)<\/dt><dd>([^<]+)<\/dd>/g)].map(m => [m[1], m[2]])
@@ -237,8 +238,112 @@ test('Datos: "Dónde queda cada cosa" con las tres filas de 5, sin las charlas h
     ['Preferencias', 'preferencias.json, en la carpeta de Avis'],
     ['Claves', 'Administrador de credenciales de Windows · Avis/api/…'],
     ['Modelo local', '%LOCALAPPDATA%\\avis-ia'],
+    ['Charlas', 'carpeta de Avis\\chat'],
   ])
-  assert.doesNotMatch(html, /Charlas/)
+  // El historial va primero, con su rótulo
+  assert.ok(html.indexOf('Historial del chat') < html.indexOf('Dónde queda cada cosa'))
+})
+
+// ------------------------------------------------------------------ entrega 5: charla e historial (4.4, 5 y 7.4)
+
+test('test 7: cifrasHistorial dice "1 charla", "24 charlas" y los MB con coma decimal', () => {
+  assert.deepEqual(cifrasHistorial(1, 2048), { charlas: '1 charla', tam: '0,1 MB' })
+  assert.deepEqual(cifrasHistorial(24, 1.2 * 1024 ** 2), { charlas: '24 charlas', tam: '1,2 MB' })
+  assert.deepEqual(cifrasHistorial(3, 15 * 1024 ** 2), { charlas: '3 charlas', tam: '15 MB' })
+  assert.deepEqual(cifrasHistorial(0, 0), { charlas: '0 charlas', tam: '0 MB' })
+})
+
+test('7.4: el historial sin leer, vacío, con charlas, borrando y con error', () => {
+  assert.deepEqual(textoHistorial(), { estado: 'revisando', tono: 'nada', pill: 'Revisando…', titulo: 'Historial', linea: '', accion: null, error: null })
+  assert.deepEqual(textoHistorial({ resumen: { charlas: 0, bytes: 0 } }), { estado: 'vacio', tono: 'nada', pill: 'Vacío', titulo: 'No hay charlas guardadas.', linea: '', accion: null, error: null })
+  const DESC = 'En esta PC y, si Engram está prendido, una copia buscable en el proyecto avis. Se borran las dos.'
+  assert.deepEqual(textoHistorial({ resumen: { charlas: 24, bytes: 1.2 * 1024 ** 2 } }), {
+    estado: 'con', tono: null, pill: null, titulo: '24 charlas · 1,2 MB', linea: DESC,
+    accion: { id: 'borrar', texto: 'Borrar todo', armado: '¿Borrar 24 charlas? Sí' }, error: null,
+  })
+  assert.equal(textoHistorial({ resumen: { charlas: 1, bytes: 10 } }).accion.armado, '¿Borrar 1 charla? Sí')
+  assert.deepEqual(textoHistorial({ resumen: { charlas: 24, bytes: 1.2 * 1024 ** 2 }, borrando: true }), {
+    estado: 'borrando', tono: 'proc', pill: 'Borrando…', titulo: '24 charlas · 1,2 MB', linea: DESC, accion: null, error: null,
+  })
+  assert.deepEqual(textoHistorial({ resumen: { charlas: 3, bytes: 3000 }, fallidas: 3 }), {
+    estado: 'error', tono: null, pill: null, titulo: '3 charlas · 0,1 MB', linea: DESC,
+    accion: { id: 'reintentar', texto: 'Reintentar' }, error: 'No se pudieron borrar 3 charlas. Probá de nuevo.',
+  })
+  assert.equal(textoHistorial({ resumen: { charlas: 1, bytes: 30 }, fallidas: 1 }).error, 'No se pudo borrar 1 charla. Probá de nuevo.')
+})
+
+test('test 8: "Borrar todo" arma 3 s, el segundo clic borra una vez y Esc o el tiempo lo desarman', () => {
+  const c0 = { ...configInicial(), abierta: true, tab: 'datos' }
+  const a = clicBorrar(c0, 'historial', 1000)
+  assert.equal(a.ejecutar, false)
+  assert.equal(armadoVigente(a.config, 'historial', 1000 + MS_CONFIRMAR - 1), true)
+  const b = clicBorrar(a.config, 'historial', 2000)
+  assert.equal(b.ejecutar, true)
+  assert.equal(b.config.armado, null)
+  // Pasados los 3 s vuelve solo; un clic después vuelve a armar, no borra
+  assert.equal(desarmarVencido(a.config, 1000 + MS_CONFIRMAR).armado, null)
+  assert.equal(clicBorrar(a.config, 'historial', 1000 + MS_CONFIRMAR).ejecutar, false)
+  // Esc desarma (la primera capa de alEsc)
+  assert.equal(alEsc(a.config).config.armado, null)
+})
+
+test('Datos: la tarjeta del historial en cada estado, con el borrado que confirma en el mismo botón', () => {
+  const con = textoHistorial({ resumen: { charlas: 24, bytes: 1.2 * 1024 ** 2 } })
+  let html = seccionConfiguracion('datos', { ...PANEL, historial: con })
+  assert.match(html, /<h3 class="sub">Historial del chat<\/h3>/)
+  assert.match(html, /<b>24 charlas · 1,2 MB<\/b>/)
+  assert.match(html, /Se borran las dos\./)
+  assert.match(html, /class="lnk peligro" data-accion="cfg-hist" data-valor="borrar" data-k="hist-borrar">Borrar todo</)
+  html = seccionConfiguracion('datos', { ...PANEL, historial: con, armado: 'historial', transcurrido: 900 })
+  assert.match(html, /class="armado" data-accion="cfg-hist" data-valor="borrar" data-k="hist-borrar"[^>]*--ya:-900ms[^>]*>¿Borrar 24 charlas\? Sí</)
+  html = seccionConfiguracion('datos', { ...PANEL, historial: textoHistorial({ resumen: { charlas: 0, bytes: 0 } }) })
+  assert.match(html, /<b>No hay charlas guardadas\.<\/b>/)
+  assert.match(html, /class="pill t-nada"[^>]*><i class="pt" aria-hidden="true"><\/i><span>Vacío</)
+  assert.doesNotMatch(html, /data-accion="cfg-hist"/)
+  html = seccionConfiguracion('datos', { ...PANEL, historial: textoHistorial({ resumen: { charlas: 24, bytes: 10 }, borrando: true }) })
+  assert.match(html, /class="pill t-proc"[^>]*><i class="pt" aria-hidden="true"><\/i><span>Borrando…</)
+  assert.doesNotMatch(html, /data-accion="cfg-hist"/)
+  html = seccionConfiguracion('datos', { ...PANEL, historial: textoHistorial({ resumen: { charlas: 3, bytes: 10 }, fallidas: 3 }) })
+  assert.match(html, /<p class="aj-error" role="alert">No se pudieron borrar 3 charlas\. Probá de nuevo\.<\/p>/)
+  assert.match(html, /<button type="button" class="btn" data-accion="cfg-hist" data-valor="reintentar" data-k="hist-reintentar">Reintentar</)
+  // Sin leer todavía: "Revisando…", sin saltos de diseño (7.5)
+  assert.match(seccionConfiguracion('datos', PANEL), /<span>Revisando…<\/span>/)
+})
+
+test('Modelos: "Quién responde" va primero, bajo "Charla", con los dos segmentos y el elegido', () => {
+  assert.deepEqual(MOTORES, [['claude', 'Claude Code'], ['local', 'Local']])
+  const html = seccionConfiguracion('modelos', { ...DATOS3, motor: 'local' })
+  assert.match(html, /^<h2 class="oculto">Modelos<\/h2><h3 class="sub">Charla<\/h3>/)
+  assert.match(html, /Quién responde/)
+  assert.match(html, /En las charlas nuevas\. Cada una puede cambiarlo\./)
+  assert.match(html, /role="radiogroup" aria-label="Quién responde"/)
+  assert.match(html, /aria-checked="false" tabindex="-1" data-accion="cfg-motor" data-valor="claude" data-k="cfg-motor-claude">Claude Code</)
+  assert.match(html, /aria-checked="true" tabindex="0" data-accion="cfg-motor" data-valor="local" data-k="cfg-motor-local">Local</)
+  // Sin motor guardado, Claude Code
+  assert.match(seccionConfiguracion('modelos', DATOS3), /aria-checked="true" tabindex="0" data-accion="cfg-motor" data-valor="claude"/)
+  // El error al guardar, debajo de su fila
+  assert.match(seccionConfiguracion('modelos', { ...DATOS3, error: 'motor' }), /No se pudo guardar\. Probá de nuevo\./)
+  // Es una parte propia: cambiarla no redibuja el campo de una clave
+  assert.ok(partesModelos({ ...DATOS3, motor: 'local' }).charla.includes('data-valor="local"'))
+})
+
+test('el motor de las charlas nuevas: cambia la preferencia y no la charla abierta; la nueva arranca con él', () => {
+  const ctx = { ahoraMs: 1000, id: 'c-1' }
+  let c = transicionChat(chatInicial(), { tipo: 'nueva' }, ctx).chat
+  c = { ...c, conversacion: { ...c.conversacion, mensajes: [{ rol: 'usuario', texto: 'hola' }] } }
+  assert.equal(c.conversacion.motor, 'claude')
+  const r = transicionChat(c, { tipo: 'motor-nuevas', motor: 'local' }, ctx)
+  assert.deepEqual(r.efectos, [])
+  assert.equal(r.chat.motor, 'local')
+  assert.equal(r.chat.conversacion, c.conversacion)
+  // Un motor que no existe: nada
+  assert.equal(transicionChat(c, { tipo: 'motor-nuevas', motor: 'gpt' }, ctx).chat, c)
+  // La próxima charla nueva arranca con el motor elegido, sin carpeta si es local
+  const n = transicionChat(r.chat, { tipo: 'nueva' }, { ...ctx, id: 'c-2' })
+  assert.equal(n.chat.conversacion.id, 'c-2')
+  assert.equal(n.chat.conversacion.motor, 'local')
+  assert.equal(n.chat.conversacion.carpeta, null)
+  assert.deepEqual(n.efectos[0], { tipo: 'abrir', conversacion: 'c-2', motor: 'local', carpeta: null, sesionClaude: null })
 })
 
 test('cada panel empieza con su h2 oculto: no hay salto de h1 a h3 (16, D-f)', () => {
@@ -648,8 +753,8 @@ test('Modelos: la tarjeta del modelo local con su píldora, su línea y sus acci
   assert.match(html, /class="pill t-ok"/)
   assert.match(html, /Se apaga solo a los 10 min sin uso\./)
   assert.match(html, /data-accion="cfg-local" data-valor="borrar"[^>]*>Borrar 2,6 GB</)
-  // "Quién responde" y el historial no se muestran hasta que llegue el chat (D6)
-  assert.doesNotMatch(html, /Quién responde/)
+  // Con el chat en main, "Quién responde" se muestra (E5, D6)
+  assert.match(html, /Quién responde/)
 })
 
 test('Modelos: armado, el botón dice "¿Borrar 2,6 GB? Sí" con la línea que se vacía en 3 s', () => {

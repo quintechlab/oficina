@@ -59,6 +59,7 @@ import {
   configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion, pestanaSiguiente, validarAjuste,
   valorInterruptor, INTERRUPTORES, ubicacionDe, bordeDeUbicacion, IDS_PESTANAS, elegirForma, anuncioEspecie, anuncioForma,
   textoMod, textoModelo, modeloDesdeChat, descargaDesdeConfig, puntoPestana, filasEnEstaPC, clicBorrar, armadoVigente, desarmarVencido, MS_CONFIRMAR,
+  MOTORES, textoHistorial,
   PROVEEDORES, finalDe, formaClave, textoClave, clavesDesdeLectura, resultadoPrueba, anuncioPrueba, anuncioGuardada,
   ANUNCIO_CLAVE_BORRADA, empezarClave, retieneConfig, detalleErrorClave, marcoBajo,
 } from './configuracion.js'
@@ -134,6 +135,11 @@ const st = {
   claves: null,
   /** La clave recién guardada: su fila se baña de verde una vez (8). */
   claveRecien: null,
+  /**
+   * El historial del chat de la pestaña Datos (7.4, entrega 5): `resumen` `{ charlas, bytes }` de
+   * `chat_contar` (null hasta leerlo), si corre "Borrar todo" y cuántas no se pudieron borrar.
+   */
+  historial: { resumen: null, borrando: false, fallidas: 0 },
   /** Acoplada, el panel quedó fijado mientras se escribe una clave (4.1) y vuelve a su marca al terminar. */
   cfgRet: { retuvo: false, fijaAntes: false, fijaTocada: false },
   mini: false,
@@ -3187,6 +3193,9 @@ function datosConfiguracion(local = modeloDesdeChat(st.chat), ahora = Date.now()
     transcurrido: armado ? Math.max(0, MS_CONFIRMAR - (armado.hasta - ahora)) : 0,
     claves: datosClaves(ahora),
     recien: st.claveRecien,
+    // Entrega 5: el motor de las charlas nuevas y el historial del chat
+    motor: st.chat.motor,
+    historial: textoHistorial(st.historial),
   }
 }
 
@@ -3377,6 +3386,7 @@ async function abrirConfig({ tab, foco = true } = {}) {
   leerEstadoMod()
   leerClaves()
   leerModelo()
+  leerHistorialConfig()
   pintar()
   movimientoConfig.abrirHoja($('#marco .cab'), $('#cfg-tabs'), $('#cfg-cont'))
   if (st.acople) {
@@ -3403,6 +3413,8 @@ function cambiarPestanaConfig(tab, { foco = false } = {}) {
   const salioDeMascota = st.config.tab === 'mascota'
   // La vista previa vuelve a la base: la figura se redibuja al volver a Mascota
   st.config = { ...st.config, tab, editando: null, armado: null, error: null, forma: 'base', ver: false, errorClave: null }
+  // Las charlas pueden haber cambiado con la configuración abierta: se cuentan de nuevo al entrar a Datos
+  if (tab === 'datos') leerHistorialConfig()
   pintarConfiguracion()
   movimientoConfig.colocarIndicador($('#cfg .pestanas'), true)
   movimientoConfig.cambioPestana($('#cfg-cont'), direccion, { mini: salioDeMascota ? $('#cfg-mini > .avi') : null })
@@ -3602,6 +3614,85 @@ async function clicBorrarModelo() {
   }
 }
 
+// ------------------------------------------------------------------ charla e historial (entrega 5: 4.4 y 7.4)
+
+/**
+ * "Quién responde" (D10): guarda el motor de las charlas nuevas (`guardar_chat`, con la carpeta de
+ * siempre) y lo pone en la charla (`motor-nuevas`); la charla abierta sigue con el suyo. Si la
+ * carpeta guardada ya no existe, se guarda sin ella. Si no se pudo, la opción vuelve y lo dice.
+ */
+async function elegirMotorConfig(motor) {
+  if (!MOTORES.some(([m]) => m === motor) || motor === st.chat.motor) return
+  st.config = { ...st.config, error: null }
+  try {
+    let r
+    try {
+      r = await invocar('guardar_chat', { motor, carpeta: st.chat.carpeta ?? null })
+    } catch (err) {
+      if (!String(err).includes('la carpeta no existe')) throw err
+      r = await invocar('guardar_chat', { motor, carpeta: null })
+    }
+    despacharChat({ tipo: 'motor-nuevas', motor })
+    if (r && Array.isArray(r.recientes)) despacharChat({ tipo: 'recientes', recientes: r.recientes })
+    decirConfig(`Las charlas nuevas las responde ${MOTORES.find(([m]) => m === motor)[1]}`)
+  } catch (err) {
+    registrar(`configuración: motor: no se pudo guardar (${err})`)
+    st.config = { ...st.config, error: 'motor' }
+  }
+  pintarConfiguracion()
+  $(`#cfg [data-k="cfg-motor-${st.chat.motor}"]`)?.focus({ preventScroll: true })
+}
+
+/** Cuenta las charlas guardadas (`chat_contar`, solo lectura): al abrir la configuración, al entrar a Datos y después de borrar. */
+async function leerHistorialConfig() {
+  if (!tauri?.core) return
+  try {
+    const r = await invocar('chat_contar')
+    st.historial = { ...st.historial, resumen: { charlas: Number(r?.charlas) || 0, bytes: Number(r?.bytes) || 0 } }
+  } catch (err) {
+    registrar(`configuración: historial: no se pudo contar (${err})`)
+  }
+  if (st.config.abierta) pintarConfiguracion()
+}
+
+/**
+ * "Borrar todo" del historial (7.4): el primer clic arma "¿Borrar {n} charlas? Sí" 3 s; el segundo
+ * borra una vez (`chat_borrar_todo`: los archivos y sus copias de Engram). "Reintentar", después de un
+ * error, borra sin volver a preguntar.
+ */
+async function clicHistorialConfig(valor) {
+  if (st.historial.borrando) return
+  if (valor === 'borrar') {
+    const { config, ejecutar } = clicBorrar(st.config, 'historial', Date.now())
+    st.config = { ...config, error: null }
+    vigilarArmado()
+    pintarConfiguracion()
+    if (!ejecutar) return
+  } else if (valor !== 'reintentar') return
+  st.historial = { ...st.historial, borrando: true, fallidas: 0 }
+  pintarConfiguracion()
+  let fallidas = 0
+  try {
+    const r = await invocar('chat_borrar_todo')
+    fallidas = Number(r?.fallidas) || 0
+  } catch (err) {
+    registrar(`configuración: historial: no se pudo borrar (${err})`)
+    fallidas = st.historial.resumen?.charlas || 1
+  }
+  st.historial = { ...st.historial, borrando: false, fallidas }
+  await leerHistorialConfig()
+  // El cajón de la charla vuelve a leer la lista del disco
+  invocar('chat_historial').then(lista => despacharChat({ tipo: 'historial', charlas: lista }))
+    .catch(err => registrar(`chat historial: ${err}`))
+  if (fallidas) {
+    decirConfig(textoHistorial(st.historial).error)
+    $('#cfg [data-k="hist-reintentar"]')?.focus({ preventScroll: true })
+  } else {
+    decirConfig('Historial del chat borrado')
+    $('#cfg-t-datos')?.focus({ preventScroll: true })
+  }
+}
+
 // ------------------------------------------------------------------ claves de API (entrega 4: 7.1 y 9.4)
 // La clave cruza a Rust una sola vez (guardar_clave) y nunca vuelve: de Credenciales de Windows solo
 // llegan si hay una y su final de 4. El texto que se escribe vive solo en el campo; ni `st`, ni
@@ -3772,6 +3863,8 @@ async function accionConfiguracion(a, b) {
       else if (b.dataset.valor === 'pp') abrirAsistente({ foco: true })
       break
     case 'cfg-pp': abrirAsistente({ foco: true }); break
+    case 'cfg-motor': await elegirMotorConfig(b.dataset.valor); break
+    case 'cfg-hist': await clicHistorialConfig(b.dataset.valor); break
     case 'cfg-clave-agregar': abrirCampoClave(b.dataset.valor); break
     case 'cfg-clave-cancelar': cancelarClave(); break
     case 'cfg-clave-ver':

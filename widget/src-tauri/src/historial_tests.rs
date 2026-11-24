@@ -222,6 +222,62 @@ fn borrar_quita_el_archivo_y_devuelve_el_id_de_engram() {
     let _ = fs::remove_dir_all(&c);
 }
 
+// ---------------------------------------------------------------- configuración, pestaña Datos (#23, E5)
+
+#[test]
+fn contar_suma_todas_las_charlas_y_sus_bytes_sin_tope_y_solo_las_de_avis() {
+    let c = carpeta_temporal();
+    for i in 0..(TOPE_LISTA + 3) {
+        guardar(&c, &charla(&format!("c-{i}"), "x")).unwrap();
+    }
+    // Una rota también es una charla guardada (ocupa lugar y "Borrar todo" la borra)
+    fs::write(c.join("c-roto.json"), "{ esto no es json").unwrap();
+    // Lo que no es una charla de Avis no cuenta
+    fs::write(c.join("notas.txt"), "hola").unwrap();
+    fs::write(c.join("otro.json"), "{}").unwrap();
+    fs::create_dir_all(c.join("c-carpeta.json")).unwrap();
+    let esperados: u64 = fs::read_dir(&c)
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().unwrap().is_file())
+        .filter(|e| e.file_name().to_string_lossy().starts_with("c-"))
+        .map(|e| e.metadata().unwrap().len())
+        .sum();
+    assert_eq!(contar(&c), (TOPE_LISTA + 4, esperados));
+    let _ = fs::remove_dir_all(&c);
+}
+
+#[test]
+fn contar_sin_carpeta_es_cero() {
+    let c = std::env::temp_dir().join(format!("avis-historial-contar-no-existe-{}", std::process::id()));
+    assert_eq!(contar(&c), (0, 0));
+}
+
+#[test]
+fn borrar_todo_borra_cada_charla_y_junta_los_ids_de_engram() {
+    let c = carpeta_temporal();
+    guardar(&c, &charla("c-1", "x")).unwrap();
+    guardar(&c, &charla("c-2", "y")).unwrap();
+    guardar(&c, &charla("c-3", "z")).unwrap();
+    poner_engram(&c, "c-1", 42).unwrap();
+    poner_engram(&c, "c-3", 7).unwrap();
+    fs::write(c.join("c-roto.json"), "{ esto no es json").unwrap();
+    fs::write(c.join("notas.txt"), "hola").unwrap();
+    let r = borrar_todo(&c);
+    assert_eq!(r.borradas, 4);
+    assert_eq!(r.fallidas, 0);
+    let mut engram = r.engram.clone();
+    engram.sort_unstable();
+    assert_eq!(engram, [7, 42]);
+    assert_eq!(contar(&c), (0, 0));
+    // Lo que no es de Avis queda
+    assert!(c.join("notas.txt").exists());
+    // Sin nada que borrar: cero, sin error
+    let r = borrar_todo(&c);
+    assert_eq!((r.borradas, r.fallidas, r.engram.len()), (0, 0, 0));
+    let _ = fs::remove_dir_all(&c);
+}
+
 // ---------------------------------------------------------------- a la vez
 
 #[test]

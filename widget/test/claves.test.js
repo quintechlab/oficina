@@ -193,13 +193,13 @@ test('Modelos: "Claves de API" va antes del modelo local, con el candado, las tr
   }
   assert.match(html, /Las usa la charla por API cuando llegue/)
   assert.match(html, /data-parte="local"/)
-  // "Quién responde" sigue sin mostrarse hasta que llegue el chat (D6)
-  assert.doesNotMatch(html, /Quién responde/)
+  // Con el chat en main, "Quién responde" va arriba de las claves (E5)
+  assert.ok(html.indexOf('Quién responde') < html.indexOf('Claves de API'))
 })
 
 test('Modelos por partes: cada clave y el modelo local se cambian solos (así el campo que se escribe no se toca)', () => {
   const p = partesModelos({ ...DATOS, claves: CLAVES })
-  assert.deepEqual(Object.keys(p), ['clave-anthropic', 'clave-openai', 'clave-gemini', 'local'])
+  assert.deepEqual(Object.keys(p), ['charla', 'clave-anthropic', 'clave-openai', 'clave-gemini', 'local'])
   assert.match(p['clave-anthropic'], /Guardada/)
   assert.match(p['clave-openai'], /data-accion="cfg-clave-agregar" data-valor="openai" data-k="r-openai">\+ Agregar clave</)
   assert.match(p['clave-gemini'], /class="pill t-nada"><i class="pt" aria-hidden="true"><\/i><span>Revisando…/)

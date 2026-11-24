@@ -46,6 +46,8 @@
 //   ?cfg=modelos&clave=sin|guardada  las claves de API (7.1): ninguna o las tres (sin ?clave, Claude y
 //                 Gemini). Probar responde válida (Gemini, rechazada) o lo de &probar=valida|rechazada|sin-red|otro;
 //                 &clavelenta tarda 4 s; &clavefalla: Windows no deja guardar (windows:1312); &borrarfalla, borrar
+//   ?cfg=datos&historial=muchas  el historial del chat (7.4) con 24 charlas falsas más las del chat falso;
+//                 "Borrar todo" tarda 0,9 s; &borrarfalla deja 3 sin borrar ("Reintentar")
 //   Lo guardado queda en window.__ajustes.
 //   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
 //                 docs/diseno/mascotas-avi-ux.md 9.1), con su forma evolucionada, sus bucles y sus actos;
@@ -839,6 +841,20 @@
       return structuredClone(doc)
     },
     chat_borrar: ({ id }) => { archivos.delete(id); console.info('[chat] borrar', id) },
+    // Configuración, pestaña Datos (E5): ?historial=muchas suma 24 charlas falsas; &borrarfalla deja 3 sin borrar
+    chat_contar: () => {
+      const extra = url.get('historial') === 'muchas' ? 24 : 0
+      const bytes = [...archivos.values()].reduce((n, d) => n + JSON.stringify(d).length, 0) + extra * 52000
+      return { charlas: archivos.size + extra, bytes }
+    },
+    chat_borrar_todo: () => new Promise(r => setTimeout(() => {
+      const falla = url.has('borrarfalla') ? Math.min(3, archivos.size) : 0
+      const ids = [...archivos.keys()].slice(falla)
+      for (const id of ids) archivos.delete(id)
+      if (url.get('historial') === 'muchas' && !falla) url.delete('historial')
+      console.info('[chat] borrar todo', ids.length, 'borradas', falla, 'sin borrar')
+      r({ borradas: ids.length, fallidas: falla })
+    }, 900)),
     guardar_chat: ({ motor, carpeta }) => {
       prefsChat = { motor, carpeta: carpeta ?? null, recientes: carpeta ? [carpeta, ...prefsChat.recientes.filter(r => r !== carpeta)].slice(0, 5) : prefsChat.recientes }
       console.info('[chat] preferencias', JSON.stringify(prefsChat))
