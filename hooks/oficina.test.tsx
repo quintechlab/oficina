@@ -25,6 +25,7 @@ import {
   actividadDesdeHerramienta,
   iniciales,
   latidoLocal,
+  presenciaLocal,
   puedeEscribirLocal,
   mapaNombres,
   NOMBRES_INVENTADOS,
@@ -373,6 +374,22 @@ test('una sesión colgada hace más de 12 h se descarta', async () => {
   const c: ComentarioPresencia = { v: 2, usuario: 'campos', nombre: 'Campos', ausente: false, actualizado: colgada.actualizado, sesiones: [colgada] }
   expect(elegirPrincipal(c, ahora).presencia.estado).toBe('fuera')
   expect(ponerSesion(c, presencia({ sesion: 'nueva' }), ahora).sesiones.map(s => s.sesion)).toEqual(['nueva'])
+})
+
+test('la carpeta de la sesión va solo en el archivo local, nunca en el comentario de GitHub', async () => {
+  const p = presencia({ sesion: 'con-carpeta' })
+  const local = presenciaLocal(p, 'C:/Users/x/Desktop/catalogo')
+  expect(local.cwd).toBe('C:/Users/x/Desktop/catalogo')
+  expect({ ...local, cwd: undefined }).toEqual({ ...p, cwd: undefined })
+  // Sin carpeta conocida no se agrega la clave
+  expect('cwd' in presenciaLocal(p, '  ')).toBe(false)
+  // Aunque llegue con carpeta, el comentario la saca (de esta sesión y de cualquier otra)
+  const vieja = { ...presencia({ sesion: 'otra' }), cwd: 'C:/otra' }
+  const c = ponerSesion({ v: 2, usuario: 'campos', nombre: 'Campos', ausente: false, actualizado: AHORA, sesiones: [vieja] }, local, Date.parse(AHORA))
+  expect(c.sesiones.map(s => s.sesion)).toEqual(['otra', 'con-carpeta'])
+  expect(c.sesiones.some(s => 'cwd' in s)).toBe(false)
+  expect(envolverComentario(c).includes('cwd')).toBe(false)
+  expect(envolverComentario(c).includes('catalogo')).toBe(true) // el repo sigue viajando
 })
 
 test('el latido local solo renueva la hora de lo último escrito', async () => {
@@ -799,7 +816,7 @@ const RUTA_LOCAL = `C:/Users/prueba/.claude/oficina/sesiones/${SESION}.json`
  * Una sesión abierta con el mod: reloj, archivos y motor de mentira. Sin `gh` (cada consulta a
  * GitHub falla), así lo único que se publica es el archivo local, que es lo que lee el widget.
  */
-async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean } = {}) {
+async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean; conGh?: boolean } = {}) {
   const reloj = mock.clock(on, { now: ARRANQUE })
   mock.env(on, { USERPROFILE: CASA })
   mock.store(on, { yo: { login: 'nicoequintana', nombre: 'Quintana' } })
@@ -812,7 +829,14 @@ async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean
   on('session.id', () => ({ value: idActual }))
   on('session.cwd', () => ({ value: 'C:/proyectos/demo' }))
   on('session.repo', () => ({ value: null }))
-  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: 'sin gh en la prueba' } }) as never)
+  const comentarios: string[] = []
+  on('process.run', (_, e) => {
+    if (!opciones.conGh) return { value: { exitCode: 1, stdout: '', stderr: 'sin gh en la prueba' } } as never
+    // Con gh: el Issue no tiene comentarios y cada POST o PATCH guarda el cuerpo publicado
+    const cuerpo = e.argv.find(a => a.startsWith('body='))
+    if (cuerpo) comentarios.push(cuerpo.slice('body='.length))
+    return { value: { exitCode: 0, stdout: cuerpo ? '{}' : '[]', stderr: '' } } as never
+  })
   on('command.register', (_, e) => ({ value: { command: e.name } }) as never)
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   // El motor entrega las rutas con la barra de la plataforma: se comparan siempre con "/"
@@ -846,6 +870,7 @@ async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean
   return {
     reloj,
     archivos,
+    comentarios,
     escrituras,
     enviados,
     comoUsuario,
@@ -886,6 +911,22 @@ test('cualquier otro fin de sesión deja de tomar órdenes', async ($, on) => {
   await s.terminarSesion('logout', SESION)
   await s.ordenar({})
   expect(s.enviados).toEqual([])
+})
+
+test('el archivo local lleva la carpeta de la sesión y el comentario de GitHub no', async ($, on) => {
+  const s = await abrirSesion($, on, { conGh: true })
+  expect(s.presencia()?.cwd).toBe('C:/proyectos/demo')
+  expect(s.comentarios.length > 0).toBe(true)
+  for (const cuerpo of s.comentarios) {
+    expect(cuerpo.includes(SESION)).toBe(true) // la sesión se sigue publicando
+    expect(cuerpo.includes('cwd')).toBe(false)
+    expect(cuerpo.includes('C:/proyectos/demo')).toBe(false)
+  }
+  // Escribir el turno al instante y el latido conservan la carpeta en el archivo local
+  await s.empezarTurno('t-1')
+  await s.reloj.advance(30000)
+  expect(s.presencia()?.enTurno).toBe(true)
+  expect(s.presencia()?.cwd).toBe('C:/proyectos/demo')
 })
 
 test('la presencia de la sesión dice que acepta órdenes del widget, sin nada en cola', async ($, on) => {

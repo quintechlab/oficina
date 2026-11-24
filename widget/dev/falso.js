@@ -171,6 +171,8 @@
     {
       v: 1, sesion: 'ses-catalogo', usuario: 'nicoequintana', nombre: 'Quintana', estado: 'trabajando',
       repo: 'quintechlab/catalogo', rama: 'feat/48-precios', tarea: 48, nota: null,
+      // Desde la v0.11 el mod deja la carpeta en el archivo local: el menú de la charla la ofrece (entrega 7)
+      cwd: 'C:\\Users\\quintana\\Desktop\\catalogo',
       inicio: hace(18), tareaDesde: hace(18), actualizado: hace(0), archivos: [], actividad: 'pensando',
       puedeResponder: !url.has('sololectura'),
       agentes: url.get('preguntas') === 'varias' ? [sub('c9', 'Camila', 'copy del aviso de precios', 'trabajando', { desde: hace(3) })] : [],

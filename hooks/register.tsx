@@ -29,6 +29,7 @@ import {
   esActividadEnEspera,
   preguntaDesdeEntrada,
   latidoLocal,
+  presenciaLocal,
   leerMarca,
   marcarMensaje,
   podarConversas,
@@ -150,7 +151,7 @@ async function obtenerYo($: EngineInterface): Promise<Yo> {
 }
 
 // ------------------------------------------------------------------ qué estoy haciendo
-type Local = { repo: string | null; rama: string | null; archivos: string[] }
+type Local = { repo: string | null; rama: string | null; archivos: string[]; cwd: string }
 
 async function leerLocal($: EngineInterface): Promise<Local> {
   const cwd = await $.session.cwd()
@@ -158,7 +159,7 @@ async function leerLocal($: EngineInterface): Promise<Local> {
   if (!sr) {
     // Sin git: el nombre de la carpeta abierta (salvo la del usuario o un borrador)
     const casa = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME')) ?? null
-    return { repo: proyectoDesdeCarpeta(cwd, casa), rama: null, archivos: [] }
+    return { repo: proyectoDesdeCarpeta(cwd, casa), rama: null, archivos: [], cwd }
   }
   const repo = proyectoDesdeRepo(sr.root, sr.remote)
   const rama = (await git($, ['branch', '--show-current'], cwd)).trim() || null
@@ -173,7 +174,7 @@ async function leerLocal($: EngineInterface): Promise<Local> {
   // Lo que todavía no se commiteó también cuenta para avisar un choque
   const pendientes = archivosDesdeStatus(await git($, ['status', '--porcelain'], cwd))
   archivos = [...new Set([...archivos, ...pendientes])].slice(0, 40)
-  return { repo, rama, archivos }
+  return { repo, rama, archivos, cwd }
 }
 
 type Mio = { id: number; comentario: ComentarioPresencia } | null
@@ -254,7 +255,8 @@ async function publicar($: EngineInterface, forzar = false, ausente?: boolean): 
     enCola,
     enTurno: turnoEnCurso !== null,
   }
-  await escribirEstadoLocal($, p)
+  // La carpeta va solo en el archivo local (v0.11): `p`, lo que se publica en GitHub, no la lleva
+  await escribirEstadoLocal($, presenciaLocal(p, local.cwd))
   // Sin cambios de fondo desde la última vez: no gastar llamadas (el latido igual publica cada 5 min)
   const huella = JSON.stringify({ ...p, actualizado: '', ausente })
   if (!forzar && huella === ultimaPublicacion) return

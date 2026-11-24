@@ -43,6 +43,11 @@ export type Presencia = {
   enCola?: number
   /** Hay un turno del hilo principal en curso que el widget puede frenar; el archivo local lo escribe al instante. Desde la v0.10. */
   enTurno?: boolean
+  /**
+   * La carpeta abierta de la sesión, para la charla del widget (chat-avis-ux.md, entrega 7). Va **solo en el
+   * archivo local** (~/.claude/oficina/sesiones): el comentario de GitHub nunca la lleva. Desde la v0.11.
+   */
+  cwd?: string
 }
 
 /**
