@@ -14,7 +14,7 @@ use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
 use tauri::image::Image;
-use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WebviewWindow, Wry};
 use tauri_plugin_autostart::ManagerExt as _;
@@ -29,6 +29,8 @@ struct Estado {
     menu: Mutex<Option<MenuBandeja>>,
     /// Borde donde está acoplada la muesca; `None` flota (7.5).
     acople: Mutex<Option<preferencias::Acople>>,
+    /// "Siempre arriba" (configuracion-ux.md 9.1): vale para cuando flota; acoplada va siempre arriba.
+    arriba: AtomicBool,
     /// Zona que toma el mouse y si la ventana deja pasar los clics (9.6). Solo el hilo del sondeo
     /// cambia `dentro` e `ignorando`; los comandos cambian la zona y lo despiertan.
     puntero: Mutex<Puntero>,
@@ -306,24 +308,20 @@ fn despertar(estado: &Estado) {
 }
 
 struct MenuBandeja {
-    arriba: CheckMenuItem<Wry>,
-    avisar: CheckMenuItem<Wry>,
     pausa: CheckMenuItem<Wry>,
-    arranque: CheckMenuItem<Wry>,
-    agrandar: MenuItem<Wry>,
-    achicar: MenuItem<Wry>,
-    tamano_actual: MenuItem<Wry>,
-    /// "Acoplar a": Arriba, Derecha, Abajo, Izquierda y Flotante (`preferencias::IDS_ACOPLE`).
-    acople: Vec<CheckMenuItem<Wry>>,
     /// "Primeros pasos (falta n)…" (bienvenida-ux.md 3.5): el texto sigue a la última revisión.
     primeros_pasos: MenuItem<Wry>,
 }
 
-/// Orden del menú de la bandeja: "Primeros pasos" va justo debajo de "Mostrar Avis" (3.5) y
-/// "Borrar el modelo de IA…" (#11) al final, antes del separador de "Salir".
-const ORDEN_BANDEJA: [&str; 11] = ["mostrar", "primeros-pasos", "arriba", "avisar", "pausa", "acoplar", "tamano", "arranque", "borrar-modelo", "separador", "salir"];
+/// Orden del menú de la bandeja (configuracion-ux.md 4.5): "Configuración…" debajo de "Mostrar
+/// Avis"; tamaño, acople, siempre arriba, avisar y arrancar con Windows viven en la configuración.
+/// "Primeros pasos" (3.5) y "Borrar el modelo de IA…" (#11) se quedan hasta que la configuración
+/// tenga sus pestañas Instalación y Modelos (entrega 3): sin ellos no habría cómo llegar ahí.
+const ORDEN_BANDEJA: [&str; 7] = ["mostrar", "configuracion", "primeros-pasos", "pausa", "borrar-modelo", "separador", "salir"];
 /// Texto del ítem que borra el modelo y el motor del resumen con IA (con confirmación nativa).
 const TEXTO_BORRAR_MODELO: &str = "Borrar el modelo de IA…";
+/// Evento a la ventana: abrir la configuración (`{ abrir: true, tab? }`, configuracion-ux.md 9.3).
+const EVENTO_CONFIGURACION: &str = "oficina://configuracion";
 
 fn ventana(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(VENTANA)
@@ -351,6 +349,18 @@ fn abrir_primeros_pasos(app: &AppHandle) {
     }
     despertar(&app.state::<Estado>());
     let _ = app.emit("oficina://primeros-pasos-abrir", ());
+}
+
+/// "Configuración…" de la bandeja (configuracion-ux.md 4.1): muestra el panel como "Mostrar Avis" y
+/// la ventana abre la configuración (acoplada, también el panel) con el foco en su título.
+fn abrir_configuracion(app: &AppHandle) {
+    if let Some(v) = ventana(app) {
+        let _ = v.unminimize();
+        let _ = v.show();
+        let _ = v.set_focus();
+    }
+    despertar(&app.state::<Estado>());
+    let _ = app.emit(EVENTO_CONFIGURACION, serde_json::json!({ "abrir": true }));
 }
 
 /// Rectángulo de un monitor en píxeles físicos: x, y, ancho y alto.
@@ -392,18 +402,8 @@ fn aplicar_acople_ventana(v: &WebviewWindow, acoplada: bool, arriba_marcado: boo
     v.set_always_on_top(acoplada || arriba_marcado)
 }
 
-/// Pone las marcas de "Acoplar a" (una sola) según el acople actual.
-fn marcar_acople(estado: &Estado) {
-    let borde = estado.acople.lock().unwrap().map(|a| a.borde);
-    if let Some(m) = estado.menu.lock().unwrap().as_ref() {
-        for (item, marca) in m.acople.iter().zip(preferencias::marcas_acople(borde)) {
-            let _ = item.set_checked(marca);
-        }
-    }
-}
-
 fn arriba_marcado(estado: &Estado) -> bool {
-    estado.menu.lock().unwrap().as_ref().and_then(|m| m.arriba.is_checked().ok()).unwrap_or(true)
+    estado.arriba.load(Ordering::Relaxed)
 }
 
 fn alternar(app: &AppHandle) {
@@ -472,17 +472,13 @@ fn tamano_guardado(app: &AppHandle) -> u32 {
     ruta_preferencias(app).map(|r| preferencias::leer_tamano(&r)).unwrap_or(preferencias::PASO_POR_DEFECTO)
 }
 
-/// Agranda (1), achica (-1) o vuelve a 100 % (0): guarda, actualiza el submenú y avisa a la ventana.
+/// Agranda (1), achica (-1) o vuelve a 100 % (0): guarda y avisa a la ventana.
 fn cambiar_tamano_app(app: &AppHandle, direccion: i32) -> u32 {
     let nuevo = preferencias::paso(tamano_guardado(app), direccion);
     if let Some(r) = ruta_preferencias(app) {
-        let _ = preferencias::guardar_tamano(&r, nuevo);
-    }
-    let (puede_agrandar, puede_achicar, texto) = preferencias::menu_tamano(nuevo);
-    if let Some(m) = app.state::<Estado>().menu.lock().unwrap().as_ref() {
-        let _ = m.agrandar.set_enabled(puede_agrandar);
-        let _ = m.achicar.set_enabled(puede_achicar);
-        let _ = m.tamano_actual.set_text(texto);
+        if let Err(e) = preferencias::guardar_tamano(&r, nuevo) {
+            registrar(format!("configuración: no se pudo guardar el tamaño: {e}"));
+        }
     }
     let _ = app.emit("oficina://tamano", nuevo);
     nuevo
@@ -756,41 +752,71 @@ fn pedir_resumen(app: AppHandle, pedido: u64, datos: serde_json::Value) -> Resul
     })
 }
 
-/// Fija la ventana arriba de las demás y sincroniza la marca del menú de la bandeja.
+/// Todo lo que la ventana necesita al arrancar y para la configuración (configuracion-ux.md 9.2):
+/// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version }`. `arranque` sale
+/// del sistema, no del archivo. Sin carpeta de configuración, los valores de fábrica.
 #[tauri::command]
-fn fijar_arriba(app: AppHandle, estado: State<'_, Estado>, valor: bool) -> Result<(), String> {
-    if let Some(v) = ventana(&app) {
-        v.set_always_on_top(valor).map_err(|e| e.to_string())?;
-    }
-    if let Some(m) = estado.menu.lock().unwrap().as_ref() {
-        let _ = m.arriba.set_checked(valor);
-    }
-    Ok(())
-}
-
-/// Marcas del menú de la bandeja, para que la ventana arranque sincronizada.
-#[tauri::command]
-fn estado_menu(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
-    let menu = estado.menu.lock().unwrap();
-    let marca = |item: Option<&CheckMenuItem<Wry>>| item.and_then(|i| i.is_checked().ok());
+fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
+    let ruta = ruta_preferencias(&app);
+    let interruptores = ruta.as_deref().map(preferencias::leer_interruptores).unwrap_or_default();
     serde_json::json!({
-        "arriba": marca(menu.as_ref().map(|m| &m.arriba)),
-        "avisar": marca(menu.as_ref().map(|m| &m.avisar)),
-        "pausa": marca(menu.as_ref().map(|m| &m.pausa)),
+        "mascota": ruta.as_deref().map(preferencias::leer_mascota).unwrap_or_else(|| String::from(preferencias::ESPECIES[0])),
         "tamano": tamano_guardado(&app),
         "acople": preferencias::valor_de_acople(*estado.acople.lock().unwrap()),
-        "flotante": ruta_preferencias(&app).and_then(|r| preferencias::leer_flotante(&r)).map(|f| serde_json::json!({ "x": f.x, "y": f.y })),
+        "flotante": ruta.as_deref().and_then(preferencias::leer_flotante).map(|f| serde_json::json!({ "x": f.x, "y": f.y })),
+        "arriba": interruptores.arriba,
+        "avisar": interruptores.avisar,
+        "pausa": interruptores.pausa,
+        "arranque": arranque::marca_real(app.autolaunch().is_enabled()),
+        "version": app.package_info().version.to_string(),
     })
 }
 
-/// La mascota de Claude guardada en preferencias.json (docs/diseno/mascotas-avi-ux.md 9.1): la ventana
-/// la pide al arrancar. Sin carpeta de configuración, el Avi.
+/// Guarda un ajuste de la configuración (`mascota`, `arriba`, `avisar` o `pausa`; configuracion-ux.md
+/// 9.2) y aplica su efecto: "Siempre arriba" a la ventana, la pausa a la marca de la bandeja y a la
+/// ventana (`oficina://pausa`), la mascota a la ventana (`oficina://mascota`). Si no se pudo guardar,
+/// no aplica nada y la ventana vuelve el control a su valor de antes.
 #[tauri::command]
-fn mascota(app: AppHandle) -> String {
-    ruta_preferencias(&app).map(|r| preferencias::leer_mascota(&r)).unwrap_or_else(|| String::from(preferencias::ESPECIES[0]))
+fn guardar_ajuste(app: AppHandle, estado: State<'_, Estado>, clave: String, valor: serde_json::Value) -> Result<serde_json::Value, String> {
+    // Un error vuelve a la ventana, que lo anota en widget.log y muestra "No se pudo guardar"
+    let ruta = ruta_preferencias(&app).ok_or("no se conoce la carpeta de configuración")?;
+    preferencias::guardar_ajuste(&ruta, &clave, &valor)?;
+    match (clave.as_str(), valor.as_bool()) {
+        ("arriba", Some(v)) => {
+            estado.arriba.store(v, Ordering::Relaxed);
+            // Acoplada, la muesca queda siempre arriba; la marca vale para cuando flote
+            let acoplada = estado.acople.lock().unwrap().is_some();
+            if let Some(w) = ventana(&app) {
+                let _ = w.set_always_on_top(v || acoplada);
+            }
+        }
+        ("pausa", Some(v)) => {
+            if let Some(m) = estado.menu.lock().unwrap().as_ref() {
+                let _ = m.pausa.set_checked(v);
+            }
+            let _ = app.emit("oficina://pausa", v);
+        }
+        ("mascota", _) => {
+            let _ = app.emit("oficina://mascota", serde_json::json!({ "mascota": valor }));
+        }
+        _ => {}
+    }
+    Ok(serde_json::json!({ "ok": true, "valor": valor }))
 }
 
-/// Ctrl + / Ctrl − / Ctrl 0 desde la ventana: el mismo cambio que el submenú "Tamaño".
+/// "Arrancar con Windows" de la configuración: solo con el clic del usuario cambia el inicio de
+/// Windows. Devuelve la marca real del sistema después (si falló, no miente).
+#[tauri::command]
+fn poner_arranque(app: AppHandle, valor: bool) -> bool {
+    let auto = app.autolaunch();
+    let real = arranque::aplicar(valor, || auto.enable(), || auto.disable(), || auto.is_enabled());
+    if real != valor {
+        registrar(format!("configuración: arrancar con Windows quedó en {real}"));
+    }
+    real
+}
+
+/// Ctrl + / Ctrl − / Ctrl 0 y los botones − y + de la configuración.
 #[tauri::command]
 fn cambiar_tamano(app: AppHandle, direccion: i32) -> u32 {
     cambiar_tamano_app(&app, direccion.signum())
@@ -832,7 +858,7 @@ fn geometria(app: AppHandle, puntero: Option<bool>) -> Result<serde_json::Value,
 
 /// Acopla la muesca a `borde` en `lugar` (0 a 1), o la deja flotando sin `borde`: lo guarda en
 /// `preferencias.json` con el monitor donde está, ajusta la ventana (arriba y sin barra de tareas
-/// acoplada) y las marcas de "Acoplar a". Lo que se ve lo anima el frontend, adentro de la ventana.
+/// acoplada). Lo que se ve lo anima el frontend, adentro de la ventana.
 #[tauri::command]
 fn guardar_acople(app: AppHandle, estado: State<'_, Estado>, borde: Option<String>, lugar: Option<f64>) -> Result<(), String> {
     let acople = match borde {
@@ -848,7 +874,6 @@ fn guardar_acople(app: AppHandle, estado: State<'_, Estado>, borde: Option<Strin
     olvidar_zona(&mut estado.puntero.lock().unwrap_or_else(PoisonError::into_inner));
     // Flotando, el sondeo se detiene y la ventana vuelve a tomar todos los clics; acoplada, arranca
     despertar(&estado);
-    marcar_acople(&estado);
     if let Some(v) = ventana(&app) {
         aplicar_acople_ventana(&v, acople.is_some(), arriba_marcado(&estado)).map_err(|e| e.to_string())?;
     }
@@ -1030,33 +1055,11 @@ fn avisar(app: AppHandle, titulo: String, cuerpo: String) -> Result<(), String> 
     app.notification().builder().title(titulo).body(cuerpo).show().map_err(|e| e.to_string())
 }
 
-fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
+fn crear_bandeja(app: &AppHandle, pausa_guardada: bool) -> tauri::Result<()> {
     let mostrar_item = MenuItem::with_id(app, "mostrar", "Mostrar Avis", true, None::<&str>)?;
-    let arriba = CheckMenuItem::with_id(app, "arriba", "Siempre arriba", true, true, None::<&str>)?;
-    let avisar_item = CheckMenuItem::with_id(app, "avisar", "Avisarme con cada pregunta", true, true, None::<&str>)?;
-    let pausa = CheckMenuItem::with_id(app, "pausa", "Pausar animaciones", true, false, None::<&str>)?;
-    // Apagado salvo que el usuario lo haya prendido: la marca sale del estado real de Windows
-    let arranca = arranque::marca_real(app.autolaunch().is_enabled());
-    let arranque_item = CheckMenuItem::with_id(app, "arranque", "Arrancar con Windows", true, arranca, None::<&str>)?;
-    // Submenú "Tamaño": agrandar y achicar de a un paso (100 % a 200 %) y el porcentaje actual
-    let (puede_agrandar, puede_achicar, texto) = preferencias::menu_tamano(tamano_guardado(app));
-    let agrandar = MenuItem::with_id(app, "tamano:agrandar", "Agrandar", puede_agrandar, Some("Ctrl+Plus"))?;
-    let achicar = MenuItem::with_id(app, "tamano:achicar", "Achicar", puede_achicar, Some("Ctrl+Minus"))?;
-    let tamano_actual = MenuItem::with_id(app, "tamano:actual", texto, false, None::<&str>)?;
-    let submenu = Submenu::with_items(app, "Tamaño", true, &[&agrandar, &achicar, &PredefinedMenuItem::separator(app)?, &tamano_actual])?;
-    // Submenú "Acoplar a" (7.3): una sola marca, la del borde guardado o Flotante
-    let marcas = preferencias::marcas_acople(app.state::<Estado>().acople.lock().unwrap().map(|a| a.borde));
-    let textos = ["Arriba", "Derecha", "Abajo", "Izquierda", "Flotante"];
-    let mut acople = Vec::new();
-    for ((id, texto), marca) in preferencias::IDS_ACOPLE.iter().zip(textos).zip(marcas) {
-        acople.push(CheckMenuItem::with_id(app, *id, texto, true, marca, None::<&str>)?);
-    }
-    let submenu_acople = Submenu::with_items(
-        app,
-        "Acoplar a",
-        true,
-        &[&acople[0], &acople[1], &acople[2], &acople[3], &PredefinedMenuItem::separator(app)?, &acople[4]],
-    )?;
+    let configuracion_item = MenuItem::with_id(app, "configuracion", "Configuración…", true, None::<&str>)?;
+    // "Pausar animaciones" se queda en la bandeja: se necesita rápido y sin abrir el panel (4.5)
+    let pausa = CheckMenuItem::with_id(app, "pausa", "Pausar animaciones", true, pausa_guardada, None::<&str>)?;
     let salir_item = MenuItem::with_id(app, "salir", "Salir", true, None::<&str>)?;
     let separador = PredefinedMenuItem::separator(app)?;
     let primeros_pasos_item = MenuItem::with_id(app, "primeros-pasos", primeros_pasos::texto_menu(None), true, None::<&str>)?;
@@ -1066,13 +1069,9 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
         .map(|id| -> &dyn IsMenuItem<Wry> {
             match *id {
                 "mostrar" => &mostrar_item,
+                "configuracion" => &configuracion_item,
                 "primeros-pasos" => &primeros_pasos_item,
-                "arriba" => &arriba,
-                "avisar" => &avisar_item,
                 "pausa" => &pausa,
-                "acoplar" => &submenu_acople,
-                "tamano" => &submenu,
-                "arranque" => &arranque_item,
                 "borrar-modelo" => &borrar_modelo_item,
                 "separador" => &separador,
                 _ => &salir_item,
@@ -1085,55 +1084,26 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .tooltip("Avis")
         .show_menu_on_left_click(false)
-        .on_menu_event(|app, evento| {
-            let estado = app.state::<Estado>();
-            let marca = |f: fn(&MenuBandeja) -> &CheckMenuItem<Wry>| {
-                estado.menu.lock().unwrap().as_ref().and_then(|m| f(m).is_checked().ok()).unwrap_or(false)
-            };
-            match evento.id().as_ref() {
-                "mostrar" => mostrar(app),
-                "primeros-pasos" => abrir_primeros_pasos(app),
-                "borrar-modelo" => borrar_modelo(app),
-                "arriba" => {
-                    let valor = marca(|m| &m.arriba);
-                    // Acoplada, la muesca queda siempre arriba; la marca vale para cuando flote
-                    let acoplada = estado.acople.lock().unwrap().is_some();
-                    if let Some(v) = ventana(app) {
-                        let _ = v.set_always_on_top(valor || acoplada);
+        .on_menu_event(|app, evento| match evento.id().as_ref() {
+            "mostrar" => mostrar(app),
+            "configuracion" => abrir_configuracion(app),
+            "primeros-pasos" => abrir_primeros_pasos(app),
+            "borrar-modelo" => borrar_modelo(app),
+            "pausa" => {
+                let valor = app.state::<Estado>().menu.lock().unwrap().as_ref().and_then(|m| m.pausa.is_checked().ok()).unwrap_or(false);
+                // Se guarda como desde la configuración: sobrevive al reinicio
+                match ruta_preferencias(app) {
+                    Some(r) => {
+                        if let Err(e) = preferencias::guardar_ajuste(&r, "pausa", &serde_json::json!(valor)) {
+                            registrar(format!("configuración: no se pudo guardar pausa: {e}"));
+                        }
                     }
-                    let _ = app.emit("oficina://arriba", valor);
+                    None => registrar(String::from("configuración: no se conoce la carpeta de configuración")),
                 }
-                "avisar" => {
-                    let _ = app.emit("oficina://avisar", marca(|m| &m.avisar));
-                }
-                "pausa" => {
-                    let _ = app.emit("oficina://pausa", marca(|m| &m.pausa));
-                }
-                "arranque" => {
-                    // Solo con este clic del usuario cambia el inicio de Windows
-                    let deseado = marca(|m| &m.arranque);
-                    let auto = app.autolaunch();
-                    let real = arranque::aplicar(deseado, || auto.enable(), || auto.disable(), || auto.is_enabled());
-                    if let Some(m) = app.state::<Estado>().menu.lock().unwrap().as_ref() {
-                        let _ = m.arranque.set_checked(real);
-                    }
-                }
-                "tamano:agrandar" => {
-                    cambiar_tamano_app(app, 1);
-                }
-                "tamano:achicar" => {
-                    cambiar_tamano_app(app, -1);
-                }
-                "salir" => salir(app),
-                id => {
-                    if let Some(eleccion) = preferencias::eleccion_de_menu(id) {
-                        // El clic ya cambió la marca del ítem: se vuelve a la marca actual hasta que
-                        // la ventana acople de verdad (guardar_acople), así nunca quedan dos marcadas
-                        marcar_acople(&estado);
-                        let _ = app.emit("oficina://acoplar", eleccion.map(|b| b.nombre()));
-                    }
-                }
+                let _ = app.emit("oficina://pausa", valor);
             }
+            "salir" => salir(app),
+            _ => {}
         })
         .on_tray_icon_event(|bandeja, evento| {
             if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = evento {
@@ -1144,17 +1114,7 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<()> {
         bandeja = bandeja.icon(icono.clone());
     }
     bandeja.build(app)?;
-    *app.state::<Estado>().menu.lock().unwrap() = Some(MenuBandeja {
-        arriba,
-        avisar: avisar_item,
-        pausa,
-        arranque: arranque_item,
-        agrandar,
-        achicar,
-        tamano_actual,
-        acople,
-        primeros_pasos: primeros_pasos_item,
-    });
+    *app.state::<Estado>().menu.lock().unwrap() = Some(MenuBandeja { pausa, primeros_pasos: primeros_pasos_item });
     Ok(())
 }
 
@@ -1165,12 +1125,12 @@ mod tests {
     const PRINCIPAL: Rect = (0, 0, 1920, 1080);
 
     #[test]
-    fn primeros_pasos_va_debajo_de_mostrar_y_el_resto_del_menu_no_cambia() {
-        // "Borrar el modelo de IA…" (#11) va al final, antes del separador de "Salir"; lo demás queda igual
-        assert_eq!(
-            ORDEN_BANDEJA,
-            ["mostrar", "primeros-pasos", "arriba", "avisar", "pausa", "acoplar", "tamano", "arranque", "borrar-modelo", "separador", "salir"]
-        );
+    fn la_bandeja_lleva_configuracion_debajo_de_mostrar_y_conserva_pausa_primeros_pasos_y_borrar_la_ia() {
+        // configuracion-ux.md 4.5: tamaño, acople, siempre arriba, avisar y arrancar con Windows se
+        // mudan a la configuración. "Primeros pasos" y "Borrar el modelo de IA…" se quedan hasta la
+        // entrega 3 (sus pestañas); "Pausar animaciones" se queda siempre; "Salir" al final
+        assert_eq!(ORDEN_BANDEJA, ["mostrar", "configuracion", "primeros-pasos", "pausa", "borrar-modelo", "separador", "salir"]);
+        assert_eq!(EVENTO_CONFIGURACION, "oficina://configuracion");
     }
 
     #[test]
@@ -1453,6 +1413,7 @@ pub fn run() {
             login: Mutex::new(None),
             menu: Mutex::new(None),
             acople: Mutex::new(None),
+            arriba: AtomicBool::new(true),
             puntero: Mutex::new(Puntero::default()),
             sondeo: Mutex::new(None),
             apagar: AtomicBool::new(false),
@@ -1463,7 +1424,11 @@ pub fn run() {
             // El acople guardado, antes del menú (sus marcas) y de que la ventana lo pida
             let acople = ruta_preferencias(&handle).and_then(|r| preferencias::leer_acople(&r));
             *handle.state::<Estado>().acople.lock().unwrap() = acople;
-            crear_bandeja(&handle)?;
+            // Los interruptores guardados (configuracion-ux.md 9.1): "Siempre arriba" a la ventana y
+            // la pausa a la bandeja; la ventana los lee con `leer_configuracion`
+            let interruptores = ruta_preferencias(&handle).map(|r| preferencias::leer_interruptores(&r)).unwrap_or_default();
+            handle.state::<Estado>().arriba.store(interruptores.arriba, Ordering::Relaxed);
+            crear_bandeja(&handle, interruptores.pausa)?;
             if let Some(v) = ventana(&handle) {
                 // Ventana única (9.7): el área de trabajo del monitor de la última vez, antes de
                 // mostrarla (arranca escondida). Adentro, la ventana pone la muesca o el tablero
@@ -1515,9 +1480,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             leer_sesiones,
             leer_equipo,
-            fijar_arriba,
-            estado_menu,
-            mascota,
+            leer_configuracion,
+            guardar_ajuste,
+            poner_arranque,
             geometria,
             ajustar_ventana,
             guardar_acople,

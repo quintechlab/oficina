@@ -26,6 +26,12 @@
 //                 comando, leyendo, pensando, esperándote, proceso, inactiva); "elenco" coordina a los cinco
 //                 subagentes (escribiendo, leyendo, listo y falló recién, dormido; 4 fichas y "+1")
 //   ?pausa        arranca con "Pausar animaciones" marcado, como desde la bandeja
+// Configuración (#23, docs/diseno/configuracion-ux.md): la fila "Configuración" de la barra, Ctrl , o
+//   ?cfg=panel    abre la configuración al arrancar en esa pestaña (mascota, panel, modelos, datos,
+//                 instalacion), como "Configuración…" de la bandeja (window.__bandeja('oficina://configuracion', { abrir: true }))
+//   &arranque     "Arrancar con Windows" ya prendido   &arranquefalla  el sistema no deja cambiarlo
+//   &cfgfalla     guardar_ajuste falla: el interruptor vuelve y dice "No se pudo guardar. Probá de nuevo."
+//   Lo guardado queda en window.__ajustes.
 //   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
 //                 docs/diseno/mascotas-avi-ux.md 9.1), con su forma evolucionada, sus bucles y sus actos;
 //                 los subagentes, sus variantes (7.3; con el Avi, el elenco por nombre)
@@ -434,9 +440,14 @@
     ? { borde: url.get('acople'), lugar: url.has('lugar') ? Number(url.get('lugar')) : 0.5 }
     : null
   window.__acople = acople
+  /** preferencias.json falso (configuracion-ux.md 9.1): los interruptores; guardar_ajuste los cambia. */
+  const ajustes = { arriba: true, avisar: true, pausa: url.has('pausa') }
+  let arranqueFalso = url.has('arranque')
   const oyentes = {}
   let lecturas = 0
   const emitir = (nombre, payload) => { for (const f of oyentes[nombre] ?? []) f({ payload }) }
+  // ?cfg=<pestaña>: como "Configuración…" de la bandeja, abre la configuración en esa pestaña
+  if (url.has('cfg')) setTimeout(() => emitir('oficina://configuracion', { abrir: true, tab: url.get('cfg') || undefined }), 900)
 
   // ---- zona interactiva (9.6): imita el sondeo de Rust y el paso de los clics
   const zonaSt = { zona: null, toda: false, dentro: true, informado: false, n: 0, punto: null, desfase: null, mirada: false, cursor: null, cursorT: 0 }
@@ -713,9 +724,29 @@
     abrir_enlace: ({ cual }) => console.info('[navegador]', cual),
     tomar_aviso_mod: () => { const a = avisoModPendiente; avisoModPendiente = null; return a },
     poner_bandeja: ({ texto }) => { document.title = texto },
-    estado_menu: () => ({ arriba: true, avisar: true, pausa: url.has('pausa'), tamano: paso, acople, flotante }),
-    // Como Rust (leer_mascota): lo que no es una especie es el Avi; la ventana lo valida otra vez
-    mascota: () => (['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen'].includes(url.get('mascota')) ? url.get('mascota') : 'avi'),
+    // Como Rust (leer_configuracion): la mascota que no es una especie es el Avi (la ventana la valida
+    // otra vez); los interruptores, lo guardado con guardar_ajuste; el arranque, el "sistema" falso
+    leer_configuracion: () => ({
+      mascota: ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen'].includes(url.get('mascota')) ? url.get('mascota') : 'avi',
+      tamano: paso, acople, flotante, ...ajustes, arranque: arranqueFalso, version: '0.10.0',
+    }),
+    // Como `ajuste_valido` de preferencias.rs; ?cfgfalla hace fallar el guardado (la fila vuelve y lo dice)
+    guardar_ajuste: ({ clave, valor }) => {
+      const valido = clave === 'mascota' ? typeof valor === 'string' : ['arriba', 'avisar', 'pausa'].includes(clave) && typeof valor === 'boolean'
+      if (!valido) throw new Error(`ajuste inválido: ${clave}`)
+      if (url.has('cfgfalla')) throw new Error('no se pudo escribir preferencias.json (falso)')
+      ajustes[clave] = valor
+      window.__ajustes = { ...ajustes }
+      console.info('[preferencias]', JSON.stringify(ajustes))
+      if (clave === 'pausa') emitir('oficina://pausa', valor)
+      return { ok: true, valor }
+    },
+    // "Arrancar con Windows": ?arranquefalla imita un sistema que no deja prenderlo (vuelve la marca real)
+    poner_arranque: ({ valor }) => {
+      if (!url.has('arranquefalla')) arranqueFalso = !!valor
+      console.info('[arranque]', arranqueFalso)
+      return arranqueFalso
+    },
     leer_sesiones: () => {
       lecturas++
       if (url.has('cargando')) return new Promise(() => {})
@@ -760,7 +791,6 @@
       paso = direccion === 0 ? 100 : PASOS[Math.max(0, Math.min(PASOS.length - 1, k + direccion))]
       for (const f of oyentes['oficina://tamano'] ?? []) f({ payload: paso })
     },
-    fijar_arriba: () => null,
     // La tira es un elemento adentro de la ventana: Rust solo anota el modo (segundo arranque)
     modo_mini: args => {
       mini = !!args.mini

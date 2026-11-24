@@ -51,6 +51,12 @@ import {
 } from './dividida.js'
 import { fichasConversan, riel, cabConversa, pestanas as pestanasConv, mitades, firmaMitades, puente, fichaUltimo } from './divididaVista.js'
 import * as movimientoDividida from './divididaMotion.js'
+import {
+  configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion, pestanaSiguiente, validarAjuste,
+  valorInterruptor, INTERRUPTORES, ubicacionDe, bordeDeUbicacion, IDS_PESTANAS,
+} from './configuracion.js'
+import { esqueletoConfiguracion, avisoPreguntaConfiguracion, seccionConfiguracion } from './configuracionVista.js'
+import * as movimientoConfig from './configuracionMotion.js'
 
 const INTERVALO_MS = 1500
 const INTERVALO_EQUIPO_MS = 60000
@@ -85,10 +91,19 @@ const st = {
   repo: undefined,
   /** Pestaña elegida de la tarjeta de pregunta. */
   activa: 0,
-  /** Marcas del menú de la bandeja. */
+  /** Los interruptores de la configuración (configuracion-ux.md 9.1), guardados en preferencias.json. */
   arriba: true,
   avisar: true,
   pausa: false,
+  /** "Arrancar con Windows": la marca real del sistema (`leer_configuracion`, `poner_arranque`). */
+  arranque: false,
+  /**
+   * La configuración dentro del panel (#23, configuracion-ux.md 4.6): abierta, la pestaña (la última
+   * de esta ejecución), la clave que se escribe, el borrado armado y el ajuste que no se pudo guardar.
+   */
+  config: configInicial(),
+  /** Partes de la hoja ya dibujadas, para no redibujar lo que no cambió. */
+  cfgFirmas: {},
   mini: false,
   /** La ventana está escondida en la bandeja o minimizada: los Avis se pausan (6.5). */
   fuera: false,
@@ -749,6 +764,12 @@ function pintar() {
   pintarMuesca(ahora, pp.faltan)
   // Sin sesiones no hay conversación que mirar: la dividida se suelta sin animación (8, vacío)
   if (!st.proyectos.length && st.dividida.clave) soltarDividida()
+  // La configuración (configuracion-ux.md 4.2): la hoja de la columna principal, también sin sesiones
+  $('#marco').classList.toggle('con-cfg', st.config.abierta)
+  if (st.config.abierta) $('#cfg-fila').setAttribute('aria-current', 'page')
+  else $('#cfg-fila').removeAttribute('aria-current')
+  if (st.config.abierta) { pintarHojaConfiguracion(); return }
+  pintarConfiguracion()
 
   if (!st.proyectos.length && forma === 'escenario') {
     // Sin tablero y con algo pendiente: el escenario de primeros pasos en lugar del vacío (3.2)
@@ -1529,6 +1550,7 @@ function moverProyecto(dir) {
 function ponerArriba(valor) {
   st.arriba = valor
   pintarControles()
+  pintarConfiguracion()
 }
 
 /**
@@ -1553,6 +1575,7 @@ function ponerPausa(valor) {
   st.pausa = valor
   document.body.classList.toggle('pausa', valor)
   verAvis()
+  pintarConfiguracion()
 }
 
 /**
@@ -1617,6 +1640,11 @@ document.addEventListener('click', async e => {
     if (b.getAttribute('aria-disabled') !== 'true') await accionPasos(a, b)
     return
   }
+  if (a.startsWith('cfg-')) {
+    // La configuración: un control en su punta (aria-disabled, 7) ignora el clic
+    if (b.getAttribute('aria-disabled') !== 'true') await accionConfiguracion(a, b)
+    return
+  }
   if (a === 'conv') {
     // Una ficha "Conversan" de la barra o del riel abre la dividida en esa conversación (3.4)
     abrirConversacion(b.dataset.clave, 'clic')
@@ -1649,6 +1677,13 @@ document.addEventListener('click', async e => {
     if (b.closest('#otro')) st.pp.abierto = false
     // Un proyecto de la barra o el aviso de una pregunta en otro proyecto
     const p = st.proyectos[+b.dataset.proy]
+    // Con la configuración abierta, elegir un proyecto la cierra y lo muestra (configuracion-ux.md 4.1)
+    if (p && st.config.abierta) {
+      cerrarConfig({ foco: false })
+      if (p.repo !== st.repo) irAProyecto(p.repo, 1)
+      $(`#proyectos [data-proy="${b.dataset.proy}"]`)?.focus()
+      return
+    }
     if (p) irAProyecto(p.repo, 1)
   } else if (a === 'tab') {
     st.activa = +b.dataset.i
@@ -1700,11 +1735,8 @@ document.addEventListener('click', async e => {
   } else if (a === 'cerrar' && st.acople && b.closest('#marco')) {
     evento({ tipo: 'cerrar' })
   } else if (a === 'pin') {
-    const nuevo = !st.arriba
-    try {
-      await invocar('fijar_arriba', { valor: nuevo })
-      ponerArriba(nuevo)
-    } catch (err) { st.error = `No se pudo fijar la ventana: ${err}`; pintarPie() }
+    // "Siempre arriba" del encabezado: el mismo ajuste que el interruptor de la configuración (se guarda)
+    if (!(await guardarAjusteConfig('arriba', !st.arriba))) { st.error = 'No se pudo fijar la ventana'; pintarPie() }
   } else if (a === 'mini') {
     await ponerMini(true)
   } else if (a === 'expandir') {
@@ -1739,6 +1771,12 @@ document.addEventListener('compositionstart', e => { if (e.target.matches?.('.ct
 document.addEventListener('compositionend', () => { st.componiendo = false })
 
 document.addEventListener('keydown', e => {
+  // Ctrl , con el panel a la vista abre la configuración (configuracion-ux.md 4.1); abierta, el foco va al título
+  if (esAtajoConfiguracion(e)) {
+    e.preventDefault()
+    if (!st.mini && (!st.acople || st.vista)) abrirConfig()
+    return
+  }
   // Esc con el foco en el globo del resumen o en el Avi y el globo abierto: lo cierra y el foco vuelve
   // al Avi (resumen-ia-ux.md 10). Va antes que el Esc de la pregunta y el de la muesca
   if (e.key === 'Escape' && st.resumen.estado !== 'cerrado' && e.target.closest?.('#resumen, #marca-boton')) {
@@ -1747,6 +1785,16 @@ document.addEventListener('keydown', e => {
     marcaBoton.focus()
     return
   }
+  // Esc con la configuración abierta, una capa por vez (4.1): la clave que se escribe, el "¿Borrar? Sí"
+  // y la hoja. Cerrada la hoja, el Esc siguiente es el de siempre (acoplada, pliega el panel)
+  if (e.key === 'Escape' && st.config.abierta) {
+    e.preventDefault()
+    const { config, accion } = alEsc(st.config)
+    if (accion === 'cerrar') cerrarConfig()
+    else { st.config = config; pintarConfiguracion() }
+    return
+  }
+  if (teclaConfiguracion(e)) return
   // Barra de control (#19, D4): Enter envía, Shift+Enter hace línea nueva, nada mientras compone el IME.
   // Las demás teclas son del campo; Esc sigue de largo (pliega el detalle o la muesca, como en todo campo)
   if (e.target.matches?.('#sesiones .ctl-in')) {
@@ -1782,7 +1830,7 @@ document.addEventListener('keydown', e => {
   if (teclaDividida(e)) return
   // Fuera de la pregunta, Esc cierra la muesca aunque esté fijada y devuelve el foco a la muesca (7.2)
   if (e.key === 'Escape' && st.acople && st.muesca.abierta) { e.preventDefault(); evento({ tipo: 'esc' }); return }
-  if (st.mini || e.target.closest?.('input, textarea, summary, #pp, #resumen')) return
+  if (st.mini || e.target.closest?.('input, textarea, summary, #pp, #resumen, #cfg')) return
   // ↑ ↓ mueven el foco entre los proyectos de la barra (no cambian de proyecto)
   const fila = e.target.closest?.('#proyectos [data-proy]')
   if (fila && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
@@ -1791,6 +1839,8 @@ document.addEventListener('keydown', e => {
     filas[(filas.indexOf(fila) + (e.key === 'ArrowDown' ? 1 : -1) + filas.length) % filas.length].focus()
     return
   }
+  // Con la configuración abierta no hay proyecto a la vista: ← → no cambian ninguno por detrás
+  if (st.config.abierta) return
   if (e.key === 'ArrowLeft') { e.preventDefault(); moverProyecto(-1) }
   if (e.key === 'ArrowRight') { e.preventDefault(); moverProyecto(1) }
 })
@@ -1807,6 +1857,7 @@ async function aplicarTamano(porcentaje) {
   document.documentElement.style.zoom = String(zoomDe(porcentaje))
   recolocar()
   programarAjuste()
+  pintarConfiguracion()
 }
 
 // Ctrl + / Ctrl − / Ctrl 0 con la ventana enfocada: el paso lo decide y lo guarda la app
@@ -2032,6 +2083,9 @@ function aplicarFoco() {
   st.focoPendiente = null
   if (foco === 'muesca') $('#muesca').focus()
   else if (foco === 'pp' && $('#pp-h')) $('#pp-h').focus()
+  // La configuración: su título al abrir, o una pieza de la hoja (`cfg:<data-k>`)
+  else if (foco === 'cfg' && st.config.abierta) $('#titulo').focus()
+  else if (foco.startsWith('cfg:') && st.config.abierta) ($(`#cfg [data-k="${CSS.escape(foco.slice(4))}"]`) ?? $('#titulo')).focus()
   else ($('#proyectos .pj.activo') ?? $('#proyectos [data-proy]') ?? $('#marco [data-accion="pin"]'))?.focus()
 }
 
@@ -2604,6 +2658,8 @@ async function irAPaso(destino, { foco = 'titulo' } = {}) {
 async function abrirAsistente({ foco = false } = {}) {
   st.pp.abierto = true
   st.pp.cerrado = false
+  // Primeros pasos va en la misma columna: abrirlo cierra la configuración
+  if (st.config.abierta) cerrarConfig({ foco: false })
   if (st.mini) await ponerMini(false)
   revisarPasos()
   pintar()
@@ -2793,6 +2849,242 @@ function retenerPanel(modelo, forma) {
     if (st.muesca.fija !== fija) st.muesca = { ...st.muesca, fija }
     pintarControles()
   }
+}
+
+// ------------------------------------------------------------------ configuración (#23, docs/diseno/configuracion-ux.md)
+// Reglas (3 y 13): todo se aplica en el clic y se guarda al instante (no hay "Guardar"); un ajuste
+// que no se pudo guardar vuelve a su valor y lo dice debajo de su fila; lo que no existe todavía no
+// se muestra. La hoja vive en #cfg, en la columna principal, como la de primeros pasos.
+
+/** Lo que muestra la pestaña Panel. */
+function datosPanel() {
+  return {
+    tamano: st.tamano, ubicacion: ubicacionDe(st.acople), arriba: st.arriba, avisar: st.avisar, pausa: st.pausa,
+    arranque: st.arranque, error: st.config.error,
+  }
+}
+
+/** El encabezado y la barra con la configuración abierta: ningún proyecto elegido, la hoja abajo. */
+function pintarHojaConfiguracion() {
+  modoMarco('tablero')
+  $('#marco').classList.remove('con-hoja')
+  const enfocado = document.activeElement?.closest?.('#proyectos [data-proy]')
+  if (poner('#proyectos', barraProyectos(st.proyectos, -1)) && enfocado) $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
+  texto('#titulo', 'Configuración')
+  $('#titulo').title = ''
+  texto('#subtitulo', 'Se guarda al instante')
+  pintarConfiguracion()
+}
+
+/**
+ * Dibuja la hoja en #cfg por partes (4.6): el esqueleto una vez, la línea de la pregunta, la pestaña
+ * elegida y la sección solo si cambiaron. El foco vuelve a la misma pieza (`data-k`). Cerrada, vacía.
+ */
+function pintarConfiguracion() {
+  const raiz = $('#cfg')
+  if (!st.config.abierta) {
+    if (raiz.firstChild) { raiz.innerHTML = ''; st.cfgFirmas = {} }
+    return
+  }
+  if (!raiz.firstChild) { raiz.innerHTML = esqueletoConfiguracion(st.config.tab); st.cfgFirmas = {} }
+  const pendientes = st.proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
+  const aviso = avisoPreguntaConfiguracion(pendientes)
+  if (st.cfgFirmas.aviso !== aviso) { $('#cfg-aviso').innerHTML = aviso; st.cfgFirmas.aviso = aviso }
+  // Las pestañas no se redibujan: cambia cuál está elegida, así el indicador viaja desde donde estaba
+  for (const b of document.querySelectorAll('#cfg [role="tab"]')) {
+    const sel = b.dataset.valor === st.config.tab
+    b.setAttribute('aria-selected', String(sel))
+    b.tabIndex = sel ? 0 : -1
+  }
+  const lista = $('#cfg .pestanas')
+  if (!$('#cfg .ind').style.width) movimientoConfig.colocarIndicador(lista, false)
+  const html = seccionConfiguracion(st.config.tab, datosPanel())
+  if (st.cfgFirmas.seccion !== html) {
+    const cont = $('#cfg-cont')
+    const k = cont.contains(document.activeElement) ? document.activeElement.closest('[data-k]')?.dataset.k : null
+    cont.innerHTML = html
+    $('#cfg-p').setAttribute('aria-labelledby', `cfg-t-${st.config.tab}`)
+    if (k) cont.querySelector(`[data-k="${CSS.escape(k)}"]`)?.focus({ preventScroll: true })
+    st.cfgFirmas.seccion = html
+  }
+}
+
+/**
+ * Abre la configuración (la fila de la barra, Ctrl ,, la bandeja o una tarjeta con `tab`). Sale de la
+ * dividida y de la tira; acoplada, abre también el panel. Ya abierta, solo lleva el foco al título
+ * (no la cierra: cerrar es "‹ Tablero" o Esc). El foco va al `h1` (11).
+ */
+async function abrirConfig({ tab, foco = true } = {}) {
+  if (st.config.abierta) {
+    if (tab && tab !== st.config.tab) cambiarPestanaConfig(tab)
+    if (foco) $('#titulo').focus()
+    return
+  }
+  if (st.dividida.clave) await cerrarConversacion({ descartar: true })
+  if (st.mini) await ponerMini(false)
+  st.config = { ...abrirConfiguracion(st.config, tab), error: null }
+  pintar()
+  movimientoConfig.abrirHoja($('#marco .cab'), $('#cfg-tabs'), $('#cfg-cont'))
+  if (st.acople) {
+    evento({ tipo: 'clic' })
+    if (foco) { st.focoPendiente = 'cfg'; aplicarFoco() }
+  } else if (foco) {
+    $('#titulo').focus()
+  }
+}
+
+/** Cierra la hoja ("‹ Tablero", Esc o un proyecto de la barra): el tablero vuelve como estaba. */
+function cerrarConfig({ foco = true } = {}) {
+  if (!st.config.abierta) return
+  st.config = cerrarConfiguracion(st.config)
+  pintar()
+  movimientoConfig.cerrarHoja([$('#otro'), $('#w-globo'), $('#conteos'), ...document.querySelectorAll('#sesiones > .ses')])
+  if (foco) $('#cfg-fila').focus()
+}
+
+/** Cambia de pestaña (clic o flechas): el indicador viaja y el contenido entra desde su lado. */
+function cambiarPestanaConfig(tab, { foco = false } = {}) {
+  if (!IDS_PESTANAS.includes(tab) || tab === st.config.tab) return
+  const direccion = Math.sign(IDS_PESTANAS.indexOf(tab) - IDS_PESTANAS.indexOf(st.config.tab))
+  st.config = { ...st.config, tab, editando: null, armado: null, error: null }
+  pintarConfiguracion()
+  movimientoConfig.colocarIndicador($('#cfg .pestanas'), true)
+  movimientoConfig.cambioPestana($('#cfg-cont'), direccion)
+  $('#cfg-p').scrollTop = 0
+  if (foco) $(`#cfg-t-${tab}`)?.focus()
+}
+
+/** Aplica un interruptor en la ventana (sin guardar): lo mismo que hace el evento de Rust. */
+function aplicarInterruptor(clave, valor) {
+  if (clave === 'arriba') ponerArriba(valor)
+  else if (clave === 'avisar') st.avisar = valor
+  else if (clave === 'pausa') ponerPausa(valor)
+}
+
+/**
+ * Cambia un ajuste en el clic y lo guarda (`guardar_ajuste`): si no se pudo, vuelve a su valor de
+ * antes y lo dice debajo de su fila (7.5). Devuelve si quedó guardado.
+ */
+async function guardarAjusteConfig(clave, valor) {
+  if (!validarAjuste(clave, valor)) return false
+  const antes = st[clave]
+  aplicarInterruptor(clave, valor)
+  st.config = { ...st.config, error: null }
+  pintarConfiguracion()
+  try {
+    await invocar('guardar_ajuste', { clave, valor })
+    return true
+  } catch (err) {
+    registrar(`configuración: no se pudo guardar ${clave}: ${err}`)
+    aplicarInterruptor(clave, antes)
+    st.config = { ...st.config, error: clave }
+    pintarConfiguracion()
+    return false
+  }
+}
+
+/** "Arrancar con Windows": solo con este clic cambia el inicio de Windows; la marca es la real. */
+async function ponerArranqueConfig(valor) {
+  const antes = st.arranque
+  st.arranque = valor
+  st.config = { ...st.config, error: null }
+  pintarConfiguracion()
+  try {
+    st.arranque = (await invocar('poner_arranque', { valor })) === true
+    if (st.arranque !== valor) st.config = { ...st.config, error: 'arranque' }
+  } catch (err) {
+    registrar(`configuración: arrancar con Windows: ${err}`)
+    st.arranque = antes
+    st.config = { ...st.config, error: 'arranque' }
+  }
+  pintarConfiguracion()
+}
+
+/** "Dónde vive": flotar o acoplar a un borde, como al soltar el tablero; acoplada, el panel queda abierto. */
+async function ubicarConfig(ubicacion) {
+  const borde = bordeDeUbicacion(ubicacion)
+  if (borde === undefined || ubicacion === ubicacionDe(st.acople)) return
+  // Mientras otra forma anima o se arrastra, no se cambia: la opción vuelve a la de ahora, sin error
+  if (st.arrastre || st.transicion) { st.cfgFirmas.seccion = null; pintarConfiguracion(); return }
+  st.config = { ...st.config, error: null }
+  await acoplarA(borde)
+  if (ubicacionDe(st.acople) !== ubicacion) {
+    st.config = { ...st.config, error: 'ubicacion' }
+    pintarConfiguracion()
+    return
+  }
+  // Acoplada, la configuración sigue a la vista: el panel se abre con el foco en la opción elegida
+  if (st.acople && st.config.abierta) {
+    evento({ tipo: 'clic' })
+    st.focoPendiente = `cfg:cfg-ubic-${ubicacion}`
+    aplicarFoco()
+  } else {
+    $(`#cfg [data-k="cfg-ubic-${ubicacion}"]`)?.focus()
+  }
+}
+
+/** Los botones de la hoja (`data-accion="cfg-…"`). Cada uno hace solo lo suyo, y solo con el clic. */
+async function accionConfiguracion(a, b) {
+  switch (a) {
+    case 'cfg-abrir': await abrirConfig({ tab: b.dataset.tab }); break
+    case 'cfg-cerrar': cerrarConfig(); break
+    case 'cfg-tab': cambiarPestanaConfig(b.dataset.valor); break
+    case 'cfg-sw': {
+      const clave = b.dataset.valor
+      if (clave === 'arranque') await ponerArranqueConfig(!st.arranque)
+      else await guardarAjusteConfig(clave, !st[clave])
+      break
+    }
+    case 'cfg-tam':
+      st.config = { ...st.config, error: null }
+      try {
+        await invocar('cambiar_tamano', { direccion: Number(b.dataset.valor) })
+      } catch (err) {
+        registrar(`configuración: tamaño: ${err}`)
+        st.config = { ...st.config, error: 'tamano' }
+        pintarConfiguracion()
+      }
+      break
+    case 'cfg-ubic': await ubicarConfig(b.dataset.valor); break
+    case 'cfg-ver': {
+      // La pregunta pendiente (4.1): cierra la configuración y la muestra, en su proyecto
+      const k = st.proyectos.findIndex(p => preguntasPendientes(p).length)
+      cerrarConfig({ foco: false })
+      st.plegado = false
+      st.firmas.clavesGlobo = null
+      if (k >= 0 && st.proyectos[k].repo !== st.repo) irAProyecto(st.proyectos[k].repo, 1)
+      else pintar()
+      ;($('#w-globo button') ?? $('#otro .aviso') ?? $('#cfg-fila'))?.focus()
+      break
+    }
+  }
+}
+
+/**
+ * Teclado de la hoja (11): ← → Inicio Fin entre pestañas (activación automática); en los segmentos,
+ * ←↑ la anterior y →↓ la siguiente, que se elige al moverse (como un radio nativo). Devuelve si la usó.
+ */
+function teclaConfiguracion(e) {
+  if (!st.config.abierta) return false
+  const tab = e.target.closest?.('#cfg [role="tab"]')
+  if (tab && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+    e.preventDefault()
+    cambiarPestanaConfig(pestanaSiguiente(st.config.tab, e.key), { foco: true })
+    return true
+  }
+  const radio = e.target.closest?.('#cfg [role="radio"]')
+  const tecla = { ArrowDown: 'ArrowRight', ArrowUp: 'ArrowLeft' }[e.key] ?? e.key
+  if (radio && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(tecla)) {
+    e.preventDefault()
+    const grupo = [...radio.closest('[role="radiogroup"]').querySelectorAll('[role="radio"]')]
+    const sig = grupo.find(x => x.dataset.valor === pestanaSiguiente(radio.dataset.valor, tecla, grupo.map(x => x.dataset.valor)))
+    if (sig && sig !== radio) {
+      sig.focus()
+      sig.click()
+    }
+    return true
+  }
+  return false
 }
 
 // ------------------------------------------------------------------ "¿En qué anda Claude?" (docs/diseno/resumen-ia-ux.md)
@@ -3041,13 +3333,15 @@ async function iniciar() {
   // Las definiciones de los Avis (piel, luz de piso y desenfoque), una vez por documento (5.1)
   document.body.insertAdjacentHTML('afterbegin', defsAvis())
   if (tauri?.core) {
-    // La mascota, antes del primer dibujo: las firmas no la llevan (mascotas-avi-ux.md 9.1)
-    try { st.mascota = especieValida(await invocar('mascota')) } catch { st.mascota = ESPECIE_POR_DEFECTO }
     try {
-      const m = await invocar('estado_menu')
-      if (typeof m.arriba === 'boolean') ponerArriba(m.arriba)
-      if (typeof m.avisar === 'boolean') st.avisar = m.avisar
-      if (typeof m.pausa === 'boolean') ponerPausa(m.pausa)
+      // Lo guardado en preferencias.json y la marca real del arranque (configuracion-ux.md 9.2)
+      const m = await invocar('leer_configuracion')
+      // La mascota, antes del primer dibujo: las firmas no la llevan (mascotas-avi-ux.md 9.1)
+      st.mascota = especieValida(m.mascota)
+      ponerArriba(valorInterruptor(m.arriba, INTERRUPTORES.arriba))
+      st.avisar = valorInterruptor(m.avisar, INTERRUPTORES.avisar)
+      ponerPausa(valorInterruptor(m.pausa, INTERRUPTORES.pausa))
+      st.arranque = m.arranque === true
       // Dónde quedó el tablero flotante la última vez (fracciones del área, 9.7)
       if (m.flotante && typeof m.flotante === 'object') st.fraccion = { x: Number(m.flotante.x), y: Number(m.flotante.y) }
       // Acoplada al cerrar la última vez: vuelve como muesca. Rust ya puso la ventana en el área del
@@ -3057,15 +3351,20 @@ async function iniciar() {
         aplicarModo()
       }
       await aplicarTamano(typeof m.tamano === 'number' ? m.tamano : PASO_POR_DEFECTO)
-    } catch { await aplicarTamano(PASO_POR_DEFECTO) }
+    } catch {
+      st.mascota = ESPECIE_POR_DEFECTO
+      await aplicarTamano(PASO_POR_DEFECTO)
+    }
     const escuchar = tauri.event.listen
-    escuchar('oficina://arriba', ev => ponerArriba(!!ev.payload))
-    escuchar('oficina://avisar', ev => { st.avisar = !!ev.payload })
+    // "Pausar animaciones" de la bandeja o de la configuración
     escuchar('oficina://pausa', ev => ponerPausa(!!ev.payload))
     escuchar('oficina://tamano', ev => aplicarTamano(Number(ev.payload)))
+    // "Configuración…" de la bandeja (configuracion-ux.md 4.1): muestra el panel y abre la hoja
+    escuchar('oficina://configuracion', ev => { if (ev.payload?.abrir) abrirConfig({ tab: ev.payload.tab }) })
     // Se abrió Avis otra vez estando en la tira mini: volver a la ventana completa
     escuchar('oficina://expandir', () => ponerMini(false))
-    // "Acoplar a" de la bandeja (7.3): un borde o Flotante (null)
+    // Acoplar a un borde o flotar (null) desde afuera: la bandeja ya no lo manda (la configuración
+    // llama a acoplarA directo); queda para la vista de desarrollo (`__bandeja`)
     escuchar('oficina://acoplar', ev => acoplarA(typeof ev.payload === 'string' ? ev.payload : null))
     // "Mostrar Avis", la notificación o abrir Avis otra vez: acoplada, abre el panel
     escuchar('oficina://abrir', () => { if (st.acople) evento({ tipo: 'clic' }) })
