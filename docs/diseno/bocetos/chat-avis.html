@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avis · chat con la mascota · bocetos (#22)</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../../widget/src/avis.css">
+<link rel="stylesheet" href="../../../widget/src/especies.css">
+<style>
+@font-face { font-family: "Manrope"; src: url("../../../widget/src/fuentes/manrope-latin.woff2") format("woff2"); font-weight: 400 800; font-display: swap }
+@font-face { font-family: "Martian Mono"; src: url("../../../widget/src/fuentes/martian-mono-latin.woff2") format("woff2"); font-weight: 400 600; font-stretch: 75%; font-display: swap }
+:root {
+  --negro: #000; --s1: #0C0C0E; --s2: #141417; --s3: #1D1D21; --linea: #25252A; --linea-hover: #36363C;
+  --crema: #F3EBD8; --crema2: #BDB5A4; --tenue: #8A8478; --ambar: #F2B632; --ambar-osc: #1D1707; --pico: #E9A13B;
+  --violeta: #A58BFF; --celeste: #7FB3FF; --verde: #8FD694; --rosa: #E78FB3; --rojo: #FF7A6B;
+  --tinta: #14110C; --tinta2: #5E574A;
+  --f: "Manrope", "Segoe UI Variable", sans-serif; --m: "Martian Mono", "Cascadia Mono", monospace;
+  --t-display: 800 21px/1.1 var(--f); --t-titulo: 800 14.5px/1.3 var(--f); --t-cuerpo-f: 700 13px/1.3 var(--f);
+  --t-cuerpo: 500 12.5px/1.5 var(--f); --t-chico: 500 11.5px/1.35 var(--f); --t-mono: 400 10.5px/1.5 var(--m);
+  --t-mono-s: 500 10px/1.3 var(--m); --t-rotulo: 500 10px/1 var(--m);
+  --ease: cubic-bezier(.16, 1, .3, 1); --rebote: cubic-bezier(.34, 1.56, .64, 1);
+  --c: #FF7A2E;
+}
+* { box-sizing: border-box; margin: 0; padding: 0 }
+html { background: #050506; color: var(--crema); font: var(--t-cuerpo); -webkit-font-smoothing: antialiased }
+body { min-height: 100vh; background:
+  radial-gradient(1100px 560px at 85% -12%, rgba(242,182,50,.08), transparent 60%),
+  radial-gradient(800px 480px at -10% 40%, rgba(127,179,255,.05), transparent 60%), #050506 }
+button, input, textarea { font: inherit; color: inherit; background: none; border: 0 }
+button { cursor: pointer }
+:focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px; border-radius: 8px }
+code { font: 500 .88em/1 var(--m) }
+
+/* ---------- página ---------- */
+.pag { max-width: 1240px; margin: 0 auto; padding: 44px 24px 96px }
+.cab-pag { display: grid; gap: 16px; margin-bottom: 20px }
+.sello { font: var(--t-rotulo); letter-spacing: .16em; text-transform: uppercase; color: var(--ambar) }
+h1 { font: 800 clamp(36px, 6.4vw, 72px)/.92 var(--f); letter-spacing: -.035em }
+h1 em { font-style: normal; color: var(--ambar) }
+.bajada { max-width: 66ch; color: var(--crema2); font: 500 15px/1.55 var(--f) }
+.barra-pag { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 8px }
+.barra-pag .rot-p { font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+.especies { display: flex; flex-wrap: wrap; gap: 6px }
+.esp { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 4px 14px 4px 4px; border: 1px solid var(--linea); border-radius: 999px; font: var(--t-cuerpo-f); color: var(--crema2); transition: border-color .2s, background .2s }
+.esp:hover { border-color: var(--linea-hover); color: var(--crema) }
+.esp[aria-checked="true"] { border-color: var(--ambar); background: var(--ambar-osc); color: var(--crema) }
+.nota-pag { font: var(--t-mono-s); color: var(--tenue) }
+
+.op { margin-top: 72px; display: grid; gap: 16px }
+.op-cab { display: grid; grid-template-columns: auto 1fr; gap: 4px 20px; align-items: start }
+.letra { font: 600 56px/.9 var(--m); font-stretch: 75%; color: var(--ambar); grid-row: span 3 }
+.op h2 { font: 800 28px/1.1 var(--f); letter-spacing: -.02em; display: flex; flex-wrap: wrap; gap: 10px; align-items: center }
+.reco { font: var(--t-rotulo); letter-spacing: .1em; text-transform: uppercase; color: var(--negro); background: var(--ambar); padding: 6px 9px; border-radius: 6px }
+.op-cab ol { list-style: none; display: grid; gap: 4px; max-width: 92ch; color: var(--crema2); font: 500 14px/1.5 var(--f) }
+.op-cab ol li::before { content: "▍"; color: var(--ambar); margin-right: 6px }
+.controles { display: flex; flex-wrap: wrap; gap: 6px; align-items: center }
+.pil { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--linea); font: var(--t-mono-s); letter-spacing: .04em; color: var(--crema2); transition: background .2s, color .2s, border-color .2s }
+.pil:hover { border-color: var(--linea-hover); color: var(--crema) }
+.pil[aria-pressed="true"] { background: var(--crema); color: var(--tinta); border-color: var(--crema) }
+.reproducir { min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(242,182,50,.5); color: var(--ambar); font: var(--t-cuerpo-f); margin-left: auto }
+.reproducir:hover { background: var(--ambar-osc) }
+.lienzo { position: relative; overflow-x: auto; border-radius: 24px; padding: 32px;
+  background: radial-gradient(700px 380px at 30% 0%, #3b4b63 0%, transparent 70%), linear-gradient(160deg, #4a5a70, #2a3342 70%, #1f2631) }
+.caja { position: relative; margin: 0 auto }
+.escala { position: absolute; left: 0; top: 0; height: 640px; transform-origin: 0 0 }
+.comun { margin-top: 72px; display: grid; gap: 10px; max-width: 92ch }
+.comun h2 { font: 800 22px/1.2 var(--f) }
+.comun ul { list-style: none; display: grid; gap: 6px; color: var(--crema2); font: 500 14px/1.5 var(--f) }
+.comun li::before { content: "▍"; color: var(--ambar); margin-right: 6px }
+
+/* ---------- panel de Avis ---------- */
+.panel { position: absolute; left: 0; top: 0; width: 672px; height: 640px; display: flex; background: var(--negro); border-radius: 26px; overflow: hidden;
+  box-shadow: 0 16px 32px -16px rgba(0,0,0,.8), 0 40px 90px -40px rgba(0,0,0,.9), inset 0 0 0 1px rgba(255,255,255,.04) }
+.lado { width: 196px; flex: none; padding: 18px 8px 16px 16px; display: flex; flex-direction: column; gap: 6px }
+.marca { display: grid; justify-items: center; gap: 6px; padding: 4px 0 12px; border-radius: 18px; position: relative }
+.marca:hover .voz { filter: drop-shadow(0 0 14px color-mix(in srgb, var(--c) 35%, transparent)) }
+.marca-nom { font: 800 18px/1.1 var(--f) }
+.marca-animo { font: italic 500 10px/1 var(--m); color: var(--crema2); background: var(--s2); padding: 6px 10px; border-radius: 999px; white-space: nowrap }
+.marca.ausente .voz { opacity: .14; filter: grayscale(1) }
+.marca .mudada { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); font: var(--t-mono-s); color: var(--crema2); white-space: nowrap; display: flex; gap: 6px; align-items: center }
+.marca .mudada i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c) }
+.rot { font: var(--t-rotulo); text-transform: uppercase; letter-spacing: .14em; color: var(--tenue); padding: 10px 8px 4px }
+.proy { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 11px; font: 700 13.5px/1.2 var(--f); color: var(--crema2); text-align: left; width: 100% }
+.proy.on { background: var(--ambar-osc); color: var(--ambar) }
+.proy .ini { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font: var(--t-mono-s); background: #1d2a1f; color: var(--verde) }
+.proy .ini.v { background: #221d33; color: var(--violeta) }
+.proy .n { margin-left: auto; font: var(--t-mono-s); background: var(--s3); color: var(--crema2); padding: 3px 7px; border-radius: 999px }
+.proy.on .n { background: rgba(242,182,50,.18); color: var(--ambar) }
+.equipo { margin-top: auto; border-top: 1px solid var(--linea); padding-top: 10px; display: grid; gap: 6px }
+.persona { display: flex; gap: 8px; align-items: center; font: var(--t-cuerpo-f) }
+.persona .av { width: 26px; height: 26px; border-radius: 50%; background: #221d33; color: var(--violeta); font: var(--t-mono-s); display: grid; place-items: center }
+.persona small { display: block; font: var(--t-chico); color: var(--tenue) }
+.principal { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 18px 16px 16px 8px; gap: 10px; position: relative }
+
+/* tablero de muestra */
+.tab-cab { display: flex; justify-content: space-between; align-items: flex-start }
+.tab-cab h3 { font: var(--t-display) }
+.tab-cab p { font: var(--t-chico); color: var(--crema2); margin-top: 3px }
+.vent { display: flex; gap: 14px; color: var(--crema2); padding-top: 4px }
+.conteos { display: flex; gap: 6px; flex-wrap: wrap }
+.conteo { display: flex; align-items: center; gap: 6px; font: var(--t-mono-s); color: var(--crema2); padding: 6px 10px; border-radius: 999px; background: var(--s1); border: 1px solid var(--linea) }
+.conteo i { width: 6px; height: 6px; border-radius: 50%; background: var(--k) }
+.conteo b { font: 800 12px/1 var(--f); color: var(--crema) }
+.ses { background: var(--s1); border: 1px solid var(--linea); border-radius: 18px; padding: 10px 14px 8px; display: grid; gap: 2px }
+.ses.preg { border-color: rgba(242,182,50,.45) }
+.ses-l1 { display: flex; align-items: center; gap: 8px }
+.ses-l1 .tag { font: 600 10px/1 var(--m); background: var(--ambar); color: var(--negro); padding: 3px 5px; border-radius: 5px }
+.ses-l1 b { font: var(--t-titulo) }
+.ses-l1 time { margin-left: auto; font: var(--t-mono-s); color: var(--tenue) }
+.ses .act { font: 700 11.5px/1.3 var(--f); display: flex; align-items: center; gap: 6px; color: var(--k, var(--crema2)) }
+.ses .act::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor }
+.ses .elenco { display: flex; align-items: flex-end; gap: 4px; font: var(--t-mono-s); color: var(--tenue) }
+
+/* ---------- chat: piezas comunes ---------- */
+.chat { --k-tx: var(--crema); --k-tx2: var(--crema2); --k-tenue: var(--tenue); --k-bg2: var(--s2); --k-bg3: var(--s3); --k-linea: var(--linea); --k-linea2: var(--linea-hover);
+  --k-u-bg: var(--s3); --k-u-tx: var(--crema); --k-sel-bg: var(--crema); --k-sel-tx: var(--tinta); --k-campo: var(--s1);
+  display: flex; flex-direction: column; min-height: 0; position: relative; color: var(--k-tx) }
+.claro { --k-tx: var(--tinta); --k-tx2: var(--tinta2); --k-tenue: var(--tinta2); --k-bg2: rgba(20,17,12,.06); --k-bg3: rgba(20,17,12,.1); --k-linea: rgba(20,17,12,.13); --k-linea2: rgba(20,17,12,.3);
+  --k-u-bg: var(--tinta); --k-u-tx: var(--crema); --k-sel-bg: var(--tinta); --k-sel-tx: var(--crema); --k-campo: #FBF6EA }
+.ch-cab { display: flex; align-items: center; gap: 6px; padding: 0 0 10px; flex: none }
+.carpeta { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px 0 9px; border-radius: 10px; background: var(--k-bg2); border: 1px solid var(--k-linea); font: var(--t-cuerpo-f); max-width: 180px; transition: border-color .2s }
+.carpeta:hover { border-color: var(--k-linea2) }
+.carpeta .ruta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.carpeta svg { flex: none; color: var(--k-tx2) }
+.carpeta[aria-disabled="true"] { opacity: .6; cursor: default }
+.motor { display: flex; padding: 3px; border-radius: 999px; background: var(--k-bg2); border: 1px solid var(--k-linea) }
+.motor button { height: 26px; padding: 0 10px; border-radius: 999px; font: var(--t-mono-s); color: var(--k-tx2); transition: background .25s var(--ease), color .25s }
+.motor button[aria-checked="true"] { background: var(--k-sel-bg); color: var(--k-sel-tx) }
+.hueco { flex: 1 }
+.ic { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; color: var(--k-tx2); flex: none; transition: background .2s, color .2s }
+.ic:hover, .ic[aria-expanded="true"] { background: var(--k-bg3); color: var(--k-tx) }
+.hilo { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 10px; scrollbar-width: thin; scrollbar-color: var(--k-linea2) transparent }
+.quien { font: var(--t-rotulo); text-transform: uppercase; letter-spacing: .12em; color: var(--k-tenue); display: flex; gap: 6px; align-items: center; margin-bottom: -6px }
+.quien i { width: 6px; height: 6px; border-radius: 50%; background: var(--c) }
+.quien span { text-transform: none; letter-spacing: 0 }
+.m-u { align-self: flex-end; max-width: 84%; background: var(--k-u-bg); color: var(--k-u-tx); padding: 9px 12px; border-radius: 14px 14px 4px 14px; font: var(--t-cuerpo) }
+.m-u .adj-min { display: flex; gap: 6px; align-items: center; font: var(--t-mono-s); opacity: .8; margin-bottom: 4px }
+.m-u.fallido { opacity: .7 }
+.m-u .tag-no { display: block; font: var(--t-mono-s); color: var(--rojo); margin-top: 4px }
+.m-m { font: var(--t-cuerpo); position: relative }
+.txt { display: grid; gap: 7px }
+.txt h4 { font: var(--t-titulo) }
+.txt .sub { font: var(--t-rotulo); text-transform: uppercase; letter-spacing: .12em; color: var(--k-tenue); margin-top: 4px }
+.txt ol, .txt ul { padding-left: 18px; display: grid; gap: 3px }
+.txt li::marker { color: var(--k-tenue); font: var(--t-mono-s) }
+.txt code { background: var(--k-bg3); padding: 1px 4px; border-radius: 4px }
+.txt pre { position: relative; background: #08080A; color: var(--crema); border: 1px solid var(--linea); border-radius: 12px; padding: 28px 12px 10px; overflow-x: auto }
+.txt pre code { background: none; padding: 0; font: 400 11px/1.65 var(--m); white-space: pre }
+.txt pre .leng { position: absolute; left: 12px; top: 9px; font: var(--t-mono-s); color: var(--tenue) }
+.txt pre .copiar { position: absolute; right: 6px; top: 4px; height: 24px; padding: 0 8px; border-radius: 7px; font: var(--t-mono-s); color: var(--crema2) }
+.txt pre .copiar:hover { background: var(--s3); color: var(--crema) }
+.w { animation: palabra .36s var(--ease) both }
+@keyframes palabra { from { opacity: 0; filter: blur(3px) } }
+.caret { display: inline-block; width: 7px; height: 13px; border-radius: 2px; background: var(--c); vertical-align: -2px; margin-left: 2px; animation: parpa 1s steps(2, start) infinite }
+@keyframes parpa { to { visibility: hidden } }
+.herr { font: var(--t-mono-s); color: var(--k-tenue) }
+.herr b { font-weight: 500; color: var(--k-tx2) }
+.pie-m { display: flex; gap: 10px; align-items: center; font: var(--t-mono-s); color: var(--k-tenue); margin-top: 2px }
+.pie-m button { height: 24px; padding: 0 8px; border-radius: 7px; color: var(--k-tx2) }
+.pie-m button:hover { background: var(--k-bg3); color: var(--k-tx) }
+.cortado { display: inline-flex; gap: 5px; align-items: center; font: var(--t-mono-s); color: var(--k-tenue); border: 1px dashed var(--k-linea2); padding: 2px 7px; border-radius: 6px; margin-left: 4px; vertical-align: 1px }
+.sug { display: flex; flex-direction: column; align-items: flex-start; gap: 6px }
+.sug button { padding: 8px 12px; border-radius: 12px; border: 1px solid var(--k-linea); background: var(--k-bg2); font: 600 12px/1.3 var(--f); text-align: left; color: var(--k-tx); transition: border-color .2s, transform .2s var(--ease) }
+.sug button:hover { border-color: var(--c); transform: translateX(3px) }
+.sug button::before { content: "↳ "; color: var(--k-tenue) }
+.pista { font: var(--t-mono-s); color: var(--k-tenue); display: flex; gap: 6px; align-items: center }
+.espera { display: grid; gap: 9px; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--k-linea2) }
+.espera .arr { display: flex; justify-content: space-between; align-items: baseline }
+.espera .arr b { font: var(--t-cuerpo-f) }
+.reloj { font: var(--t-mono); color: var(--k-tenue); font-variant-numeric: tabular-nums }
+.paso { display: flex; gap: 10px; align-items: center; font: var(--t-chico); color: var(--k-tenue); transition: color .3s }
+.paso i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; flex: none; transition: background .3s, border-color .3s }
+.paso.hecho { color: var(--k-tx2) }
+.paso.hecho i { background: var(--verde); border-color: var(--verde) }
+.paso.ahora { color: var(--k-tx); font-weight: 700 }
+.paso.ahora i { border-color: var(--c); background: var(--c); animation: late 1.2s ease-out infinite }
+@keyframes late { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 60%, transparent) } to { box-shadow: 0 0 0 7px transparent } }
+.barra-ind { height: 2px; border-radius: 2px; background: var(--k-linea); overflow: hidden; position: relative }
+.barra-ind::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 35%; background: linear-gradient(90deg, transparent, var(--c), transparent); animation: corre 1.4s var(--ease) infinite }
+@keyframes corre { from { transform: translateX(-100%) } to { transform: translateX(300%) } }
+.espera small { font: var(--t-mono-s); color: var(--k-tenue) }
+.err { border: 1px solid rgba(255,122,107,.4); background: rgba(255,122,107,.07); border-radius: 14px; padding: 12px 14px; display: grid; gap: 8px }
+.claro .err { background: rgba(196,64,48,.07); border-color: rgba(196,64,48,.35) }
+.err b { font: var(--t-cuerpo-f); color: var(--rojo); display: flex; gap: 6px; align-items: center }
+.claro .err b { color: #A8392B }
+.err p { font: var(--t-chico); color: var(--k-tx2) }
+.acc { display: flex; gap: 6px; flex-wrap: wrap }
+.btn { height: 32px; padding: 0 12px; border-radius: 999px; font: var(--t-cuerpo-f); border: 1px solid var(--k-linea2); color: var(--k-tx); transition: background .2s }
+.btn:hover { background: var(--k-bg3) }
+.btn.pri { background: var(--ambar); color: var(--negro); border-color: var(--ambar) }
+.offline { display: flex; gap: 8px; align-items: center; font: var(--t-mono-s); color: var(--k-tx2); background: var(--k-bg2); border: 1px solid var(--k-linea); padding: 7px 10px; border-radius: 10px; flex: none; margin-bottom: 8px }
+.offline i { width: 6px; height: 6px; border-radius: 50%; background: var(--rojo) }
+
+/* compositor */
+.comp { display: grid; gap: 6px; flex: none; padding-top: 8px }
+.chip-adj { display: flex; align-items: center; gap: 9px; padding: 6px 6px 6px 6px; border-radius: 12px; background: var(--k-bg2); border: 1px solid var(--k-linea); justify-self: start; max-width: 100% }
+.chip-adj b { font: var(--t-cuerpo-f); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.chip-adj small { font: var(--t-mono-s); color: var(--k-tenue) }
+.doc { width: 26px; height: 32px; border-radius: 4px 9px 4px 4px; background: var(--crema); color: var(--tinta); font: 600 7px/1 var(--m); display: grid; place-items: end center; padding-bottom: 5px; flex: none; box-shadow: inset -2px -2px 0 rgba(0,0,0,.08) }
+.claro .doc { background: var(--tinta); color: var(--crema) }
+.campo { display: flex; align-items: flex-end; gap: 4px; background: var(--k-campo); border: 1px solid var(--k-linea); border-radius: 14px; padding: 5px; transition: border-color .2s, box-shadow .2s }
+.campo:focus-within { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242,182,50,.14) }
+.campo textarea { flex: 1; resize: none; height: 36px; overflow: hidden; padding: 9px 4px; outline: none; font: var(--t-cuerpo); color: var(--k-tx) }
+.campo textarea::placeholder { color: var(--k-tenue) }
+.enviar { width: 36px; height: 36px; border-radius: 50%; background: var(--ambar); color: var(--negro); display: grid; place-items: center; flex: none; transition: transform .15s var(--rebote) }
+.enviar:active { transform: scale(.9) }
+.enviar:disabled { background: var(--k-bg3); color: var(--k-tenue); cursor: default }
+.frenar { height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255,122,107,.55); color: var(--rojo); font: var(--t-cuerpo-f); display: flex; gap: 7px; align-items: center; flex: none }
+.claro .frenar { color: #A8392B; border-color: rgba(168,57,43,.45) }
+.frenar::before { content: ""; width: 9px; height: 9px; border-radius: 2px; background: currentColor }
+.frenar:hover { background: rgba(255,122,107,.1) }
+.pie-comp { font: var(--t-mono-s); color: var(--k-tenue); display: flex; justify-content: space-between; gap: 8px; padding: 0 4px }
+
+/* menú de carpeta, soltar, historial */
+.menu { position: absolute; z-index: 9; top: 40px; left: 0; width: 262px; background: var(--s2); color: var(--crema); border: 1px solid var(--linea-hover); border-radius: 14px; padding: 6px; display: grid; gap: 1px; box-shadow: 0 24px 48px -18px #000; animation: cae .26s var(--ease) both }
+@keyframes cae { from { opacity: 0; transform: translateY(-6px) scale(.98) } }
+.menu .rot { padding: 8px 8px 4px }
+.menu button { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 10px; font: var(--t-cuerpo-f); text-align: left; width: 100% }
+.menu button:hover, .menu button[aria-checked="true"] { background: var(--s3) }
+.menu button[aria-checked="true"]::after { content: "✓"; margin-left: auto; color: var(--ambar) }
+.menu small { font: var(--t-mono-s); color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.menu .otra { color: var(--ambar) }
+.menu hr { border: 0; border-top: 1px solid var(--linea); margin: 4px 0 }
+.soltar { position: absolute; inset: 40px 0 0; z-index: 8; border-radius: 18px; border: 2px dashed var(--c);
+  background: color-mix(in srgb, var(--c) 12%, rgba(8,8,10,.9)); display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center; color: var(--crema); animation: cae .3s var(--ease) both; cursor: copy }
+.soltar .hoja-doc { width: 58px; height: 72px; border-radius: 6px 16px 6px 6px; background: var(--crema); color: var(--tinta); font: 600 10px/1 var(--m); display: grid; place-items: end center; padding-bottom: 10px; transform: rotate(-8deg); box-shadow: 0 18px 30px -12px #000; animation: flota 1.4s ease-in-out infinite alternate }
+@keyframes flota { to { transform: rotate(-3deg) translateY(-8px) } }
+.soltar b { font: var(--t-display) }
+.soltar span { font: var(--t-mono-s); color: var(--crema2); max-width: 30ch }
+.hist { display: grid; gap: 1px }
+.hist .dia { font: var(--t-rotulo); text-transform: uppercase; letter-spacing: .12em; color: var(--tenue); padding: 10px 8px 4px }
+.h-it { display: grid; gap: 3px; padding: 7px 8px; border-radius: 11px; text-align: left; width: 100% }
+.h-it:hover { background: var(--s2) }
+.h-it.on { background: var(--s3) }
+.h-it b { font: 700 12px/1.25 var(--f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--crema) }
+.h-it span { font: var(--t-mono-s); color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.h-it span em { font-style: normal; color: var(--crema2) }
+.buscar { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 9px; border-radius: 10px; background: var(--s2); border: 1px solid var(--linea); color: var(--tenue) }
+.buscar input { flex: 1; min-width: 0; outline: none; font: var(--t-chico); color: var(--crema) }
+.buscar:focus-within { border-color: var(--ambar) }
+.guardado { font: var(--t-mono-s); color: var(--tenue); display: flex; gap: 6px; align-items: center; padding: 8px 8px 0 }
+.guardado i { width: 6px; height: 6px; border-radius: 50%; background: var(--verde) }
+.lado .hist { overflow-y: auto; min-height: 0; flex: 1; align-content: start; scrollbar-width: none }
+
+/* ---------- A · Charla en la columna ---------- */
+.op-a .vuelta { display: flex; align-items: center; gap: 8px; flex: none }
+.op-a .vuelta .btn-v { height: 32px; padding: 0 12px 0 8px; border-radius: 10px; font: var(--t-cuerpo-f); display: flex; gap: 6px; align-items: center; color: var(--crema2); border: 1px solid var(--linea) }
+.op-a .vuelta .btn-v:hover { color: var(--crema); border-color: var(--linea-hover) }
+.op-a .mini { font: var(--t-mono-s); color: var(--tenue); display: flex; gap: 10px }
+.op-a .mini em { font-style: normal; color: var(--ambar); display: flex; gap: 5px; align-items: center }
+.op-a .mini em::before { content: "!"; width: 14px; height: 14px; border-radius: 4px; background: var(--ambar); color: var(--negro); font: 800 10px/14px var(--f); text-align: center }
+.op-a .chat { flex: 1; border-top: 1px solid var(--linea); padding-top: 10px }
+.op-a .m-m { align-self: flex-start; max-width: 94%; background: var(--crema); color: var(--tinta); border-radius: 4px 16px 16px 16px; padding: 10px 13px; --k-bg3: rgba(20,17,12,.08); --k-tenue: var(--tinta2) }
+.op-a .m-m .txt pre { margin: 2px -4px }
+.op-a .m-m.vivo { box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 16%, transparent) }
+.op-a .lado .marca { padding-bottom: 6px }
+
+/* ---------- B · Globo que crece ---------- */
+.op-b .globo { background: var(--crema); border-radius: 18px; padding: 12px 12px 10px; height: 404px; flex: none; margin-left: 6px; box-shadow: 0 0 0 5px rgba(242,182,50,.05), 0 24px 48px -26px rgba(242,182,50,.35); transition: height .5s var(--ease) }
+.op-b .globo::before { content: ""; position: absolute; left: -10px; top: 26px; border: 8px solid transparent; border-right: 11px solid var(--crema); border-left: 0 }
+.op-b .globo.grande { height: 574px }
+.op-b .globo .ch-cab { border-bottom: 1px solid var(--k-linea); margin-bottom: 8px }
+.op-b .resto { display: grid; gap: 8px; overflow: hidden; -webkit-mask: linear-gradient(#000 60%, transparent); mask: linear-gradient(#000 60%, transparent); min-height: 0 }
+.op-b .tira { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--linea); background: var(--s1); font: var(--t-mono-s); color: var(--crema2); flex: none; margin-left: 6px }
+.op-b .tira em { font-style: normal; color: var(--ambar) }
+.op-b .tira span:last-child { margin-left: auto; color: var(--tenue) }
+.op-b .pop-hist { position: absolute; z-index: 9; top: 40px; right: 0; width: 290px; max-height: 330px; overflow-y: auto; background: var(--s2); border: 1px solid var(--linea-hover); border-radius: 14px; padding: 6px; box-shadow: 0 24px 48px -18px #000; animation: cae .26s var(--ease) both; color: var(--crema) }
+.op-b .m-m .quien { margin-bottom: 4px }
+.op-b .hilo { gap: 14px }
+
+/* ---------- C · Hoja aparte ---------- */
+.hoja { position: absolute; top: 0; left: 690px; width: 420px; height: 640px; border-radius: 26px; background: var(--negro); overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: 0 16px 32px -16px rgba(0,0,0,.8), 0 40px 90px -40px rgba(0,0,0,.9), inset 0 0 0 1px rgba(255,255,255,.05) }
+.escenario { position: relative; height: 172px; flex: none; display: grid; justify-items: center; align-content: end; gap: 4px; padding-bottom: 14px;
+  background: radial-gradient(200px 90px at 50% 112px, color-mix(in srgb, var(--c) 22%, transparent), transparent 70%), linear-gradient(var(--s1), var(--negro)) }
+.escenario::after { content: ""; position: absolute; left: 50%; top: 118px; width: 180px; height: 1px; transform: translateX(-50%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--c) 70%, transparent), transparent) }
+.escenario .esc-nom { font: 800 16px/1.1 var(--f); position: relative; z-index: 1 }
+.escenario .esc-est { font: var(--t-mono-s); color: var(--crema2); display: flex; gap: 6px; align-items: center }
+.escenario .esc-est i { width: 6px; height: 6px; border-radius: 50%; background: var(--c) }
+.escenario .arriba { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between }
+.hoja .chat { flex: 1; padding: 12px 14px 14px }
+.op-c .m-m { padding-left: 16px; font: 500 13px/1.6 var(--f) }
+.op-c .m-m::before { content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; border-radius: 2px; background: linear-gradient(var(--c), color-mix(in srgb, var(--c) 10%, transparent)) }
+.op-c .m-m.vivo::after { content: ""; position: absolute; left: -3px; top: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 12px 2px var(--c); animation: baja-luz 1.3s linear infinite }
+@keyframes baja-luz { from { top: 0; opacity: 0 } 15% { opacity: 1 } 85% { opacity: 1 } to { top: calc(100% - 8px); opacity: 0 } }
+.op-c .bienvenida .m-m { font: 600 15px/1.45 var(--f) }
+.cajon { position: absolute; z-index: 10; inset: 0 auto 0 0; width: 300px; background: var(--s1); border-right: 1px solid var(--linea-hover); padding: 14px 10px; display: flex; flex-direction: column; gap: 8px; box-shadow: 30px 0 60px -30px #000; animation: entra-cajon .42s var(--ease) both }
+@keyframes entra-cajon { from { transform: translateX(-100%) } }
+.velo { position: absolute; inset: 0; z-index: 9; background: rgba(0,0,0,.55); animation: cae .3s both }
+.cajon .tit { display: flex; justify-content: space-between; align-items: center; padding: 0 2px 0 8px }
+.cajon .tit b { font: var(--t-titulo) }
+.cajon .hist { overflow-y: auto; flex: 1; align-content: start; scrollbar-width: thin }
+.bienvenida { display: grid; gap: 12px }
+.op-c .bienvenida { padding-top: 6px }
+
+@media (max-width: 720px) {
+  .pag { padding: 28px 14px 72px }
+  .lienzo { padding: 14px; border-radius: 18px }
+  .op-cab { grid-template-columns: 1fr }
+  .letra { grid-row: auto; font-size: 40px }
+  .reproducir { margin-left: 0 }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important }
+  .caret { animation: none }
+  .op-c .m-m.vivo::after { display: none }
+}
+</style>
+</head>
+<body>
+<div class="pag">
+  <header class="cab-pag">
+    <p class="sello">Avis · #22 · bocetos · 23/11</p>
+    <h1>Hablarle a <em>tu mascota</em>.</h1>
+    <p class="bajada">Tres lugares para el chat de Avis. En los tres, tocar la mascota de la barra abre la charla, Claude Code (o el modelo local) piensa y la mascota elegida pone la cara y la voz. Cada boceto tiene sus estados: tocá las pastillas o probá directo (sugerencias, Frenar, la carpeta, el motor).</p>
+    <div class="barra-pag">
+      <span class="rot-p">Mascota elegida</span>
+      <div class="especies" role="radiogroup" aria-label="Mascota elegida" id="especies"></div>
+    </div>
+    <p class="nota-pag">Las mascotas son las de verdad (widget/src/avis.js). Proyectos, ramas y respuestas son contenido de ejemplo.</p>
+  </header>
+
+  <section class="op op-a" data-op="a" aria-labelledby="t-a">
+    <div class="op-cab">
+      <span class="letra" aria-hidden="true">A</span>
+      <h2 id="t-a">Charla en la columna</h2>
+      <ol>
+        <li>Tocar la mascota da vuelta la columna principal: el tablero se guarda y aparece la charla. La barra cambia los proyectos por el historial de charlas.</li>
+        <li>La mascota de 112 se queda en la barra y actúa cada estado; su voz son globos crema que se abren hacia ella.</li>
+        <li>La más simple y la que más lugar de lectura da. A cambio, mientras charlás no ves el tablero: queda una tira con lo urgente.</li>
+      </ol>
+    </div>
+    <div class="controles" data-pildoras></div>
+    <div class="lienzo"><div class="caja"><div class="escala" data-w="672"></div></div></div>
+  </section>
+
+  <section class="op op-b" data-op="b" aria-labelledby="t-b">
+    <div class="op-cab">
+      <span class="letra" aria-hidden="true">B</span>
+      <h2 id="t-b">Globo que crece</h2>
+      <ol>
+        <li>El globo crema del resumen se vuelve el chat: nace de la boca de la mascota, arriba del tablero, y con ⤢ se agranda hasta casi toda la columna.</li>
+        <li>Todo el chat es papel crema, la voz de la mascota al pie de la letra; tus mensajes van en tinta y el código en negro.</li>
+        <li>Sigue lo que ya existe y el tablero queda abajo. A cambio, 460 de ancho y dos zonas con scroll: las respuestas largas quedan apretadas.</li>
+      </ol>
+    </div>
+    <div class="controles" data-pildoras></div>
+    <div class="lienzo"><div class="caja"><div class="escala" data-w="672"></div></div></div>
+  </section>
+
+  <section class="op op-c" data-op="c" aria-labelledby="t-c">
+    <div class="op-cab">
+      <span class="letra" aria-hidden="true">C</span>
+      <h2 id="t-c">Hoja aparte <span class="reco">Recomendada</span></h2>
+      <ol>
+        <li>El chat es una hoja propia al lado del tablero, dentro de la misma ventana (como la tira). La mascota se muda de la barra a un escenario arriba de la hoja.</li>
+        <li>Las respuestas no van en globos: texto con un hilo de luz del color de la mascota y una chispa que baja mientras escribe, como los hilos del escenario.</li>
+        <li>Tablero y charla a la vez, con lugar para PDFs y código. A cambio, un elemento más que colocar (bordes, acople, monitores) y la mudanza para animar.</li>
+      </ol>
+    </div>
+    <div class="controles" data-pildoras></div>
+    <div class="lienzo"><div class="caja"><div class="escala" data-w="1110"></div></div></div>
+  </section>
+
+  <section class="comun" aria-labelledby="t-comun">
+    <h2 id="t-comun">Lo mismo en las tres</h2>
+    <ul>
+      <li>La primera espera (~18 s medidos) se cuenta en tres pasos con reloj: abrir Claude Code en la carpeta, cargar ajustes y memorias, pensar. La mascota calienta su luz y después piensa.</li>
+      <li>Frenar va en el lugar de Enviar mientras responde (también con Esc), sin confirmar: solo corta la respuesta, el texto parcial queda marcado.</li>
+      <li>Sin conexión: el mensaje queda marcado "No se envió", con Reintentar y la salida al modelo local. Nunca se pierde lo escrito.</li>
+      <li>Con el motor Local, la carpeta queda fija en "Sesiones de Avis" y las sugerencias cambian: el modelo local no lee carpetas ni archivos.</li>
+      <li>Movimiento reducido: sin viajes, sin chispas, sin palabras que aparecen de a una (el texto llega igual, por partes).</li>
+    </ul>
+  </section>
+</div>
+
+<script type="module">
+import { avi, claudeDe, defsAvis } from '../../../widget/src/avis.js'
+import { NOMBRES_ESPECIES, datosEspecie } from '../../../widget/src/especies.js'
+
+document.body.insertAdjacentHTML('afterbegin', defsAvis())
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches
+const EASE = 'cubic-bezier(.16, 1, .3, 1)'
+const COLOR = { avi: '#F2B632', ascua: '#FF7A2E', escarcha: '#7DF9FF', nodo: '#C6FF3D', bruma: '#FF5FD2', morro: '#FFC24A', lumen: '#FFB37A' }
+const st = { especie: 'ascua', ops: {} }
+for (const k of ['a', 'b', 'c']) st.ops[k] = { estado: 'vacio', motor: 'cc', carpeta: 'catalogo', menu: false, soltado: false, grande: false, hist: false }
+const GEN = { a: 0, b: 0, c: 0 }
+const nom = () => datosEspecie(st.especie).nombre
+const fig = (animo, t, extra = '') => `<span class="voz" data-t="${t}" ${extra}>${avi(claudeDe(st.especie), animo, t)}</span>`
+
+const ESTADOS = [
+  ['vacio', 'Vacío'], ['esperando', 'Primera espera'], ['escribiendo', 'Escribiendo'], ['frenado', 'Frenada'],
+  ['error', 'Sin conexión'], ['archivo', 'Archivo arrastrado'], ['larga', 'Respuesta larga'], ['historial', 'Historial'],
+]
+const POSE = { vacio: 'saluda', esperando: 'calienta', escribiendo: 'contando', frenado: 'esperando', error: 'error', archivo: 'baja', larga: 'feliz', historial: 'leyendo' }
+const ANIMO = { vacio: 'te escucha', esperando: 'despertando…', escribiendo: 'contando', frenado: 'frenada', error: 'sin conexión', archivo: 'mira el archivo', larga: 'listo', historial: 'recordando' }
+
+const I = {
+  carpeta: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5a1 1 0 0 1 1-1h3.6l1.4 1.6h6a1 1 0 0 1 1 1v6.4a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>',
+  baja: '<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  reloj: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8V8l2.2 1.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  cerrar: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  clip: '<svg width="17" height="17" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4.5 5.6 9.4a1.5 1.5 0 0 0 2.1 2.1l5-5a3 3 0 0 0-4.2-4.2l-5 5a4.5 4.5 0 0 0 6.4 6.4l3.6-3.6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  enviar: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3.5M3.8 7.5 8 3.3l4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  agrandar: '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  lupa: '<svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  nube: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 12.5a3 3 0 0 1-.3-6 4 4 0 0 1 7.6 1 2.5 2.5 0 0 1 .2 5z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m6.6 8.2 2.8 2.8m0-2.8-2.8 2.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  vent: '<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+}
+
+const PREGUNTA = '¿En qué anda cada sesión?'
+const RESPUESTA = 'Hay tres sesiones abiertas. En <b>catalogo</b>, Claude escribe los tests de los filtros en <code>feat/48-filtros</code>, con dos subagentes trabajando. En <b>oficina</b> te espera desde hace 12 min. En <b>quintech-crm</b> te hizo una pregunta: si el reporte mensual sale en PDF o en Excel. ¿Querés que te cuente qué tocó cada subagente?'
+const PARCIAL = 'Hay tres sesiones abiertas. En <b>catalogo</b>, Claude escribe los tests de los filtros en <code>feat/48-filtros</code>, con dos'
+const LARGA = `<h4>catalogo, para alguien que llega</h4>
+<p>Es el sistema de pedidos de la distribuidora: un backend en Node con Prisma y un panel en React.</p>
+<p class="sub">Para arrancar</p>
+<ol><li>Copiá <code>.env.example</code> a <code>.env</code> y completá la base.</li><li>Levantá la base, migrá y prendé el servidor:</li></ol>
+<pre><span class="leng">bash</span><button class="copiar" type="button">Copiar</button><code>docker compose up -d db
+npx prisma migrate dev
+npm run dev</code></pre>
+<p class="sub">Qué leer primero</p>
+<ul><li><code>docs/arquitectura.md</code>: capas y casos de uso.</li><li><code>backend/src/pedidos/</code>: el corazón del dominio.</li><li><code>docs/requirements/</code>: qué pidió cada cliente.</li></ul>
+<p>Si querés, lo profundizo por módulo. Por ahora te lo cuento acá: no escribo archivos.</p>`
+const PROYECTOS = [['catalogo', 'C:\\…\\Desktop\\catalogo'], ['oficina', 'C:\\…\\Desktop\\oficina'], ['quintech-crm', 'C:\\…\\Desktop\\quintech-crm']]
+const HISTORIAL = [
+  ['Hoy', [['¿En qué anda cada sesión?', 'catalogo', 'Claude Code', '21:40'], ['Resumí presupuesto-2027.pdf', 'Descargas', 'Claude Code', '18:12']]],
+  ['Ayer', [['¿Por qué se colgó el widget?', 'oficina', 'Claude Code', '19:05'], ['¿Quién me esperaba a la mañana?', 'Avis', 'Local', '09:31']]],
+  ['Esta semana', [['Documentación de quintech-crm', 'quintech-crm', 'Claude Code', 'lun'], ['Ideas para el reporte mensual', 'quintech-crm', 'Claude Code', 'dom']]],
+]
+
+const sugerencias = o => o.motor === 'cc'
+  ? [PREGUNTA, `¿Qué cambió hoy en ${o.carpeta}?`, `Armame la documentación de ${o.carpeta}`, 'Resumime un PDF']
+  : ['¿Quién me está esperando?', '¿Cuántos subagentes trabajan ahora?', '¿Qué pregunta tengo pendiente?']
+
+function cab(o, op) {
+  const local = o.motor === 'local'
+  const carp = local ? 'Sesiones de Avis' : o.carpeta
+  return `<div class="ch-cab">
+    <button class="carpeta" type="button" data-accion="carpeta" aria-haspopup="menu" aria-expanded="${o.menu}" ${local ? 'aria-disabled="true" title="El modelo local solo ve tus sesiones de Avis"' : ''} aria-label="Carpeta: ${carp}">${I.carpeta}<span class="ruta">${carp}</span>${local ? '' : I.baja}</button>
+    <div class="motor" role="radiogroup" aria-label="Motor">
+      <button type="button" role="radio" data-motor="cc" aria-checked="${!local}" title="Tu suscripción · lee archivos y PDFs">Claude Code</button>
+      <button type="button" role="radio" data-motor="local" aria-checked="${local}" title="En esta PC · privado, sin internet">Local</button>
+    </div>
+    <span class="hueco"></span>
+    ${op === 'b' ? `<button class="ic" type="button" data-accion="grande" aria-label="${o.grande ? 'Achicar' : 'Agrandar'} la charla" aria-pressed="${o.grande}">${I.agrandar}</button>` : ''}
+    ${op === 'b' ? `<button class="ic" type="button" data-accion="hist" aria-label="Historial" aria-expanded="${o.estado === 'historial'}">${I.reloj}</button>` : ''}
+    ${op !== 'c' ? `<button class="ic" type="button" data-accion="abrir" aria-label="Cerrar la charla">${I.cerrar}</button>` : ''}
+  </div>`
+}
+
+function menu(o) {
+  if (!o.menu) return ''
+  return `<div class="menu" role="menu" aria-label="Elegir carpeta">
+    <span class="rot">Proyectos de la barra</span>
+    ${PROYECTOS.map(([n, r]) => `<button type="button" role="menuitemradio" aria-checked="${o.carpeta === n}" data-carpeta="${n}">${I.carpeta}<span>${n}<br><small>${r}</small></span></button>`).join('')}
+    <hr><span class="rot">Recientes</span>
+    <button type="button" role="menuitemradio" aria-checked="${o.carpeta === 'Descargas'}" data-carpeta="Descargas">${I.carpeta}<span>Descargas<br><small>C:\\Users\\…\\Downloads</small></span></button>
+    <hr><button type="button" role="menuitem" class="otra" data-accion="otra">＋ Elegir otra carpeta…</button>
+  </div>`
+}
+
+const usuario = (t, extra = '') => `<div class="m-u ${extra}">${t}</div>`
+const quien = op => op === 'a' ? '' : `<div class="quien"><i></i>${nom()}</div>`
+
+function hilo(o, op) {
+  const n = nom()
+  const pie = t => `<div class="pie-m"><button type="button">Copiar</button><span>${t}</span></div>`
+  switch (o.estado) {
+    case 'vacio': return `<div class="bienvenida">${quien(op)}<div class="m-m"><div class="txt"><p>${o.motor === 'cc'
+        ? `¡Hola! Estoy en <b>${o.carpeta}</b> con Claude Code. Preguntame por tus sesiones, pedime documentación o pasame un archivo.`
+        : '¡Hola! Te respondo con el modelo de esta PC: privado y sin internet. Sé lo que pasa en tus sesiones de Avis.'}</p></div></div>
+      <div class="sug">${sugerencias(o).map(s => `<button type="button" data-sug>${s}</button>`).join('')}</div>
+      <p class="pista">${o.motor === 'cc' ? '⤓ Arrastrá un PDF o cualquier archivo acá' : 'El modelo local no lee carpetas ni archivos'}</p></div>`
+    case 'esperando': {
+      const pasos = o.motor === 'cc'
+        ? [`Abriendo Claude Code en ${o.carpeta}`, 'Cargando tus ajustes y memorias', 'Pensando la respuesta']
+        : ['Despertando el modelo de esta PC', 'Leyendo tus sesiones de Avis', 'Pensando la respuesta']
+      return `${usuario(PREGUNTA)}${quien(op)}<div class="espera" role="status" aria-live="polite">
+        <div class="arr"><b>${n} está despertando a ${o.motor === 'cc' ? 'Claude' : 'su modelo'}</b><span class="reloj">0:00</span></div>
+        <div class="barra-ind"></div>
+        ${pasos.map((p, i) => `<div class="paso ${i === 0 ? 'ahora' : ''}" data-paso="${i}"><i></i>${p}</div>`).join('')}
+        <small>${o.motor === 'cc' ? 'La primera respuesta tarda unos 20 s. Las que siguen, menos.' : 'Unos segundos la primera vez.'}</small></div>`
+    }
+    case 'escribiendo': return `${usuario(PREGUNTA)}${quien(op)}<div class="herr">↳ Miró <b>3 sesiones de Avis</b></div><div class="m-m vivo"><div class="txt"><p class="stream" aria-live="polite"></p></div></div>`
+    case 'frenado': return `${usuario(PREGUNTA)}${quien(op)}<div class="m-m"><div class="txt"><p>${PARCIAL}<span class="cortado">■ frenaste acá</span></p></div></div>
+      <div class="acc"><button class="btn" type="button" data-sug>Volver a preguntar</button></div>`
+    case 'error': return `<div class="offline" role="status"><i></i>Sin internet · el modelo local sigue andando</div>
+      ${usuario(`Armame la documentación de ${o.carpeta}`, 'fallido') .replace('</div>', '<span class="tag-no">No se envió</span></div>')}${quien(op)}
+      <div class="err" role="alert"><b>${I.nube}No llego a Claude Code</b><p>Parece que no hay conexión. Tu mensaje no se perdió: lo mando de nuevo cuando quieras.</p>
+      <div class="acc"><button class="btn pri" type="button" data-sug>Reintentar</button><button class="btn" type="button" data-accion="local">Preguntarle al modelo local</button></div></div>`
+    case 'archivo': return `${usuario(PREGUNTA)}${quien(op)}<div class="m-m"><div class="txt"><p>${RESPUESTA}</p></div></div>`
+    case 'larga': return `${usuario(`Armame la documentación de catalogo para alguien que llega nuevo`)}${quien(op)}
+      <div class="herr">↳ Leyó <b>6 archivos</b>: README.md, docs/arquitectura.md…</div>
+      <div class="m-m"><div class="txt">${LARGA}</div>${pie('18 s · Claude Code')}</div>`
+    case 'historial': return op === 'a'
+      ? `<div class="herr">Ayer, 19:05 · oficina · Claude Code</div>${usuario('¿Por qué se colgó el widget?')}<div class="m-m"><div class="txt"><p>El sondeo seguía corriendo con el panel escondido y el archivo de la sesión dejó de latir: a los 2 min el widget lo descartó. Lo arreglaron en <code>main</code> esa misma tarde.</p></div></div>
+         <div class="pista">Escribí abajo para seguir esta charla</div>`
+      : `${usuario(PREGUNTA)}${quien(op)}<div class="m-m"><div class="txt"><p>${RESPUESTA}</p></div></div>`
+  }
+}
+
+function histLista(o, conBuscar) {
+  const sel = o.estado === 'historial' ? '¿Por qué se colgó el widget?' : '¿En qué anda cada sesión?'
+  return `${conBuscar ? `<label class="buscar">${I.lupa}<input type="search" placeholder="Buscar en charlas" aria-label="Buscar en charlas"></label>` : ''}
+  <div class="hist" role="list">${HISTORIAL.map(([d, items]) => `<span class="dia">${d}</span>${items.map(([t, c, m, h]) =>
+    `<button type="button" role="listitem" class="h-it ${t === sel ? 'on' : ''}" data-hist><b>${t}</b><span><em>${c}</em> · ${m === 'Local' ? 'local · ' : ''}${h}</span></button>`).join('')}`).join('')}</div>
+  <div class="guardado"><i></i>Guardado en esta PC · también en Engram</div>`
+}
+
+function comp(o) {
+  const corre = o.estado === 'esperando' || o.estado === 'escribiendo'
+  const adj = o.estado === 'archivo' && o.soltado
+  const val = adj ? 'Resumime este presupuesto en 5 puntos' : ''
+  const n = nom()
+  return `<div class="comp">
+    ${adj ? `<div class="chip-adj"><span class="doc">PDF</span><span><b>presupuesto-2027.pdf</b><small>14 páginas · 1,4 MB</small></span><button class="ic" type="button" aria-label="Quitar presupuesto-2027.pdf">${I.cerrar}</button></div>` : ''}
+    <div class="campo">
+      <button class="ic" type="button" data-accion="adjuntar" aria-label="Adjuntar archivo" ${o.motor === 'local' ? 'disabled title="El modelo local no lee archivos"' : ''}>${I.clip}</button>
+      <textarea rows="1" aria-label="Mensaje para ${n}" placeholder="Preguntale a ${n}…">${val}</textarea>
+      ${corre ? '<button class="frenar" type="button" data-accion="frenar">Frenar</button>'
+        : `<button class="enviar" type="button" data-accion="enviar" aria-label="Enviar" ${val ? '' : 'disabled'}>${I.enviar}</button>`}
+    </div>
+    <div class="pie-comp"><span>${corre ? 'Esc frena la respuesta' : 'Enter envía · Shift+Enter, línea nueva'}</span><span>${o.motor === 'cc' ? `Claude Code · ${o.carpeta}` : 'Local · sin internet'}</span></div>
+  </div>`
+}
+
+const soltar = o => o.estado === 'archivo' && !o.soltado
+  ? `<div class="soltar" data-accion="soltar" role="status"><span class="hoja-doc">PDF</span><b>Soltalo y ${nom()} lo lee</b><span>presupuesto-2027.pdf · PDF, imágenes, texto o código</span></div>` : ''
+
+function sesiones(n = 3) {
+  const c = claudeDe(st.especie)
+  const filas = [
+    `<div class="ses"><div class="ses-l1"><span class="tag">#48</span><b>feat/48-filtros</b><time>32 min</time></div><span class="act" style="--k:var(--c)">ahora · coordinando el equipo</span><div class="elenco">${avi(c, 'coordinando', 48)}2 subagentes</div></div>`,
+    `<div class="ses preg"><div class="ses-l1"><span class="tag">#12</span><b>feat/12-reporte</b><time>1 h</time></div><span class="act" style="--k:var(--ambar)">ahora · te hace una pregunta</span><div class="elenco">${avi(c, 'teEspera', 48)}quintech-crm</div></div>`,
+    `<div class="ses"><div class="ses-l1"><b>main</b><time>12 min</time></div><span class="act" style="--k:var(--crema2)">esperando tu mensaje</span><div class="elenco">${avi(c, 'esperando', 48)}oficina</div></div>`,
+  ]
+  return filas.slice(0, n).join('')
+}
+const tabCab = `<div class="tab-cab"><div><h3>Todos</h3><p>3 sesiones · 1 te hace una pregunta</p></div><div class="vent" aria-hidden="true">${I.vent}${I.cerrar}</div></div>`
+const conteos = `<div class="conteos"><span class="conteo" style="--k:var(--ambar)"><i></i><b>2</b> trabajando</span><span class="conteo" style="--k:var(--verde)"><i></i><b>0</b> terminados</span><span class="conteo" style="--k:var(--violeta)"><i></i><b>1</b> pregunta</span></div>`
+const proyectos = (on = 'Todos') => `<span class="rot">Proyectos</span>
+  ${[['c', 'catalogo', 1, ''], ['o', 'oficina', 1, 'v'], ['q', 'quintech-crm', 1, '']].map(([i, p, k, v]) => `<button type="button" class="proy ${on === p ? 'on' : ''}"><span class="ini ${v}">${i}</span>${p}<span class="n">${k}</span></button>`).join('')}
+  <div class="equipo"><div class="persona"><span class="av">NC</span><span>Nicolás Campos<small>en catalogo · hace 4 min</small></span></div></div>`
+
+function marca(o, ausente = false) {
+  const pose = ausente ? 'esperando' : POSE[o.estado]
+  return `<button type="button" class="marca ${ausente ? 'ausente' : ''}" data-accion="abrir" aria-label="${ausente ? 'Cerrar la charla' : 'Charlar con ' + nom()}" aria-expanded="true">
+    ${fig(pose, 112, 'data-principal')}${ausente ? `<span class="mudada"><i></i>en la charla →</span>` : ''}
+    <span class="marca-nom">Avis</span><span class="marca-animo">${ausente ? '3 sesiones abiertas' : nom() + ' · ' + ANIMO[o.estado]}</span></button>`
+}
+
+const LAYOUT = {
+  a: o => `<div class="panel">
+    <aside class="lado">${marca(o)}<span class="rot">Charlas</span>${histLista(o, true)}</aside>
+    <div class="principal">
+      <div class="vuelta"><button type="button" class="btn-v" data-accion="abrir">← Tablero</button><span class="mini"><span>2 trabajando</span><em>1 pregunta</em></span></div>
+      <section class="chat" aria-label="Charla con ${nom()}">${cab(o, 'a')}<div class="hilo">${hilo(o, 'a')}</div>${comp(o)}${menu(o)}${soltar(o)}</section>
+    </div></div>`,
+  b: o => `<div class="panel">
+    <aside class="lado">${marca(o)}${proyectos()}</aside>
+    <div class="principal">${tabCab}
+      <section class="chat claro globo ${o.grande ? 'grande' : ''}" aria-label="Charla con ${nom()}">${cab(o, 'b')}<div class="hilo">${hilo(o, 'b')}</div>${comp(o)}${menu(o)}${soltar(o)}
+        ${o.estado === 'historial' ? `<div class="pop-hist" role="dialog" aria-label="Historial de charlas">${histLista(o, true)}</div>` : ''}</section>
+      ${o.grande ? '<div class="tira"><span>Tablero</span><span>2 trabajando</span><em>1 pregunta</em><span>⤢ achicá para verlo</span></div>' : `<div class="resto">${conteos}${sesiones(2)}</div>`}
+    </div></div>`,
+  c: o => `<div class="panel">
+    <aside class="lado">${marca(o, true)}${proyectos()}</aside>
+    <div class="principal">${tabCab}${conteos}${sesiones(3)}</div></div>
+    <section class="hoja chat" aria-label="Charla con ${nom()}">
+      <div class="escenario">
+        <div class="arriba"><button class="ic" type="button" data-accion="hist" aria-label="Historial" aria-expanded="${o.estado === 'historial'}">${I.reloj}</button><button class="ic" type="button" data-accion="abrir" aria-label="Cerrar la charla">${I.cerrar}</button></div>
+        ${fig(POSE[o.estado], 96, 'data-principal data-escenario')}
+        <span class="esc-nom">${nom()}</span><span class="esc-est"><i></i>${ANIMO[o.estado]} · ${o.motor === 'cc' ? 'vía Claude Code' : 'modelo local'}</span>
+      </div>
+      <div class="chat" style="flex:1">${cab(o, 'c')}<div class="hilo">${hilo(o, 'c')}</div>${comp(o)}${menu(o)}${soltar(o)}</div>
+      ${o.estado === 'historial' ? `<div class="velo" data-accion="hist"></div><div class="cajon" role="dialog" aria-label="Historial de charlas"><div class="tit"><b>Charlas</b><button class="ic" type="button" data-accion="hist" aria-label="Cerrar historial">${I.cerrar}</button></div>${histLista(o, true)}</div>` : ''}
+    </section>`,
+}
+
+const escala = op => document.querySelector(`.op[data-op="${op}"] .escala`)
+function render(op) {
+  GEN[op]++
+  const o = st.ops[op]
+  escala(op).innerHTML = LAYOUT[op](o)
+  document.querySelectorAll(`.op[data-op="${op}"] .pil`).forEach(p => p.setAttribute('aria-pressed', p.dataset.estado === o.estado))
+  vivir(op)
+}
+function pose(op, animo) {
+  escala(op).querySelectorAll('.voz[data-principal]').forEach(v => { v.innerHTML = avi(claudeDe(st.especie), animo, +v.dataset.t) })
+  const an = escala(op).querySelector('.marca:not(.ausente) .marca-animo')
+  if (an) an.textContent = `${nom()} · ${{ calienta: 'despertando…', pensando: 'pensando', contando: 'contando', feliz: 'listo' }[animo] ?? ANIMO[st.ops[op].estado]}`
+  const est = escala(op).querySelector('.esc-est')
+  if (est) est.innerHTML = `<i></i>${{ calienta: 'despertando…', pensando: 'pensando', contando: 'contando', feliz: 'listo' }[animo]} · vía ${st.ops[op].motor === 'cc' ? 'Claude Code' : 'modelo local'}`
+}
+const vivo = (op, g) => g === GEN[op]
+
+function vivir(op) {
+  const g = GEN[op], o = st.ops[op], raiz = escala(op)
+  if (o.estado === 'esperando') {
+    let s = 0
+    const tic = () => {
+      if (!vivo(op, g)) return
+      const fase = s < 7 ? 0 : s < 13 ? 1 : 2
+      raiz.querySelector('.reloj').textContent = `0:${String(s).padStart(2, '0')}`
+      raiz.querySelectorAll('.paso').forEach((p, i) => { p.className = 'paso' + (i < fase ? ' hecho' : i === fase ? ' ahora' : '') })
+      if (s === 13) pose(op, 'pensando')
+      s = s >= 24 ? (pose(op, 'calienta'), 0) : s + 1
+      setTimeout(tic, 1000)
+    }
+    tic()
+  }
+  if (o.estado === 'escribiendo') {
+    const el = raiz.querySelector('.stream'), caja = el.closest('.m-m')
+    // Cada parte se agrega al final (como llegan los text_delta): las palabras ya puestas no se vuelven a animar
+    const toks = RESPUESTA.match(/<[^>]+>|[^<\s]+\s*/g)
+    const caret = document.createElement('span'); caret.className = 'caret'
+    let i = 0, pila = [el]
+    const paso = () => {
+      if (!vivo(op, g)) return
+      if (i >= toks.length) {
+        caret.remove(); caja.classList.remove('vivo'); pose(op, 'feliz')
+        setTimeout(() => { if (!vivo(op, g)) return; i = 0; pila = [el]; el.textContent = ''; caja.classList.add('vivo'); pose(op, 'contando'); paso() }, 3200)
+        return
+      }
+      const t = toks[i++]
+      if (t.startsWith('</')) pila.pop()
+      else if (t.startsWith('<')) { const n = document.createElement(t.slice(1, -1)); pila.at(-1).appendChild(n); pila.push(n) }
+      else if (RM) pila.at(-1).appendChild(document.createTextNode(t))
+      else { const w = document.createElement('span'); w.className = 'w'; w.textContent = t; pila.at(-1).appendChild(w) }
+      el.appendChild(caret)
+      if (t.startsWith('<') || (RM && i % 6 && i < toks.length)) return paso()
+      setTimeout(paso, RM ? 260 : 55)
+    }
+    paso()
+  }
+  if (o.estado === 'archivo' && !o.soltado) setTimeout(() => { if (vivo(op, g)) { o.soltado = true; render(op); pose(op, 'esperando') } }, 2600)
+}
+
+/* ---------- apertura: el momento autoral de cada opción ---------- */
+function posEn(el, raiz) { let x = 0, y = 0; while (el && el !== raiz) { x += el.offsetLeft; y += el.offsetTop; el = el.offsetParent } return { x, y } }
+const sube = (els, base, paso = 42) => els.forEach((e, i) => e.animate(RM ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: RM ? 160 : 520, delay: RM ? 0 : base + i * paso, easing: EASE, fill: 'backwards' }))
+function abrir(op) {
+  Object.assign(st.ops[op], { estado: 'vacio', menu: false, soltado: false })
+  render(op)
+  const r = escala(op)
+  if (op === 'a') {
+    sube([...r.querySelectorAll('.vuelta, .ch-cab, .hilo .bienvenida > *, .comp, .lado .rot, .buscar, .h-it, .guardado')], 90, 34)
+    if (!RM) r.querySelector('.marca .voz').animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-14px) rotate(-4deg)' }, { transform: 'none' }], { duration: 620, easing: 'cubic-bezier(.34,1.56,.64,1)' })
+  }
+  if (op === 'b') {
+    const gl = r.querySelector('.globo')
+    gl.animate(RM ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'scale(.12)', borderRadius: '60px' }, { opacity: 1, transform: 'none', borderRadius: '18px' }], { duration: RM ? 160 : 600, easing: 'cubic-bezier(.34,1.25,.64,1)', transformOrigin: '0 34px' })
+    gl.style.transformOrigin = '0 34px'
+    sube([...r.querySelectorAll('.globo .ch-cab, .globo .bienvenida > *, .globo .comp')], 300, 45)
+    if (!RM) r.querySelector('.resto')?.animate([{ transform: 'translateY(-60px)' }, { transform: 'none' }], { duration: 600, easing: EASE })
+  }
+  if (op === 'c') {
+    const hoja = r.querySelector('.hoja')
+    hoja.animate(RM ? [{ opacity: 0 }, { opacity: 1 }] : [{ clipPath: 'inset(0 100% 0 0 round 26px)', transform: 'translateX(-30px)' }, { clipPath: 'inset(0 0 0 0 round 26px)', transform: 'none' }], { duration: RM ? 160 : 640, easing: EASE })
+    sube([...r.querySelectorAll('.escenario .esc-nom, .escenario .esc-est, .hoja .ch-cab, .hoja .bienvenida > *, .hoja .comp')], 520, 45)
+    const desde = r.querySelector('.marca .voz'), hasta = r.querySelector('.escenario .voz')
+    if (RM) return
+    const a = posEn(desde, r), b = posEn(hasta, r)
+    const vuela = document.createElement('div')
+    vuela.style.cssText = `position:absolute;left:${a.x}px;top:${a.y}px;width:112px;height:112px;z-index:20;pointer-events:none;transform-origin:0 0`
+    vuela.innerHTML = avi(claudeDe(st.especie), 'saluda', 112)
+    r.appendChild(vuela)
+    const dx = b.x - a.x, dy = b.y - a.y, k = 96 / 112
+    hasta.style.opacity = 0
+    desde.animate([{ opacity: 1, filter: 'none' }, { opacity: .14, filter: 'grayscale(1)' }], { duration: 400, easing: EASE })
+    vuela.animate([
+      { transform: 'translate(0,0) scale(1) rotate(0)' },
+      { transform: `translate(${dx * .45}px,${dy * .45 - 120}px) scale(1.08) rotate(-10deg)`, offset: .5 },
+      { transform: `translate(${dx}px,${dy}px) scale(${k * 1.06}) rotate(3deg)`, offset: .86 },
+      { transform: `translate(${dx}px,${dy}px) scale(${k}) rotate(0)` },
+    ], { duration: 900, easing: 'cubic-bezier(.45,0,.2,1)' }).finished.then(() => { vuela.remove(); hasta.style.opacity = '' })
+  }
+}
+
+/* ---------- escala de los lienzos ---------- */
+function escalar() {
+  document.querySelectorAll('.lienzo').forEach(l => {
+    const esc = l.querySelector('.escala'), W = +esc.dataset.w, cs = getComputedStyle(l)
+    const disp = l.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+    const k = Math.max(.44, Math.min(1, disp / W))
+    esc.style.width = W + 'px'; esc.style.transform = `scale(${k})`
+    const caja = l.querySelector('.caja'); caja.style.width = W * k + 'px'; caja.style.height = 640 * k + 'px'
+  })
+}
+new ResizeObserver(escalar).observe(document.body)
+
+/* ---------- controles ---------- */
+const esp = document.getElementById('especies')
+function pintarEspecies() {
+  esp.innerHTML = NOMBRES_ESPECIES.map(e => `<button type="button" class="esp" role="radio" aria-checked="${e === st.especie}" data-especie="${e}">${avi(claudeDe(e), 'esperando', 34)}${datosEspecie(e).nombre}</button>`).join('')
+  document.documentElement.style.setProperty('--c', COLOR[st.especie])
+}
+esp.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-especie]'); if (!b) return
+  st.especie = b.dataset.especie; pintarEspecies(); ['a', 'b', 'c'].forEach(render)
+})
+
+document.querySelectorAll('.op').forEach(sec => {
+  const op = sec.dataset.op, o = st.ops[op]
+  sec.querySelector('[data-pildoras]').innerHTML = ESTADOS.map(([k, t]) => `<button type="button" class="pil" data-estado="${k}" aria-pressed="false">${t}</button>`).join('')
+    + '<button type="button" class="reproducir" data-accion="ver-abrir">▶ Ver cómo se abre</button>'
+  sec.addEventListener('click', ev => {
+    const t = ev.target.closest('[data-estado], [data-accion], [data-motor], [data-carpeta], [data-sug], [data-hist]')
+    if (!t) return
+    if (t.dataset.estado) { Object.assign(o, { estado: t.dataset.estado, menu: false, soltado: false }); return render(op) }
+    if (t.dataset.motor) { o.motor = t.dataset.motor; o.menu = false; return render(op) }
+    if (t.dataset.carpeta) { o.carpeta = t.dataset.carpeta; o.menu = false; return render(op) }
+    if (t.hasAttribute('data-sug')) { Object.assign(o, { estado: 'esperando', menu: false }); return render(op) }
+    // A: la charla elegida se abre en la columna; B y C: se cierra la lista y queda la charla elegida
+    if (t.hasAttribute('data-hist')) { o.estado = op === 'a' ? 'historial' : 'larga'; return render(op) }
+    const a = t.dataset.accion
+    if (a === 'carpeta') { if (o.motor === 'local') return; o.menu = !o.menu; return render(op) }
+    if (a === 'frenar') { o.estado = 'frenado'; return render(op) }
+    if (a === 'enviar') { o.estado = 'esperando'; return render(op) }
+    if (a === 'local') { Object.assign(o, { motor: 'local', estado: 'esperando' }); return render(op) }
+    if (a === 'hist') { o.estado = o.estado === 'historial' ? 'vacio' : 'historial'; return render(op) }
+    if (a === 'grande') { o.grande = !o.grande; return render(op) }
+    if (a === 'soltar') { o.soltado = true; return render(op) }
+    if (a === 'adjuntar') { Object.assign(o, { estado: 'archivo', soltado: false }); return render(op) }
+    if (a === 'abrir' || a === 'ver-abrir') return abrir(op)
+    if (a === 'otra') { o.carpeta = 'Documentos'; o.menu = false; return render(op) }
+  })
+  sec.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape' && (o.estado === 'esperando' || o.estado === 'escribiendo')) { o.estado = 'frenado'; render(op) }
+    if (ev.key === 'Escape' && o.menu) { o.menu = false; render(op) }
+  })
+})
+
+pintarEspecies()
+for (const op of ['a', 'b', 'c']) render(op)
+escalar()
+</script>
+</body>
+</html>
