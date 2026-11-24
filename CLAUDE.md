@@ -87,10 +87,8 @@ Mod de Claude Code "oficina": panel de presencia del equipo Quintech Studio. Lee
 
 - Campos instala el mod y se prueba con los dos conectados.
 - Probar desde un repositorio con rama `feat/N-slug` para ver tarea y talle reales.
-- Auto-actualización diaria del mod (correr los dos comandos de update al arrancar, una vez por día, y avisar con toast): propuesta, sin decidir.
 - Campo "Estimado" en el tablero si se quiere un "cuánto falta" de verdad.
 - Sin verificar: qué hace el diálogo de Claude cuando el widget responde primero (no se intenta cerrarlo).
-- El playbook del equipo todavía nombra la organización como `QuintechLabs`; la real es `quintechlab`.
 
 ## Reglas
 
