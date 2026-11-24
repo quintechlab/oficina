@@ -728,3 +728,121 @@ export const contarPalabras = texto => String(texto ?? '').split(/\s+/).filter(B
 
 /** Lo que dura "contando" por un tramo de `n` palabras, topado en 1,8 s (5.3). */
 export const duracionContando = n => Math.min(420 + n * 18, 1800)
+
+// ------------------------------------------------------------------ movimiento (6)
+// Las pistas y la geometría de los actos de la hoja, puras: chatMotion.js las corre con anime.js.
+// `en` y `dura` en ms desde el comienzo del acto.
+
+/** Abrir la hoja (6.1, unos 1100 ms): la marca se agacha, la hoja se despliega, la mascota vuela y aterriza. */
+export const PISTAS_ABRIR = Object.freeze({
+  agacha: { en: 0, dura: 120 },
+  fantasma: { en: 0, dura: 400 },
+  hoja: { en: 80, dura: 640 },
+  vuelo: { en: 120, dura: 900 },
+  // Las alas, colas y tentáculos (`g.inclina`) llegan 80 ms tarde
+  inclina: { en: 200, dura: 900 },
+  contenido: { en: 600, dura: 520, escalon: 45, sube: 10 },
+  // El destello del piso, cuando la mascota toca el escenario
+  aterriza: { en: 1020, dura: 300 },
+  // Se quita el clon y aparece el Avi real del escenario; el foco va al campo
+  llega: { en: 1020, dura: 0 },
+})
+
+/** Cerrar la hoja (6.1, unos 700 ms): el contenido se funde, la mascota vuelve y la hoja se pliega. */
+export const PISTAS_CERRAR = Object.freeze({
+  contenido: { en: 0, dura: 160 },
+  vuelo: { en: 0, dura: 700 },
+  hoja: { en: 160, dura: 420 },
+  llega: { en: 700, dura: 0 },
+})
+
+/** Con movimiento reducido, la hoja y la mascota solo se funden (6.3). */
+export const FUNDIDO_MS = 160
+/** Si al soltar el tablero la hoja cambia de lado, se funde hacia el nuevo (D2). */
+export const CAMBIA_LADO_MS = 180
+/** La hoja empieza a plegarse con el panel 60 ms antes que el tablero (3.1). */
+export const ADELANTO_PLIEGUE_MS = 60
+/** La mascota de la marca (112) en la del escenario (96). */
+export const ESCALA_VUELO = 96 / 112
+
+/** Las curvas de 6 como `cubic-bezier`: entrar, cerrar, el vuelo y el rebote del clic. */
+export const CURVAS = Object.freeze({ ease: [0.16, 1, 0.3, 1], cierra: [0.5, 0, 0.75, 0], vuelo: [0.45, 0, 0.2, 1], rebote: [0.34, 1.56, 0.64, 1] })
+
+/**
+ * El recorte de la hoja cerrada y abierta (6.1): se despliega desde el lado del tablero. A la derecha
+ * (y encima, que tapa la columna desde la barra) crece hacia la derecha y entra desde -30 px; a la
+ * izquierda, al revés. Los dos recortes tienen los mismos números, para interpolarlos.
+ */
+export function recorteHoja(lado) {
+  return lado === 'izquierda'
+    ? { cerrada: 'inset(0px 0px 0px 100% round 26px)', abierta: 'inset(0px 0px 0px 0% round 26px)', dx: 30 }
+    : { cerrada: 'inset(0px 100% 0px 0px round 26px)', abierta: 'inset(0px 0% 0px 0px round 26px)', dx: -30 }
+}
+
+const r2 = n => +n.toFixed(2)
+const r4 = n => +n.toFixed(4)
+
+/**
+ * El vuelo de la marca al escenario (6.1): `dx`, `dy` (px CSS) del lugar de la marca al del Avi del
+ * escenario, con origen arriba a la izquierda. `cuerpo` mueve y escala el clon (`t` en %); `giro`, la
+ * inclinación, que va en `g.inclina`: hacia la derecha -10 en el aire y +3 al llegar; hacia la
+ * izquierda, al revés.
+ */
+export function pistaVuelo(dx, dy, k = ESCALA_VUELO) {
+  const signo = dx < 0 ? -1 : 1
+  return {
+    cuerpo: [
+      { t: 0, x: 0, y: 0, s: 1 },
+      { t: 50, x: r2(dx * 0.45), y: r2(dy * 0.45 - 120), s: 1.08 },
+      { t: 86, x: r2(dx), y: r2(dy), s: r4(k * 1.06) },
+      { t: 100, x: r2(dx), y: r2(dy), s: r4(k) },
+    ],
+    giro: [{ t: 0, r: 0 }, { t: 50, r: -10 * signo }, { t: 86, r: 3 * signo }, { t: 100, r: 0 }].map(g => ({ ...g, r: g.r || 0 })),
+  }
+}
+
+/** La vuelta (al cerrar): el mismo arco al revés, del escenario a la marca, con el giro del otro lado. */
+export function pistaVuelta(dx, dy, k = ESCALA_VUELO) {
+  const ida = pistaVuelo(dx, dy, k)
+  return {
+    cuerpo: ida.cuerpo.slice().reverse().map(c => ({ ...c, t: 100 - c.t })),
+    giro: ida.giro.slice().reverse().map(g => ({ t: 100 - g.t, r: -g.r || 0 })),
+  }
+}
+
+/**
+ * Cuánto se mueve la hoja (6.3): `completo`; con movimiento reducido, `fundido` (sin vuelo, sin
+ * recorte: fundidos de 160 ms); con "Pausar animaciones", `nada` (como el resto de Avis: al instante).
+ */
+export function modoMovimiento({ reducido, pausa }) {
+  if (pausa) return 'nada'
+  return reducido ? 'fundido' : 'completo'
+}
+
+/** Las piezas que entran de a una (`.w`, 6.2): cada palabra con sus espacios alrededor. */
+export function piezasPalabras(texto) {
+  return String(texto ?? '').match(/\s*\S+\s*|\s+/g) ?? []
+}
+
+const normalizar = t => String(t ?? '').replace(/\r\n?/g, '\n')
+
+/**
+ * Qué cambia en la respuesta que llega (6.2), de lo ya dibujado (`previo`) al texto de ahora:
+ * `continua` si solo creció el bloque abierto (se agrega `nuevo` al final, sin tocar lo puesto); si
+ * no, los bloques que se cerraron se dibujan quietos y el abierto se arma con `visto` (lo que ya
+ * estaba a la vista, sin animar) y `nuevo`. `reinicia`: el texto no sigue al de antes y se dibuja
+ * entero, sin animar.
+ */
+export function tramoVivo(previo, texto) {
+  const p = normalizar(previo), t = normalizar(texto)
+  const b = partirBloques(t)
+  if (!t.startsWith(p)) return { reinicia: true, continua: false, cerrados: b.cerrados, abierto: b.abierto, visto: b.abierto, nuevo: '' }
+  const a = partirBloques(p)
+  const inicio = t.length - b.abierto.length
+  const visto = b.abierto.slice(0, Math.max(0, p.length - inicio))
+  return {
+    reinicia: false,
+    continua: b.cerrados.length === a.cerrados.length && b.abierto.startsWith(a.abierto),
+    cerrados: b.cerrados, abierto: b.abierto, visto, nuevo: b.abierto.slice(visto.length),
+  }
+}

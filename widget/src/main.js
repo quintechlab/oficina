@@ -41,10 +41,11 @@ import {
 import { esqueleto, rotulo, pestanas, indicePestana, escena as escenaPasos, pie as piePasos, avisoAsistente, avisoMod } from './primerosPasosVista.js'
 import * as movimientoPasos from './primerosPasosMotion.js'
 import {
-  chatInicial, transicionChat, ocupado, datosAvis, relojEspera, partirBloques, markdownSeguro, sugerencias, nombreCarpeta,
-  carpetasDeProyectos, ladoHoja, rectHoja, SALUDA_MS, FELIZ_MS,
+  chatInicial, transicionChat, ocupado, datosAvis, relojEspera, tramoVivo, markdownSeguro, sugerencias, nombreCarpeta,
+  carpetasDeProyectos, ladoHoja, rectHoja, SALUDA_MS, FELIZ_MS, ADELANTO_PLIEGUE_MS,
 } from './chat.js'
-import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, cajon, listaHistorial, capaSoltar } from './chatVista.js'
+import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, cajon, listaHistorial, capaSoltar, htmlPalabras } from './chatVista.js'
+import * as movimientoChat from './chatMotion.js'
 import {
   conversaciones, conversacionesNuevas, mensajesNuevos, convsVisibles, debeAbrirseSola, ladoIzquierdo, primeroDe, pausaVuelta, nombreLado, textoSub,
   geometriaDividida, cuentaVuelta, rastroConversa, anuncioEmpieza, anuncioTermina, esperaRespuesta, RECIEN_SOLA_MS, CONTESTO_MS, ESPERA_VUELTA_MS,
@@ -585,7 +586,7 @@ const muescaAvi = montarMarca($('#muesca-avi'), { escala: Number(window.__escala
 function verAvis() {
   // En la pantalla dividida el riel lleva a Claude de 34 sin juegos: el motor de la marca no corre (5.1).
   // Con la hoja de la charla abierta, la mascota se mudó a su escenario: la marca queda quieta (chat-avis-ux.md 3.2)
-  marca.visible(!st.fuera && !st.mini && (!st.acople || st.vista) && !st.dividida.clave && !st.chat.abierta, !!st.acople)
+  marca.visible(!st.fuera && !st.mini && (!st.acople || st.vista) && !st.dividida.clave && !st.chat.abierta && !hojaCerrando, !!st.acople)
   // Lo de la dividida que corre con WAAPI (un cruce, un latido) termina si el panel deja de verse, y
   // la cuenta de la vuelta se pausa (10.2)
   if (st.dividida.clave) {
@@ -1567,16 +1568,20 @@ async function ponerMini(mini) {
   try {
     if (mini) {
       const desde = st.disp?.local.tablero
+      const conHoja = hojaSeVe()
       st.mini = true
       st.tira = null
       verAvis()
       invocar('modo_mini', { mini: true }).catch(() => {})
       const d = disposicionActual(st.ventana)
+      // La hoja de la charla se pliega a la tira con el tablero, 60 ms antes (chat-avis-ux.md 3.1)
+      const soltarHoja = desde ? await plegarHojaCon(conHoja, d.local.tira, 28, { x: 1, y: 1 }, { viaje: true }) : async () => {}
       const soltar = desde ? await movimientoMuesca.plegar(marco, $('#contenido'), plegadoHacia(desde, d.local.tira, 28, { x: 1, y: 1 }), { viaje: true }) : () => {}
       colocar(d)
       document.body.classList.add('mini')
       tira.hidden = false
       soltar()
+      await soltarHoja()
       movimientoMuesca.aparecerContenido(tira)
     } else {
       const desde = st.disp?.local.tira
@@ -1586,6 +1591,8 @@ async function ponerMini(mini) {
       colocar(d)
       // Arranca en esta tarea: el tablero ya tiene la forma de la tira cuando la tira se esconde
       const anim = desde ? movimientoMuesca.desplegar(marco, $('#contenido'), plegadoHacia(d.local.tablero, desde, 28, { x: 1, y: 1 })) : Promise.resolve()
+      // La hoja de la charla vuelve con el tablero, como estaba (chat-avis-ux.md 3.1)
+      const animHoja = desplegarHojaDesde(desde, 28, { x: 1, y: 1 })
       tira.hidden = true
       invocar('modo_mini', { mini: false }).catch(() => {})
       // Lo de adentro se funde con el despliegue (como la isla): sin entrada escalonada encima
@@ -1593,6 +1600,8 @@ async function ponerMini(mini) {
       verAvis()
       pintar()
       await anim
+      await animHoja
+      document.body.classList.remove('hoja-mueve')
     }
   } catch (e) {
     registrar(`tira: ${e}`)
@@ -1932,9 +1941,14 @@ function colocarHoja(d, poner) {
   const z = zoom()
   if (!st.arrastre?.activo || !st.chat.lado) st.chat = { ...st.chat, lado: ladoHoja(tablero, d.ventana, d.modo, st.acople?.borde, z) }
   const r = rectHoja(tablero, st.chat.lado, z, anchoBarra() * z)
-  poner('h', relativo(r, d.ventana, z))
+  // `d.local.hoja` (px CSS de la ventana): desde dónde se pliega con el panel (3.1)
+  d.local.hoja = relativo(r, d.ventana, z)
+  poner('h', d.local.hoja)
   hojaEl.dataset.lado = st.chat.lado
   if (st.chat.lado !== 'encima') d.hoja = r
+  // Si al soltar cambió de lado, la hoja se funde en el nuevo (D2); nunca en medio de un acto
+  if (ladoVisto && ladoVisto !== st.chat.lado && st.hojaVista) movimientoChat.cambiarLado(hojaEl)
+  ladoVisto = st.chat.lado
 }
 
 /** Ancho de la barra lateral (o del riel de la dividida) en px CSS, medido: lo que la hoja "encima" deja a la vista. */
@@ -2104,21 +2118,28 @@ async function animarApertura() {
   // El movimiento de la apertura es el recorte que crece: el contenido ya está quieto adentro.
   // Una entrada escalonada acá seguía acomodando tarjetas con el panel ya abierto (parpadeos).
   st.revelado = true
+  // La hoja de la charla crece desde la muesca con el panel (chat-avis-ux.md 3.1)
+  const animHoja = desplegarHojaDesde(d.local.muesca, 22, anclaHacia(st.acople.borde))
   await movimientoMuesca.abrir(marco, rc, $('#contenido'))
   marco.style.clipPath = ''
   document.body.classList.add('desplegada')
+  await animHoja
+  document.body.classList.remove('hoja-mueve')
   setTimeout(() => document.body.classList.remove('abriendo'), 1600)
 }
 
 /** Cerrar (6.4 y 9.6): el recorte vuelve a la muesca; la ventana no cambia. */
 async function animarCierre() {
   const { d, rc } = await medidasAcople()
+  // La hoja de la charla se pliega a la muesca 60 ms antes que el panel (chat-avis-ux.md 3.1)
+  const soltarHoja = await plegarHojaCon(hojaSeVe(), d.local.muesca, 22, anclaHacia(st.acople.borde))
   document.body.classList.remove('desplegada', 'abriendo')
   const soltar = await movimientoMuesca.cerrar($('#marco'), $('#contenido'), rc)
   document.body.classList.remove('abierta')
   st.vista = false
   verAvis()
   soltar()
+  await soltarHoja()
   colocar(d)
   // Recién visto: el próximo golpe, dentro de 90 s si la pregunta sigue
   if (st.golpe.vistas.size) st.golpe.ultimo = Date.now()
@@ -2190,7 +2211,10 @@ async function acoplarABorde(borde, lugar, area) {
   const destino = disposicionAcoplada(acople, tam, { ancho: 0, alto: 0 }, area, z).local.muesca
   await transicion(async () => {
     let soltar = () => {}
+    let soltarHoja = async () => {}
     if (desde === 'tablero') {
+      // La hoja de la charla se pliega a la muesca con el tablero, 60 ms antes (chat-avis-ux.md 3.1)
+      soltarHoja = await plegarHojaCon(hojaSeVe(), destino, 22, anclaHacia(borde))
       soltar = await movimientoMuesca.plegar($('#marco'), $('#contenido'), plegadoHacia(st.disp.local.tablero, destino, 22, anclaHacia(borde)))
     } else if (desde === 'tira') {
       soltar = await movimientoMuesca.viajar($('#tira'), st.disp.local.tira, destino, { easing: movimientoMuesca.EASE_CIERRA, apagarContenido: true })
@@ -2209,6 +2233,7 @@ async function acoplarABorde(borde, lugar, area) {
     aplicarModo()
     colocar(disposicion(area))
     soltar()
+    await soltarHoja()
     pintar()
     const guardado = invocar('guardar_acople', { borde, lugar: acople.lugar })
     if (desde === 'muesca') await movimientoMuesca.viajar($('#muesca'), fueraDelBorde(st.disp.local.muesca, borde), st.disp.local.muesca, { llega: true, apagar: true })
@@ -2243,12 +2268,16 @@ async function flotar(puntero, area) {
     pintar()
     const plegado = plegadoHacia(d.local.tablero, origen, conPildora ? PILDORA.alto / 2 : 22, conPildora ? ANCLA_PILDORA : anclaHacia(bordeViejo))
     const anim = movimientoMuesca.desplegar($('#marco'), $('#contenido'), plegado)
+    // La hoja de la charla sale con el tablero, desde el mismo lugar (chat-avis-ux.md 3.1)
+    const animHoja = desplegarHojaDesde(origen, conPildora ? PILDORA.alto / 2 : 22, conPildora ? ANCLA_PILDORA : anclaHacia(bordeViejo))
     // En esta misma tarea: el tablero ya tiene la forma de la píldora cuando ella se va
     document.body.classList.remove('pildora')
     st.pildora = null
     // Flotando: sin la zona de la muesca, y la del tablero apenas Rust olvidó la vieja
     const guardado = invocar('guardar_acople', { borde: null, lugar: null }).then(() => enviarZona(true))
     await anim
+    await animHoja
+    document.body.classList.remove('hoja-mueve')
     await guardado
     guardarFlotante()
   })
@@ -2838,6 +2867,16 @@ let abriendo = Promise.resolve()
 let cuadroHoja = 0
 /** Lo buscado en el cajón del historial (se pierde al cerrarlo). */
 let buscarChat = ''
+/**
+ * La respuesta en curso ya dibujada (6.2): de qué turno y qué texto. Lo que llega después entra con
+ * `.w`; lo ya puesto no se toca. `quieto`: lo próximo se agrega sin animar (la hoja vuelve a verse).
+ */
+const vivo = { turno: null, texto: '', quieto: false }
+/** El acto de abrir (su promesa: el foco va al campo cuando la mascota aterriza) y si se está cerrando. */
+let actoHoja = null
+let hojaCerrando = false
+/** El lado con el que se vio la hoja por última vez: si cambia al soltar el tablero, se funde (D2). */
+let ladoVisto = null
 
 /** El nombre de la mascota ("Avi", "Ascua"…): la cara y la voz de la charla. */
 const nombreMascota = () => datosEspecie(st.mascota).nombre
@@ -2875,7 +2914,12 @@ function despacharChat(ev) {
   const ahora = Date.now()
   const { chat, efectos } = transicionChat(antes, ev, { ahoraMs: ahora, id: idConversacion(), mascota: nombreMascota(), datos: datosAvis(st.proyectos, ahora) })
   if (chat === antes && !efectos.length) return
+  const seVeia = hojaSeVe()
   st.chat = chat
+  const abre = chat.abierta && !antes.abierta, cierra = !chat.abierta && antes.abierta
+  // Al cerrar, la hoja y el fantasma siguen a la vista mientras la mascota vuelve (6.1)
+  if (abre) hojaCerrando = false
+  if (cierra) { hojaCerrando = seVeia; ladoVisto = null }
   // La mascota saluda 1,2 s en una charla vacía que aparece y festeja 1,6 s al terminar (3.3)
   if (chat.abierta && chat.estado === 'vacio' && (!antes.abierta || chat.conversacion?.id !== antes.conversacion?.id)) poseDeUnRato('chatSaludo', SALUDA_MS)
   if (chat.estado === 'listo' && antes.estado !== 'listo') poseDeUnRato(null, FELIZ_MS)
@@ -2889,7 +2933,80 @@ function despacharChat(ev) {
     enviarZona()
   }
   pintarHoja()
-  for (const e of efectos) if (e.tipo === 'foco') enfocarEnHoja(e.a)
+  if (abre && hojaSeVe()) abrirConMudanza()
+  if (cierra && hojaCerrando) cerrarConMudanza()
+  if (chat.estado === 'listo' && antes.estado !== 'listo' && hojaSeVe()) movimientoChat.aparecerPie([...$$('#chat-hilo .pie-m')].at(-1))
+  for (const e of efectos) {
+    if (e.tipo !== 'foco') continue
+    // Al abrir, el foco va al campo cuando la mascota aterrizó (3.5)
+    if (actoHoja && e.a === 'campo') actoHoja.then(() => enfocarEnHoja('campo'))
+    else enfocarEnHoja(e.a)
+  }
+}
+
+/** Lo que mueven los actos de la hoja (chatMotion.js). */
+function refsHoja(piezas) {
+  return { hoja: hojaEl, marcaAvi: $('#marca-avi'), chatAvi: $('#chat-avi'), destello: $('#hoja .destello'), piezas, lado: st.chat.lado, especie: st.mascota }
+}
+
+/**
+ * La mudanza al abrir (6.1): la hoja ya está dibujada; la mascota vuela de la marca al escenario y lo
+ * de la hoja sube escalonado (el nombre, el estado, la cabecera, la bienvenida o el hilo, el composer).
+ */
+function abrirConMudanza() {
+  const bienvenida = $('#chat-hilo .bienvenida')
+  const piezas = [$('#chat-nom'), $('#chat-est'), $('#chat-cab'), ...(bienvenida ? bienvenida.children : [$('#chat-hilo')]), $('#hoja .comp')].filter(Boolean)
+  const acto = movimientoChat.abrirHoja(refsHoja(piezas))
+  actoHoja = acto
+  acto.then(() => { if (actoHoja === acto) actoHoja = null })
+}
+
+/**
+ * La mudanza al cerrar (6.1): la mascota vuelve a la marca y la hoja se pliega. Al terminar, la hoja se
+ * esconde y la marca vuelve al 100 % en el mismo cuadro en que se va el clon (sin la transición de 400 ms).
+ */
+function cerrarConMudanza() {
+  const piezas = [$('#chat-nom'), $('#chat-est'), $('#hoja .escenario .arriba'), $('#hoja .charla')].filter(Boolean)
+  movimientoChat.cerrarHoja(refsHoja(piezas)).then(() => {
+    // Se volvió a abrir en el medio: el acto nuevo ya cortó a este
+    if (st.chat.abierta || !hojaCerrando) return
+    hojaCerrando = false
+    const aviMarca = $('#marca-avi')
+    aviMarca.style.transition = 'none'
+    pintarHoja()
+    verAvis()
+    void aviMarca.offsetWidth
+    aviMarca.style.removeProperty('transition')
+  })
+}
+
+/**
+ * La hoja se pliega con el panel (3.1) hacia `destino` (px CSS de la ventana: la muesca o la tira),
+ * con la misma forma que el tablero y 60 ms antes que él. `conHoja`: se veía antes del cambio (quien
+ * llama lo mira antes de tocar el estado). Vuelve después de los 60 ms con qué soltarla: se llama
+ * cuando la clase que la esconde ya está puesta (body.mini o la muesca cerrada).
+ */
+async function plegarHojaCon(conHoja, destino, radio, ancla, opciones) {
+  const desde = st.disp?.local?.hoja
+  if (!conHoja || !desde || !hayMovimiento()) return async () => {}
+  document.body.classList.add('hoja-mueve')
+  const listo = movimientoChat.plegarHoja(hojaEl, plegadoHacia(desde, destino, radio, ancla), opciones)
+  await new Promise(r => setTimeout(r, ADELANTO_PLIEGUE_MS))
+  return async () => {
+    const soltar = await listo
+    document.body.classList.remove('hoja-mueve')
+    soltar()
+  }
+}
+
+/**
+ * Al revés: la hoja nace con la forma de donde viene el panel (`origen`) y crece hasta su lugar, junto
+ * con el tablero. Devuelve la promesa; quien llama saca `hoja-mueve` cuando la hoja ya se ve sola.
+ */
+function desplegarHojaDesde(origen, radio, ancla) {
+  if (!hojaSeVe() || !st.disp?.local?.hoja || !origen || !hayMovimiento()) return Promise.resolve()
+  document.body.classList.add('hoja-mueve')
+  return movimientoChat.desplegarHoja(hojaEl, plegadoHacia(st.disp.local.hoja, origen, radio, ancla))
 }
 
 /** Redibuja cuando termina la pose de un rato (`clave`: dónde se anota su comienzo, si hace falta). */
@@ -3017,19 +3134,26 @@ function pintarHilo(m) {
   const el = $('#chat-hilo')
   const c = m.chat
   const seguir = alFondo(el)
+  // Las palabras nuevas entran con `.w` (6.2), salvo sin movimiento o con la hoja que vuelve a verse
+  // después de plegada: lo que llegó mientras tanto se agrega quieto (6.3)
+  const animar = hayMovimiento() && !vivo.quieto
+  vivo.quieto = false
   let html, firma
   if (c.estado === 'escribiendo') {
     // La firma sin el texto que llega (un espacio en su lugar): cambia solo si cambia lo demás, y
-    // solo entonces se arma el hilo entero
+    // solo entonces se arma el hilo entero, con lo ya visto quieto
     const conv = c.conversacion
     const mensajes = conv.mensajes.map((x, k) => (k === conv.mensajes.length - 1 ? { ...x, texto: ' ' } : x))
-    firma = hiloVista({ ...m, chat: { ...c, conversacion: { ...conv, mensajes } } })
-    html = st.firmas['#chat-hilo'] === firma ? '' : hiloVista(m)
+    firma = hiloVista({ ...m, mostrado: null, chat: { ...c, conversacion: { ...conv, mensajes } } })
+    html = st.firmas['#chat-hilo'] === firma ? '' : hiloVista({ ...m, mostrado: vivo.turno === c.turno ? vivo.texto : '', animar })
   } else {
     html = hiloVista(m)
     firma = html.replace(/data-reloj>[^<]*</, 'data-reloj><')
   }
+  const llega = c.estado === 'escribiendo' ? c.conversacion.mensajes.at(-1).texto : ''
   if (poner('#chat-hilo', html, firma)) {
+    vivo.turno = c.turno
+    vivo.texto = llega
     if (seguir) el.scrollTop = el.scrollHeight
     return
   }
@@ -3037,13 +3161,24 @@ function pintarHilo(m) {
     const txt = el.querySelector('.m-m.vivo .txt')
     const abiertoEl = txt?.querySelector('.abierto')
     if (!abiertoEl) return
-    const { cerrados, abierto } = partirBloques(c.conversacion.mensajes.at(-1).texto)
-    const n = Number(txt.dataset.bloques) || 0
-    if (cerrados.length > n) {
-      abiertoEl.insertAdjacentHTML('beforebegin', cerrados.slice(n).map(markdownSeguro).join(''))
-      txt.dataset.bloques = String(cerrados.length)
+    const t = tramoVivo(vivo.turno === c.turno ? vivo.texto : '', llega)
+    if (t.reinicia) {
+      // El texto no sigue al de antes: entero de nuevo, quieto
+      st.firmas['#chat-hilo'] = null
+      vivo.texto = llega
+      poner('#chat-hilo', hiloVista(m), firma)
+    } else if (t.continua) {
+      // Lo común: solo crece el bloque abierto; las palabras nuevas se agregan al final, sin tocar las puestas
+      if (t.nuevo) abiertoEl.insertAdjacentHTML('beforeend', htmlPalabras(t.nuevo, animar))
+    } else {
+      // Se cerraron bloques: se dibujan en su lugar, quietos, y el abierto empieza de nuevo con lo que falta
+      const n = Number(txt.dataset.bloques) || 0
+      abiertoEl.insertAdjacentHTML('beforebegin', t.cerrados.slice(n).map(markdownSeguro).join(''))
+      txt.dataset.bloques = String(t.cerrados.length)
+      abiertoEl.innerHTML = escapar(t.visto) + htmlPalabras(t.nuevo, animar)
     }
-    if (abiertoEl.textContent !== abierto) abiertoEl.textContent = abierto
+    vivo.turno = c.turno
+    vivo.texto = llega
   } else {
     const reloj = /data-reloj>([^<]*)</.exec(html)?.[1]
     const relojEl = el.querySelector('[data-reloj]')
@@ -3067,12 +3202,17 @@ function pintarHoja() {
   }
   marcaBoton.setAttribute('aria-expanded', String(c.abierta))
   const marcaEl = $('.marca')
-  marcaEl.classList.toggle('mudada', c.abierta)
+  // Mientras la mascota vuelve (cerrando, 6.1), la hoja y el fantasma quedan como estaban
+  marcaEl.classList.toggle('mudada', c.abierta || hojaCerrando)
   // El punto del fantasma ("en la charla →") es del color de la mascota
   marcaEl.style.setProperty('--c-mascota', datosEspecie(st.mascota).c)
-  hojaEl.hidden = !c.abierta
+  hojaEl.hidden = !c.abierta && !hojaCerrando
   document.body.classList.toggle('con-charla', c.abierta)
-  if (!c.abierta || !hojaSeVe()) return
+  if (!c.abierta || !hojaSeVe()) {
+    // Cerrada, plegada o escondida: lo que llegue mientras tanto se agrega quieto cuando vuelva a verse (6.3)
+    vivo.quieto = true
+    return
+  }
   const m = modeloVista()
   hojaEl.dataset.estado = c.estado
   hojaEl.dataset.motor = c.conversacion?.motor ?? c.motor

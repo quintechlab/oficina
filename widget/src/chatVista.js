@@ -2,7 +2,9 @@
 // `st.chat`. Puro: main.js lo pone en el DOM y chat.test.js lo revisa. Todo lo que viene del modelo,
 // del usuario o de una ruta pasa por `escapar` o por `markdownSeguro` (regla 4).
 //
-// `m` (el modelo de la vista): `{ chat, especie, ahoraMs, reciente, hablando, puedeAdjuntar, proyectos }`.
+// `m` (el modelo de la vista): `{ chat, especie, ahoraMs, reciente, hablando, puedeAdjuntar, proyectos,
+// mostrado, animar }`. `mostrado`: el texto de la respuesta en curso que ya está a la vista (lo demás
+// entra con `.w`); `animar` falso: sin `.w` (movimiento reducido, pausa o la hoja que vuelve a verse).
 // `reciente`: el saludo o el festejo de la mascota; `puedeAdjuntar`: los adjuntos ya funcionan (la
 // entrega 5), si no, ni el clip ni "Resumime un PDF" aparecen; `proyectos`: `carpetasDeProyectos`.
 
@@ -10,7 +12,7 @@ import { escapar } from './logica.js'
 import { avi, claudeDe } from './avis.js'
 import { datosEspecie } from './especies.js'
 import {
-  animoChat, ocupado, markdownSeguro, partirBloques, textoHerramientas, sugerencias, nombreCarpeta, relojEspera,
+  animoChat, ocupado, markdownSeguro, tramoVivo, piezasPalabras, textoHerramientas, sugerencias, nombreCarpeta, relojEspera,
   mensajesVisibles, listaCharlas, coincideBusqueda, grupoDeFecha, horaCharla, cifrasDescarga, formatoGB,
 } from './chat.js'
 
@@ -175,10 +177,23 @@ function espera(m) {
     + `<div class="barra-ind" aria-hidden="true"></div>${pasos.map(paso).join('')}<small>${nota}</small></div>`
 }
 
-/** El texto de una respuesta en curso: los bloques cerrados dibujados y el abierto como texto (6.2). */
-export function textoVivo(texto) {
-  const { cerrados, abierto } = partirBloques(texto)
-  return `<div class="txt" data-bloques="${cerrados.length}">${cerrados.map(markdownSeguro).join('')}<p class="abierto">${escapar(abierto)}</p><span class="caret" aria-hidden="true"></span></div>`
+/**
+ * Las palabras nuevas del bloque abierto (6.2): cada una en un `.w`, que entra sola con su animación de
+ * CSS; sin movimiento (`animar` falso), el texto escapado, sin spans. Siempre escapado (regla 4).
+ */
+export function htmlPalabras(texto, animar = true) {
+  if (!animar) return escapar(texto ?? '')
+  return piezasPalabras(texto).map(p => `<span class="w">${escapar(p)}</span>`).join('')
+}
+
+/**
+ * El texto de una respuesta en curso: los bloques cerrados dibujados y el abierto como texto (6.2).
+ * `mostrado`: lo que ya estaba a la vista (por defecto, todo): solo lo que sigue entra con `.w`, así
+ * redibujar el hilo no vuelve a animar lo que ya se leyó. `animar` falso: sin `.w` (6.3).
+ */
+export function textoVivo(texto, mostrado = texto, animar = true) {
+  const { cerrados, visto, nuevo } = tramoVivo(mostrado, texto)
+  return `<div class="txt" data-bloques="${cerrados.length}">${cerrados.map(markdownSeguro).join('')}<p class="abierto">${escapar(visto)}${htmlPalabras(nuevo, animar)}</p><span class="caret" aria-hidden="true"></span></div>`
 }
 
 /** Tu mensaje. `fallido`: no salió (el error del último turno), con "No se envió" (4.2). */
@@ -199,7 +214,7 @@ function mascota(m, msg, k, ultimo) {
     return partes.join('')
   }
   if (enCurso) {
-    partes.push(`<div class="m-m vivo">${textoVivo(msg.texto)}</div>`)
+    partes.push(`<div class="m-m vivo">${textoVivo(msg.texto, m.mostrado ?? msg.texto, m.animar !== false)}</div>`)
     return partes.join('')
   }
   const cortado = msg.estado === 'frenada' ? '<span class="cortado">■ frenaste acá</span>' : ''

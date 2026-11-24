@@ -924,8 +924,8 @@ body.pausa .pp-btn:active { transform: none }
 /* ------------------------------------------------------------------ la charla con la mascota (docs/diseno/chat-avis-ux.md 5)
    El Avi de la marca es el botón de la charla (3.2) y la hoja es una tarjeta aparte, hermana de
    #marco, ubicada por main.js (--hx, --hy, --hw, --hh: `rectHoja`). Sin fuentes ni colores nuevos;
-   --c (la especie) solo en lo de la mascota y nunca lleva texto (5.2). El vuelo, las palabras y la
-   chispa son de chatMotion.js (entrega 3): acá, solo los bucles y estados. */
+   --c (la especie) solo en lo de la mascota y nunca lleva texto (5.2). Los actos (abrir, cerrar,
+   plegar con el panel) son de chatMotion.js; acá, los estados, los bucles y las entradas (6.2). */
 .marca .avi-btn {
   pointer-events: auto; position: relative; display: block; width: 112px; height: 112px; flex: none;
   padding: 0; border: 0; border-radius: 24px; background: none; line-height: 0; cursor: pointer;
@@ -950,8 +950,10 @@ body.pausa .pp-btn:active { transform: none }
   box-shadow: var(--sombra-ventana), 0 40px 90px -40px rgba(0, 0, 0, .9), inset 0 0 0 1px rgba(255, 255, 255, .05);
 }
 /* Plegada con el panel (la tira, la muesca cerrada o abriéndose, arrastrando la muesca): no se ve ni toma clics,
-   pero queda como estaba (borrador, adjuntos y scroll; 3.1) */
-body.mini #hoja, body.acoplada:not(.desplegada) #hoja, body.pildora #hoja { visibility: hidden; pointer-events: none }
+   pero queda como estaba (borrador, adjuntos y scroll; 3.1). Mientras se pliega o se despliega con el
+   panel (body.hoja-mueve, chatMotion.js), se ve: el recorte la lleva hasta la forma nueva */
+body.mini:not(.hoja-mueve) #hoja, body.acoplada:not(.desplegada):not(.hoja-mueve) #hoja, body.pildora #hoja { visibility: hidden; pointer-events: none }
+body.hoja-mueve #hoja { pointer-events: none }
 body:not(.colocada) #hoja { visibility: hidden }
 #hoja .ic {
   width: 32px; height: 32px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--r-campo);
@@ -969,6 +971,13 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .escenario::after { content: ""; position: absolute; left: 50%; top: 118px; width: 180px; height: 1px; transform: translateX(-50%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--c) 70%, transparent), transparent); pointer-events: none }
 #hoja .escenario .arriba { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; cursor: default }
 #chat-avi { position: absolute; left: 50%; top: 22px; width: 96px; height: 96px; transform: translateX(-50%); pointer-events: none }
+/* El destello del piso cuando la mascota aterriza (6.1): quieto, no se ve; chatMotion.js lo prende */
+#hoja .destello {
+  position: absolute; left: 50%; top: 104px; width: 200px; height: 28px; margin-left: -100px; opacity: 0; pointer-events: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 55%, transparent), transparent);
+}
+/* La mascota que vuela de la marca al escenario (y de vuelta): un clon de 112 en una capa fija */
+.vuela-chat { position: fixed; z-index: 30; width: 112px; height: 112px; line-height: 0; pointer-events: none; transform-origin: 0 0; will-change: transform }
 #hoja .esc-nom { position: relative; z-index: 1; font: 800 16px/1.1 var(--f) }
 #hoja .esc-est { display: flex; gap: 6px; align-items: center; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
 #hoja .esc-est i { width: 6px; height: 6px; border-radius: 50%; background: var(--c) }
@@ -1126,23 +1135,47 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .guardado { display: flex; gap: 6px; align-items: center; padding: 8px 8px 0; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
 #hoja .guardado i { width: 6px; height: 6px; border-radius: 50%; background: var(--verde) }
 
-/* Bucles (6.2): solo con movimiento, sin "Pausar animaciones" y con la hoja a la vista; quietos, el estado se lee en el texto */
+/* Bucles y entradas (6.2): solo con movimiento, sin "Pausar animaciones" y con la hoja a la vista;
+   quietos, el estado se lee en el texto. Los actos (abrir, cerrar, plegar) son de chatMotion.js */
 @media (prefers-reduced-motion: no-preference) {
   body:not(.pausa) #hoja .m-m .caret { animation: parpa 1s steps(2, start) infinite }
-  body:not(.pausa) #hoja .paso.ahora i { animation: late 1.2s ease-out infinite }
+  body:not(.pausa) #hoja .paso.ahora i { animation: late-paso 1.2s ease-out infinite }
   body:not(.pausa) #hoja .barra-ind::after { animation: corre 1.4s var(--ease) infinite }
   body:not(.pausa) #hoja .sug button:hover { border-color: var(--c); transform: translateX(3px) }
+  /* Cada palabra nueva entra sola; las que ya están no se tocan (main.js agrega nodos, nunca reescribe) */
+  body:not(.pausa) #hoja .w { animation: palabra var(--d-palabra-chat) var(--ease) both }
+  /* La chispa baja por el hilo de la respuesta en curso, cada 1,3 s (0,77 Hz) */
+  body:not(.pausa) #hoja .m-m.vivo::after {
+    content: ""; position: absolute; left: -3px; top: 0; width: 8px; height: 8px; border-radius: 50%; pointer-events: none;
+    background: var(--c); box-shadow: 0 0 12px 2px var(--c); animation: baja-luz var(--d-chispa) linear infinite;
+  }
+  /* Soltar: la capa cae y el documento flota, ida y vuelta */
+  body:not(.pausa) #hoja .soltar { animation: cae 300ms var(--ease) both }
+  body:not(.pausa) #hoja .soltar .hoja-doc { animation: flota-doc 1.4s ease-in-out infinite alternate }
+  /* El cajón entra desde la izquierda con su velo; el menú de carpeta cae 6 px */
+  body:not(.pausa) #hoja .cajon { animation: entra-cajon 420ms var(--ease) both }
+  body:not(.pausa) #hoja .velo { animation: aparece-velo 300ms ease both }
+  body:not(.pausa) #hoja #chat-menu .menu { animation: cae 260ms var(--ease) both }
 }
-body.mini #hoja *, body.acoplada:not(.desplegada) #hoja * { animation-play-state: paused !important }
+body.mini #hoja *, body.mini #hoja *::before, body.mini #hoja *::after,
+body.acoplada:not(.desplegada) #hoja *, body.acoplada:not(.desplegada) #hoja *::before, body.acoplada:not(.desplegada) #hoja *::after { animation-play-state: paused !important }
 @media (prefers-reduced-motion: reduce) {
-  #marca-avi, #hoja .ic, #hoja .ch-cab .carpeta, #hoja .ch-cab .motor button, #hoja .enviar, #hoja .campo, #hoja .descarga .barra i { transition: none }
+  #hoja .ic, #hoja .ch-cab .carpeta, #hoja .ch-cab .motor button, #hoja .enviar, #hoja .campo, #hoja .descarga .barra i { transition: none }
+  /* Sin vuelo: el fantasma se funde en 160 ms (6.3) */
+  #marca-avi { transition: opacity 160ms ease, filter 160ms ease }
   .avi-btn:active #marca-avi, #hoja .enviar:active { transform: none }
 }
 body.pausa #marca-avi, body.pausa #hoja .ic, body.pausa .enviar, body.pausa .descarga .barra i { transition: none }
 body.pausa .avi-btn:active #marca-avi, body.pausa .enviar:active { transform: none }
 @keyframes parpa { to { visibility: hidden } }
-@keyframes late { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 60%, transparent) } to { box-shadow: 0 0 0 7px transparent } }
+@keyframes late-paso { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 60%, transparent) } to { box-shadow: 0 0 0 7px transparent } }
 @keyframes corre { from { transform: translateX(-100%) } to { transform: translateX(300%) } }
+@keyframes palabra { from { opacity: 0; filter: blur(3px) } }
+@keyframes baja-luz { from { top: 0; opacity: 0 } 15% { opacity: 1 } 85% { opacity: 1 } to { top: calc(100% - 8px); opacity: 0 } }
+@keyframes cae { from { opacity: 0; transform: translateY(-6px) scale(.98) } }
+@keyframes flota-doc { from { transform: rotate(-8deg) } to { transform: rotate(-3deg) translateY(-8px) } }
+@keyframes entra-cajon { from { transform: translateX(-100%) } }
+@keyframes aparece-velo { from { opacity: 0 } }
 
 /* ------------------------------------------------------------------ pantalla dividida (docs/diseno/dividida-ux.md)
    Cuando dos sesiones conversan, la barra se pliega a un riel de 56 y la columna (592) se parte en
