@@ -43,7 +43,7 @@ import * as movimientoPasos from './primerosPasosMotion.js'
 import {
   chatInicial, transicionChat, ocupado, datosAvis, relojEspera, tramoVivo, markdownSeguro, sugerencias, nombreCarpeta,
   carpetasDeProyectos, ladoHoja, rectHoja, SALUDA_MS, FELIZ_MS, ADELANTO_PLIEGUE_MS, aArchivo, guardadosPendientes, GUARDAR_CADA_MS,
-  sobreHoja, nombreArchivo,
+  sobreHoja, nombreArchivo, puedeVencer,
 } from './chat.js'
 import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, cajon, listaHistorial, capaSoltar, htmlPalabras, clipAdjuntar } from './chatVista.js'
 import * as movimientoChat from './chatMotion.js'
@@ -3117,9 +3117,9 @@ function efectoChat(e) {
       break
     }
     case 'enviar': {
-      const { conversacion, turno, texto, adjuntos } = e
-      // Los adjuntos van como rutas: los bytes los lee Rust (10)
-      abriendo.then(() => invocar('chat_enviar', { conversacion, turno, texto, adjuntos, datos: datosAvis(st.proyectos, Date.now()) }))
+      const { conversacion, turno, texto, adjuntos, historia } = e
+      // Los adjuntos van como rutas: los bytes los lee Rust (10). La historia, solo con el motor local (8)
+      abriendo.then(() => invocar('chat_enviar', { conversacion, turno, texto, adjuntos, datos: datosAvis(st.proyectos, Date.now()), historia: historia ?? null }))
         .catch(err => {
           registrar(`chat enviar: ${err}`)
           const motivo = st.chat.conversacion?.motor === 'local' ? 'local' : 'otro'
@@ -3212,7 +3212,8 @@ function vigilarEspera() {
   temporizadorEspera = setInterval(() => {
     const c = st.chat
     if (!ocupado(c)) { clearInterval(temporizadorEspera); temporizadorEspera = null; return }
-    if (relojEspera(c.desdeMs, c.ultimoMs, Date.now()).vencido) { despacharChat({ tipo: 'vencio', turno: c.turno }); return }
+    // Con el motor local despertando (paso 0) no vence: el reloj sigue y Rust avisa si no arranca
+    if (relojEspera(c.desdeMs, c.ultimoMs, Date.now()).vencido && puedeVencer(c)) { despacharChat({ tipo: 'vencio', turno: c.turno }); return }
     programarHoja()
   }, 1000)
 }

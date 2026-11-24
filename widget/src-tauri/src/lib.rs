@@ -1,13 +1,12 @@
 mod adjuntos;
 mod arranque;
 mod chat;
+mod chat_local;
 mod diagnostico;
 mod engram;
 mod equipo;
 mod historial;
 mod preferencias;
-// Sin el resumen, el arranque del motor local queda sin usar hasta que la charla lo pida (entrega 6)
-#[allow(dead_code)]
 mod modelo;
 mod mod_auto;
 mod ordenes;
@@ -786,12 +785,15 @@ async fn chat_abrir(conversacion: String, motor: String, carpeta: Option<String>
 }
 
 /// Solo con Enter o Enviar: manda un turno. Lo que pasa llega como `oficina://chat`. `adjuntos`:
-/// las rutas de los archivos (10); los bytes los lee Rust, nunca la ventana.
+/// las rutas de los archivos (10); los bytes los lee Rust, nunca la ventana. `historia`: los mensajes
+/// anteriores de la charla (`[{ rol, texto }]`), que solo usa el motor local (8).
 #[tauri::command]
-async fn chat_enviar(conversacion: String, turno: u64, texto: String, adjuntos: Option<Vec<String>>, datos: Option<serde_json::Value>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || el_chat()?.enviar(&conversacion, turno, &texto, &adjuntos.unwrap_or_default(), &datos.unwrap_or_default()))
-        .await
-        .map_err(|e| e.to_string())?
+async fn chat_enviar(conversacion: String, turno: u64, texto: String, adjuntos: Option<Vec<String>>, datos: Option<serde_json::Value>, historia: Option<serde_json::Value>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        el_chat()?.enviar_con(&conversacion, turno, &texto, &adjuntos.unwrap_or_default(), &datos.unwrap_or_default(), &historia.unwrap_or_default())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Un archivo soltado sobre la hoja o elegido con el clip (10): `{ nombre, tipo, bytes, paginas }` o
@@ -1709,7 +1711,16 @@ pub fn run() {
                 let emisor: chat::Emisor = std::sync::Arc::new(move |v| {
                     let _ = para_chat.emit(chat::EVENTO, v);
                 });
-                let _ = chat::CHAT.set(chat::Chat::nuevo(carpeta_chat, std::sync::Arc::new(chat::comando_claude), emisor, chat::Tiempos::default()));
+                let el = chat::Chat::nuevo(carpeta_chat, std::sync::Arc::new(chat::comando_claude), emisor, chat::Tiempos::default());
+                // El motor local (8): el de `modelo.rs`, que avisa su arranque por `oficina://modelo`
+                let para_modelo = handle.clone();
+                el.poner_motor_local(std::sync::Arc::new(move || {
+                    let avisar = |v: serde_json::Value| {
+                        let _ = para_modelo.emit(modelo::EVENTO, v);
+                    };
+                    modelo::IA.motor_charla(&avisar).map(|(puerto, uso)| (puerto, Box::new(uso) as Box<dyn chat_local::UsoMotor>))
+                }));
+                let _ = chat::CHAT.set(el);
             }
             // La copia del historial en Engram (9.2): una sesión por arranque, que se abre con la primera copia
             let arranque = format!("avis-{}-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"), std::process::id());

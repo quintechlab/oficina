@@ -66,7 +66,7 @@ export function chatInicial() {
   return {
     abierta: false, lado: null, conversacion: null, estado: 'vacio', paso: 0, desdeMs: null, ultimoMs: null, listoMs: null,
     borrador: '', adjuntos: [], errorAdjunto: null, menu: false, cajon: false, soltando: null, error: null, todos: false,
-    proceso: 'apagado', engram: 'sin-saber', local: 'falta', progreso: null,
+    proceso: 'apagado', engram: 'sin-saber', local: 'sin-saber', progreso: null,
     motor: 'claude', carpeta: null, recientes: [], turno: 0, frenado: null, charlas: [], firmas: {}, menuCharla: null,
   }
 }
@@ -121,6 +121,27 @@ function conUsuario(conv, turno, f) {
   return { ...conv, mensajes: conv.mensajes.map(m => (m.rol === 'usuario' && m.turno === turno ? f(m) : m)) }
 }
 
+/**
+ * La historia que viaja con un turno del motor local (8): llama-server no recuerda nada entre pedidos.
+ * Lo que se vio de la charla: sin los mensajes que no salieron ni las respuestas vacías (una frenada
+ * va con su parcial). Rust la recorta a los 3000 tokens de D22 (`recorte_local`).
+ */
+export function historiaLocal(mensajes) {
+  return (mensajes ?? [])
+    .filter(m => (m.rol === 'usuario' ? m.estado !== 'no-enviado' : m.rol === 'mascota') && String(m.texto ?? '').trim())
+    .map(m => ({ rol: m.rol, texto: m.texto }))
+}
+
+/** ¿Se puede mandar con el motor local? Sin el modelo (o mientras se baja), no: se ve la tarjeta de descarga (4.1). */
+const sinModelo = c => motorDe(c) === 'local' && (c.local === 'falta' || c.local === 'bajando')
+
+/**
+ * ¿Puede vencer la espera de 120 s (D6)? Con el motor local, no mientras despierta (paso 0): Rust
+ * espera el arranque de llama-server con sus propios topes (la primera vez con CUDA, ~80 s) y avisa
+ * su error. Con Claude Code, siempre.
+ */
+export const puedeVencer = c => !(motorDe(c) === 'local' && c.paso === 0)
+
 /** La firma de los datos de Avis (como la de `bloque_avis` de Rust: viajan solo si cambiaron). */
 export const firmaDatos = datos => JSON.stringify(datos ?? null)
 const hayDatos = datos => (datos?.proyectos ?? []).length > 0
@@ -130,11 +151,15 @@ const hayDatos = datos => (datos?.proyectos ?? []).length > 0
  * título sale del primer mensaje. `campo`: se mandó lo escrito, así el campo queda vacío.
  */
 function mandar(c, texto, adjuntos, ctx, { campo = false } = {}) {
+  // Sin el modelo de esta PC no sale nada: lo escrito queda y la hoja muestra la descarga (4.1)
+  if (sinModelo(c)) return NADA(c)
   const conv = c.conversacion
   const turno = c.turno + 1
   const ahora = ctx.ahoraMs
   const firma = firmaDatos(ctx.datos)
-  const avis = hayDatos(ctx.datos) && c.firmas[conv.id] !== firma
+  const local = conv.motor === 'local'
+  // Con Claude Code los datos viajan si cambiaron (su sesión los recuerda); con el local, siempre (8)
+  const avis = hayDatos(ctx.datos) && (local || c.firmas[conv.id] !== firma)
   const mensajes = [
     ...conv.mensajes,
     { rol: 'usuario', texto, cuando: ahora, estado: 'no-enviado', adjuntos: adjuntos.map(({ nombre, tipo, bytes, paginas }) => ({ nombre, tipo, bytes, paginas })), turno, rutas: adjuntos },
@@ -149,7 +174,7 @@ function mandar(c, texto, adjuntos, ctx, { campo = false } = {}) {
       conversacion: { ...conv, titulo, actualizada: ahora, mensajes },
     },
     efectos: [
-      { tipo: 'enviar', conversacion: conv.id, turno, texto, adjuntos: adjuntos.map(a => a.ruta) },
+      { tipo: 'enviar', conversacion: conv.id, turno, texto, adjuntos: adjuntos.map(a => a.ruta), ...(local ? { historia: historiaLocal(conv.mensajes) } : {}) },
       { tipo: 'anunciar', texto: `${ctx.mascota} está pensando` },
     ],
   }
@@ -370,8 +395,10 @@ export function transicionChat(c, ev, ctx = {}) {
       }
     }
     case 'vencio': {
-      if (!ocupado(c) || ev.turno !== c.turno) return NADA(c)
-      return { chat: { ...conError(c, 'tiempo', null, ctx.ahoraMs), frenado: c.turno }, efectos: [{ tipo: 'frenar', conversacion: conv.id, turno: c.turno }] }
+      if (!ocupado(c) || ev.turno !== c.turno || !puedeVencer(c)) return NADA(c)
+      // Con el motor local, el error es suyo: "El modelo de esta PC no responde" (4.2), no el de Claude Code
+      const [motivo, detalle] = conv.motor === 'local' ? ['local', 'Pasaron 2 minutos sin noticias'] : ['tiempo', null]
+      return { chat: { ...conError(c, motivo, detalle, ctx.ahoraMs), frenado: c.turno }, efectos: [{ tipo: 'frenar', conversacion: conv.id, turno: c.turno }] }
     }
     case 'backend':
       return delBackend(c, ev.payload, ctx)
@@ -834,7 +861,7 @@ export function aArchivo(conv) {
   return {
     v: 1, id: conv.id, titulo: conv.titulo ?? null, creada: iso(conv.creada), actualizada: iso(conv.actualizada),
     motor: conv.motor, carpeta: conv.motor === 'local' ? null : conv.carpeta ?? null,
-    sesionClaude: conv.sesionUsada ? conv.sesionClaude ?? null : null, engramId: null, mensajes,
+    sesionClaude: conv.motor !== 'local' && conv.sesionUsada ? conv.sesionClaude ?? null : null, engramId: null, mensajes,
   }
 }
 

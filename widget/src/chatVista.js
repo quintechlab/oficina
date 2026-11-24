@@ -135,7 +135,8 @@ const quien = m => `<div class="quien"><i aria-hidden="true"></i>${escapar(nombr
 function bienvenida(m) {
   const motor = motorDe(m)
   const carpeta = carpetaDe(m)
-  if (motor === 'local' && m.chat.local !== 'instalado') return descargaLocal(m)
+  // Sin saber todavía (antes de chat_abrir), la bienvenida: mandar igual llega a Rust, que dice si falta
+  if (motor === 'local' && ['falta', 'bajando', 'roto'].includes(m.chat.local)) return descargaLocal(m)
   const saludo = motor === 'local'
     ? '¡Hola! Te respondo con el modelo de esta PC: privado y sin internet. Sé lo que pasa en tus sesiones de Avis.'
     : carpeta
@@ -255,6 +256,8 @@ export function hilo(m) {
         partes.push(mascota(m, msg, k, k === todos.length - 1))
       }
     })
+    // Sin el modelo (se borró desde la bandeja o se está bajando), la descarga al final: sin ella no se manda (8)
+    if (motorDe(m) === 'local' && (c.local === 'falta' || c.local === 'bajando')) partes.push(descargaLocal(m))
   }
   if (c.estado === 'error') partes.push(tarjetaError(c.error ?? undefined))
   // Un archivo que no entró (10): su tarjeta, aparte del turno, que solo se cierra

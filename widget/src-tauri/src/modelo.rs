@@ -1,6 +1,6 @@
 //! El modelo de esta PC (#11, docs/diseno/resumen-ia-ux.md 8; desde #22, el motor local de la charla,
 //! docs/diseno/chat-avis-ux.md 3.6 y 8): la descarga opcional del modelo y del motor (llama.cpp) y el
-//! proceso `llama-server`. El resumen se retiró con la charla; el pedido de la charla llega con la entrega 6.
+//! proceso `llama-server`. El resumen se retiró con la charla; el pedido de la charla vive en `chat_local.rs` (E6).
 //!
 //! Reglas firmes (8.4):
 //! - Nada sale a la red salvo la descarga que el usuario pidió con un clic (`descargar`), con URLs
@@ -598,13 +598,13 @@ pub fn bajar_todo(base: &Path, piezas: &[Pieza], agente: &ureq::Agent, cancelar:
 
 // ------------------------------------------------------------------ pedido al modelo
 
-/// La instrucción fija (8.4.1): solo resume, en la voz del Avi. Vive acá, no en la ventana.
+/// La instrucción fija del resumen (8.4.1): hoy solo la usa el pedido que calienta el motor al
+/// arrancarlo (`cuerpo_calentar`). La de la charla es `chat_local::INSTRUCCION_CHAT_LOCAL`.
 pub const INSTRUCCION: &str = "Sos el Avi, la mascota de Avis, el panel de escritorio que muestra en qué anda Claude Code. \
 Respondés en castellano rioplatense, hablando de vos, en 2 a 4 frases cortas, sin listas ni markdown. \
 Solo resumís los datos que te paso. No inventes datos. No recomiendes ni decidas nada. \
 Si hay una pregunta pendiente, podés decir que la hay y de qué trata, pero nunca la respondas ni sugieras una respuesta. \
 Lo único pendiente son las preguntas: una sesión quieta no espera nada de vos, y \"abierta_hace\" es cuánto hace que se abrió, no cuánto hace que espera.";
-pub const MAX_TOKENS: u32 = 160;
 /// Topes de lo que se le pasa (8.3), por si la ventana manda de más.
 pub const TOPE_TEXTO: usize = 200;
 pub const TOPE_LISTA: usize = 12;
@@ -612,8 +612,6 @@ pub const TOPE_LISTA: usize = 12;
 pub const TOPE_DATOS: usize = 6000;
 /// Lo que nunca se le pasa al modelo (8.3), aunque llegue: así no tiene de qué elegir ni qué filtrar.
 pub const CLAVES_PROHIBIDAS: [&str; 10] = ["archivos", "usuario", "nota", "opciones", "options", "respuestas", "answers", "libres", "repo", "borrador"];
-/// Largo máximo del resumen (como `limpiarTexto` de la ventana, 4.3).
-pub const TOPE_RESPUESTA: usize = 600;
 
 fn recortar_texto(s: &str, tope: usize) -> String {
     let limpio = s.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -703,48 +701,6 @@ pub fn cuerpo_calentar() -> Value {
     })
 }
 
-fn fin_de_frase(c: char) -> bool {
-    matches!(c, '.' | '!' | '?' | '…')
-}
-
-/// El texto que vuelve: sin bloques `<think>`, sin marcas de markdown, sin espacios ni saltos de
-/// más, cortado a 600 caracteres en el último fin de frase (o en el último fin de frase si el
-/// modelo se quedó sin tokens, `cortado`). `None` si queda vacío.
-pub fn recortar_respuesta(texto: &str, cortado: bool) -> Option<String> {
-    let mut t = texto.to_string();
-    while let Some(i) = t.find("<think>") {
-        match t[i..].find("</think>") {
-            Some(j) => t.replace_range(i..i + j + "</think>".len(), ""),
-            None => t.truncate(i),
-        }
-    }
-    let t = t.replace("**", "").replace("__", "").replace('`', "");
-    let mut lineas: Vec<String> = Vec::new();
-    for l in t.lines() {
-        let l = l.trim().trim_start_matches(['#', '>']).trim();
-        let l = l.split_whitespace().collect::<Vec<_>>().join(" ");
-        if l.is_empty() && lineas.last().is_none_or(|u| u.is_empty()) {
-            continue;
-        }
-        lineas.push(l);
-    }
-    while lineas.last().is_some_and(|l| l.is_empty()) {
-        lineas.pop();
-    }
-    let mut t = lineas.join("\n");
-    let largo = t.chars().count();
-    if largo > TOPE_RESPUESTA || cortado {
-        let corte: String = t.chars().take(TOPE_RESPUESTA).collect();
-        t = match corte.char_indices().rfind(|(_, c)| fin_de_frase(*c)) {
-            Some((i, c)) => corte[..i + c.len_utf8()].to_string(),
-            None if largo > TOPE_RESPUESTA => format!("{}…", corte.trim_end()),
-            None => corte,
-        };
-    }
-    let t = t.trim().to_string();
-    (!t.is_empty()).then_some(t)
-}
-
 /// El texto y si se cortó por tokens, de la respuesta del motor.
 pub fn leer_respuesta(cuerpo: &str) -> Option<(String, bool)> {
     let v: Value = serde_json::from_str(cuerpo).ok()?;
@@ -756,19 +712,6 @@ pub fn leer_respuesta(cuerpo: &str) -> Option<(String, bool)> {
 /// `GET /health` → `{"status":"ok"}` cuando el modelo terminó de cargar (antes, 503).
 pub fn salud_lista(estado: u16, cuerpo: &str) -> bool {
     estado == 200 && serde_json::from_str::<Value>(cuerpo).is_ok_and(|v| v["status"] == "ok")
-}
-
-// ------------------------------------------------------------------ pedidos: uno por vez (8.4.6)
-
-/// ¿Se acepta un pedido? Si hay otro en curso, solo uno más nuevo (gana el más alto). Sin ninguno en
-/// curso, cualquiera (la ventana recargada vuelve a contar desde 1).
-pub fn aceptar(pedido: u64, en_curso: Option<u64>) -> bool {
-    en_curso.is_none_or(|c| pedido > c)
-}
-
-/// ¿Sigue valiendo un pedido? Solo el que está en curso; uno viejo o cancelado se descarta.
-pub fn vigente(pedido: u64, en_curso: Option<u64>) -> bool {
-    en_curso == Some(pedido)
 }
 
 /// ¿Hay que apagar el motor? Tras 10 minutos sin uso y sin ningún pedido corriendo.
@@ -1074,18 +1017,34 @@ impl Ia {
         }
     }
 
-    /// El motor de un pedido fallado se revisa: si se cerró, motivo `cerrado` con su código.
-    fn error_de_chat(&self, e: ErrorChat) -> (&'static str, Option<String>) {
-        let salio = Self::lock(&self.motor).as_mut().and_then(|m| m.proceso.try_wait().ok().flatten());
-        match (e, salio) {
-            (_, Some(s)) => {
-                let base = carpeta_base();
-                let ultima = base.map(|b| ultima_linea(&b.join(LOG_MOTOR))).unwrap_or_default();
-                self.apagar_motor();
-                ("cerrado", Some(detalle_salida(s.code(), &ultima)))
-            }
-            (ErrorChat::Tiempo, None) => ("tiempo", None),
-            (ErrorChat::Otro(d), None) => ("cerrado", Some(d)),
+    /// El motor para un turno de la charla (chat-avis-ux.md 8): con el modelo instalado, lo arranca si
+    /// hace falta (avisa `preparando`, como antes el resumen) y devuelve su puerto. Mientras vive el
+    /// `EnUso`, el vigilante de los 10 minutos no lo apaga; al soltarlo, cuenta desde ahí.
+    pub fn motor_charla(&'static self, emitir: Emitir) -> Result<(u16, EnUso), String> {
+        if self.apagado.load(Ordering::SeqCst) {
+            return Err(String::from("Avis se está cerrando"));
+        }
+        if Self::lock(&self.descarga).activa {
+            return Err(String::from("todavía se está bajando el modelo"));
+        }
+        let base = base()?;
+        let (_, piezas) = self.plan_actual(&base);
+        let estados: Vec<EstadoPieza> = piezas.iter().map(|p| mirar_pieza(&base, p)).collect();
+        let (estado, _, _) = resumir_estado(&estados, base.join(MARCA_INSTALADO).exists(), base.join(MARCA_ROTO).exists(), false);
+        match estado {
+            EstadoModelo::Listo => {}
+            EstadoModelo::Roto => return Err(String::from("el modelo de esta PC está dañado: descargalo de nuevo")),
+            _ => return Err(String::from("falta descargar el modelo de esta PC")),
+        }
+        // Ocupado desde antes de arrancar: el vigilante nunca lo apaga entre el arranque y el pedido
+        self.ocupados.fetch_add(1, Ordering::SeqCst);
+        let uso = EnUso(self);
+        let modelo = ruta_final(&base, &pieza_modelo());
+        match self.asegurar_motor(&base, &modelo, 0, emitir) {
+            Ok((puerto, _)) => Ok((puerto, uso)),
+            Err((_, Some(detalle))) => Err(detalle),
+            Err(("cancelado", None)) => Err(String::from("se canceló el arranque del modelo")),
+            Err((motivo, None)) => Err(format!("el modelo no arrancó ({motivo})")),
         }
     }
 
@@ -1272,6 +1231,28 @@ impl Ia {
     /// ¿Hay algo para borrar? Los bytes de la carpeta (0 si no está).
     pub fn peso(&self) -> u64 {
         carpeta_base().map(|b| peso(&b)).unwrap_or(0)
+    }
+}
+
+/// Un turno de la charla usando el motor (`motor_charla`): al terminar, el motor queda libre y la
+/// inactividad cuenta desde ahí.
+pub struct EnUso(&'static Ia);
+
+impl Drop for EnUso {
+    fn drop(&mut self) {
+        *Ia::lock(&self.0.ultimo_uso) = Instant::now();
+        self.0.ocupados.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+impl crate::chat_local::UsoMotor for EnUso {
+    /// Si el pedido falló porque llama-server se cerró: su código y la última línea de su registro
+    /// (y se apaga lo que quedó). Si sigue vivo, nada: el error del pedido dice lo suyo.
+    fn diagnostico(&self) -> Option<String> {
+        let salio = Ia::lock(&self.0.motor).as_mut().and_then(|m| m.proceso.try_wait().ok().flatten())?;
+        let ultima = carpeta_base().map(|b| ultima_linea(&b.join(LOG_MOTOR))).unwrap_or_default();
+        self.0.apagar_motor();
+        Some(detalle_salida(salio.code(), &ultima))
     }
 }
 

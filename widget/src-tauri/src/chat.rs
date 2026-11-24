@@ -24,6 +24,7 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use crate::adjuntos;
+use crate::chat_local::{self, Avance, FinLectura, MotorLocal};
 use crate::modelo;
 use crate::primeros_pasos::{self, trabajo::Trabajo, Programa};
 
@@ -536,8 +537,17 @@ struct Conversacion {
     cwd: PathBuf,
     mascota: String,
     firma: Option<u64>,
-    /// La charla es del motor local: nunca lanza `claude` (regla 3; el motor local llega con la entrega 6).
+    /// La charla es del motor local (8): nunca lanza `claude` (regla 3), responde el modelo de esta PC.
     local: bool,
+}
+
+/// El turno en curso del motor local (8): uno por vez, como los pedidos a llama-server (`-np 1`).
+struct TurnoLocal {
+    generacion: u64,
+    conversacion: String,
+    numero: u64,
+    /// Frenar (o salir de Avis): el hilo deja de leer y corta la conexión; llama-server deja de generar.
+    frenar: Arc<AtomicBool>,
 }
 
 /// El proceso y su trabajo de Windows. Soltar el trabajo mata el proceso: vive hasta que sale.
@@ -605,6 +615,9 @@ struct Estado {
     /// Los que terminan su turno con stdin cerrado después de cambiar de conversación.
     saliendo: Vec<Proceso>,
     generacion: u64,
+    /// El turno del motor local que corre.
+    local: Option<TurnoLocal>,
+    generacion_local: u64,
 }
 
 impl Estado {
@@ -628,6 +641,8 @@ struct Interno {
     tiempos: Tiempos,
     estado: Mutex<Estado>,
     apagado: AtomicBool,
+    /// El modelo de esta PC (8): lo pone `lib.rs` con `modelo::IA`; los tests, uno falso.
+    motor_local: Mutex<Option<MotorLocal>>,
 }
 
 /// El chat: las conversaciones conocidas y el proceso vivo.
@@ -650,7 +665,12 @@ fn con_turno(conversacion: &str, turno: u64, ev: &EventoChat) -> Value {
 
 impl Chat {
     pub fn nuevo(carpeta: PathBuf, lanzador: Lanzador, emitir: Emisor, tiempos: Tiempos) -> Chat {
-        Chat(Arc::new(Interno { carpeta, lanzador, emitir, tiempos, estado: Mutex::new(Estado::default()), apagado: AtomicBool::new(false) }))
+        Chat(Arc::new(Interno { carpeta, lanzador, emitir, tiempos, estado: Mutex::new(Estado::default()), apagado: AtomicBool::new(false), motor_local: Mutex::new(None) }))
+    }
+
+    /// El modelo de esta PC para las charlas del motor local (8).
+    pub fn poner_motor_local(&self, motor: MotorLocal) {
+        *bloquear(&self.0.motor_local) = Some(motor);
     }
 
     fn estado(&self) -> MutexGuard<'_, Estado> {
@@ -758,7 +778,14 @@ impl Chat {
     /// `chat_enviar` (7.4): manda un turno. Sin un turno en curso (D7) y con texto o algún adjunto.
     /// `adjuntos`: rutas; Rust las lee recién acá (la ventana nunca toca los bytes). Uno que no entra
     /// (o el sexto) es el error `adjunto` con su nombre, sin escribirle nada al proceso.
+    #[cfg(test)]
     pub fn enviar(&self, conversacion: &str, turno: u64, texto: &str, adjuntos: &[String], datos: &Value) -> Result<(), String> {
+        self.enviar_con(conversacion, turno, texto, adjuntos, datos, &Value::Null)
+    }
+
+    /// `chat_enviar` (7.8): como `enviar`, con la historia de la charla que manda la ventana
+    /// (`[{ rol, texto }]`), que solo usa el motor local (8: llama-server no recuerda nada entre pedidos).
+    pub fn enviar_con(&self, conversacion: &str, turno: u64, texto: &str, adjuntos: &[String], datos: &Value, historia: &Value) -> Result<(), String> {
         let texto = texto.trim();
         if texto.is_empty() && adjuntos.is_empty() {
             return Err(String::from("el mensaje está vacío"));
@@ -769,8 +796,11 @@ impl Chat {
         let e = self.estado();
         match e.conversaciones.get(conversacion) {
             None => return Err(String::from("la charla no está abierta")),
-            // Nunca a la nube una charla del motor local (regla 3): ese motor llega con la entrega 6
-            Some(c) if c.local => return Err(String::from("el modelo de esta PC todavía no responde en la charla")),
+            // Nunca a la nube una charla del motor local (regla 3): la responde el modelo de esta PC
+            Some(c) if c.local => {
+                drop(e);
+                return self.enviar_local(conversacion, turno, texto, adjuntos, datos, historia);
+            }
             Some(_) => {}
         }
         if e.proceso.as_ref().is_some_and(|p| p.conversacion == conversacion && p.turno_activo()) {
@@ -819,6 +849,10 @@ impl Chat {
     /// `chat_frenar` (7.6): solo el turno en curso de esa conversación.
     pub fn frenar(&self, conversacion: &str, turno: u64) {
         let mut e = self.estado();
+        // El motor local (8): el hilo deja de leer y corta la conexión
+        if let Some(t) = e.local.as_ref().filter(|t| t.conversacion == conversacion && t.numero == turno) {
+            t.frenar.store(true, Ordering::SeqCst);
+        }
         let Some(p) = e.proceso.as_mut().filter(|p| p.conversacion == conversacion) else { return };
         let mandar = p.turno.as_mut().filter(|t| t.numero == turno).is_some_and(Turno::frenar);
         if mandar {
@@ -844,6 +878,9 @@ impl Chat {
         self.0.apagado.store(true, Ordering::SeqCst);
         let vivos: Vec<Arc<Vivo>> = {
             let mut e = self.estado();
+            if let Some(t) = &e.local {
+                t.frenar.store(true, Ordering::SeqCst);
+            }
             e.retirar();
             for p in e.saliendo.iter_mut() {
                 if p.turno_activo() {
@@ -861,6 +898,105 @@ impl Chat {
             if !v.salio() {
                 v.matar();
             }
+        }
+    }
+
+    /// Un turno del motor local (8): con texto y sin archivos. Arma el pedido (la instrucción con la
+    /// mascota, el bloque `<avis>` y la historia recortada a 3000 tokens, D22) y lo resuelve en un hilo.
+    /// Un turno por vez (D7); si quedó corriendo el de otra charla, se frena.
+    fn enviar_local(&self, conversacion: &str, turno: u64, texto: &str, adjuntos: &[String], datos: &Value, historia: &Value) -> Result<(), String> {
+        if !adjuntos.is_empty() {
+            return Err(String::from("el modelo de esta PC no lee archivos"));
+        }
+        if texto.is_empty() {
+            return Err(String::from("el mensaje está vacío"));
+        }
+        if self.0.apagado.load(Ordering::SeqCst) {
+            return Err(String::from("Avis se está cerrando"));
+        }
+        let mut e = self.estado();
+        if let Some(t) = &e.local {
+            if t.conversacion == conversacion {
+                return Err(String::from("hay una respuesta en curso"));
+            }
+            t.frenar.store(true, Ordering::SeqCst);
+        }
+        let mascota = e.conversaciones.get(conversacion).map(|c| c.mascota.clone()).ok_or("la charla no está abierta")?;
+        let frenar = Arc::new(AtomicBool::new(false));
+        e.generacion_local += 1;
+        let generacion = e.generacion_local;
+        e.local = Some(TurnoLocal { generacion, conversacion: conversacion.to_string(), numero: turno, frenar: frenar.clone() });
+        drop(e);
+        let sistema = chat_local::sistema_local(&mascota, &modelo::datos_como_texto(datos));
+        let recorte = chat_local::recorte_local(&sistema, &chat_local::historia_de(historia), texto);
+        let cuerpo = chat_local::cuerpo_local(&sistema, &recorte);
+        let chat = self.clone();
+        let conversacion = conversacion.to_string();
+        let desde = Instant::now();
+        let lanzado = std::thread::Builder::new().name(String::from("avis-chat-local")).spawn(move || {
+            let fin = chat.turno_local(&conversacion, turno, &cuerpo, &frenar, desde);
+            let mut e = chat.estado();
+            if e.local.as_ref().is_some_and(|t| t.generacion == generacion) {
+                e.local = None;
+            }
+            drop(e);
+            (chat.0.emitir)(con_turno(&conversacion, turno, &fin));
+        });
+        lanzado.map(|_| ()).map_err(|err| {
+            self.estado().local = None;
+            err.to_string()
+        })
+    }
+
+    /// El turno local, en su hilo: el motor (lo arranca si hace falta: "Despertando"), el pedido en
+    /// streaming y su final. Emite `listo` con el motor listo, `recibido` con el pedido aceptado,
+    /// `pensando` con el primer tramo y el texto junto cada 50 ms (7.5); devuelve el final.
+    fn turno_local(&self, conversacion: &str, turno: u64, cuerpo: &Value, frenar: &AtomicBool, desde: Instant) -> EventoChat {
+        let error = |detalle: String| EventoChat::Error { motivo: "local", detalle: Some(detalle.chars().take(TOPE_DETALLE).collect()) };
+        let emitir = |ev: &EventoChat| (self.0.emitir)(con_turno(conversacion, turno, ev));
+        let motor = bloquear(&self.0.motor_local).clone();
+        let Some(motor) = motor else { return error(String::from("no está el modelo de esta PC")) };
+        let (puerto, uso) = match motor() {
+            Ok(m) => m,
+            Err(detalle) => {
+                registrar(&format!("chat local: el motor no arrancó: {detalle}"));
+                return error(detalle);
+            }
+        };
+        if frenar.load(Ordering::SeqCst) {
+            return EventoChat::Frenada;
+        }
+        emitir(&EventoChat::Listo { sesion: String::new() });
+        let mut juntador = Juntador::default();
+        let soltar = |j: &mut Juntador| {
+            if let Some(texto) = j.sacar() {
+                emitir(&EventoChat::Texto { texto });
+            }
+        };
+        let r = chat_local::pedir(puerto, cuerpo, frenar, &mut |a| match a {
+            Avance::Aceptado => emitir(&EventoChat::Recibido),
+            Avance::Rol => emitir(&EventoChat::Pensando),
+            Avance::Texto(t) => {
+                let ahora = Instant::now();
+                juntador.agregar(&t, ahora);
+                if juntador.vencido(ahora) {
+                    soltar(&mut juntador);
+                }
+            }
+        });
+        if !frenar.load(Ordering::SeqCst) {
+            soltar(&mut juntador);
+        }
+        let fallo = |d: String| {
+            registrar(&format!("chat local: {d}"));
+            error(uso.diagnostico().unwrap_or(d))
+        };
+        match r {
+            _ if frenar.load(Ordering::SeqCst) => EventoChat::Frenada,
+            Ok(FinLectura::Hecho { .. }) => EventoChat::Fin { ms: desde.elapsed().as_millis() as u64 },
+            Ok(FinLectura::Frenado) => EventoChat::Frenada,
+            Ok(FinLectura::Cortado) => fallo(String::from("se cortó la respuesta")),
+            Ok(FinLectura::Error(d)) | Err(d) => fallo(d),
         }
     }
 

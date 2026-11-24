@@ -266,6 +266,17 @@ Con `chat.rs` y el `claude` real (`cargo test real_ -- --ignored`, Haiku): preca
 - **Arrastrar con el mouse: sin medir.** La Avis instalada sigue ocupando la instancia única y arrastrar desde el Explorador requiere manejar el escritorio. El camino de la ventana (`onDragDropEvent` → `sobreHoja` → `chat_adjunto`) se probó en Edge sin ventana con el arrastre de Tauri imitado (`dev/falso.js`, `window.__arrastrar`); el resto es lo leído en 7.9.
 - **Supuestos que quedan:** JPG, GIF y WebP (el tipo sale de los primeros bytes, no del nombre) y el techo real del PDF (20 MB, D27).
 
+### 7.13 El motor local en la charla (medido en E6, 24/11)
+
+Contra el `llama-server` instalado (b12606 con CUDA, `Qwen3-4B-Instruct-2507-Q4_K_M.gguf` en `%LOCALAPPDATA%\avis-ia`, GTX 1650 Ti), con los argumentos de `modelo::argumentos` (`-c 4096 -np 1`, sin `--jinja`). No se bajó nada.
+
+- **El stream (medido):** `POST /v1/chat/completions` con `stream: true` responde 200 con `text/event-stream` y `Transfer-Encoding: chunked`. Las cabeceras llegan enseguida (9–29 ms), **antes de leer el pedido**. Cada línea es `data: {…"object":"chat.completion.chunk"…}` seguida de una línea en blanco. El primer tramo trae `delta.role` con `content: null` y llega junto con el primer token, es decir, después de leer el pedido (unos 1 s con 100 tokens en frío; 27 ms con la caché del prefijo). Después vienen los `delta.content`, uno por token (~21 ms cada uno, ~48 tok/s). El último tramo trae `finish_reason` (`stop`, o `length` si se acabó `max_tokens`) con `delta: {}` y `timings`, y al final llega `data: [DONE]`. Las líneas reales están en `widget/src-tauri/src/fixtures/local/*.sse` (con el modelo, la hora y el id cambiados).
+- **Los pasos de la espera, por lo medido:** `listo` sale con el motor listo ("Despertando el modelo de esta PC"), `recibido` con el 200 y `pensando` con el tramo del rol. Así "Leyendo tus sesiones de Avis" dura lo que tarda en leer el pedido.
+- **Frenar (medido):** cerrar la conexión a mitad del stream hace que llama-server anote `stop: cancel task` unos 20 ms después y libere el lugar. Con el `Chat` real (`real_local_…`), la `frenada` llegó a 16–21 ms del clic y el registro del motor (`motor.log`) dice `cancel task`. Durante la lectura del pedido no hay nada que leer, así que el corte llega con el primer token.
+- **Un pedido que no entra (medido):** si pasa del contexto de 4096, llama-server responde 400 antes del stream con `{"error":{"code":400,…,"type":"exceed_context_size_error"}}`. Con un texto repetitivo fueron 2,5 caracteres por token.
+- **Caracteres por token (medido con `/tokenize`):** 3,76 en un bloque `<avis>` realista, 3,53 en la instrucción, 3,71 en una respuesta en español y 3,24 en código. La estimación de 3,5 de D22 alcanza: 3000 de entrada y 700 de salida dejan unos 400 tokens de margen en 4096.
+- **De punta a punta (medido, `cargo test --lib real_local -- --ignored`):** con el motor apagado, una pregunta por la sesión con una pregunta pendiente tuvo el motor listo a los 3,6 s (arranque y calentamiento), el primer texto a los 5,0 s y el `fin` a los 5,5 s, en tramos, y respondió con la pregunta de los datos. Lo mismo dio con `HTTP_PROXY`, `HTTPS_PROXY` y `ALL_PROXY` apuntando a un puerto cerrado: el pedido va a 127.0.0.1 sin proxy y no necesita internet. No se desconectó la red de la máquina.
+
 ## Flags recomendados para Avis
 
 Actualizado con las mediciones de E0 (7.1):

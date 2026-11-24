@@ -528,19 +528,6 @@ fn la_instruccion_solo_resume_y_nunca_responde_una_pregunta() {
 }
 
 #[test]
-fn la_respuesta_se_limpia_y_se_corta_en_un_fin_de_frase() {
-    assert_eq!(recortar_respuesta("  <think>pienso</think>\n**Claude** está en `oficina`.\n\n\n\nTodo bien.  ", false), Some(String::from("Claude está en oficina.\n\nTodo bien.")));
-    let largo = format!("{} Fin.", "Una frase cualquiera que se repite.".repeat(30));
-    let r = recortar_respuesta(&largo, false).unwrap();
-    assert!(r.chars().count() <= TOPE_RESPUESTA);
-    assert!(r.ends_with('.'));
-    // Sin tokens: se corta en la última frase entera
-    assert_eq!(recortar_respuesta("Claude edita modelo.rs. Hay una pregunta sobre el mot", true), Some(String::from("Claude edita modelo.rs.")));
-    assert_eq!(recortar_respuesta("  \n <think>solo pienso</think> ", false), None);
-    assert_eq!(recortar_respuesta("<think>sin cerrar", false), None);
-}
-
-#[test]
 fn la_respuesta_del_motor_se_lee_de_choices() {
     let cuerpo = r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"Claude está con el resumen."},"finish_reason":"stop"}]}"#;
     assert_eq!(leer_respuesta(cuerpo), Some((String::from("Claude está con el resumen."), false)));
@@ -583,24 +570,12 @@ fn un_motor_que_no_contesta_es_tiempo() {
 // ---------------------------------------------------------------- un pedido por vez y la salida
 
 #[test]
-fn gana_el_pedido_mas_alto_y_uno_viejo_se_descarta() {
-    assert!(aceptar(1, None));
-    assert!(aceptar(3, Some(2)));
-    assert!(!aceptar(2, Some(3)));
-    assert!(!aceptar(3, Some(3)));
-    // La ventana recargada vuelve a contar desde 1: sin nada en curso, se acepta
-    assert!(aceptar(1, None));
-    assert!(vigente(3, Some(3)));
-    assert!(!vigente(2, Some(3)));
-    // Cancelado: ninguno sigue valiendo
-    assert!(!vigente(3, None));
-}
-
-#[test]
 fn al_salir_no_empieza_ninguna_descarga_ni_ningun_pedido() {
     let ia: &'static Ia = Box::leak(Box::new(Ia::default()));
     ia.apagar();
     assert!(ia.descargar(|_| {}).is_err());
+    // Ni un turno de la charla: no arranca el motor
+    assert_eq!(ia.motor_charla(&|_| {}).err().as_deref(), Some("Avis se está cerrando"));
     assert!(ia.motor.lock().unwrap().is_none());
 }
 
@@ -619,7 +594,7 @@ fn cancelar_un_pedido_avisa_cancelado_y_lo_descarta() {
     let avisos = Mutex::new(Vec::new());
     ia.cancelar(&|v| avisos.lock().unwrap().push(v));
     assert_eq!(avisos.lock().unwrap().as_slice(), [json!({ "tipo": "cancelado", "pedido": 4 })]);
-    assert!(!vigente(4, *ia.en_curso.lock().unwrap()));
+    assert!(ia.en_curso.lock().unwrap().is_none());
 }
 
 // ---------------------------------------------------------------- bandeja: borrar el modelo

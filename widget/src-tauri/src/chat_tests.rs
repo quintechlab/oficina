@@ -886,7 +886,7 @@ fn abrir_valida_la_conversacion_y_la_carpeta() {
     assert!(chat.abrir("../x", "claude", None, "Avi", None).is_err());
     assert!(chat.abrir("c-9", "claude", Some(carpeta.join("no-existe")), "Avi", None).is_err());
     assert!(chat.abrir("c-9", "claude", None, "Avi", Some(String::from("no-es-uuid"))).is_err());
-    // El motor local no lanza nada (entrega 6)
+    // El motor local no lanza nada al abrir (no hay nada que precalentar: el motor arranca al mandar, 8)
     let local = chat.abrir("c-9", "local", None, "Avi", None).unwrap();
     assert_eq!(local["proceso"], "apagado");
     // Enviar sin abrir
@@ -906,16 +906,24 @@ fn una_charla_del_motor_local_nunca_lanza_claude() {
     });
     let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
     chat.abrir("c-local", "local", None, "Avi", None).unwrap();
-    // Mandar con el motor local no puede terminar en la nube (regla 3): error y nada lanzado
-    assert!(chat.enviar("c-local", 1, "¿Quién me espera?", &[], &Value::Null).is_err());
+    // Mandar con el motor local no puede terminar en la nube (regla 3): sin el modelo de esta PC
+    // (este chat no tiene motor local), el error `local` y nada lanzado
+    chat.enviar("c-local", 1, "¿Quién me espera?", &[], &Value::Null).unwrap();
+    r.esperar_final();
+    assert_eq!(r.todos(), vec![json!({ "conversacion": "c-local", "turno": 1, "tipo": "error", "motivo": "local", "detalle": "no está el modelo de esta PC" })]);
     assert_eq!(lanzados.load(std::sync::atomic::Ordering::SeqCst), 0);
-    assert!(r.todos().is_empty());
-    // Vacía, la misma charla puede pasar a Claude Code (D8: solo cambia la cabecera) y entonces sí lanza
-    chat.abrir("c-local", "claude", None, "Avi", None).unwrap();
+    // Una charla vacía puede pasar a Claude Code (D8: solo cambia la cabecera) y entonces sí lanza
+    chat.abrir("c-vacia", "local", None, "Avi", None).unwrap();
+    chat.abrir("c-vacia", "claude", None, "Avi", None).unwrap();
     assert_eq!(lanzados.load(std::sync::atomic::Ordering::SeqCst), 1);
-    // Y una de Claude Code vacía puede volver a local: deja de mandar
-    chat.abrir("c-local", "local", None, "Avi", None).unwrap();
-    assert!(chat.enviar("c-local", 2, "Hola", &[], &Value::Null).is_err());
+    // Y una de Claude Code vacía puede volver a local: deja de lanzar
+    chat.abrir("c-vacia", "local", None, "Avi", None).unwrap();
+    chat.enviar("c-vacia", 2, "Hola", &[], &Value::Null).unwrap();
+    let limite = Instant::now() + Duration::from_secs(5);
+    while r.todos().len() < 2 && Instant::now() < limite {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(r.todos()[1]["motivo"], "local");
     assert_eq!(lanzados.load(std::sync::atomic::Ordering::SeqCst), 1);
     borrar(&carpeta);
 }

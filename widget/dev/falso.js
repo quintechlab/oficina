@@ -110,7 +110,9 @@
 //   ?chat=error-adjunto se suelta una planilla .xlsx: la tarjeta "No puedo leer planilla.xlsx"
 //   &cancelaAdjunto    el clip se cancela (sin esto, elige presupuesto-2027.pdf de Descargas)
 //   ?chat=encima       al 200 % (si no hay ?zoom): la hoja no entra al costado y tapa la columna (D1)
-//   &motor=local       la próxima charla con el modelo local; &modelo=listo|bajando su estado (sin esto, falta)
+//   &motor=local       la próxima charla con el modelo local; &modelo=listo|bajando su estado (sin esto, falta).
+//                      Con &modelo=listo, ?chat=esperando|escribiendo|listo|frenada responde el modelo falso
+//                      (despierta en 1,2 s la primera vez, como "Despertando el modelo de esta PC")
 //   &cancelaCarpeta    "Elegir otra carpeta…" se cancela (sin esto, elige quintech-crm del escritorio)
 //   &engram            el pie del cajón dice "también en Engram" (sin esto, "Engram apagado")
 // window.__arrastrar({ type: 'enter' | 'over' | 'drop' | 'leave', paths, position }) imita el arrastre
@@ -690,6 +692,29 @@
     if (chatEsc === 'escribiendo') return
     luego(t + 120, () => { emitirChat(c, turno, 'fin', { ms: t + 120 }); terminar() })
   }
+  /**
+   * El turno del modelo de esta PC (8), como Rust: `listo` cuando despertó el motor (1,2 s la primera
+   * vez), `recibido` con el pedido aceptado, `pensando` con el primer tramo y el texto de a tramos.
+   * Con ?chat=esperando no responde; con ?chat=escribiendo no termina. Usa la historia que llega.
+   */
+  let motorDespierto = false
+  function turnoLocalFalso(c, turno, texto, historia) {
+    const relojes = []
+    enCurso = { c, turno, relojes }
+    const luego = (ms, f) => relojes.push(setTimeout(f, ms))
+    const despierta = motorDespierto ? 60 : 1200
+    luego(despierta, () => { motorDespierto = true; emitirChat(c, turno, 'listo', { sesion: '' }) })
+    if (chatEsc === 'esperando') return
+    luego(despierta + 30, () => emitirChat(c, turno, 'recibido'))
+    luego(despierta + 600, () => emitirChat(c, turno, 'pensando'))
+    const antes = (historia ?? []).filter(m => m.rol === 'usuario').length
+    const respuesta = `Sobre «${texto}»: **oficina** está trabajando y **catalogo** te hace una pregunta.${antes ? ` (Me acuerdo de ${antes} ${antes === 1 ? 'pregunta' : 'preguntas'} de antes.)` : ''}`
+    let t = despierta + 600
+    const lento = chatEsc === 'escribiendo' ? 420 : 45
+    for (const p of trozos(respuesta)) luego((t += lento), () => emitirChat(c, turno, 'texto', { texto: p }))
+    if (chatEsc === 'escribiendo') return
+    luego(t + 80, () => { emitirChat(c, turno, 'fin', { ms: t + 80 }); if (enCurso?.turno === turno && enCurso.c === c) enCurso = null })
+  }
   const comandosChat = {
     estado_modelo: () => ({ ...modeloLocal, bajado: Math.round(modeloLocal.bajado) }),
     descargar_modelo: () => {
@@ -710,12 +735,16 @@
       const local = { listo: 'instalado', bajando: 'bajando', roto: 'roto' }[modeloLocal.modelo] ?? 'falta'
       return { proceso: motor === 'claude' ? 'arrancando' : 'apagado', sesion, engram: url.has('engram') ? 'si' : 'no', local }
     },
-    chat_enviar: ({ conversacion, turno, texto, adjuntos = [] }) => {
+    chat_enviar: ({ conversacion, turno, texto, adjuntos = [], historia = null }) => {
       const c = conocidas.get(conversacion)
       if (!c) throw new Error('la charla no está abierta')
-      if (c.motor === 'local') throw new Error('el modelo de esta PC todavía no responde en la charla')
       if (enCurso?.c === conversacion) throw new Error('hay una respuesta en curso')
-      console.info('[chat] enviar', conversacion, turno, texto, adjuntos)
+      console.info('[chat] enviar', conversacion, turno, texto, adjuntos, historia)
+      if (c.motor === 'local') {
+        if (adjuntos.length) throw new Error('el modelo de esta PC no lee archivos')
+        if (modeloLocal.modelo !== 'listo') return setTimeout(() => emitirChat(conversacion, turno, 'error', { motivo: 'local', detalle: 'falta descargar el modelo de esta PC' }), 30)
+        return turnoLocalFalso(conversacion, turno, texto, historia)
+      }
       turnoFalso(conversacion, turno, texto)
     },
     chat_frenar: ({ conversacion, turno }) => {
