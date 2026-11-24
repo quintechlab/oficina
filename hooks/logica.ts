@@ -762,14 +762,14 @@ export function validarOrden(datos: unknown, t: { arranqueMs: number; ahoraMs: n
   if (d.v !== 1 || d.origen !== 'widget') return { error: 'formato desconocido' }
   const id = idDeOrden(d)
   if (!id) return { error: 'id inválido' }
-  if (d.tipo !== 'mensaje' && d.tipo !== 'frenar') return { error: 'tipo desconocido' }
+  if (d.tipo !== 'mensaje' && d.tipo !== 'frenar' && d.tipo !== 'cerrar') return { error: 'tipo desconocido' }
   const creadaMs = typeof d.creada === 'string' ? Date.parse(d.creada) : Number.NaN
   if (Number.isNaN(creadaMs)) return { error: 'sin fecha de creación' }
   if (creadaMs < t.arranqueMs) return { error: 'anterior al arranque de la sesión' }
   if (t.ahoraMs - creadaMs > MAX_EDAD_ORDEN_MS) return { error: 'demasiado vieja' }
   if (creadaMs - t.ahoraMs > MAX_FUTURO_ORDEN_MS) return { error: 'en el futuro' }
   const creada = d.creada as string
-  if (d.tipo === 'frenar') return { orden: { v: 1, origen: 'widget', id, tipo: 'frenar', creada } }
+  if (d.tipo === 'frenar' || d.tipo === 'cerrar') return { orden: { v: 1, origen: 'widget', id, tipo: d.tipo, creada } }
   if (typeof d.texto !== 'string' || d.texto.trim() === '') return { error: 'mensaje vacío' }
   if (d.texto.length > MAX_TEXTO_ORDEN) return { error: 'mensaje demasiado largo' }
   return { orden: { v: 1, origen: 'widget', id, tipo: 'mensaje', texto: d.texto, creada } }
