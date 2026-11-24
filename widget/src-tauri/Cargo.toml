@@ -17,6 +17,8 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-notification = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
+# El selector de carpetas de la charla con la mascota (#22, D10), solo desde Rust
+tauri-plugin-dialog = "2"
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 # Resumen con IA (#11): la descarga del modelo (con Range) y las llamadas al motor en 127.0.0.1.

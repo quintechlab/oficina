@@ -95,6 +95,23 @@ mod tests {
     }
 
     #[test]
+    fn la_carpeta_de_la_sesion_llega_a_la_ventana_y_sin_ella_se_lee_igual() {
+        // Desde la v0.11 el mod deja `cwd` en el archivo local (chat-avis-ux.md, entrega 7); el del
+        // mod anterior no lo trae y se sigue leyendo como siempre.
+        let c = carpeta_temporal("cwd");
+        escribir(&c, "nueva.json", r#"{"sesion":"nueva","repo":"quintechlab/catalogo","cwd":"C:\\Users\\x\\Desktop\\catalogo","actualizado":"2026-11-19T23:49:00Z","cerrada":false}"#);
+        escribir(&c, "vieja.json", r#"{"sesion":"vieja","repo":"quintechlab/oficina","actualizado":"2026-11-19T23:49:00Z","cerrada":false}"#);
+        let r = leer_sesiones_de(&c, ahora());
+        assert_eq!(ids(&r), vec!["nueva", "vieja"]);
+        let nueva = r.iter().find(|s| s["sesion"] == "nueva").unwrap();
+        assert_eq!(nueva["cwd"], "C:\\Users\\x\\Desktop\\catalogo");
+        let vieja = r.iter().find(|s| s["sesion"] == "vieja").unwrap();
+        assert!(vieja.get("cwd").is_none());
+        assert_eq!(vieja["repo"], "quintechlab/oficina");
+        fs::remove_dir_all(&c).unwrap();
+    }
+
+    #[test]
     fn descarta_las_sesiones_cerradas() {
         let c = carpeta_temporal("cerradas");
         escribir(&c, "a.json", r#"{"sesion":"a","actualizado":"2026-11-19T23:49:00Z","cerrada":false}"#);

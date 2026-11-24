@@ -189,8 +189,24 @@ export function ponerSesion(
     nombre: p.nombre,
     ausente: opciones.ausente ?? c?.ausente ?? false,
     actualizado: p.actualizado,
-    sesiones: [...otras, p],
+    sesiones: [...otras, p].map(sinCarpeta),
   }
+}
+
+/**
+ * La presencia del archivo local (v0.11): suma la carpeta de la sesión (`cwd`), para que el widget
+ * ofrezca la carpeta de cada proyecto de la barra en la charla. Sin carpeta conocida, sin la clave.
+ */
+export function presenciaLocal(p: Presencia, cwd: string | null): Presencia {
+  const base = sinCarpeta(p)
+  return cwd && cwd.trim() ? { ...base, cwd } : base
+}
+
+/** La carpeta es solo de esta máquina: nunca viaja en el comentario de GitHub (repositorio compartido). */
+function sinCarpeta(p: Presencia): Presencia {
+  if (!('cwd' in p)) return p
+  const { cwd: _cwd, ...resto } = p
+  return resto
 }
 
 /**

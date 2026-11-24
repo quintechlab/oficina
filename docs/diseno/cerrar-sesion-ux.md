@@ -74,7 +74,7 @@ Delfina, sobre `widget/dev/vista.html` (rama `feat/25-cerrar-sesion`, sin commit
 - **Movimiento reducido emulado:** esta sesión de Playwright no tiene `emulate_media`. Se revisó el código: las reglas nuevas de animación están dentro de `no-preference` y de `body:not(.pausa)` (`estilos.css:1304`, `:1344`), y `?pausa` arranca con `body.pausa`.
 - **Cerrar con otra sesión en el mismo proyecto:** en los datos falsos, las sesiones que se pueden cerrar están solas en su proyecto. Por el código, el foco se pierde igual (`devolverFoco` sale si la barra ya no existe), y B1 lo cubre.
 - **La app real (Tauri):**
-  - la lectura real de la transcripción (`historial.rs`);
+  - la lectura real de la transcripción (`transcripcion.rs`);
   - la salida real de la sesión y el tiempo hasta que se marca `cerrada`;
   - el scroll de la lista con el teclado en WebView2;
   - lo que dice de verdad un lector de pantalla (acá se revisaron solo los roles y las regiones del DOM).

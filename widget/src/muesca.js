@@ -250,17 +250,26 @@ export function disposicionTira(pos, tam, area, z = 1) {
   return { modo: 'tira', ventana, tira, local: { tira: relativo(tira, ventana, z) } }
 }
 
+/** El rectángulo que contiene a `a` y a `b` (sin `b`, `a`). */
+function unir(a, b) {
+  if (!b) return { x: a.x, y: a.y, ancho: a.ancho, alto: a.alto }
+  const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y)
+  return { x, y, ancho: Math.max(a.x + a.ancho, b.x + b.ancho) - x, alto: Math.max(a.y + a.alto, b.y + b.alto) - y }
+}
+
 /**
  * Lo que toma el mouse en la ventana del área (9.6 y 9.7), en px de pantalla; el resto deja pasar
  * los clics a lo que hay debajo. Acoplada y cerrada: la muesca más `MARGEN_ZONA`; abierta: el
  * tablero. Flotando, el tablero; en la tira, la tira. Arrastrando (la muesca, la píldora, el tablero
  * o la tira), toda la ventana (`toda`), para no perder el puntero a mitad de camino.
  */
-export function zonaInteractiva(d, { abierta, arrastrando = false }, z = 1) {
+export function zonaInteractiva(d, { abierta, arrastrando = false, hoja = null }, z = 1) {
   if (arrastrando) return { ...d.ventana, toda: true }
   if (d.modo === 'tira') return { ...d.tira, toda: false }
-  if (d.modo === 'flotante') return { ...d.tablero, toda: false }
-  if (abierta) return { ...d.p.tablero, toda: false }
+  // La hoja de la charla al costado (chat-avis-ux.md 3.1): la unión del tablero y la hoja, con el
+  // hueco adentro. Encima, quien llama no la pasa (la zona es el tablero)
+  if (d.modo === 'flotante') return { ...unir(d.tablero, hoja), toda: false }
+  if (abierta) return { ...unir(d.p.tablero, hoja), toda: false }
   const c = d.m.caja, g = MARGEN_ZONA * z
   return { x: c.x - g, y: c.y - g, ancho: c.ancho + 2 * g, alto: c.alto + 2 * g, toda: false }
 }

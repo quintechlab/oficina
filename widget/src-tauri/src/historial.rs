@@ -1,318 +1,286 @@
-//! Qué estuvo haciendo una sesión (#25): los últimos pedidos del usuario y las respuestas de Claude,
-//! leídos en solo lectura de la transcripción que escribe Claude Code en
-//! `%USERPROFILE%/.claude/projects/<carpeta del proyecto>/<id de sesión>.jsonl`.
+//! El historial de la charla en la PC (#22, docs/diseno/chat-avis-ux.md 9.1): un archivo por
+//! conversación en `<config>/chat/<id>.json`, la fuente de verdad. Engram es solo la copia buscable
+//! (`engram.rs`).
 //!
-//! Solo se lee la cola del archivo (una transcripción larga pasa de varios MB): primero 256 KB y, si
-//! no alcanzan para unos pedidos, el doble, hasta 8 MB. Acá se separan los textos; agruparlos en
-//! turnos y recortarlos es de `historial.js`.
+//! - La ventana manda la conversación entera y Rust guarda solo el formato v1 de 9.1: lo que no es
+//!   del formato no se escribe, y de los adjuntos quedan el nombre y el tamaño (D23), nunca la ruta.
+//! - Escritura atómica (un `.tmp` propio y `rename`), de a una por vez en el proceso.
+//! - Un archivo roto se salta al listar y se anota en `widget.log`; nunca se borra solo.
 
-use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use serde_json::{json, Map, Value};
+use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, PoisonError};
 
-use serde_json::{json, Value};
+use crate::chat;
 
-/// La primera lectura de la cola; se duplica mientras falten pedidos.
-pub const BYTES_INICIALES: u64 = 256 * 1024;
-/// Nunca se lee más que esto del final del archivo.
-pub const BYTES_MAXIMOS: u64 = 8 * 1024 * 1024;
-/// Con esta cantidad de pedidos del usuario alcanza para los últimos 6 turnos (y uno de más).
-pub const PEDIDOS_BUSCADOS: usize = 7;
-/// Las últimas entradas que se devuelven a la ventana.
-pub const MAX_ENTRADAS: usize = 80;
-/// Cada texto se corta acá (en caracteres): la ventana lo recorta mucho más.
-pub const MAX_CARACTERES: usize = 2000;
-/// Claude Code acorta (y agrega un hash) los nombres de carpeta más largos que esto.
-const MAX_CARPETA: usize = 200;
+/// Cuántas charlas lista el cajón (9.1).
+pub const TOPE_LISTA: usize = 100;
+/// Cuánto texto de cada charla viaja con la lista para buscar (la búsqueda es de la ventana,
+/// `coincideBusqueda`).
+pub const TOPE_TEXTO_BUSCAR: usize = 32 * 1024;
+/// Topes del formato: lo que pase de acá no es una charla de Avis.
+const TOPE_MENSAJES: usize = 10_000;
+const TOPE_TEXTO: usize = 2_000_000;
+const TOPE_CORTO: usize = 300;
+/// Hasta 5 archivos por mensaje (D27).
+const TOPE_ADJUNTOS: usize = 5;
+const TOPE_HERRAMIENTAS: usize = 500;
 
-/// `%USERPROFILE%/.claude`.
-pub fn carpeta_claude() -> Option<PathBuf> {
-    let base = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME"))?;
-    Some(PathBuf::from(base).join(".claude"))
+/// Una escritura por vez en todo el proceso: dos guardados a la vez no se pisan el `rename`.
+static ESCRITURA: Mutex<()> = Mutex::new(());
+static TEMPORALES: AtomicU64 = AtomicU64::new(0);
+
+/// Un id de charla de Avis: `c-…` y lo que acepta `conversacion_valida` (sin rutas).
+pub fn id_valido(id: &str) -> bool {
+    id.len() > 2 && id.starts_with("c-") && chat::conversacion_valida(id)
 }
 
-/// Un id de sesión (`^[A-Za-z0-9_-]{1,128}$`): así ningún id puede salir de la carpeta.
-fn id_valido(sesion: &str) -> bool {
-    !sesion.is_empty() && sesion.len() <= 128 && sesion.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+/// `<carpeta>/<id>.json`, o `None` con un id inválido.
+pub fn ruta(carpeta: &Path, id: &str) -> Option<PathBuf> {
+    id_valido(id).then(|| carpeta.join(format!("{id}.json")))
 }
 
-/// La carpeta de `projects` de un directorio de trabajo, como la arma Claude Code: cada carácter que
-/// no es letra o dígito ASCII pasa a `-` (uno por unidad UTF-16, como el reemplazo de JavaScript).
-/// `None` si pasa de 200: Claude Code la acorta con un hash, y entonces se busca por el id.
-pub fn carpeta_de_proyecto(cwd: &str) -> Option<String> {
-    let mut nombre = String::new();
-    for c in cwd.chars() {
-        if c.is_ascii_alphanumeric() {
-            nombre.push(c);
-        } else {
-            for _ in 0..c.len_utf16() {
-                nombre.push('-');
+fn texto(v: &Value, tope: usize) -> Option<String> {
+    v.as_str().filter(|s| s.len() <= tope).map(str::to_string)
+}
+
+fn texto_o_nulo(v: &Value, tope: usize, nombre: &str) -> Result<Value, String> {
+    match v {
+        Value::Null => Ok(Value::Null),
+        Value::String(_) => texto(v, tope).map(Value::String).ok_or_else(|| format!("{nombre} demasiado largo")),
+        _ => Err(format!("{nombre} no es texto")),
+    }
+}
+
+fn numero_o_nulo(v: &Value, nombre: &str) -> Result<Value, String> {
+    match v {
+        Value::Null => Ok(Value::Null),
+        _ => v.as_u64().map(Value::from).ok_or_else(|| format!("{nombre} no es un número")),
+    }
+}
+
+fn mensaje(m: &Value) -> Result<Value, String> {
+    let rol = m["rol"].as_str().unwrap_or_default();
+    let estado = m["estado"].as_str().unwrap_or_default();
+    if !["ok", "frenada", "no-enviado", "error"].contains(&estado) {
+        return Err(format!("estado de mensaje desconocido: {estado:?}"));
+    }
+    let mut x = Map::new();
+    x.insert(String::from("rol"), json!(rol));
+    x.insert(String::from("texto"), json!(texto(&m["texto"], TOPE_TEXTO).ok_or("texto de mensaje inválido")?));
+    x.insert(String::from("cuando"), json!(texto(&m["cuando"], 40).ok_or("cuando inválido")?));
+    x.insert(String::from("estado"), json!(estado));
+    match rol {
+        "usuario" => {
+            let adjuntos = m["adjuntos"].as_array().map(Vec::as_slice).unwrap_or_default();
+            if adjuntos.len() > TOPE_ADJUNTOS {
+                return Err(String::from("demasiados adjuntos"));
+            }
+            let adjuntos = adjuntos
+                .iter()
+                .map(|a| {
+                    Ok(json!({
+                        "nombre": texto(&a["nombre"], 260).ok_or("adjunto sin nombre")?,
+                        "tipo": texto(&a["tipo"], 20).ok_or("adjunto sin tipo")?,
+                        "bytes": a["bytes"].as_u64().ok_or("adjunto sin tamaño")?,
+                        "paginas": numero_o_nulo(&a["paginas"], "paginas")?,
+                    }))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            x.insert(String::from("adjuntos"), Value::Array(adjuntos));
+        }
+        "mascota" => {
+            let herramientas = m["herramientas"].as_array().map(Vec::as_slice).unwrap_or_default();
+            if herramientas.len() > TOPE_HERRAMIENTAS {
+                return Err(String::from("demasiadas herramientas"));
+            }
+            let herramientas = herramientas
+                .iter()
+                .map(|h| Ok(json!({ "nombre": texto(&h["nombre"], 40).ok_or("herramienta sin nombre")?, "detalle": texto(&h["detalle"], TOPE_CORTO).ok_or("detalle inválido")? })))
+                .collect::<Result<Vec<_>, String>>()?;
+            x.insert(String::from("herramientas"), Value::Array(herramientas));
+            x.insert(String::from("ms"), numero_o_nulo(&m["ms"], "ms")?);
+            // El turno llevó el contexto de Avis ("↳ Miró tus sesiones de Avis", 4.1)
+            if m["avis"] == json!(true) {
+                x.insert(String::from("avis"), json!(true));
             }
         }
+        _ => return Err(format!("rol desconocido: {rol:?}")),
     }
-    (nombre.len() <= MAX_CARPETA).then_some(nombre)
+    Ok(Value::Object(x))
 }
 
-/// El directorio de trabajo de la sesión según `~/.claude/sessions/<pid>.json` (lo escribe Claude
-/// Code mientras el proceso vive), o `None`.
-fn cwd_de_sesion(claude: &Path, sesion: &str) -> Option<String> {
-    let entradas = std::fs::read_dir(claude.join("sessions")).ok()?;
-    entradas
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|ruta| ruta.extension().is_some_and(|x| x == "json"))
-        .filter_map(|ruta| std::fs::read_to_string(ruta).ok())
-        .filter_map(|texto| serde_json::from_str::<Value>(&texto).ok())
-        .find(|v| v["sessionId"].as_str() == Some(sesion))
-        .and_then(|v| v["cwd"].as_str().map(String::from))
+/// El formato v1 de 9.1, solo con sus campos. `engramId` no lo decide la ventana (queda nulo acá).
+pub fn normalizar(doc: &Value) -> Result<Value, String> {
+    if doc["v"] != json!(1) {
+        return Err(String::from("versión desconocida"));
+    }
+    let id = doc["id"].as_str().filter(|id| id_valido(id)).ok_or("id de charla inválido")?;
+    let motor = doc["motor"].as_str().filter(|m| *m == "claude" || *m == "local").ok_or("motor desconocido")?;
+    let sesion = match &doc["sesionClaude"] {
+        Value::Null => Value::Null,
+        v => json!(v.as_str().filter(|s| chat::sesion_valida(s)).ok_or("sesión de Claude Code inválida")?),
+    };
+    let mensajes = doc["mensajes"].as_array().ok_or("sin mensajes")?;
+    if mensajes.len() > TOPE_MENSAJES {
+        return Err(String::from("demasiados mensajes"));
+    }
+    let mensajes = mensajes.iter().map(mensaje).collect::<Result<Vec<_>, String>>()?;
+    Ok(json!({
+        "v": 1,
+        "id": id,
+        "titulo": texto_o_nulo(&doc["titulo"], TOPE_CORTO, "titulo")?,
+        "creada": texto(&doc["creada"], 40).ok_or("creada inválida")?,
+        "actualizada": texto(&doc["actualizada"], 40).ok_or("actualizada inválida")?,
+        "motor": motor,
+        // El motor local no tiene carpeta (3.4)
+        "carpeta": if motor == "local" { Value::Null } else { texto_o_nulo(&doc["carpeta"], 1024, "carpeta")? },
+        "sesionClaude": sesion,
+        "engramId": Value::Null,
+        "mensajes": mensajes,
+    }))
 }
 
-/// Dónde está la transcripción de la sesión: primero en la carpeta de su directorio de trabajo y, si
-/// no está (sesión ya cerrada, carpeta acortada), en cualquier carpeta de `projects`.
-pub fn ruta_transcripcion(claude: &Path, sesion: &str) -> Option<PathBuf> {
-    if !id_valido(sesion) {
-        return None;
+fn bloquear() -> std::sync::MutexGuard<'static, ()> {
+    ESCRITURA.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Escribe `<id>.json` con un temporal propio y `rename` (con el candado tomado).
+fn escribir(carpeta: &Path, id: &str, doc: &Value) -> Result<(), String> {
+    let destino = ruta(carpeta, id).ok_or("id de charla inválido")?;
+    fs::create_dir_all(carpeta).map_err(|e| e.to_string())?;
+    let n = TEMPORALES.fetch_add(1, Ordering::Relaxed);
+    let temporal = carpeta.join(format!("{id}.json.{}-{n}.tmp", std::process::id()));
+    let resultado = fs::write(&temporal, serde_json::to_vec(doc).map_err(|e| e.to_string())?).and_then(|()| fs::rename(&temporal, &destino));
+    if resultado.is_err() {
+        let _ = fs::remove_file(&temporal);
     }
-    let proyectos = claude.join("projects");
-    let archivo = format!("{sesion}.jsonl");
-    if let Some(carpeta) = cwd_de_sesion(claude, sesion).as_deref().and_then(carpeta_de_proyecto) {
-        let ruta = proyectos.join(carpeta).join(&archivo);
-        if ruta.is_file() {
-            return Some(ruta);
+    resultado.map_err(|e| e.to_string())
+}
+
+fn leer_archivo(carpeta: &Path, id: &str) -> Result<Value, String> {
+    let r = ruta(carpeta, id).ok_or("id de charla inválido")?;
+    let texto = fs::read(&r).map_err(|e| e.to_string())?;
+    let v: Value = serde_json::from_slice(&texto).map_err(|e| format!("archivo roto: {e}"))?;
+    let mut doc = normalizar(&v)?;
+    if v["id"] != json!(id) {
+        return Err(String::from("el archivo es de otra charla"));
+    }
+    doc["engramId"] = v["engramId"].as_u64().map(Value::from).unwrap_or(Value::Null);
+    Ok(doc)
+}
+
+/// Guarda la conversación (al mandar, en cada final y cada 2 s mientras llega texto; 9.1). Conserva el
+/// `engramId` que ya tenía el archivo. Devuelve lo guardado.
+pub fn guardar(carpeta: &Path, doc: &Value) -> Result<Value, String> {
+    let mut limpio = normalizar(doc)?;
+    let id = limpio["id"].as_str().unwrap_or_default().to_string();
+    let _candado = bloquear();
+    if let Ok(antes) = leer_archivo(carpeta, &id) {
+        limpio["engramId"] = antes["engramId"].clone();
+    }
+    escribir(carpeta, &id, &limpio)?;
+    Ok(limpio)
+}
+
+/// La conversación completa (`chat_leer`).
+pub fn leer(carpeta: &Path, id: &str) -> Result<Value, String> {
+    leer_archivo(carpeta, id)
+}
+
+/// Anota el id de la observación de Engram (9.2) en un archivo que ya existe.
+pub fn poner_engram(carpeta: &Path, id: &str, engram_id: u64) -> Result<(), String> {
+    let _candado = bloquear();
+    let mut doc = leer_archivo(carpeta, id)?;
+    doc["engramId"] = json!(engram_id);
+    escribir(carpeta, id, &doc)
+}
+
+/// Borra el archivo de la charla. Devuelve su `engramId` (para borrar también la copia de Engram).
+/// Lo que ya no existe no es un error.
+pub fn borrar(carpeta: &Path, id: &str) -> Result<Option<u64>, String> {
+    let r = ruta(carpeta, id).ok_or("id de charla inválido")?;
+    let _candado = bloquear();
+    let engram = leer_archivo(carpeta, id).ok().and_then(|d| d["engramId"].as_u64());
+    match fs::remove_file(&r) {
+        Ok(()) => Ok(engram),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// El texto de la charla para buscar (título aparte): los mensajes, uno por línea, con tope.
+fn texto_para_buscar(doc: &Value) -> String {
+    let mut t = String::new();
+    for m in doc["mensajes"].as_array().map(Vec::as_slice).unwrap_or_default() {
+        let s = m["texto"].as_str().unwrap_or_default();
+        if s.is_empty() {
+            continue;
+        }
+        if !t.is_empty() {
+            t.push('\n');
+        }
+        t.push_str(s);
+        if t.len() >= TOPE_TEXTO_BUSCAR {
+            break;
         }
     }
-    std::fs::read_dir(&proyectos)
-        .ok()?
+    if t.len() > TOPE_TEXTO_BUSCAR {
+        let mut corte = TOPE_TEXTO_BUSCAR;
+        while !t.is_char_boundary(corte) {
+            corte -= 1;
+        }
+        t.truncate(corte);
+    }
+    t
+}
+
+/// Las 100 más recientes por fecha de modificación (`chat_historial`): todo menos los mensajes, más
+/// `texto` para buscar. Un archivo roto se salta y se anota.
+pub fn listar(carpeta: &Path) -> Vec<Value> {
+    let Ok(entradas) = fs::read_dir(carpeta) else { return Vec::new() };
+    let mut archivos: Vec<(std::time::SystemTime, String)> = entradas
         .filter_map(Result::ok)
-        .map(|e| e.path().join(&archivo))
-        .find(|ruta| ruta.is_file())
-}
-
-/// Los últimos `bytes` del archivo, sin la primera línea si quedó cortada, y si se leyó entero.
-pub fn leer_cola(ruta: &Path, bytes: u64) -> std::io::Result<(String, bool)> {
-    let mut f = File::open(ruta)?;
-    let largo = f.metadata()?.len();
-    let desde = largo.saturating_sub(bytes);
-    f.seek(SeekFrom::Start(desde))?;
-    let mut crudo = Vec::new();
-    f.take(bytes).read_to_end(&mut crudo)?;
-    let mut texto = String::from_utf8_lossy(&crudo).into_owned();
-    if desde > 0 {
-        // La primera línea empezó antes de lo leído: se descarta entera
-        texto = texto.split_once('\n').map(|(_, resto)| resto.to_string()).unwrap_or_default();
-    }
-    Ok((texto, desde == 0))
-}
-
-/// Los textos de una línea de la transcripción: del usuario (sin los `isMeta`, que agrega Claude
-/// Code) y de Claude, nunca de un subagente (`isSidechain`) ni los resultados de herramientas.
-fn textos_de(v: &Value) -> Option<(&'static str, Vec<String>)> {
-    if v["isSidechain"].as_bool() == Some(true) {
-        return None;
-    }
-    let rol = match (v["type"].as_str(), v["message"]["role"].as_str()) {
-        (Some("user"), Some("user")) if v["isMeta"].as_bool() != Some(true) => "usuario",
-        (Some("assistant"), Some("assistant")) => "claude",
-        _ => return None,
-    };
-    let contenido = &v["message"]["content"];
-    let textos: Vec<String> = match contenido {
-        Value::String(t) => vec![t.clone()],
-        Value::Array(bloques) => bloques
-            .iter()
-            .filter(|b| b["type"].as_str() == Some("text"))
-            .filter_map(|b| b["text"].as_str().map(String::from))
-            .collect(),
-        _ => Vec::new(),
-    };
-    Some((rol, textos))
-}
-
-fn cortar(texto: &str) -> String {
-    match texto.char_indices().nth(MAX_CARACTERES) {
-        Some((i, _)) => texto[..i].to_string(),
-        None => texto.to_string(),
-    }
-}
-
-/// Las entradas `{ rol: "usuario" | "claude", texto, cuando }` del texto de la transcripción, en
-/// orden. Una línea ilegible (a medio escribir) o un texto en blanco se saltean.
-pub fn entradas(texto: &str) -> Vec<Value> {
-    texto
-        .lines()
-        .filter_map(|linea| serde_json::from_str::<Value>(linea).ok())
-        .filter_map(|v| {
-            let (rol, textos) = textos_de(&v)?;
-            let cuando = v["timestamp"].clone();
-            Some(
-                textos
-                    .into_iter()
-                    .filter(|t| !t.trim().is_empty())
-                    .map(|t| json!({ "rol": rol, "texto": cortar(&t), "cuando": cuando }))
-                    .collect::<Vec<_>>(),
-            )
+        .filter_map(|e| {
+            let nombre = e.file_name().to_string_lossy().into_owned();
+            let id = nombre.strip_suffix(".json")?.to_string();
+            let meta = e.metadata().ok().filter(fs::Metadata::is_file)?;
+            id_valido(&id).then(|| (meta.modified().unwrap_or(std::time::UNIX_EPOCH), id))
         })
-        .flatten()
-        .collect()
-}
-
-/// Pedidos escritos por el usuario: sin los avisos del sistema (`<task-notification>`, comandos…).
-fn pedidos(entradas: &[Value]) -> usize {
-    entradas
-        .iter()
-        .filter(|e| e["rol"] == "usuario" && !e["texto"].as_str().unwrap_or("").trim_start().starts_with('<'))
-        .count()
-}
-
-/// Lo último de la conversación de la sesión: `{ entradas }` (las últimas 80), con `entradas` vacío
-/// si todavía no hay transcripción. Error solo si el archivo existe y no se puede leer.
-pub fn leer_historial_de(claude: &Path, sesion: &str) -> Result<Value, String> {
-    if !id_valido(sesion) {
-        return Err(String::from("id de sesión inválido"));
-    }
-    let Some(ruta) = ruta_transcripcion(claude, sesion) else {
-        return Ok(json!({ "entradas": [] }));
-    };
-    let mut bytes = BYTES_INICIALES;
-    loop {
-        let (texto, entero) = leer_cola(&ruta, bytes).map_err(|e| e.to_string())?;
-        let todas = entradas(&texto);
-        if entero || bytes >= BYTES_MAXIMOS || pedidos(&todas) >= PEDIDOS_BUSCADOS {
-            let desde = todas.len().saturating_sub(MAX_ENTRADAS);
-            return Ok(json!({ "entradas": todas[desde..] }));
+        .collect();
+    archivos.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    let mut lista = Vec::new();
+    for (_, id) in archivos {
+        if lista.len() >= TOPE_LISTA {
+            break;
         }
-        bytes = (bytes * 2).min(BYTES_MAXIMOS);
+        match leer_archivo(carpeta, &id) {
+            Ok(mut doc) => {
+                let texto = texto_para_buscar(&doc);
+                if let Some(o) = doc.as_object_mut() {
+                    o.remove("mensajes");
+                    o.insert(String::from("texto"), json!(texto));
+                }
+                lista.push(doc);
+            }
+            Err(e) => registrar(&format!("chat: historial: se salta {id}.json ({e})")),
+        }
+    }
+    lista
+}
+
+#[cfg(not(test))]
+fn registrar(linea: &str) {
+    if let Some(ruta) = crate::diagnostico::ruta_log() {
+        let _ = crate::diagnostico::agregar_linea(&ruta, linea, chrono::Utc::now(), crate::diagnostico::TOPE_BYTES);
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
+fn registrar(_linea: &str) {}
 
-    fn carpeta_temporal(nombre: &str) -> PathBuf {
-        let unica = format!(
-            "oficina-historial-test-{}-{}-{}",
-            nombre,
-            std::process::id(),
-            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
-        );
-        let c = std::env::temp_dir().join(unica);
-        fs::create_dir_all(&c).unwrap();
-        c
-    }
-
-    fn usuario(texto: &str, cuando: &str) -> String {
-        json!({ "type": "user", "message": { "role": "user", "content": texto }, "timestamp": cuando }).to_string()
-    }
-
-    fn claude(texto: &str, cuando: &str) -> String {
-        json!({ "type": "assistant", "message": { "role": "assistant", "content": [
-            { "type": "thinking", "thinking": "no se muestra" },
-            { "type": "text", "text": texto },
-        ] }, "timestamp": cuando })
-        .to_string()
-    }
-
-    #[test]
-    fn la_carpeta_del_proyecto_como_la_arma_claude_code() {
-        // Medido el 23/11 contra las carpetas reales de ~/.claude/projects
-        assert_eq!(carpeta_de_proyecto(r"C:\Users\Nico\OneDrive\Desktop\oficina").unwrap(), "C--Users-Nico-OneDrive-Desktop-oficina");
-        assert_eq!(
-            carpeta_de_proyecto(r"C:\Users\Nico\OneDrive\Desktop\catalogo\.claude\worktrees\shipping-services-argentina-8f8e6b").unwrap(),
-            "C--Users-Nico-OneDrive-Desktop-catalogo--claude-worktrees-shipping-services-argentina-8f8e6b"
-        );
-        // Una ñ es una unidad UTF-16 (un guion); un emoji, dos
-        assert_eq!(carpeta_de_proyecto("C:/año/😀").unwrap(), "C--a-o---");
-        assert_eq!(carpeta_de_proyecto(&"a".repeat(200)).unwrap().len(), 200);
-        assert!(carpeta_de_proyecto(&"a".repeat(201)).is_none());
-    }
-
-    #[test]
-    fn separa_pedidos_y_respuestas_sin_meta_subagentes_ni_herramientas() {
-        let lineas = [
-            usuario("arreglá el header", "2026-11-23T10:00:00Z"),
-            json!({ "type": "user", "isMeta": true, "message": { "role": "user", "content": "Base directory for this skill" } }).to_string(),
-            json!({ "type": "user", "message": { "role": "user", "content": [{ "type": "tool_result", "content": "salida" }] } }).to_string(),
-            json!({ "type": "assistant", "isSidechain": true, "message": { "role": "assistant", "content": [{ "type": "text", "text": "de un subagente" }] } }).to_string(),
-            json!({ "type": "assistant", "message": { "role": "assistant", "content": [{ "type": "tool_use", "name": "Bash" }] } }).to_string(),
-            json!({ "type": "last-prompt", "lastPrompt": "arreglá el header" }).to_string(),
-            String::from("{ a medio escribir"),
-            claude("Listo, quedó arreglado.", "2026-11-23T10:01:00Z"),
-            json!({ "type": "user", "message": { "role": "user", "content": [{ "type": "text", "text": "   " }] } }).to_string(),
-        ];
-        assert_eq!(
-            entradas(&lineas.join("\n")),
-            vec![
-                json!({ "rol": "usuario", "texto": "arreglá el header", "cuando": "2026-11-23T10:00:00Z" }),
-                json!({ "rol": "claude", "texto": "Listo, quedó arreglado.", "cuando": "2026-11-23T10:01:00Z" }),
-            ]
-        );
-    }
-
-    #[test]
-    fn un_texto_largo_se_corta_en_2000_caracteres() {
-        let e = entradas(&usuario(&"ñ".repeat(2500), "2026-11-23T10:00:00Z"));
-        assert_eq!(e[0]["texto"].as_str().unwrap().chars().count(), MAX_CARACTERES);
-    }
-
-    #[test]
-    fn la_cola_descarta_la_primera_linea_cortada() {
-        let c = carpeta_temporal("cola");
-        let ruta = c.join("t.jsonl");
-        fs::write(&ruta, "primera linea larga\nsegunda\ntercera\n").unwrap();
-        assert_eq!(leer_cola(&ruta, 15).unwrap(), (String::from("tercera\n"), false));
-        assert_eq!(leer_cola(&ruta, 1000).unwrap(), (String::from("primera linea larga\nsegunda\ntercera\n"), true));
-        fs::remove_dir_all(&c).unwrap();
-    }
-
-    #[test]
-    fn encuentra_la_transcripcion_por_el_cwd_de_la_sesion_o_buscando_el_id() {
-        let c = carpeta_temporal("ruta");
-        let sesion = "2426b96f-1738-432a-bfba-df037d8d476f";
-        fs::create_dir_all(c.join("sessions")).unwrap();
-        fs::write(c.join("sessions").join("123.json"), json!({ "pid": 123, "sessionId": sesion, "cwd": r"C:\demo\app" }).to_string()).unwrap();
-        let propia = c.join("projects").join("C--demo-app");
-        fs::create_dir_all(&propia).unwrap();
-        fs::write(propia.join(format!("{sesion}.jsonl")), "").unwrap();
-        assert_eq!(ruta_transcripcion(&c, sesion).unwrap(), propia.join(format!("{sesion}.jsonl")));
-        // Sin el archivo de la sesión (ya cerrada), se busca en todas las carpetas
-        let otra = "aaaa-bbbb";
-        let lejos = c.join("projects").join("C--otra");
-        fs::create_dir_all(&lejos).unwrap();
-        fs::write(lejos.join(format!("{otra}.jsonl")), "").unwrap();
-        assert_eq!(ruta_transcripcion(&c, otra).unwrap(), lejos.join(format!("{otra}.jsonl")));
-        assert!(ruta_transcripcion(&c, "no-existe").is_none());
-        // Un id con separadores nunca sale de la carpeta
-        assert!(ruta_transcripcion(&c, "../C--otra/aaaa-bbbb").is_none());
-        assert!(leer_historial_de(&c, "../x").is_err());
-        fs::remove_dir_all(&c).unwrap();
-    }
-
-    #[test]
-    fn sin_transcripcion_no_hay_entradas() {
-        let c = carpeta_temporal("vacia");
-        assert_eq!(leer_historial_de(&c, "ses1").unwrap(), json!({ "entradas": [] }));
-        fs::remove_dir_all(&c).unwrap();
-    }
-
-    #[test]
-    fn lee_la_cola_y_la_agranda_hasta_juntar_pedidos() {
-        let c = carpeta_temporal("agranda");
-        let dir = c.join("projects").join("C--demo");
-        fs::create_dir_all(&dir).unwrap();
-        // Ocho turnos con una respuesta de 100 KB cada uno: 256 KB no alcanzan para 7 pedidos
-        let mut lineas = Vec::new();
-        for i in 0..8 {
-            lineas.push(usuario(&format!("pedido {i}"), "2026-11-23T10:00:00Z"));
-            lineas.push(json!({ "type": "user", "message": { "role": "user", "content": [{ "type": "tool_result", "content": "x".repeat(100_000) }] } }).to_string());
-            lineas.push(claude(&format!("respuesta {i}"), "2026-11-23T10:00:01Z"));
-        }
-        fs::write(dir.join("ses1.jsonl"), lineas.join("\n") + "\n").unwrap();
-        let r = leer_historial_de(&c, "ses1").unwrap();
-        let textos: Vec<&str> = r["entradas"].as_array().unwrap().iter().map(|e| e["texto"].as_str().unwrap()).collect();
-        assert!(textos.iter().filter(|t| t.starts_with("pedido")).count() >= PEDIDOS_BUSCADOS);
-        assert_eq!(textos.last(), Some(&"respuesta 7"));
-        fs::remove_dir_all(&c).unwrap();
-    }
-}
+#[cfg(test)]
+#[path = "historial_tests.rs"]
+mod tests;
