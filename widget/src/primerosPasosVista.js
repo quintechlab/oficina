@@ -3,7 +3,7 @@
 // y el aviso del tablero. Solo arma HTML a partir del modelo de primerosPasos.js; los clics van
 // por `data-accion` (main.js). Regla firme (10): ningún botón trae foco, ni `autofocus`, ni tiempo.
 
-import { avi, PERSONAJE_BASE } from './avis.js'
+import { avi, mascotaPrimerosPasos } from './avis.js'
 import { escapar } from './logica.js'
 import { iniciales } from './tablero.js'
 import { PASOS, ORGANIZACION, pendienteAviso, deletrear, modApagado, textoAvisoMod } from './primerosPasos.js'
@@ -121,10 +121,13 @@ function extra(e, hora) {
   }
 }
 
-/** El Avi base, el rótulo, el título y el texto: centrados (escenario) o en dos columnas (hoja). */
-function cabezaEscena(forma, pose, rot, titulo, textoHtml) {
+/**
+ * La mascota, el rótulo, el título y el texto: centrados (escenario) o en dos columnas (hoja). La
+ * mascota es la elegida, siempre en forma base: con el Avi, el Avi base de hoy (mascotas-avi-ux.md S1).
+ */
+function cabezaEscena(forma, pose, rot, titulo, textoHtml, mascota) {
   const h = forma === 'hoja' ? 'h3' : 'h2'
-  const figura = `<div class="pp-avi pp-pieza">${avi(PERSONAJE_BASE, pose, TAMANO_AVI[forma])}</div>`
+  const figura = `<div class="pp-avi pp-pieza">${avi(mascotaPrimerosPasos(mascota), pose, TAMANO_AVI[forma])}</div>`
   const textos = `<p class="pp-n pp-pieza">${escapar(rot)}</p><${h} class="pp-h pp-pieza" id="pp-titulo" tabindex="-1">${escapar(titulo)}</${h}>`
     + (textoHtml ? `<p class="pp-txt pp-pieza">${textoHtml}</p>` : '')
   return forma === 'hoja' ? `<div class="pp-fila">${figura}<div class="pp-textos">${textos}</div></div>` : figura + textos
@@ -134,11 +137,11 @@ function cabezaEscena(forma, pose, rot, titulo, textoHtml) {
  * La escena visible: un paso (con su estado) o la escena final ('listo', 4.5). `hora(ms)`: la hora
  * local "12:19" para el vencimiento del código.
  */
-export function escena(modelo, visible, forma, hora) {
+export function escena(modelo, visible, forma, hora, mascota = 'avi') {
   if (visible === 'listo') {
     const login = modelo.pasos.gh.extra?.login
     return cabezaEscena(forma, 'listo', `Listo · ${PASOS.length} de ${PASOS.length}`, 'Avis está listo',
-      'Para que las sesiones de Claude Code que ya están abiertas carguen el mod, reinicialas o escribí <code class="pp-code">/reload-plugins</code> en cada una.')
+      'Para que las sesiones de Claude Code que ya están abiertas carguen el mod, reinicialas o escribí <code class="pp-code">/reload-plugins</code> en cada una.', mascota)
       + `<div class="pp-extra pp-pieza">${login ? cuenta(login, true) : ''}</div>`
       + `<div class="pp-pieza"><div class="pp-acc"><button type="button" class="pp-btn pri" data-accion="pp-ir" data-foco="ir">Ir a Avis</button>`
       + `<button type="button" class="pp-btn sec" data-accion="pp-copiar" data-valor="/reload-plugins" data-foco="copiar:reload">Copiar <code class="pp-code">/reload-plugins</code></button></div></div>`
@@ -146,7 +149,7 @@ export function escena(modelo, visible, forma, hora) {
   const p = modelo.pasos[visible]
   // La cuenta conectada va en el lugar del texto (4.4, Hecho)
   const texto = p.texto ? escapar(p.texto) : ''
-  return cabezaEscena(forma, p.pose, `Paso ${p.n} de ${PASOS.length} · ${p.nombre}`, p.titulo, texto)
+  return cabezaEscena(forma, p.pose, `Paso ${p.n} de ${PASOS.length} · ${p.nombre}`, p.titulo, texto, mascota)
     + `<div class="pp-extra pp-pieza${p.extra?.tipo === 'error' || p.extra?.tipo === 'arreglo' ? ' con-error' : ''}">${extra(p.extra, hora)}${p.nota ? `<p class="pp-nota">${escapar(p.nota)}</p>` : ''}</div>`
     + `<div class="pp-pieza">${acciones(p.acciones)}${enlaces(p.enlaces)}</div>`
 }
@@ -162,27 +165,27 @@ export function pie(anterior, siguiente) {
  * El aviso del tablero (3.5): la píldora del aviso de pregunta con borde neutro, el Avi base quieto
  * en "saluda" y lo primero que falta. Vacío si no falta nada.
  */
-export function avisoAsistente(modelo) {
+export function avisoAsistente(modelo, mascota = 'avi') {
   // El mod apagado no se prende solo (#17): "Prender" corre activar con el clic
   if (modApagado(modelo)) {
     return `<button type="button" class="aviso pp-aviso" data-accion="pp-correr" data-valor="activar" aria-label="El mod está apagado. Prender">`
-      + `${avi(PERSONAJE_BASE, 'durmiendo', 28)}<span>El mod está <b>apagado</b></span><span class="ir">Prender</span></button>`
+      + `${avi(mascotaPrimerosPasos(mascota), 'durmiendo', 28)}<span>El mod está <b>apagado</b></span><span class="ir">Prender</span></button>`
   }
   const falta = pendienteAviso(modelo)
   if (!falta) return ''
   return `<button type="button" class="aviso pp-aviso" data-accion="pp-ver" aria-label="Primeros pasos: falta ${escapar(falta)}. Ver">`
-    + `${avi(PERSONAJE_BASE, 'saluda', 28)}<span>Falta <b>${escapar(falta)}</b></span><span class="ir">Ver →</span></button>`
+    + `${avi(mascotaPrimerosPasos(mascota), 'saluda', 28)}<span>Falta <b>${escapar(falta)}</b></span><span class="ir">Ver →</span></button>`
 }
 
 /**
  * El aviso de una vez después de que Avis instaló o actualizó el mod solo (#17): la misma píldora
  * del tablero; su clic lo cierra ("Entendido"). Sin aviso, ''.
  */
-export function avisoMod(aviso) {
+export function avisoMod(aviso, mascota = 'avi') {
   const texto = textoAvisoMod(aviso)
   if (!texto) return ''
   const v = escapar(aviso.version)
   const visible = escapar(texto).replace(v, `<b>${v}</b>`)
   return `<button type="button" class="aviso pp-aviso" data-accion="pp-mod-visto" aria-label="${escapar(texto)}. Entendido">`
-    + `${avi(PERSONAJE_BASE, 'listo', 28)}<span>${visible}</span><span class="ir">Entendido</span></button>`
+    + `${avi(mascotaPrimerosPasos(mascota), 'listo', 28)}<span>${visible}</span><span class="ir">Entendido</span></button>`
 }

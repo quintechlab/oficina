@@ -5,9 +5,11 @@ import assert from 'node:assert/strict'
 import {
   proximoReposo, REPOSO_PRIMERO_MS, REPOSO_ENTRE_MS, REPOSO_SIESTA_MS, REPOSO_LLAMA_MS, PESOS_REPOSO,
   ACTOS, REPOSO, valorPista, estadoActo, mirarPuntero, direccionSalida, objetivoMirada, cambioMirada,
-  siguePuntero, sigueAhora, miraPropia, salida, SUELTA_MS, MIRA_OCUPADO, VOCES, VOZ_MS, canalesVoz, haciaVoz, puedeJugar,
+  siguePuntero, sigueAhora, miraPropia, salida, SUELTA_MS, MIRA_OCUPADO, VOCES, VOZ_MS, canalesVoz, haciaVoz, puedeJugar, pesosMarca, opacidadLuz, escalaLuz,
 } from '../src/marca.js'
-import { svgAvi, CLAUDE, POSES, poseAvi } from '../src/avis.js'
+import { svgAvi, claudeDe, POSES, poseAvi } from '../src/avis.js'
+
+const CLAUDE = claudeDe('avi')
 
 /** Un azar que devuelve los valores dados, en orden (y repite el último). */
 const azarDe = (...v) => { let k = 0; return () => v[Math.min(k++, v.length - 1)] }
@@ -408,4 +410,43 @@ test('las poses nuevas de la voz: solo las dibuja la marca, con las cejas en "er
   // Los demás Avis no llevan cejas, y el ánimo de una sesión nunca pide estas poses
   assert.doesNotMatch(svgAvi(CLAUDE, 'error'), /cejas/)
   assert.equal(poseAvi('editando').pose, 'escribiendo')
+})
+
+// ------------------------------------------------------------------ las especies nuevas (mascotas-avi-ux.md 10, P3)
+
+test('entrega 5 (P3): todas las especies juegan el repertorio del Avi, con las mismas pistas', () => {
+  for (const e of ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']) assert.equal(pesosMarca(e), PESOS_REPOSO, e)
+  // Lo que no es una especie es el Avi (especieValida): el mismo repertorio
+  assert.equal(pesosMarca('dragon'), PESOS_REPOSO)
+  assert.equal(pesosMarca(undefined), PESOS_REPOSO)
+  // Los cinco juegos salen del sorteo de siempre (la siesta, a los 8 min)
+  assert.deepEqual([...sorteados({ quietoDesde: T0, ultimoFin: T0 + 50000, ultimo: null, ultimaLlamada: null, juegos: 1, pesos: pesosMarca('nodo') })].sort(), ['canta', 'estira', 'llama', 'pelota'])
+})
+
+test('la luz propia de cada especie (P2 y P3): sube hacia 1 y crece como el foco; se apaga como el bulbo del Avi', () => {
+  // Reposo: la de siempre, tamaño 1
+  for (const base of [0, 0.2, 0.7, 1]) {
+    assert.equal(opacidadLuz(base, 0), base)
+    assert.equal(escalaLuz(0), 1)
+  }
+  // Sube: hacia 1 en proporción; con 1, entera y un 40 % más grande (el foco del Avi: 1 + luz × 0,4)
+  assert.equal(opacidadLuz(0.2, 1), 1)
+  assert.equal(+opacidadLuz(0.2, 0.5).toFixed(3), 0.6)
+  assert.equal(escalaLuz(1), 1.4)
+  assert.equal(escalaLuz(0.5), 1.2)
+  // Se apaga: con −1 queda al 45 % de la de reposo (el bulbo del Avi: 1 − 0,55 × |luz|), sin achicarse
+  assert.equal(+opacidadLuz(1, -1).toFixed(3), 0.45)
+  assert.equal(+opacidadLuz(0.2, -1).toFixed(3), 0.09)
+  assert.equal(escalaLuz(-1), 1)
+})
+
+test('sin juegos (un repertorio vacío): solo la siesta a los 8 min', () => {
+  // Sin juegos, el próximo evento es la siesta a los 8 min de quietud (el azar se pide igual dos veces)
+  let pedidos = 0
+  const azar = () => { pedidos++; return 0.3 }
+  assert.deepEqual(proximoReposo({ quietoDesde: T0, ultimoFin: null, ultimo: null, ultimaLlamada: null, juegos: 0, azar, pesos: {} }), { id: 'siesta', en: T0 + REPOSO_SIESTA_MS })
+  assert.equal(pedidos, 2)
+  assert.deepEqual(proximoReposo({ quietoDesde: T0, ultimoFin: T0 + 5000, ultimo: 'siesta', ultimaLlamada: null, juegos: 1, azar: azarDe(0.1), pesos: {} }), { id: 'siesta', en: T0 + REPOSO_SIESTA_MS })
+  // Con el repertorio de siempre, nada cambia: el primer juego a los 40 s
+  assert.equal(proximoReposo({ quietoDesde: T0, ultimoFin: null, ultimo: null, ultimaLlamada: null, juegos: 0, azar: azarDe(0.3, 0) }).en, T0 + REPOSO_PRIMERO_MS)
 })

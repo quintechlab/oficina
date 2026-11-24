@@ -1,6 +1,8 @@
 // Lógica pura del widget: agrupar sesiones, ánimos, personajes, tiempos y preguntas.
 // No toca el DOM ni Tauri, así se prueba con node --test.
 
+import { especieValida, datosVariante } from './especies.js'
+
 const MIN = 60000
 /** Igual que el mod (MINUTOS_INACTIVO en hooks/logica.ts): sin publicar hace más, la sesión duerme. */
 export const MINUTOS_INACTIVO = 20
@@ -57,7 +59,11 @@ export function agruparPorProyecto(sesiones) {
 const preguntaDeLaSesion = s => (s.preguntas ?? []).some(p => p.agente == null)
 const inactiva = (s, ahoraMs) => ahoraMs - ms(s.actualizado) > MINUTOS_INACTIVO * MIN
 
-const coordinando = s => (s.agentes ?? []).some(a => a.estado === 'trabajando')
+/**
+ * ¿Coordina un equipo? Algún subagente con `estado === 'trabajando'` (mascotas-avi-ux.md 6.1). No sale de
+ * `animoSesion`: con una pregunta propia y subagentes trabajando, la sesión dice `teEspera` y sigue coordinando.
+ */
+export const coordinaEquipo = s => (s.agentes ?? []).some(a => a.estado === 'trabajando')
 /** El mod pone "esperándote" cuando termina el turno y Claude espera tu próximo mensaje. */
 const esperaMensaje = s => s.actividad === 'esperándote'
 
@@ -89,7 +95,7 @@ export const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`
  */
 export function animoSesion(s, ahoraMs) {
   if (preguntaDeLaSesion(s)) return 'teEspera'
-  if (coordinando(s)) return 'coordinando'
+  if (coordinaEquipo(s)) return 'coordinando'
   if (procesosEnEspera(s)) return 'proceso'
   if (esperaMensaje(s)) return 'esperando'
   if (inactiva(s, ahoraMs)) return 'inactiva'
@@ -128,12 +134,53 @@ function huella(texto) {
   return h
 }
 
+/** Variantes de subagente por especie (mascotas-avi-ux.md 7.1). */
+const VARIANTES_POR_ESPECIE = 4
+
+/**
+ * La variante (0..3) de cada subagente de una sesión, para las especies que no son el Avi
+ * (mascotas-avi-ux.md 7.3, corregida en 16.2): sobre la lista completa (también los terminados), en
+ * orden de lanzamiento (`desde` y, a igualdad, `id`), cada uno toma `huella(id) % 4`; si ya la tiene
+ * uno anterior que seguía trabajando cuando él arrancó (`hasta == null || hasta > desde`) y queda
+ * alguna libre, la siguiente libre. Con 4 o menos a la vez nunca se repiten; del quinto en adelante,
+ * su huella. Devuelve `Map<id, variante>`.
+ */
+export function variantesEquipo(agentes) {
+  const orden = [...(agentes ?? [])].sort((a, b) => ((Date.parse(a.desde) || 0) - (Date.parse(b.desde) || 0))
+    || (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0))
+  const anteriores = []
+  const variantes = new Map()
+  for (const a of orden) {
+    const desde = Date.parse(a.desde) || 0
+    // Choca solo con los anteriores que seguían trabajando cuando arrancó (16.2)
+    const usadas = new Set(anteriores.filter(p => p.hasta == null || p.hasta > desde).map(p => p.v))
+    let v = huella(String(a.id)) % VARIANTES_POR_ESPECIE
+    if (usadas.size < VARIANTES_POR_ESPECIE) while (usadas.has(v)) v = (v + 1) % VARIANTES_POR_ESPECIE
+    const hasta = a.hasta == null ? null : Date.parse(a.hasta)
+    anteriores.push({ hasta: Number.isNaN(hasta) ? null : hasta, v })
+    variantes.set(a.id, v)
+  }
+  return variantes
+}
+
 /** Personaje de un nombre: el del elenco, o uno elegido siempre igual a partir del nombre. */
 export function personajeDeNombre(nombre) {
   const n = normalizar(nombre)
   const propio = ELENCO[n]
   if (propio) return { ...propio }
   return { ...SUBAGENTES[huella(n) % SUBAGENTES.length] }
+}
+
+/**
+ * El dibujo de un subagente con la `especie` de la mascota (mascotas-avi-ux.md 7.3): con el Avi, el
+ * personaje de su nombre, como siempre (decisión P1); con otra especie, su variante de `variantes`
+ * (`variantesEquipo` de su sesión) y el acento de esa variante (`color`, el `--c` de su ficha).
+ */
+export function personajeSubagente(a, especie, variantes) {
+  const e = especieValida(especie)
+  if (e === 'avi') return { ...personajeDeNombre(a.nombre), especie: e }
+  const variante = variantes.get(a.id) ?? 0
+  return { especie: e, variante, color: datosVariante(e, variante).c }
 }
 
 /** "menos de 1 min", "12 min", "2 h 5 min". */
@@ -174,7 +221,8 @@ export function tituloActividad(s, ahoraMs) {
 
 /**
  * Las preguntas pendientes de un proyecto, una por ítem (una llamada a AskUserQuestion
- * puede traer varias), con el nombre de quien pregunta.
+ * puede traer varias), con el nombre de quien pregunta y `equipo`, la lista completa de subagentes
+ * de su sesión (para la variante de un subagente que pregunta, mascotas-avi-ux.md 7.3).
  */
 export function preguntasPendientes(proyecto) {
   const pend = []
@@ -182,7 +230,7 @@ export function preguntasPendientes(proyecto) {
     for (const p of s.preguntas ?? []) {
       const ag = p.agente ? (s.agentes ?? []).find(a => a.id === p.agente) : null
       const quien = p.agente ? (ag?.nombre ?? 'Un subagente') : 'Claude'
-      ;(p.items ?? []).forEach((item, i) => pend.push({ clave: `${p.id}#${i}`, sesion: s.sesion, tarea: s.tarea, agente: p.agente ?? null, quien, desde: p.desde, item, indice: i, pregunta: p, responde: s.puedeResponder === true }))
+      ;(p.items ?? []).forEach((item, i) => pend.push({ clave: `${p.id}#${i}`, sesion: s.sesion, tarea: s.tarea, agente: p.agente ?? null, quien, desde: p.desde, item, indice: i, pregunta: p, responde: s.puedeResponder === true, equipo: s.agentes ?? [] }))
     }
   }
   return pend
@@ -247,9 +295,10 @@ const MAX_CARAS = 4
 
 /**
  * Lo que muestra la tira mini (boceto): caras (quien pregunta primero, después los subagentes),
- * un título y la cuenta de sesiones, agentes y proyectos.
+ * un título y la cuenta de sesiones, agentes y proyectos. `especie`: la de la mascota; las caras de
+ * los subagentes son sus variantes (mascotas-avi-ux.md 3.1 y 7.3).
  */
-export function resumenMini(proyectos, ahoraMs) {
+export function resumenMini(proyectos, ahoraMs, especie = 'avi') {
   const sesiones = proyectos.flatMap(p => p.sesiones)
   const pendientes = proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
   const agentes = sesiones.reduce((n, s) => n + (s.agentes ?? []).length, 0)
@@ -258,15 +307,17 @@ export function resumenMini(proyectos, ahoraMs) {
   for (const s of sesiones) {
     const conPregunta = new Set((s.preguntas ?? []).map(p => p.agente).filter(Boolean))
     const animo = animoSesion(s, ahoraMs)
-    if (animo === 'teEspera') caras.push({ nombre: 'Claude', ...personajeDeNombre('Claude'), animo })
+    // La cara de Claude lleva su sesión: sigue la forma de esa sesión (mascotas-avi-ux.md 6.2)
+    if (animo === 'teEspera') caras.push({ nombre: 'Claude', ...personajeDeNombre('Claude'), animo, sesion: s.sesion })
+    const variantes = variantesEquipo(s.agentes)
     for (const a of s.agentes ?? []) {
-      const cara = { nombre: a.nombre, ...personajeDeNombre(a.nombre), animo: animoSubagente(a, ahoraMs, conPregunta.has(a.id)) }
+      const cara = { nombre: a.nombre, ...personajeSubagente(a, especie, variantes), animo: animoSubagente(a, ahoraMs, conPregunta.has(a.id)) }
       if (cara.animo === 'teEspera') caras.push(cara)
       else if (a.estado === 'trabajando') otras.push(cara)
     }
   }
   const lista = [...caras, ...otras].slice(0, MAX_CARAS)
-  if (!lista.length && sesiones[0]) lista.push({ nombre: 'Claude', ...personajeDeNombre('Claude'), animo: animoSesion(sesiones[0], ahoraMs) })
+  if (!lista.length && sesiones[0]) lista.push({ nombre: 'Claude', ...personajeDeNombre('Claude'), animo: animoSesion(sesiones[0], ahoraMs), sesion: sesiones[0].sesion })
   return {
     caras: lista,
     pendientes,

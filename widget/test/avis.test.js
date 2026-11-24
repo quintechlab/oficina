@@ -2,7 +2,9 @@
 // (5.4), el generador de SVG (5.1 y 5.2) y la accesibilidad (5.6). Funciones puras de avis.js.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { poseAvi, POSES, svgAvi, avi, desfase, defsAvis, CLAUDE, PERSONAJE_BASE } from '../src/avis.js'
+import { poseAvi, POSES, svgAvi, avi, desfase, defsAvis, claudeDe, PERSONAJE_BASE, nombreClaude, mascotaPrimerosPasos } from '../src/avis.js'
+
+const CLAUDE = claudeDe('avi')
 import { animoSesion, animoSubagente, personajeDeNombre, textoActividad, tituloActividad, MS_FESTEJO } from '../src/logica.js'
 
 const AHORA = Date.parse('2026-11-20T12:00:00Z')
@@ -202,4 +204,97 @@ test('las definiciones compartidas (gPiel, gSuelo, fBlur) van una vez, ocultas y
   assert.match(d, /aria-hidden="true"/)
   assert.doesNotMatch(d, /display:\s*none/)
   assert.match(d, /stop-color="#FFFCF4"[\s\S]*offset=".42" stop-color="#F5EDDC"[\s\S]*offset=".8" stop-color="#E1D4B6"[\s\S]*stop-color="#CBBB97"/)
+})
+
+// ------------------------------------------------------------------ la forma evolucionada (mascotas-avi-ux.md 5.3, 5.5, 6 y 9.2)
+
+test('Claude con clave de evolución: la forma base con las partes de Faro escondidas, para cambiarla en su lugar', () => {
+  const h = svgAvi(CLAUDE, 'coordinando', false, { claveEvo: 's1' })
+  assert.match(h, /^<svg viewBox="0 0 120 120" class="m-avi e-coordinando" aria-hidden="true" focusable="false" data-evo="s1" style="--c:#F2B632;--mano:#EFE6D2;--oy:70px">/)
+  // Las envolturas de 3.2, el anillo de suelo y las capas de la forma
+  assert.match(h, /<ellipse class="sello" cx="60" cy="104" rx="40" ry="8"\/>/)
+  assert.match(h, /<g class="trans"><g class="talla"><g class="cambio"><g class="cuerpo"><g class="evo-p"/)
+  // La antena que crece (tallo-e, foco-e), el faro y las plumas
+  assert.match(h, /<g class="antena"><g class="tallo-e ev">/)
+  assert.match(h, /<g class="foco-e ev">/)
+  assert.equal((h.match(/class="evo-p/g) ?? []).length, 5)
+  assert.match(h, /<g class="ala-e ev ai"><g class="ala-s ai"><g class="ala ai">/)
+  assert.match(h, /class="rayos"[\s\S]*class="aro"/)
+  // Las partículas del acto y las ocho chispas de la vuelta, en g.fx
+  assert.equal((h.match(/class="pt pluma"/g) ?? []).length, 6)
+  assert.equal((h.match(/class="pt vu acento"/g) ?? []).length, 8)
+  assert.match(h, /<g class="fx">/)
+  // El estado de la pose sigue igual: las ondas y el halo
+  assert.match(h, /class="onda"/)
+})
+
+test('la forma cambia solo con la clase evol: el resto del SVG es el mismo (6.6 y 6.7)', () => {
+  for (const marca of [false, true]) {
+    const base = svgAvi(CLAUDE, 'esperando', false, { claveEvo: 'marca', marca })
+    const evo = svgAvi(CLAUDE, 'esperando', false, { claveEvo: 'marca', marca, evolucionada: true })
+    assert.notEqual(base, evo)
+    assert.equal(evo.replace(' evol', ''), base, `marca: ${marca}`)
+  }
+})
+
+test('la marca con clave de evolución: envolturas sobre los canales de marcaMotion.js y la antena de Faro', () => {
+  const h = svgAvi(CLAUDE, 'esperando', false, { claveEvo: 'marca', marca: true })
+  assert.match(h, /class="m-avi e-esperando es-marca" aria-hidden="true" focusable="false" data-evo="marca"/)
+  assert.match(h, /<g class="trans"><g class="talla"><g class="actua"><g class="inclina"><g class="cambio"><g class="cuerpo"><g class="evo-p"/)
+  assert.match(h, /<g class="antena"><g class="tallo-e ev"><path d="M60 38V19"[^>]*\/><\/g><g class="foco-e ev"><g class="foco">/)
+  assert.match(h, /<g class="foco-e ev"><g class="foco">[\s\S]*?<\/g><g class="bulbo">/)
+  for (const g of ['actua', 'inclina', 'parpado', 'mirada', 'c-pico', 'manito mn-i', 'zs', 'globo', 'bola']) assert.match(h, new RegExp(`class="${g}"`), g)
+  assert.equal((h.match(/class="evo-p/g) ?? []).length, 5)
+})
+
+test('subagentes y el Avi base nunca llevan la forma, aunque se pida (6.3)', () => {
+  for (const p of [personajeDeNombre('Camila'), personajeDeNombre('Delfina'), PERSONAJE_BASE]) {
+    for (const marca of [false, true]) {
+      const h = svgAvi(p, 'coordinando', false, { claveEvo: 's1', evolucionada: true, marca })
+      assert.equal(h, svgAvi(p, 'coordinando', false, { marca }), JSON.stringify(p))
+    }
+  }
+  assert.doesNotMatch(avi(personajeDeNombre('Camila'), 'escribiendo', 58, { claveEvo: 's1', evolucionada: true }), /evol|data-evo|evo-p/)
+})
+
+test('otra especie con clave: envolturas, clase y las partes de su forma (Pira), sin las de Faro', () => {
+  const h = svgAvi(claudeDe('ascua'), 'esperando', false, { claveEvo: 's1', evolucionada: true })
+  assert.match(h, /^<svg viewBox="0 0 120 120" class="m-ascua e-esperando evol" aria-hidden="true" focusable="false" data-evo="s1" style="--c:#FF7A2E;--mano:#E27A52;--oy:59px">/)
+  assert.match(h, /<g class="trans"><g class="talla"><g class="cambio">/)
+  assert.match(h, /class="evo-p"[^>]*><path class="llamita"/)
+  assert.doesNotMatch(h, /pluma|tallo-e/)
+})
+
+test('caras chicas (≤ 44): el SVG de Claude lleva chica, y el detalle fino se marca evo-fino (5.5)', () => {
+  for (const t of [20, 26, 28, 32, 34, 44]) assert.match(avi(CLAUDE, 'coordinando', t, { claveEvo: 's1' }), /class="m-avi e-coordinando chica"/, t)
+  assert.match(avi(CLAUDE, 'coordinando', 26, { claveEvo: 's1', evolucionada: true }), /class="m-avi e-coordinando evol chica"/)
+  for (const t of [58, 66, 96, 112]) assert.doesNotMatch(avi(CLAUDE, 'coordinando', t, { claveEvo: 's1' }), /chica/, t)
+  // Sin clave (lo de hoy), nunca
+  assert.doesNotMatch(avi(CLAUDE, 'coordinando', 26), /chica/)
+  // Haces, aro y marcas de mejilla son detalle fino; alas, copete y cola, silueta
+  const h = svgAvi(CLAUDE, 'esperando', false, { claveEvo: 's1' })
+  assert.equal((h.match(/class="evo-p evo-fino"/g) ?? []).length, 2)
+  assert.match(h, /class="evo-p evo-fino"[^>]*><g class="rayos"/)
+})
+
+test('defsAvis lleva el degradé de los haces del faro', () => {
+  assert.equal((defsAvis().match(/id="gRayo"/g) ?? []).length, 1)
+})
+
+test('nombreClaude: con la forma evolucionada o con otra especie, el nombre entre paréntesis (12)', () => {
+  assert.equal(nombreClaude('avi', false), 'Claude')
+  assert.equal(nombreClaude('avi', true), 'Claude (Faro)')
+  assert.equal(nombreClaude('ascua', false), 'Claude (Ascua)')
+  assert.equal(nombreClaude('ascua', true), 'Claude (Pira)')
+  assert.equal(nombreClaude('basura', true), 'Claude (Faro)')
+})
+
+test('mascotaPrimerosPasos: el Avi base con el Avi; la especie elegida con las otras, siempre base (S1)', () => {
+  assert.deepEqual(mascotaPrimerosPasos('avi'), PERSONAJE_BASE)
+  assert.deepEqual(mascotaPrimerosPasos(undefined), PERSONAJE_BASE)
+  assert.equal(mascotaPrimerosPasos('nodo').especie, 'nodo')
+  assert.equal(mascotaPrimerosPasos('nodo').variante, null)
+  // Nunca evoluciona: no es Claude
+  assert.doesNotMatch(svgAvi(mascotaPrimerosPasos('avi'), 'saluda', false, { claveEvo: 'marca', evolucionada: true }), /evol/)
+  assert.match(svgAvi(mascotaPrimerosPasos('morro'), 'saluda'), /class="m-morro e-saluda"/)
 })

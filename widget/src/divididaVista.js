@@ -4,7 +4,15 @@
 // viene de una sesión se escapa. Los textos que cambian con el tiempo llevan `data-vivo` (main.js
 // los reescribe en su lugar, sin redibujar). Nunca muestra el contenido de los mensajes: no lo tiene.
 
-import { avi, CLAUDE } from './avis.js'
+import { avi, claudeDe, nombreClaude } from './avis.js'
+import { CLAVE_MARCA } from './evolucion.js'
+
+/**
+ * Claude con la clave de evolución de su sesión (o la de la marca, el riel) y la forma que diga
+ * `formas` (mascotas-avi-ux.md 6.2 y 6.6; cada mitad sigue a su sesión, S3).
+ */
+const claudeCon = (mascota, clave, formas, animo, tamano, opciones = {}) =>
+  avi(claudeDe(mascota), animo, tamano, { ...opciones, claveEvo: clave, evolucionada: formas.has(clave) })
 import { escapar, nombreProyecto, preguntasPendientes, tiempoSubagente, tituloActividad, plural } from './logica.js'
 import { ANIMO, colorProyecto, iniciales, estadoCorto, colorEstado, trazoHilo, subagentesVisibles, textoMas, prepararProyecto } from './tablero.js'
 import { DIVIDIDA, primeroDe, lineaConversa, textoTurno, textoCostura, textoUltimo, textoFicha, horaCorta, duracionCorta } from './dividida.js'
@@ -17,11 +25,14 @@ const PUNTO = '<i class="pt-n" aria-hidden="true"></i>'
 const otroDe = (c, id) => (id === c.a ? c.b : c.a)
 const ms = valor => Date.parse(valor ?? '')
 
-/** La sesión de un lado ya preparada para dibujar (ánimo y subagentes), o null si no se ve. */
-function prepararLado(porId, id, ahoraMs) {
+/**
+ * La sesión de un lado ya preparada para dibujar (ánimo y subagentes), o null si no se ve. `mascota`:
+ * sus subagentes son variantes de esa especie (mascotas-avi-ux.md 7.3).
+ */
+function prepararLado(porId, id, ahoraMs, mascota = 'avi') {
   const s = porId.get(id)
   if (!s) return null
-  return prepararProyecto({ sesiones: [s] }, ahoraMs)[0]
+  return prepararProyecto({ sesiones: [s] }, ahoraMs, mascota)[0]
 }
 
 // ------------------------------------------------------------------ barra: fichas "Conversan" (5.9)
@@ -29,9 +40,10 @@ function prepararLado(porId, id, ahoraMs) {
 /**
  * La sección "Conversan" de la barra lateral: una ficha por conversación, con las dos caras de
  * Claude quietas, quién con quién, la duración y el punto si tiene un mensaje nuevo sin abrir.
- * `ctx`: { ahoraMs, porId, nombre ((id, conversación) → texto), nuevas }.
+ * `ctx`: { ahoraMs, porId, nombre ((id, conversación) → texto), nuevas, mascota (la especie de Claude),
+ * formas (las claves con la forma evolucionada) }.
  */
-export function fichasConversan(convs, { ahoraMs, porId, nombre: nombreDe, nuevas }) {
+export function fichasConversan(convs, { ahoraMs, porId, nombre: nombreDe, nuevas, mascota = 'avi', formas = new Set() }) {
   if (!convs.length) return ''
   const fichas = convs.map(c => {
     const nombre = id => nombreDe(id, c)
@@ -42,7 +54,7 @@ export function fichasConversan(convs, { ahoraMs, porId, nombre: nombreDe, nueva
     const lleva = ahoraMs - ms(c.desde)
     const dura = c.hasta ? 'terminó' : lleva < 60000 ? 'ahora' : duracionCorta(lleva)
     return `<li><button type="button" class="conv${c.hasta ? ' fin' : ''}" data-accion="conv" data-clave="${escapar(c.clave)}">`
-      + `<span class="caras-c" aria-hidden="true">${avi(CLAUDE, pose(primero), 26)}${avi(CLAUDE, pose(otro), 26, { indice: 1 })}</span>`
+      + `<span class="caras-c" aria-hidden="true">${claudeCon(mascota, primero, formas, pose(primero), 26)}${claudeCon(mascota, otro, formas, pose(otro), 26, { indice: 1 })}</span>`
       + `<span class="conv-t" aria-hidden="true"><b title="${escapar(c.repos[primero] ?? nombre(primero))}">${escapar(nombre(primero))}</b>`
       + `<span title="${escapar(c.repos[otro] ?? nombre(otro))}">⇄ ${escapar(nombre(otro))}</span></span>`
       + `<em aria-hidden="true" data-vivo>${escapar(dura)}</em>${nuevo ? PUNTO : ''}`
@@ -56,10 +68,12 @@ export function fichasConversan(convs, { ahoraMs, porId, nombre: nombreDe, nueva
 /**
  * El riel de 56: Claude de 34 (zona de arrastre, sin juegos), las conversaciones, los proyectos y el
  * punto de estado. `ctx`: { ahoraMs, nombre, activa (clave del split), nuevas, origen (repo de la
- * vista anterior), animoMarca, estado ({ error, texto }) }.
+ * vista anterior), animoMarca, estado ({ error, texto }), mascota (la especie de Claude), formas }.
+ * El Claude del riel sigue la clave de la marca (6.2).
  */
-export function riel(proyectos, convs, { ahoraMs, nombre: nombreDe, activa, nuevas, origen, animoMarca, estado }) {
-  const marca = `<div class="riel-marca" data-arrastre title="Arrastrá para mover o acoplar a un borde">${avi(CLAUDE, animoMarca, 34, { alt: `Claude, ${ANIMO[animoMarca] ?? animoMarca}` })}</div>`
+export function riel(proyectos, convs, { ahoraMs, nombre: nombreDe, activa, nuevas, origen, animoMarca, estado, mascota = 'avi', formas = new Set() }) {
+  const alt = `${nombreClaude(mascota, formas.has(CLAVE_MARCA))}, ${ANIMO[animoMarca] ?? animoMarca}`
+  const marca = `<div class="riel-marca" data-arrastre title="Arrastrá para mover o acoplar a un borde">${claudeCon(mascota, CLAVE_MARCA, formas, animoMarca, 34, { alt })}</div>`
   const conv = convs.map(c => {
     const es = c.clave === activa
     const nombre = id => nombreDe(id, c)
@@ -135,16 +149,16 @@ function pilaMitad(ocultos, r, j) {
 /**
  * Una mitad (5.5): cabecera (proyecto, tag y rama, línea), escenario con Claude de 120 en su piso,
  * su elenco y sus hilos ámbar, y el chip de turno. Sin la sesión a la vista: "sin datos" (8).
- * `ctx`: { ahoraMs, porId, nombre, geo (de geometriaDividida: izq o der), lado ('izq' | 'der'), base }.
+ * `ctx`: { ahoraMs, porId, nombre, geo (de geometriaDividida: izq o der), lado ('izq' | 'der'), base, mascota }.
  */
-export function mitad(conv, id, { ahoraMs, porId, nombre, geo, lado, base = 0 }) {
-  const p = prepararLado(porId, id, ahoraMs)
+export function mitad(conv, id, { ahoraMs, porId, nombre, geo, lado, base = 0, mascota = 'avi', formas = new Set() }) {
+  const p = prepararLado(porId, id, ahoraMs, mascota)
   const repo = conv.repos[id] ?? null
   const proy = nombreProyecto(repo)
   const icono = `<span class="mh-ic" style="--c:${colorProyecto(proy)}" aria-hidden="true">${escapar(iniciales(proy))}</span>`
   const h3 = `<h3 class="mh-p" id="mh-${lado}" title="${escapar(repo ?? proy)}">${icono}<span class="mh-n">${escapar(proy)}</span></h3>`
   const piso = `<div class="piso-d" style="--lx:${geo.luz}px" aria-hidden="true"></div>`
-  const claudeEn = (animo, extra = '') => `<div class="esc-claude${extra}" data-claude="${escapar(id)}" style="left:${geo.claude.x}px;top:${geo.claude.y}px">${avi(CLAUDE, animo, geo.claude.t, { indice: base })}</div>`
+  const claudeEn = (animo, extra = '') => `<div class="esc-claude${extra}" data-claude="${escapar(id)}" style="left:${geo.claude.x}px;top:${geo.claude.y}px">${claudeCon(mascota, id, formas, animo, geo.claude.t, { indice: base })}</div>`
 
   if (!p) {
     const t = textoTurno(conv, id, ahoraMs, nombre, { sinDatos: true })

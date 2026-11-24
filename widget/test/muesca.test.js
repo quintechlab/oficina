@@ -8,10 +8,11 @@ import {
   esHorizontal, bordeCercano, lugarDe, lugarAjustado, rectMuesca, rectPanel, recorte, cajaArrastre, rectLuz, relativo,
   estadoMuesca, ESTADO_INICIAL, siguiente, tocaGolpe, dentroDe, posicionFlotante, contenidoMuesca, contenidoPildora,
   disposicionAcoplada, ventanaDeArea, mismoRect, zonaInteractiva, MARGEN_ZONA, TAM_MUESCA, tamMuescaDe, figuraMuesca, planVentana, secuenciaVelo, ASIENTO_VELO_MS, REAPARECE_MS,
-  disposicionFlotante, disposicionTira, transformEntre, plegadoHacia, anclaHacia, fueraDelBorde,
+  disposicionFlotante, disposicionTira, transformEntre, plegadoHacia, anclaHacia, fueraDelBorde, estiloMuesca,
 } from '../src/muesca.js'
 import { esquinaTira, tamanoMini } from '../src/tamano.js'
 import { agruparPorProyecto, reposoPermitido } from '../src/logica.js'
+import { datosEspecie } from '../src/especies.js'
 
 const AREA = { x: 0, y: 0, ancho: 1920, alto: 1040 }
 const TODOS = { arriba: true, derecha: true, abajo: true, izquierda: true }
@@ -417,7 +418,7 @@ test('adentro de la muesca: armazón decorativo con #muesca-avi, dos manos, glob
     + '<span class="excl" aria-hidden="true">!</span>')
   assert.doesNotMatch(html, /class="pt|class="chip|role="img"/)
   // El Avi lo dibuja el motor: el de la marca, de 66, sin nombre (el botón lleva el nombre entero)
-  assert.match(figuraMuesca('esperando'), /^<span class="avi" style="--t:66px[^"]*" aria-hidden="true"><svg viewBox="0 0 120 120" class="e-esperando es-marca"/)
+  assert.match(figuraMuesca('esperando'), /^<span class="avi" style="--t:66px[^"]*" aria-hidden="true"><svg viewBox="0 0 120 120" class="m-avi e-esperando es-marca"/)
   // La píldora de arrastre sigue igual: Avi de 44, "Avis" y chip
   const pildora = contenidoPildora(estadoMuesca([], AHORA))
   assert.match(pildora, /^<span class="asoma"><span class="avi" style="--t:44px/)
@@ -671,4 +672,14 @@ test('anclas por borde y la caja que sale por el borde (cambio de borde desde la
   assert.deepEqual(fueraDelBorde({ x: 0, y: 300, ancho: 62, alto: 140 }, 'izquierda'), { x: -62, y: 300, ancho: 62, alto: 140 })
   assert.deepEqual(fueraDelBorde({ x: 1858, y: 300, ancho: 62, alto: 140 }, 'derecha'), { x: 1920, y: 300, ancho: 62, alto: 140 })
   assert.deepEqual(fueraDelBorde({ x: 500, y: 986, ancho: 150, alto: 54 }, 'abajo'), { x: 500, y: 1040, ancho: 150, alto: 54 })
+})
+
+test('estiloMuesca: las manos del alféizar y la luz de cara, del color de la mascota; con el Avi, las de hoy (mascotas-avi-ux.md 16.1.4, 16.3.1)', () => {
+  // Con el Avi no se pone nada: quedan el crema #F1E8D4 y el ámbar del CSS
+  assert.deepEqual(estiloMuesca('avi'), { '--mano-muesca': '', '--c-muesca': '' })
+  assert.deepEqual(estiloMuesca(), estiloMuesca('avi'))
+  assert.deepEqual(estiloMuesca('basura'), estiloMuesca('avi'))
+  for (const e of ['ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']) {
+    assert.deepEqual(estiloMuesca(e), { '--mano-muesca': datosEspecie(e).mano, '--c-muesca': datosEspecie(e).c }, e)
+  }
 })

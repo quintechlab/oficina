@@ -536,30 +536,36 @@ body.acoplada:not(.abierta) #muesca:hover, body.acoplada:not(.abierta) #muesca:f
 #muesca > * { pointer-events: none }
 
 /* El recorte (muesca-avi-ux.md 5.1): 52 × 54, corta solo abajo (el alféizar o el borde de la pantalla).
-   Arriba deja 4 px para que la antena no se corte cuando el Avi sube. Todo lo del recorte va bajo
-   #muesca: la píldora de arrastre también tiene un .asoma */
-#muesca .asoma { position: absolute; left: 50%; bottom: 0; width: 52px; height: 54px; margin-left: -26px; overflow: hidden }
-body[data-borde="derecha"] #muesca .asoma, body[data-borde="izquierda"] #muesca .asoma { bottom: auto; top: 40px }
+   Arriba deja 4 px para que la antena no se corte cuando el Avi sube. A los costados manda la caja de
+   la muesca: las alas de Glaciar, Pira y Aurora no se cortan en el recorte (mascotas-avi-ux.md 16.1.3).
+   Todo lo del recorte va bajo #muesca: la píldora de arrastre también tiene un .asoma */
+#muesca .asoma { position: absolute; left: 50%; bottom: 0; width: 52px; height: 54px; margin-left: -26px; clip-path: inset(-40px -48px 0 -48px) }
+/* A los costados la caja mide 62: el recorte llega justo a su borde (5 px a cada lado del de 52) */
+body[data-borde="derecha"] #muesca .asoma, body[data-borde="izquierda"] #muesca .asoma { bottom: auto; top: 40px; clip-path: inset(-40px -5px 0 -5px) }
 /* El Avi de 66 que asoma: .alza lo sube y lo baja con el estado (CSS); adentro lo mueve el motor (JS) */
 #muesca .alza { position: absolute; left: -7px; top: 4px; width: 66px; height: 66px; transition: transform 280ms var(--ease) }
 #muesca .asoma .avi { position: absolute; left: 0; top: 0 }
 #muesca[data-modo="pregunta"] .alza { transform: translateY(-3px) }
 #muesca[data-modo="duerme"] .alza { transform: translateY(8px) }
 body.acoplada:not(.abierta) #muesca:hover .alza, body.acoplada:not(.abierta) #muesca:focus-visible .alza { transform: translateY(-6px) }
-/* Las manos se agarran del alféizar: hover, foco, pregunta, golpe y el final del cucú (.asoma.agarra) */
+/* Las manos se agarran del alféizar: hover, foco, pregunta, golpe y el final del cucú (.asoma.agarra).
+   Del color de la mascota (--mano-muesca, estiloMuesca); con el Avi, el crema de siempre: sin
+   --mano-muesca, --mano-sombra queda inválida y la sombra toma su respaldo */
 #muesca .asir {
+  --mano-sombra: color-mix(in srgb, var(--mano-muesca) 80%, #000);
   position: absolute; bottom: -4px; width: 12px; height: 10px; border-radius: 50%;
-  background: #F1E8D4; box-shadow: inset 0 -2.5px 0 #D6C8A6;
+  background: var(--mano-muesca, #F1E8D4); box-shadow: inset 0 -2.5px 0 var(--mano-sombra, #D6C8A6);
   opacity: 0; transform: translateY(7px); transition: transform 260ms var(--rebote), opacity 160ms;
 }
 #muesca .asir.i { left: 3px }
 #muesca .asir.d { right: 3px }
 body.acoplada:not(.abierta) #muesca:hover .asir, body.acoplada:not(.abierta) #muesca:focus-visible .asir,
 #muesca[data-modo="pregunta"] .asir, body.golpe #muesca .asir, #muesca .asoma.agarra .asir { opacity: 1; transform: translateY(0) }
-/* Trabajando: su trabajo le ilumina la cara desde abajo (fija en .8 sin movimiento) */
+/* Trabajando: su trabajo le ilumina la cara desde abajo (fija en .8 sin movimiento), con el acento de
+   la mascota (--c-muesca); con el Avi, el ámbar de siempre */
 #muesca .asoma::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 70%; pointer-events: none;
-  background: radial-gradient(60% 100% at 50% 100%, rgba(242, 182, 50, .38), transparent 72%);
+  background: radial-gradient(60% 100% at 50% 100%, color-mix(in srgb, var(--c-muesca, #F2B632) 38%, transparent), transparent 72%);
   mix-blend-mode: screen; opacity: 0; transition: opacity .4s;
 }
 #muesca[data-modo="trabajando"] .asoma::after { opacity: .8 }

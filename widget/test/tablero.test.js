@@ -125,7 +125,7 @@ test('escenario con 2 subagentes: Claude de 96 en el piso, el elenco de 58 y el 
   assert.match(h, /<div class="esc"/)
   assert.match(h, /<div class="piso" aria-hidden="true"><\/div>/)
   // Los Avis del escenario son decorativos: Claude de 96 coordinando y dos de 58
-  assert.equal(cuenta(h, /<span class="avi" style="--t:96px;[^"]*" aria-hidden="true"><svg viewBox="0 0 120 120" class="e-coordinando"/g), 1)
+  assert.equal(cuenta(h, /<span class="avi" style="--t:96px;[^"]*" aria-hidden="true"><svg viewBox="0 0 120 120" class="m-avi e-coordinando"/g), 1)
   assert.equal(cuenta(h, /<span class="avi" style="--t:58px;[^"]*" aria-hidden="true">/g), 2)
   assert.doesNotMatch(h, /role="img"/)
   assert.match(h, /<ul class="elenco" aria-label="Subagentes">/)
@@ -318,8 +318,8 @@ test('la firma del tablero cambia con la pose de un subagente y no con el tiempo
 
 test('la marca y el vacío: Avi de Claude solo, con nombre y estado (role="img")', () => {
   // La marca "Escenario" (marca-avi-ux.md 3): el Avi de Claude de 112, con las capas del escenario
-  assert.match(figuraMarca('coordinando'), /^<span class="avi" style="--t:112px;--d:[^"]*" role="img" aria-label="Claude, coordinando el equipo"><svg viewBox="0 0 120 120" class="e-coordinando es-marca"/)
-  assert.match(figuraMarca('teEspera'), /aria-label="Claude, esperándote"><svg[^>]*class="e-teEspera es-marca"/)
+  assert.match(figuraMarca('coordinando'), /^<span class="avi" style="--t:112px;--d:[^"]*" role="img" aria-label="Claude, coordinando el equipo"><svg viewBox="0 0 120 120" class="m-avi e-coordinando es-marca"/)
+  assert.match(figuraMarca('teEspera'), /aria-label="Claude, esperándote"><svg[^>]*class="m-avi e-teEspera es-marca"/)
   assert.match(figuraMarca('esperando'), /aria-label="Claude, esperando">/)
   assert.match(figuraVacio('durmiendo'), /^<span class="avi" style="--t:120px;--d:[^"]*" role="img" aria-label="Claude, durmiendo"><svg[^>]*class="e-durmiendo"/)
   assert.match(figuraVacio('esperando'), /aria-label="Claude, esperando"><svg[^>]*class="e-esperando"/)
@@ -337,7 +337,7 @@ test('equipo: la fila del compañero lleva a Claude de 32 y cabecitas de 24 con 
   const s = { sesion: 'c', repo: 'q/catalogo', rama: 'feat/51-carrito', tarea: 51, inicio: hace(30), actualizado: hace(4), actividad: 'editando carrito.ts', agentes: [sub('1', 'Lucas', 'trabajando')] }
   const c = { usuario: 'NC', nombre: 'Nicolás Campos', actualizado: hace(4), sesiones: [s], principal: s }
   const h = companero(c, AHORA, true)
-  assert.match(h, /<div class="fila"><span class="avi" style="--t:26px;[^"]*" aria-hidden="true"><svg[^>]*class="e-coordinando"/)
+  assert.match(h, /<div class="fila"><span class="avi" style="--t:26px;[^"]*" aria-hidden="true"><svg[^>]*class="m-avi e-coordinando chica"/)
   assert.match(h, /<span class="cabezas" role="img" aria-label="Lucas"><span class="avi" style="--t:20px;[^"]*" aria-hidden="true"><svg[^>]*class="e-escribiendo"/)
 })
 
@@ -347,7 +347,7 @@ test('una sesión que espera procesos: línea celeste, anillo, y los procesos en
   assert.equal(colorEstado('proceso'), 'var(--celeste)')
   const [p] = agruparPorProyecto([s])
   const h = sesiones(prepararProyecto(p, AHORA), AHORA)
-  assert.match(h, /<svg[^>]*class="e-proceso"/)
+  assert.match(h, /<svg[^>]*class="m-avi e-proceso"/)
   assert.match(h, /<p class="linea" style="--c:var\(--celeste\)" title="Arma el instalador · hace 2 min">.*ahora · esperando 1 proceso<\/span><\/p>/)
   // Un proceso más (o uno menos) cambia la firma: la tarjeta se redibuja enseguida, no al minuto
   const otra = agruparPorProyecto([{ ...s, procesos: [...procesos, { id: 'b2', descripcion: 'npm run dev', desde: hace(1) }] }])[0]

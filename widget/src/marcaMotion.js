@@ -10,14 +10,21 @@
 // aquieta) y `ocupado` (trabaja: no sigue al puntero y mira lo suyo).
 // La voz del resumen (docs/diseno/resumen-ia-ux.md 6.2 y 6.3): con el globo abierto, la marca toma la
 // pose del estado del globo (`voz`), sostiene sus canales y suspende los juegos.
+// Las especies nuevas (docs/diseno/mascotas-avi-ux.md 10, P2 y P3) juegan y hablan con las mismas
+// pistas: `ant` gira el apéndice de la especie, `luz` enciende o apaga su luz propia y `boca` abre su
+// boca (`canalesEspecie`). Esas piezas tienen su bucle CSS en `transform`, así que el giro y el tamaño
+// van en las propiedades `rotate` y `scale`, que se componen con él (cada propiedad, un dueño); la
+// opacidad de la luz se escribe solo con `luz-sube`/`luz-baja`, que apagan su bucle, y nunca durante
+// un acto de la evolución (`actuando`: es de evolucionMotion.js).
 
 import { figuraMarca } from './tablero.js'
 import { poseAvi } from './avis.js'
 import { hayMovimiento } from './tableroMotion.js'
+import { canalesEspecie } from './especies.js'
 import {
   ACTOS, REPOSO, PESOS_REPOSO, TIEMPOS_REPOSO, estadoActo, salida, proximoReposo, objetivoMirada,
   cambioMirada, direccionSalida, siguePuntero, sigueAhora, miraPropia, MIRA_OCUPADO,
-  VOCES, VOZ_MS, canalesVoz, haciaVoz, puedeJugar,
+  VOCES, VOZ_MS, canalesVoz, haciaVoz, puedeJugar, opacidadLuz, escalaLuz,
 } from './marca.js'
 
 const NS = 'http://www.w3.org/2000/svg'
@@ -48,6 +55,9 @@ function tiemposCon(escala) {
 
 /**
  * Monta la marca en `el` (#marca-avi, o #muesca-avi con `figura: figuraMuesca` y `repertorio: 'cucu'`).
+ * `pesosDe()`: los juegos de la mascota de ahora (`pesosMarca`). En una especie nueva, los canales de
+ * la antena, el foco y el pico mueven sus piezas (`canalesEspecie`); los que no tienen pieza
+ * (mejillas, brillo) no mueven nada.
  * Devuelve los controles que usa main.js:
  * - `animo(animo, reposo, { ocupado })`: el ánimo (`animoMarca` o el de `estadoMuesca`), si puede
  *   jugar (`reposoPermitido`) y si trabaja (`.ocupado` en el SVG; no sigue al puntero y mira lo suyo);
@@ -61,10 +71,12 @@ function tiemposCon(escala) {
  * - `voz(pose | null, { hablando })`: la pose de voz del resumen (`vozAvi`); null vuelve al ánimo;
  * - `destruir()`.
  */
-export function montarMarca(el, { escala = 1, reloj = () => performance.now(), azar = Math.random, figura = figuraMarca, repertorio = 'escenario', sigueOcupado = false } = {}) {
+export function montarMarca(el, { escala = 1, reloj = () => performance.now(), azar = Math.random, figura = figuraMarca, repertorio = 'escenario', sigueOcupado = false, pesosDe = null } = {}) {
   const tiempos = tiemposCon(escala)
   const pesos = REPERTORIOS[repertorio] ?? PESOS_REPOSO
   const soloCucu = repertorio === 'cucu'
+  /** Los juegos que puede elegir ahora: los del repertorio o, en la marca, los de la mascota (`pesosDe`). */
+  const pesosAhora = () => (soloCucu || !pesosDe ? pesos : pesosDe())
   const s = {
     animo: null, pose: 'esperando', reposo: false, ocupado: false, visto: false, acoplada: false, quieto: !hayMovimiento(),
     svg: null, avi: null, g: {}, ojos: -1, asoma: null, asir: false,
@@ -97,7 +109,21 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
     s.avi = el.firstElementChild
     s.svg = el.querySelector('svg')
     s.g = Object.fromEntries(GRUPOS.map(k => [k, s.svg.querySelector('.' + k)]))
+    // El centro de los ojos de la especie (`--oy`, mascotas-avi-ux.md 5.1): el párpado cierra desde ahí
+    s.oy = parseFloat(s.svg.style.getPropertyValue('--oy')) || 70
     s.ojos = -1
+    // Las piezas de cada canal en una especie nueva (P3); con el Avi, `null` (antena, foco, bulbo y pico)
+    const especie = [...s.svg.classList].find(c => c.startsWith('m-'))?.slice(2)
+    const k = canalesEspecie(especie)
+    const todas = sel => [...s.svg.querySelectorAll(sel)]
+    s.especie = k && {
+      // Los pares giran espejados: el derecho (`ad`) al revés, como `--s` en los bucles
+      apendices: todas(k.ant).map(e => [e, e.classList.contains('ad') ? -1 : 1]),
+      crece: k.luz.crece.flatMap(todas), apaga: k.luz.apaga.flatMap(todas),
+      ant: 0, luz: 0, base: [],
+    }
+    // La boca se abre desde el centro de su trazo (`data-y`); la del Avi, desde el pico
+    s.bocaY = parseFloat(s.g.boca?.getAttribute('data-y')) || 80.5
     s.svg.classList.toggle('ocupado', s.ocupado)
     s.svg.classList.toggle('voz', !!s.voz)
     // En la muesca, el canal "asir" agarra las manos del recorte padre (.asoma.agarra, CSS)
@@ -113,19 +139,20 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
     const alto = Math.min(Math.max(-v.y, 0), 24) / 24
     g.contacto.setAttribute('transform', `translate(60 104) scale(${f(1 - alto * 0.45)} 1) translate(-60 -104)`)
     g.contacto.setAttribute('opacity', f(0.55 * (1 - alto * 0.6)))
-    g.antena.setAttribute('transform', `rotate(${f(v.ant)} 60 38)`)
-    g.foco.setAttribute('transform', `translate(60 14) scale(${f(1 + Math.max(v.luz, 0) * 0.4)}) translate(-60 -14)`)
-    g.bulbo.setAttribute('opacity', f(1 - Math.max(-v.luz, 0) * 0.55))
-    g.parpado.setAttribute('transform', `translate(0 70) scale(1 ${f(v.par)}) translate(0 -70)`)
+    g.antena?.setAttribute('transform', `rotate(${f(v.ant)} 60 38)`)
+    g.foco?.setAttribute('transform', `translate(60 14) scale(${f(escalaLuz(v.luz))}) translate(-60 -14)`)
+    g.bulbo?.setAttribute('opacity', f(opacidadLuz(1, Math.min(v.luz, 0))))
+    if (s.especie) aplicarEspecie(v)
+    g.parpado.setAttribute('transform', `translate(0 ${s.oy}) scale(1 ${f(v.par)}) translate(0 -${s.oy})`)
     const o = Math.round(v.ojos)
     if (o !== s.ojos) {
       s.svg.classList.toggle('o-fe', o === 1)
       s.svg.classList.toggle('o-ce', o === 2)
       s.ojos = o
     }
-    g['pico-s'].setAttribute('transform', `translate(0 ${f(-v.boca * 1.6)})`)
-    g['pico-i'].setAttribute('transform', `translate(0 ${f(v.boca * 3.2)})`)
-    g.boca.setAttribute('transform', `translate(60 80.5) scale(1 ${f(v.boca)}) translate(-60 -80.5)`)
+    g['pico-s']?.setAttribute('transform', `translate(0 ${f(-v.boca * 1.6)})`)
+    g['pico-i']?.setAttribute('transform', `translate(0 ${f(v.boca * 3.2)})`)
+    g.boca?.setAttribute('transform', `translate(60 ${s.bocaY}) scale(1 ${f(v.boca)}) translate(-60 -${s.bocaY})`)
     g['mn-i'].setAttribute('transform', `translate(${f(19 + v.mIx)} ${f(82 + v.mIy)}) rotate(${f(v.mIr)}) scale(${f(0.4 + 0.6 * v.moI)})`)
     g['mn-i'].setAttribute('opacity', f(v.moI))
     g['mn-d'].setAttribute('transform', `translate(${f(101 + v.mDx)} ${f(82 + v.mDy)}) rotate(${f(v.mDr)}) scale(${f(0.4 + 0.6 * v.moD)})`)
@@ -146,14 +173,57 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
     }
   }
 
+  /**
+   * Los canales `ant` y `luz` en las piezas de una especie nueva (P2 y P3). El apéndice gira con
+   * `rotate` (se compone con su bucle). La luz que sube (`crece`, luz > 0) va hacia 1 y crece con
+   * `scale`, como el foco; la que se apaga (`apaga`, luz < 0) baja como el bulbo. Mientras la luz no
+   * está en reposo, `luz-sube` o `luz-baja` apagan su bucle (especies.css) y la opacidad sale de la que
+   * tenía al empezar (`base`); en reposo se borra lo escrito y el bucle vuelve.
+   */
+  function aplicarEspecie(v) {
+    const e = s.especie
+    if (v.ant !== e.ant) {
+      e.ant = v.ant
+      for (const [el, lado] of e.apendices) el.style.rotate = v.ant ? `${f(lado * v.ant)}deg` : ''
+    }
+    // Durante un acto de la evolución, esas piezas son de evolucionMotion.js
+    const modo = s.svg.classList.contains('actuando') ? 0 : v.luz > 0.005 ? 1 : v.luz < -0.005 ? -1 : 0
+    if (modo !== e.luz) {
+      soltarLuz()
+      if (modo) {
+        const lista = modo > 0 ? e.crece : e.apaga
+        // La opacidad de ahora, antes de apagar el bucle
+        e.base = lista.map(el => parseFloat(getComputedStyle(el).opacity) || 0)
+        s.svg.classList.add(modo > 0 ? 'luz-sube' : 'luz-baja')
+      }
+      e.luz = modo
+    }
+    if (!modo) return
+    const lista = modo > 0 ? e.crece : e.apaga
+    lista.forEach((el, i) => {
+      el.style.opacity = f(opacidadLuz(e.base[i], v.luz))
+      if (modo > 0) el.style.scale = f(escalaLuz(v.luz))
+    })
+  }
+
+  /** La luz propia vuelve a su bucle: sin la opacidad ni el tamaño escritos. */
+  function soltarLuz() {
+    const e = s.especie
+    for (const el of [...e.crece, ...e.apaga]) {
+      el.style.opacity = ''
+      el.style.scale = ''
+    }
+    s.svg.classList.remove('luz-sube', 'luz-baja')
+  }
+
   /** La mirada a los grupos: ojos, pico, mejillas y brillo con paralaje, y la inclinación hasta 3°. */
   function aplicarMirada() {
     if (!s.svg) return
     const { x, y } = s.mirada, g = s.g
     g.mirada.setAttribute('transform', `translate(${f(x * 4.5)} ${f(y * 3.2)})`)
     g['c-pico'].setAttribute('transform', `translate(${f(x * 2.7)} ${f(y * 1.9)})`)
-    g['c-mejillas'].setAttribute('transform', `translate(${f(x * 1.6)} ${f(y * 1.1)})`)
-    g['c-brillo'].setAttribute('transform', `translate(${f(-x * 1.5)} ${f(-y)})`)
+    g['c-mejillas']?.setAttribute('transform', `translate(${f(x * 1.6)} ${f(y * 1.1)})`)
+    g['c-brillo']?.setAttribute('transform', `translate(${f(-x * 1.5)} ${f(-y)})`)
     g.inclina.setAttribute('transform', `rotate(${f(x * 3)} 60 104)`)
   }
 
@@ -332,7 +402,7 @@ export function montarMarca(el, { escala = 1, reloj = () => performance.now(), a
     s.temporizador = null
     s.previsto = null
     if (!jugable() || s.acto || s.dormido) return
-    const ev = proximoReposo({ ...s.plan, azar, pesos }, tiempos)
+    const ev = proximoReposo({ ...s.plan, azar, pesos: pesosAhora() }, tiempos)
     // La muesca no duerme la siesta: a los 8 min de quietud se aquieta hasta la próxima actividad o
     // el próximo trabajo de Claude (muesca-avi-ux.md 7.2)
     if (soloCucu && ev.id === 'siesta') return

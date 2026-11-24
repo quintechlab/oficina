@@ -39,6 +39,29 @@ function sortear({ en, ultimo, ultimaLlamada, juegos, r, llama, pesos }) {
 }
 
 /**
+ * El repertorio de la marca según la mascota (docs/diseno/mascotas-avi-ux.md 10, P3): desde la
+ * entrega 5, todas juegan los mismos juegos con las mismas pistas (`ACTOS`); cambia la pieza que mueve
+ * cada canal (`canalesEspecie` de especies.js). Queda como punto único por si una especie cambia.
+ */
+export function pesosMarca(_especie) {
+  return PESOS_REPOSO
+}
+
+/**
+ * La luz propia de una especie nueva (P2 y P3) con el canal `luz` (de −1 a 1), desde la opacidad de
+ * reposo `base`: sube hacia 1 en proporción y, con luz negativa, se apaga como el bulbo del Avi
+ * (1 − 0,55 × |luz|: a .45 de la de reposo con −1).
+ */
+export function opacidadLuz(base, luz) {
+  return luz >= 0 ? base + (1 - base) * luz : base * (1 - 0.55 * -luz)
+}
+
+/** El tamaño de la luz propia que sube, como el foco del Avi: 1 + 0,4 × luz (no se achica al apagarse). */
+export function escalaLuz(luz) {
+  return 1 + Math.max(luz, 0) * 0.4
+}
+
+/**
  * El próximo evento del reposo, `{ id, en }` (ms, en el mismo reloj que `quietoDesde`). El primer juego de una racha
  * (`juegos` 0) a los 40 s de `quietoDesde`; los siguientes, de 60 a 150 s después de `ultimoFin`. Si
  * ese momento llega a los 8 min de quietud, en su lugar va la siesta, justo a los 8 min. `azar()`
@@ -49,6 +72,8 @@ function sortear({ en, ultimo, ultimaLlamada, juegos, r, llama, pesos }) {
 export function proximoReposo({ quietoDesde, ultimoFin, ultimo, ultimaLlamada, juegos, azar, pesos = PESOS_REPOSO }, tiempos = TIEMPOS_REPOSO) {
   const intervalo = azar()
   const r = azar()
+  // Un repertorio sin juegos (las especies nuevas, pesosMarca): solo la siesta
+  if (!Object.keys(pesos).length) return { id: 'siesta', en: quietoDesde + tiempos.siesta }
   const [min, max] = tiempos.entre
   const en = juegos === 0 || ultimoFin == null
     ? quietoDesde + tiempos.primero

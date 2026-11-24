@@ -5,6 +5,7 @@ import {
   agruparPorProyecto, nombreProyecto, animoSesion, animoSubagente, personajeDeNombre,
   tiempoRelativo, tiempoSubagente, textoActividad, preguntasPendientes, etiquetaOpcion, escapar,
   preguntasNuevas, resumenMini, reposoPermitido, ANIMOS_DE_TRABAJO, UMBRAL_ARRASTRE, superaUmbral, plural,
+  variantesEquipo,
 } from '../src/logica.js'
 
 const AHORA = Date.parse('2026-11-19T23:50:00Z')
@@ -267,4 +268,98 @@ test('clic contra arrastre: hasta 4 px es clic; más, arrastre (resumen-ia-ux.md
 test('plural: uno o varios con la cifra adelante', () => {
   assert.equal(plural(1, 'sesión', 'sesiones'), '1 sesión')
   assert.equal(plural(3, 'sesión', 'sesiones'), '3 sesiones')
+})
+
+// ------------------------------------------------------------------ variantes de subagente (mascotas-avi-ux.md 7.3)
+
+/** Subagentes con los ids dados, lanzados uno por minuto en ese orden. */
+const equipo = ids => ids.map((id, k) => ({ id, nombre: `n${k}`, estado: 'trabajando', desde: new Date(AHORA - (60 - k) * MIN).toISOString() }))
+const comoObjeto = mapa => Object.fromEntries(mapa)
+const IDS_BOCETO = ['toolu_01Hq8c', 'toolu_01Zr3m', 'toolu_01Ab7x', 'toolu_01Kp2v']
+
+test('variantesEquipo: los cuatro ids del boceto dan 2, 0, 1, 3 (el tercero choca con el segundo y toma la siguiente libre)', () => {
+  const v = variantesEquipo(equipo(IDS_BOCETO))
+  assert.ok(v instanceof Map)
+  assert.deepEqual(IDS_BOCETO.map(id => v.get(id)), [2, 0, 1, 3])
+})
+
+test('variantesEquipo: del quinto en adelante, su huella (2, 0, 1, 3, 0, 2)', () => {
+  const ids = [...IDS_BOCETO, 'toolu_01Wn9d', 'toolu_01Ty4s']
+  const v = variantesEquipo(equipo(ids))
+  assert.deepEqual(ids.map(id => v.get(id)), [2, 0, 1, 3, 0, 2])
+})
+
+test('variantesEquipo: con 4 o menos, ninguna variante repetida (100 conjuntos al azar, semilla fija)', () => {
+  let semilla = 24
+  const azar = () => (semilla = (Math.imul(semilla, 1103515245) + 12345) >>> 0)
+  for (let k = 0; k < 100; k++) {
+    const n = 1 + (azar() % 4)
+    const ids = Array.from({ length: n }, (_, i) => `toolu_${azar().toString(36)}_${i}`)
+    const v = [...variantesEquipo(equipo(ids)).values()]
+    assert.equal(new Set(v).size, n, ids.join(','))
+    assert.ok(v.every(x => Number.isInteger(x) && x >= 0 && x <= 3))
+  }
+})
+
+test('variantesEquipo: agregar un subagente posterior no cambia a los anteriores', () => {
+  for (let n = 1; n < 6; n++) {
+    const ids = [...IDS_BOCETO, 'toolu_01Wn9d', 'toolu_01Ty4s']
+    const antes = comoObjeto(variantesEquipo(equipo(ids.slice(0, n))))
+    const despues = comoObjeto(variantesEquipo(equipo(ids.slice(0, n + 1))))
+    for (const id of ids.slice(0, n)) assert.equal(despues[id], antes[id], `${n}: ${id}`)
+  }
+})
+
+test('variantesEquipo: no depende del orden del arreglo (ordena por desde y, a igualdad, por id)', () => {
+  const lista = equipo([...IDS_BOCETO, 'toolu_01Wn9d'])
+  const base = comoObjeto(variantesEquipo(lista))
+  assert.deepEqual(comoObjeto(variantesEquipo([...lista].reverse())), base)
+  assert.deepEqual(comoObjeto(variantesEquipo([lista[2], lista[0], lista[4], lista[1], lista[3]])), base)
+  // A igualdad de desde, por id: el mismo resultado en cualquier orden
+  const juntos = IDS_BOCETO.map(id => ({ id, nombre: id, estado: 'trabajando', desde: hace(MIN) }))
+  assert.deepEqual(comoObjeto(variantesEquipo([...juntos].reverse())), comoObjeto(variantesEquipo(juntos)))
+})
+
+test('variantesEquipo: sacar uno posterior no cambia a los anteriores', () => {
+  const ids = [...IDS_BOCETO, 'toolu_01Wn9d']
+  const todos = comoObjeto(variantesEquipo(equipo(ids)))
+  const sinUltimo = comoObjeto(variantesEquipo(equipo(ids.slice(0, 3))))
+  for (const id of ids.slice(0, 3)) assert.equal(sinUltimo[id], todos[id])
+})
+
+test('variantesEquipo, límite conocido (7.3.4): sin el segundo, el tercero vuelve a su huella (0)', () => {
+  const v = variantesEquipo(equipo(IDS_BOCETO).filter(a => a.id !== 'toolu_01Zr3m'))
+  assert.deepEqual([...v.entries()], [['toolu_01Hq8c', 2], ['toolu_01Ab7x', 0], ['toolu_01Kp2v', 3]])
+})
+
+test('variantesEquipo, segunda tanda (16.2): dos terminados antes y cuatro trabajando dan cuatro variantes distintas (3, 2, 1, 0)', () => {
+  // El caso medido con ?mascota=lumen&equipo=4: a4 y a5 terminaron; a1, a2, a3 y el nuevo trabajan.
+  // Huellas % 4: a1 3, a2 2, a3 1, nuevo 1. a5 terminó antes de que arrancara a1, así que a1 conserva
+  // su 3 (con la regla vieja chocaba con a5 y salían 1, 2, 1, 1)
+  const en = min => new Date(AHORA - min * MIN).toISOString()
+  const lista = [
+    { id: 'a1', estado: 'trabajando', desde: en(4), hasta: null },
+    { id: 'a2', estado: 'trabajando', desde: en(2), hasta: null },
+    { id: 'a3', estado: 'trabajando', desde: en(1), hasta: null },
+    { id: 'a4', estado: 'fallo', desde: en(9), hasta: en(3) },
+    { id: 'a5', estado: 'listo', desde: en(9), hasta: en(5) },
+    { id: 'eq-ses-oficina-5', estado: 'trabajando', desde: en(0), hasta: null },
+  ]
+  const v = variantesEquipo(lista)
+  assert.deepEqual(['a1', 'a2', 'a3', 'eq-ses-oficina-5'].map(id => v.get(id)), [3, 2, 1, 0])
+  // Estable: los terminados no cambian y el resultado no depende del orden del arreglo
+  assert.deepEqual(comoObjeto(variantesEquipo([...lista].reverse())), comoObjeto(v))
+})
+
+test('variantesEquipo: sin subagentes, un mapa vacío', () => {
+  assert.equal(variantesEquipo([]).size, 0)
+  assert.equal(variantesEquipo(undefined).size, 0)
+})
+
+test('NOMBRES_INVENTADOS del mod no cambia: el nombre de la ficha sigue saliendo de huellaTexto(id) % 16', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const ts = await readFile(new URL('../../hooks/logica.ts', import.meta.url), 'utf8')
+  const lista = ts.match(/export const NOMBRES_INVENTADOS = \[([^\]]*)\]/)[1].match(/'[^']*'/g).map(t => t.slice(1, -1))
+  assert.deepEqual(lista, ['Bruno', 'Inés', 'Paula', 'Ramiro', 'Sofía', 'Nahuel', 'Agustín', 'Julieta', 'Martina', 'Joaquín', 'Lola', 'Tobías', 'Abril', 'Mateo', 'Renata', 'Felipe'])
+  assert.match(ts, /NOMBRES_INVENTADOS\[huellaTexto\(id\) % NOMBRES_INVENTADOS\.length\]/)
 })
