@@ -2,10 +2,11 @@
 // pestañas, la línea de la pregunta pendiente y el contenido de cada pestaña. Solo HTML, como
 // primerosPasosVista.js: los datos llegan armados desde main.js y nada de acá toca el DOM.
 // Entrega 1: la pestaña Panel. Entrega 2: Mascota (el escenario con la vista previa y las fichas) y el
-// Avi de 40 junto al título. Las demás muestran solo su rótulo hasta su entrega.
+// Avi de 40 junto al título. Entrega 3: Instalación y el modelo local. Entrega 4: las claves de API.
+// Datos muestra solo su rótulo hasta que llegue el chat.
 
 import { escapar } from './logica.js'
-import { PESTANAS, UBICACIONES, limitesTamano, CLAVE_VISTA_PREVIA, opcionesForma, rotuloEspecie } from './configuracion.js'
+import { PESTANAS, UBICACIONES, limitesTamano, CLAVE_VISTA_PREVIA, opcionesForma, rotuloEspecie, PROVEEDORES, textoClave } from './configuracion.js'
 import { NOMBRES_ESPECIES, datosEspecie, especieValida } from './especies.js'
 import { avi, claudeDe } from './avis.js'
 
@@ -195,12 +196,88 @@ function tarjetaLocal(m, { armado = false, transcurrido = 0, error = false } = {
     + '</div>'
 }
 
+/** El candado de "Claves de API" (6.1 `.cand`), decorativo. */
+const CANDADO = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2M8 10v1.4"/></svg>'
+
+/** La máscara de una clave guardada (7.1): los puntos y el final a la vista; "termina en …" para el lector. */
+function mascaraClave(m) {
+  return m ? ` <span class="mask"><span aria-hidden="true">${escapar(m.texto)}</span><span class="oculto">${escapar(m.oculto)}</span></span>` : ''
+}
+
 /**
- * Pestaña Modelos (4.4). Por ahora, solo el modelo local: "Quién responde" llega con el chat (D6) y
- * las claves de API con la entrega 4. `datos`: { modelo, armado, transcurrido, error }.
+ * El campo de la clave que se escribe (7.1): contraseña sin valor (el texto vive solo en el `<input>`,
+ * 4.6), con su label oculto, la ayuda descrita por `aria-describedby`, "Mostrar"/"Ocultar", Guardar y
+ * Cancelar. Un solo campo abierto por vez: el id es fijo.
+ */
+function campoClave(p, t) {
+  const { ayuda, ver } = t
+  const [guardar, cancelar] = t.acciones
+  return '<div class="cl-form">'
+    + `<label class="oculto" for="cfg-clave-in">Clave de API de ${escapar(p.nombre)}</label>`
+    + `<div class="campo${ayuda.invalida ? ' mal' : ''}"><input id="cfg-clave-in" type="${ver ? 'text' : 'password'}" autocomplete="off" spellcheck="false" autocapitalize="off"`
+    + ` placeholder="${escapar(p.prefijo)}…" data-k="clave-in" data-valor="${p.id}" aria-invalid="${ayuda.invalida}" aria-describedby="cfg-clave-ayuda">`
+    + `<button type="button" class="lnk" data-accion="cfg-clave-ver" data-valor="${p.id}" aria-pressed="${!!ver}" data-k="clave-ver">${ver ? 'Ocultar' : 'Mostrar'}</button></div>`
+    + `<p class="cl-ayuda${ayuda.tono ? ` ${ayuda.tono}` : ''}" id="cfg-clave-ayuda">${escapar(ayuda.texto)}</p>`
+    + `<div class="acc"><button type="button" class="btn" data-accion="cfg-clave-guardar" data-valor="${p.id}" data-k="clave-guardar">${escapar(guardar.texto)}</button>`
+    + `<button type="button" class="btn sec" data-accion="cfg-clave-cancelar" data-valor="${p.id}" data-k="clave-cancelar">${escapar(cancelar.texto)}</button></div>`
+    + '</div>'
+}
+
+/** Una acción de la fila (7.1) como `.lnk`; "Borrar" confirma en el mismo botón (D5). */
+function accionClave(p, a, transcurrido) {
+  if (a.id === 'borrar') return confirmable('cfg-clave-borrar', p.id, `b-${p.id}`, a.texto, a.pregunta, a.armado, transcurrido)
+  const accion = a.id === 'probar' ? 'cfg-clave-probar' : 'cfg-clave-agregar'
+  const k = a.id === 'probar' ? `p-${p.id}` : `r-${p.id}`
+  const apagado = a.deshabilitado ? ' aria-disabled="true" title="Probando…"' : ''
+  return `<button type="button" class="lnk" data-accion="${accion}" data-valor="${p.id}" data-k="${k}"${apagado}>${escapar(a.texto)}</button>`
+}
+
+/**
+ * La fila de una clave (7.1): la inicial (sin logos, D11), el nombre y lo de la derecha, el estado
+ * con la máscara y las acciones; editando, el campo. `t`: lo de `textoClave`. `recien`: se baña de
+ * verde una vez al guardar; `errorBorrar`: "No se pudo borrar" debajo.
+ */
+export function filaClave(p, t, { recien = false, errorBorrar = false, transcurrido = 0 } = {}) {
+  const cab = `<div class="cl-t"><b>${escapar(p.nombre)}</b><span class="cl-de">${escapar(p.de)}</span></div>`
+  const prov = `<span class="prov" aria-hidden="true">${escapar(p.inicial)}</span>`
+  if (t.estado === 'editando') return `<div class="cl">${prov}${cab}${campoClave(p, t)}</div>`
+  const enPildora = t.estado === 'revisando' || t.estado === 'probando'
+  const linea = enPildora ? pill(t.tono, t.linea) : escapar(t.linea)
+  const tono = ['ok', 'mal', 'aviso'].includes(t.tono) ? ` ${t.tono}` : ''
+  const est = `<span class="est${tono}"${t.titulo ? ` title="${escapar(t.titulo)}"` : ''}>${linea}${mascaraClave(t.mascara)}</span>`
+  const acciones = t.acciones.map(a => accionClave(p, a, transcurrido)).join('')
+  return `<div class="cl${recien ? ' recien' : ''}">${prov}<div>${cab}${est}</div>`
+    + (acciones ? `<div class="acc">${acciones}</div>` : '')
+    + (errorBorrar ? `<p class="aj-error">${TEXTO_ERROR_BORRAR}</p>` : '')
+    + '</div>'
+}
+
+/**
+ * La pestaña Modelos por partes (4.6), para que main.js cambie solo la que cambió: una por clave
+ * (`clave-<proveedor>`: así el campo que se escribe no se toca cuando cambia otra cosa) y `local`.
+ * `datos`: { claves: { <proveedor>: textoClave }, recien, modelo, armado, transcurrido, error }.
+ */
+export function partesModelos(datos) {
+  const partes = {}
+  for (const p of PROVEEDORES) {
+    const t = datos.claves?.[p.id] ?? textoClave(p.id, {})
+    partes[`clave-${p.id}`] = filaClave(p, t, { recien: datos.recien === p.id, errorBorrar: datos.error === `clave:${p.id}`, transcurrido: datos.transcurrido })
+  }
+  partes.local = tarjetaLocal(datos.modelo, { armado: datos.armado === 'local', transcurrido: datos.transcurrido, error: datos.error === 'modelo' })
+  return partes
+}
+
+/**
+ * Pestaña Modelos (4.4): las claves de API (entrega 4) y el modelo local. "Quién responde" llega con el
+ * chat (D6); las claves se muestran desde ya, con la línea que dice que las usará la charla.
  */
 export function seccionModelos(datos) {
-  return `<h3 class="sub">Modelo local</h3>${tarjetaLocal(datos.modelo, { armado: datos.armado === 'local', transcurrido: datos.transcurrido, error: datos.error === 'modelo' })}`
+  const p = partesModelos(datos)
+  return '<h3 class="sub">Claves de API</h3>'
+    + `<p class="cand">${CANDADO}<span>Se guardan en el Administrador de credenciales de Windows, nunca en un archivo. Avis solo vuelve a mostrar los últimos 4 caracteres.</span></p>`
+    + PROVEEDORES.map(x => `<div data-parte="clave-${x.id}">${p[`clave-${x.id}`]}</div>`).join('')
+    + '<p class="cl-nota">Las usa la charla por API cuando llegue</p>'
+    + `<h3 class="sub">Modelo local</h3><div data-parte="local">${p.local}</div>`
 }
 
 /** La tarjeta "Mod de Claude Code" (7.3). `m`: lo de `textoMod`. Sin botón para buscar actualizaciones (D12). */

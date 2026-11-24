@@ -55,9 +55,11 @@ import {
   configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion, pestanaSiguiente, validarAjuste,
   valorInterruptor, INTERRUPTORES, ubicacionDe, bordeDeUbicacion, IDS_PESTANAS, elegirForma, anuncioEspecie, anuncioForma,
   textoMod, textoModelo, puntoPestana, filasEnEstaPC, clicBorrar, armadoVigente, desarmarVencido, MS_CONFIRMAR,
+  PROVEEDORES, finalDe, formaClave, textoClave, clavesDesdeLectura, resultadoPrueba, anuncioPrueba, anuncioGuardada,
+  ANUNCIO_CLAVE_BORRADA, empezarClave, retieneConfig, detalleErrorClave,
 } from './configuracion.js'
 import {
-  esqueletoConfiguracion, avisoPreguntaConfiguracion, seccionConfiguracion, partesMascota, miniConfiguracion, nombrePestana,
+  esqueletoConfiguracion, avisoPreguntaConfiguracion, seccionConfiguracion, partesMascota, partesModelos, miniConfiguracion, nombrePestana,
 } from './configuracionVista.js'
 import * as movimientoConfig from './configuracionMotion.js'
 
@@ -116,6 +118,15 @@ const st = {
   ultimoAvisoMod: null,
   /** La versión de Avis (`leer_configuracion`), al pie de la pestaña Instalación. */
   version: null,
+  /**
+   * Las claves de API (configuracion-ux.md 7.1 y 9.4): `{ <proveedor>: { guardada, final } }` de
+   * `claves_estado`, o null hasta leerlas. Solo el final de 4: la clave nunca vuelve a la ventana.
+   */
+  claves: null,
+  /** La clave recién guardada: su fila se baña de verde una vez (8). */
+  claveRecien: null,
+  /** Acoplada, el panel quedó fijado mientras se escribe una clave (4.1) y vuelve a su marca al terminar. */
+  cfgRet: { retuvo: false, fijaAntes: false, fijaTocada: false },
   mini: false,
   /** La ventana está escondida en la bandeja o minimizada: los Avis se pausan (6.5). */
   fuera: false,
@@ -1782,6 +1793,12 @@ document.addEventListener('input', e => {
     refrescarBarra(e.target.closest('.ctl'))
   }
 })
+// Al escribir de nuevo en el campo de la clave, su error o su aviso se van (el texto queda, 7.1)
+document.addEventListener('input', e => {
+  if (e.target.id !== 'cfg-clave-in' || !st.config.errorClave) return
+  st.config = { ...st.config, errorClave: null }
+  pintarConfiguracion()
+})
 document.addEventListener('compositionstart', e => { if (e.target.matches?.('.ctl-in')) st.componiendo = true })
 document.addEventListener('compositionend', () => { st.componiendo = false })
 
@@ -1804,9 +1821,21 @@ document.addEventListener('keydown', e => {
   // y la hoja. Cerrada la hoja, el Esc siguiente es el de siempre (acoplada, pliega el panel)
   if (e.key === 'Escape' && st.config.abierta) {
     e.preventDefault()
+    const proveedor = st.config.editando
     const { config, accion } = alEsc(st.config)
     if (accion === 'cerrar') cerrarConfig()
-    else { st.config = config; pintarConfiguracion() }
+    else {
+      st.config = config
+      pintarConfiguracion()
+      // La clave cancelada: el texto se fue con el campo y el foco vuelve a "+ Agregar clave" o "Reemplazar"
+      if (accion === 'cancelar-clave') enfocarClave(proveedor, 'r')
+    }
+    return
+  }
+  // Enter en el campo de la clave la guarda (7.1); nada mientras compone el IME
+  if (e.key === 'Enter' && e.target.id === 'cfg-clave-in' && !e.isComposing) {
+    e.preventDefault()
+    guardarClaveConfig(e.target.dataset.valor)
     return
   }
   if (teclaConfiguracion(e)) return
@@ -2086,6 +2115,7 @@ function evento(ev) {
   st.muesca = e
   // Mientras el código de GitHub retiene el panel, un cambio de la marca es del usuario (alfiler o Esc)
   if (st.pp.retuvo && e.fija !== antes.fija) st.pp.fijaTocada = true
+  if (st.cfgRet.retuvo && e.fija !== antes.fija) st.cfgRet.fijaTocada = true
   if (e.foco) st.focoPendiente = e.foco
   pintarControles()
   if (e.efecto) sincronizar()
@@ -2894,15 +2924,28 @@ function datosConfiguracion(resumen = st.resumen, ahora = Date.now()) {
     version: st.version,
     armado: armado && armadoVigente(st.config, armado.id, ahora) ? armado.id : null,
     transcurrido: armado ? Math.max(0, MS_CONFIRMAR - (armado.hasta - ahora)) : 0,
+    claves: datosClaves(ahora),
+    recien: st.claveRecien,
   }
+}
+
+/** La fila de cada clave (7.1): lo leído de Credenciales (solo el final), la última prueba y el campo abierto. */
+function datosClaves(ahora) {
+  const c = st.config
+  return Object.fromEntries(PROVEEDORES.map(({ id }) => [id, textoClave(id, {
+    lectura: st.claves ? (st.claves[id] ?? { guardada: false }) : null,
+    prueba: c.pruebas?.[id] ?? null,
+    editando: c.editando === id,
+    ver: c.ver,
+    error: c.errorClave,
+    armado: armadoVigente(c, `clave:${id}`, ahora),
+  })]))
 }
 
 /** Las mismas pestañas sin el progreso de la descarga: lo que decide si la sección se redibuja. */
 function firmaConfiguracion(tab, ahora) {
-  const r = st.resumen
-  const datos = datosConfiguracion(r.trabajo === 'descargando' ? { ...r, progreso: { bajado: 0, total: r.progreso.total } } : r, ahora)
   // El "¿Borrar? Sí" lleva cuánto lleva armado (para retomar la línea): no cuenta para la firma
-  return seccionConfiguracion(tab, { ...datos, transcurrido: 0 })
+  return seccionConfiguracion(tab, datosFirma(ahora))
 }
 
 /** El encabezado y la barra con la configuración abierta: ningún proyecto elegido, la hoja abajo. */
@@ -2929,6 +2972,7 @@ function pintarConfiguracion() {
     if (raiz.firstChild) { raiz.innerHTML = ''; st.cfgFirmas = {} }
     if (mini.firstChild) mini.innerHTML = ''
     $('#marco').classList.remove('con-mini')
+    retenerPorClave()
     return
   }
   if (!raiz.firstChild) { raiz.innerHTML = esqueletoConfiguracion(st.config.tab); st.cfgFirmas = {} }
@@ -2948,7 +2992,7 @@ function pintarConfiguracion() {
   // Las pestañas no se redibujan: cambia cuál está elegida, así el indicador viaja desde donde estaba.
   // El punto de estado (6.3) se reescribe solo si cambió; la pestaña elegida que cambia de ancho
   // vuelve a poner el indicador, sin viaje
-  const puntos = { modelo: datos.modelo.estado, mod: datos.mod.estado }
+  const puntos = { modelo: datos.modelo.estado, mod: datos.mod.estado, claves: datos.claves }
   let anchoCambio = false
   for (const b of document.querySelectorAll('#cfg [role="tab"]')) {
     const sel = b.dataset.valor === st.config.tab
@@ -2970,23 +3014,75 @@ function pintarConfiguracion() {
   else if (st.cfgFirmas.seccion !== firma) {
     const cont = $('#cfg-cont')
     const k = cont.contains(document.activeElement) ? document.activeElement.closest('[data-k]')?.dataset.k : null
-    // Mascota ya dibujada: cambia solo la parte que cambió (la figura sigue si cambia la forma, y la
-    // luz del escenario hace su transición porque el escenario no se reemplaza)
-    const partes = st.config.tab === 'mascota' ? partesMascota(datos) : null
-    if (partes && cont.querySelector('.esc-m')) {
+    // Mascota y Modelos ya dibujadas: cambia solo la parte que cambió. En Mascota la figura sigue si
+    // cambia la forma y la luz del escenario hace su transición; en Modelos, el campo de la clave que
+    // se escribe no se toca cuando cambia otra fila o el modelo local (4.6). La firma de cada parte
+    // sale de los datos sin el progreso de la descarga (que se pone en su lugar)
+    const tab = st.config.tab
+    const partes = tab === 'mascota' ? partesMascota(datos) : tab === 'modelos' ? partesModelos(datos) : null
+    const firmasPartes = tab === 'modelos' ? partesModelos(datosFirma(ahora)) : partes
+    const armada = tab === 'mascota' ? cont.querySelector('.esc-m') : tab === 'modelos' ? cont.querySelector('[data-parte="local"]') : null
+    if (partes && armada) {
       for (const [parte, h] of Object.entries(partes)) {
-        if (st.cfgFirmas[`m-${parte}`] === h) continue
+        const f = firmasPartes[parte]
+        if (st.cfgFirmas[`m-${parte}`] === f) continue
         const el = cont.querySelector(`[data-parte="${parte}"]`)
-        if (el) el.innerHTML = h
-        st.cfgFirmas[`m-${parte}`] = h
+        if (el) ponerParteConCampo(el, h)
+        st.cfgFirmas[`m-${parte}`] = f
       }
+      if (tab === 'modelos') ponerProgresoConfig(datos.modelo)
     } else {
       cont.innerHTML = html
-      for (const [parte, h] of Object.entries(partes ?? {})) st.cfgFirmas[`m-${parte}`] = h
+      for (const [parte, f] of Object.entries(firmasPartes ?? {})) st.cfgFirmas[`m-${parte}`] = f
     }
-    $('#cfg-p').setAttribute('aria-labelledby', `cfg-t-${st.config.tab}`)
+    $('#cfg-p').setAttribute('aria-labelledby', `cfg-t-${tab}`)
     if (k && cont.contains(document.activeElement) === false) cont.querySelector(`[data-k="${CSS.escape(k)}"]`)?.focus({ preventScroll: true })
     st.cfgFirmas.seccion = firma
+  }
+  retenerPorClave()
+}
+
+/** Los datos de la hoja sin el progreso de la descarga ni lo que lleva armado un borrado: lo que decide si algo se redibuja. */
+function datosFirma(ahora) {
+  const r = st.resumen
+  const datos = datosConfiguracion(r.trabajo === 'descargando' ? { ...r, progreso: { bajado: 0, total: r.progreso.total } } : r, ahora)
+  return { ...datos, transcurrido: 0 }
+}
+
+/**
+ * Reemplaza una parte de la hoja. Si adentro está el campo de la clave que se escribe, su texto, la
+ * selección y el foco pasan al campo nuevo: el texto vive solo en el `<input>` (4.6), nunca en el HTML.
+ */
+function ponerParteConCampo(el, html) {
+  const viejo = el.querySelector('#cfg-clave-in')
+  const guardado = viejo && { valor: viejo.value, ini: viejo.selectionStart, fin: viejo.selectionEnd, foco: document.activeElement === viejo }
+  el.innerHTML = html
+  const nuevo = guardado && el.querySelector('#cfg-clave-in')
+  if (!nuevo) return
+  nuevo.value = guardado.valor
+  try { nuevo.setSelectionRange(guardado.ini, guardado.fin) } catch { /* el tipo no admite selección */ }
+  if (guardado.foco) nuevo.focus({ preventScroll: true })
+}
+
+/**
+ * Acoplada, el panel no se pliega mientras el campo de una clave está abierto (4.1, el mismo
+ * mecanismo que `retenerPanel` de primeros pasos): queda fijado y al guardar o cancelar vuelve a la
+ * marca que tenía, salvo que el usuario la haya cambiado mientras tanto.
+ */
+function retenerPorClave() {
+  const r = st.cfgRet
+  const retener = !!st.acople && retieneConfig(st.config)
+  if (retener && !r.retuvo && !st.muesca.fija) {
+    r.retuvo = true
+    r.fijaAntes = st.muesca.fija
+    r.fijaTocada = false
+    st.muesca = { ...st.muesca, fija: true }
+    pintarControles()
+  } else if (!retener && r.retuvo) {
+    r.retuvo = false
+    const fija = fijaAlSoltar({ antes: r.fijaAntes, actual: st.muesca.fija, tocada: r.fijaTocada })
+    if (st.muesca.fija !== fija) st.muesca = { ...st.muesca, fija }
+    pintarControles()
   }
 }
 
@@ -3015,8 +3111,9 @@ async function abrirConfig({ tab, foco = true } = {}) {
   if (st.dividida.clave) await cerrarConversacion({ descartar: true })
   if (st.mini) await ponerMini(false)
   st.config = { ...abrirConfiguracion(st.config, tab), error: null }
-  // El mod se lee al abrir (solo lectura): el punto de Instalación se ve desde cualquier pestaña
+  // El mod y las claves se leen al abrir (solo lectura): los puntos de las pestañas se ven desde cualquiera
   leerEstadoMod()
+  leerClaves()
   pintar()
   movimientoConfig.abrirHoja($('#marco .cab'), $('#cfg-tabs'), $('#cfg-cont'))
   if (st.acople) {
@@ -3042,7 +3139,7 @@ function cambiarPestanaConfig(tab, { foco = false } = {}) {
   const direccion = Math.sign(IDS_PESTANAS.indexOf(tab) - IDS_PESTANAS.indexOf(st.config.tab))
   const salioDeMascota = st.config.tab === 'mascota'
   // La vista previa vuelve a la base: la figura se redibuja al volver a Mascota
-  st.config = { ...st.config, tab, editando: null, armado: null, error: null, forma: 'base' }
+  st.config = { ...st.config, tab, editando: null, armado: null, error: null, forma: 'base', ver: false, errorClave: null }
   pintarConfiguracion()
   movimientoConfig.colocarIndicador($('#cfg .pestanas'), true)
   movimientoConfig.cambioPestana($('#cfg-cont'), direccion, { mini: salioDeMascota ? $('#cfg-mini > .avi') : null })
@@ -3231,6 +3328,136 @@ async function clicBorrarModelo() {
   }
 }
 
+// ------------------------------------------------------------------ claves de API (entrega 4: 7.1 y 9.4)
+// La clave cruza a Rust una sola vez (guardar_clave) y nunca vuelve: de Credenciales de Windows solo
+// llegan si hay una y su final de 4. El texto que se escribe vive solo en el campo; ni `st`, ni
+// widget.log, ni los errores lo llevan. Probar sale a la red solo con su clic.
+
+/** Lee qué claves hay (`claves_estado`: solo el final). Al abrir la configuración; nunca en el ciclo. */
+async function leerClaves() {
+  if (!tauri?.core) return
+  try {
+    st.claves = clavesDesdeLectura(await invocar('claves_estado')) ?? st.claves
+  } catch (err) {
+    registrar(`configuración: claves: no se pudieron leer (${detalleErrorClave(err)})`)
+  }
+  if (st.config.abierta) pintarConfiguracion()
+}
+
+/** El foco en una pieza de la fila de un proveedor, o en la que quede en su lugar (11). */
+function enfocarClave(proveedor, ...ks) {
+  for (const k of ks) {
+    const el = $(`#cfg [data-k="${k}-${proveedor}"]`) ?? $(`#cfg [data-k="${k}"]`)
+    if (el) { el.focus({ preventScroll: true }); return }
+  }
+}
+
+/** "+ Agregar clave" o "Reemplazar": abre el campo vacío (nunca precargado) con el foco adentro. */
+function abrirCampoClave(proveedor) {
+  st.config = empezarClave(st.config, proveedor)
+  vigilarArmado()
+  pintarConfiguracion()
+  $('#cfg-clave-in')?.focus()
+}
+
+/** "Cancelar" o Esc: el texto escrito se descarta con el campo; el foco vuelve a "+ Agregar clave" o "Reemplazar". */
+function cancelarClave() {
+  const p = st.config.editando
+  if (!p) return
+  st.config = { ...st.config, editando: null, ver: false, errorClave: null }
+  pintarConfiguracion()
+  enfocarClave(p, 'r')
+}
+
+/**
+ * "Guardar" (o Enter en el campo): lee lo escrito, revisa su forma (un error nunca borra lo escrito;
+ * un prefijo raro pide "Guardar igual", D13) y lo manda a Credenciales de Windows una sola vez. Al
+ * guardar: el campo se vacía y se va, la fila se baña de verde, se anuncia y el foco va a "Probar".
+ */
+async function guardarClaveConfig(proveedor) {
+  const campo = $('#cfg-clave-in')
+  if (!campo || st.config.editando !== proveedor || st.config.guardandoClave) return
+  const forma = formaClave(proveedor, campo.value)
+  const error = forma.estado !== 'ok' ? forma.estado : forma.aviso && st.config.errorClave !== 'prefijo' ? forma.aviso : null
+  if (error) {
+    st.config = { ...st.config, errorClave: error }
+    pintarConfiguracion()
+    $('#cfg-clave-in')?.focus()
+    return
+  }
+  st.config = { ...st.config, guardandoClave: true }
+  try {
+    const r = await invocar('guardar_clave', { proveedor, clave: forma.clave })
+    campo.value = ''
+    const actual = $('#cfg-clave-in')
+    if (actual) actual.value = ''
+    st.claves = { ...(st.claves ?? {}), [proveedor]: { guardada: true, final: finalDe(r?.final) } }
+    st.config = { ...st.config, editando: null, ver: false, errorClave: null, guardandoClave: false, pruebas: { ...st.config.pruebas, [proveedor]: null } }
+    st.claveRecien = proveedor
+    pintarConfiguracion()
+    decirConfig(anuncioGuardada(proveedor))
+    enfocarClave(proveedor, 'p', 'r')
+    setTimeout(() => {
+      if (st.claveRecien !== proveedor) return
+      st.claveRecien = null
+      if (st.config.abierta) pintarConfiguracion()
+    }, 1300)
+  } catch (err) {
+    // El campo sigue abierto con su texto: el detalle es solo el código de Windows, nunca la clave
+    const detalle = detalleErrorClave(err)
+    registrar(`configuración: claves: no se pudo guardar ${proveedor} (${detalle})`)
+    st.config = { ...st.config, errorClave: { windows: detalle }, guardandoClave: false }
+    pintarConfiguracion()
+    $('#cfg-clave-in')?.focus()
+  }
+}
+
+/** "Probar" (solo con el clic, D7): un pedido de solo lectura al proveedor con la clave guardada. */
+async function probarClaveConfig(proveedor) {
+  if (st.config.pruebas?.[proveedor]?.estado === 'probando') return
+  const poner = prueba => { st.config = { ...st.config, pruebas: { ...st.config.pruebas, [proveedor]: prueba } } }
+  poner({ estado: 'probando' })
+  pintarConfiguracion()
+  let prueba
+  try {
+    prueba = resultadoPrueba(await invocar('probar_clave', { proveedor }))
+  } catch (err) {
+    registrar(`configuración: claves: no se pudo probar ${proveedor} (${detalleErrorClave(err)})`)
+    prueba = { estado: 'otro', codigo: null }
+  }
+  poner(prueba)
+  pintarConfiguracion()
+  decirConfig(anuncioPrueba(proveedor, prueba))
+  // "Probar" se va con válida o rechazada: el foco queda en "Reemplazar"
+  if (!$('#cfg').contains(document.activeElement)) enfocarClave(proveedor, 'p', 'r')
+}
+
+/**
+ * "Borrar" de una clave: el primer clic arma "¿Borrar la clave? Sí" 3 s (D5); el segundo la borra de
+ * Credenciales una vez. Después, "Sin clave" y el foco en "+ Agregar clave". Si no se pudo, lo dice
+ * debajo de su fila.
+ */
+async function clicBorrarClave(proveedor) {
+  const { config, ejecutar } = clicBorrar(st.config, `clave:${proveedor}`, Date.now())
+  st.config = { ...config, error: null }
+  vigilarArmado()
+  pintarConfiguracion()
+  if (!ejecutar) return
+  try {
+    await invocar('borrar_clave', { proveedor })
+    st.claves = { ...(st.claves ?? {}), [proveedor]: { guardada: false, final: '' } }
+    st.config = { ...st.config, pruebas: { ...st.config.pruebas, [proveedor]: null } }
+    pintarConfiguracion()
+    decirConfig(ANUNCIO_CLAVE_BORRADA)
+    enfocarClave(proveedor, 'r')
+  } catch (err) {
+    registrar(`configuración: claves: no se pudo borrar ${proveedor} (${detalleErrorClave(err)})`)
+    st.config = { ...st.config, error: `clave:${proveedor}` }
+    pintarConfiguracion()
+    enfocarClave(proveedor, 'b')
+  }
+}
+
 /** Los botones de la hoja (`data-accion="cfg-…"`). Cada uno hace solo lo suyo, y solo con el clic. */
 async function accionConfiguracion(a, b) {
   switch (a) {
@@ -3270,6 +3497,16 @@ async function accionConfiguracion(a, b) {
       else if (b.dataset.valor === 'pp') abrirAsistente({ foco: true })
       break
     case 'cfg-pp': abrirAsistente({ foco: true }); break
+    case 'cfg-clave-agregar': abrirCampoClave(b.dataset.valor); break
+    case 'cfg-clave-cancelar': cancelarClave(); break
+    case 'cfg-clave-ver':
+      // "Mostrar"/"Ocultar": el campo se redibuja con su texto (ponerParteConCampo) y el foco sigue en el botón
+      st.config = { ...st.config, ver: !st.config.ver }
+      pintarConfiguracion()
+      break
+    case 'cfg-clave-guardar': await guardarClaveConfig(b.dataset.valor); break
+    case 'cfg-clave-probar': await probarClaveConfig(b.dataset.valor); break
+    case 'cfg-clave-borrar': await clicBorrarClave(b.dataset.valor); break
     case 'cfg-ver': {
       // La pregunta pendiente (4.1): cierra la configuración y la muestra, en su proyecto
       const k = st.proyectos.findIndex(p => preguntasPendientes(p).length)

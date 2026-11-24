@@ -1484,6 +1484,48 @@ p.det-rot { margin-top: var(--e-5) }
   transform-origin: 0 50%; animation: drena var(--d-confirma) linear var(--ya, 0ms) both;
 }
 #cfg .ver-avis { margin: var(--e-7) 0 0; font: var(--t-mono-s); color: var(--tenue) }
+#cfg .lnk[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none; transform: none }
+
+/* Claves de API (6.1 y 7.1, entrega 4): el candado, una fila por proveedor con su inicial (sin logos,
+   D11), el estado con la máscara del final y, editando, el campo de contraseña con su ayuda */
+#cfg .cand { display: flex; gap: var(--e-4); align-items: flex-start; margin: 0; padding: 2px 0 10px; font: var(--t-chico); color: var(--crema2) }
+#cfg .cand svg { width: 14px; height: 14px; flex: none; margin-top: 1px; fill: none; stroke: var(--ambar); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round }
+#cfg .cl { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: var(--e-2) 12px; padding: 11px 0; border-top: 1px solid var(--linea) }
+#cfg .prov {
+  width: 30px; height: 30px; display: grid; place-items: center; border-radius: var(--r-icono); background: var(--s2);
+  border: 1px solid var(--linea); font: 600 12px/1 var(--m); color: var(--crema);
+}
+#cfg .cl-t { display: flex; align-items: baseline; justify-content: space-between; gap: var(--e-4) }
+#cfg .cl-t b { font: var(--t-cuerpo-f) }
+#cfg .cl-de { font: var(--t-chico); color: var(--tenue) }
+#cfg .est { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2) var(--e-4); margin-top: 2px; font: var(--t-chico); color: var(--crema2) }
+#cfg .est.ok { color: var(--verde) }
+#cfg .est.mal { color: var(--rojo) }
+#cfg .est.aviso { color: var(--ambar) }
+#cfg .mask { font: var(--t-mono); color: var(--crema); letter-spacing: .04em; padding: 1px 6px; border-radius: 5px; background: var(--s2) }
+#cfg .cl > .acc, #cfg .cl > .aj-error { grid-column: 2 }
+#cfg .cl > .aj-error { margin: 0 }
+#cfg .cl-form { grid-column: 2; display: grid; gap: 6px; margin-top: 6px }
+#cfg .campo {
+  display: flex; align-items: center; gap: var(--e-2); padding: 0 var(--e-2) 0 12px; min-height: 38px; border: 1px solid var(--linea);
+  border-radius: var(--r-campo); background: var(--s1); transition: border-color var(--d-color) ease, box-shadow var(--d-color) ease;
+}
+#cfg .campo:focus-within { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
+#cfg .campo.mal { border-color: rgba(255, 122, 107, .7) }
+#cfg .campo input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--crema); font: var(--t-mono); letter-spacing: .03em }
+#cfg .campo input::placeholder { color: var(--tenue) }
+#cfg .cl-ayuda { margin: 0; font: var(--t-chico); color: var(--tenue) }
+#cfg .cl-ayuda.mal { color: var(--rojo) }
+#cfg .cl-ayuda.aviso { color: var(--ambar) }
+#cfg .cl-nota { margin: var(--e-2) 0 0; padding-left: 42px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+/* Recién guardada (8): la fila se baña de verde 12 % y se apaga en 1,2 s */
+@keyframes cfgRecien { 0% { background: color-mix(in srgb, var(--verde) 12%, transparent) } 100% { background: transparent } }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) #cfg .cl.recien { animation: cfgRecien 1.2s var(--ease) }
+}
+@media (prefers-reduced-motion: reduce) {
+  #cfg .campo { transition: none }
+}
 @keyframes cfgLate { 50% { opacity: .35 } }
 @media (prefers-reduced-motion: no-preference) {
   body:not(.pausa) #cfg .t-proc .pt { animation: cfgLate 1.2s ease-in-out infinite }

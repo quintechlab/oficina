@@ -38,6 +38,9 @@
 //                 instalando no termina nunca (para mirarlo). "Prender" corre el paso activar falso
 //   ?cfg=modelos&modelo=falta|bajando|listo|roto  la tarjeta del modelo local (7.2), el mismo modelo falso
 //                 del resumen (bajando avanza solo; &rapido más rápido). &borrarfalla: borrar_modelo falla
+//   ?cfg=modelos&clave=sin|guardada  las claves de API (7.1): ninguna o las tres (sin ?clave, Claude y
+//                 Gemini). Probar responde válida (Gemini, rechazada) o lo de &probar=valida|rechazada|sin-red|otro;
+//                 &clavelenta tarda 4 s; &clavefalla: Windows no deja guardar (windows:1312); &borrarfalla, borrar
 //   Lo guardado queda en window.__ajustes.
 //   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
 //                 docs/diseno/mascotas-avi-ux.md 9.1), con su forma evolucionada, sus bucles y sus actos;
@@ -450,6 +453,11 @@
   /** preferencias.json falso (configuracion-ux.md 9.1): los interruptores; guardar_ajuste los cambia. */
   const ESPECIES = ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']
   const ajustes = { arriba: true, avisar: true, pausa: url.has('pausa'), mascota: ESPECIES.includes(url.get('mascota')) ? url.get('mascota') : 'avi' }
+  // Las claves de API falsas (entrega 4): solo el final de 4, como lo que devuelve Rust. ?clave=sin
+  // ninguna, ?clave=guardada las tres; sin ?clave, Claude y Gemini (las del boceto)
+  const PROVEEDORES_FALSOS = ['anthropic', 'openai', 'gemini']
+  const clavesFalsas = url.get('clave') === 'sin' ? {}
+    : url.get('clave') === 'guardada' ? { anthropic: 'a1B2', openai: 'Q7xK', gemini: '9fLw' } : { anthropic: 'a1B2', gemini: '9fLw' }
   let arranqueFalso = url.has('arranque')
   const oyentes = {}
   let lecturas = 0
@@ -777,6 +785,31 @@
       if (clave === 'mascota') emitir('oficina://mascota', { mascota: valor })
       return { ok: true, valor }
     },
+    // Claves de API (entrega 4, 9.4), como claves.rs: lista fija de proveedores, la forma se valida de
+    // nuevo y solo se guarda el final (ni el falso conserva la clave). Probar tarda 1,4 s (&clavelenta, 4 s)
+    claves_estado: () => new Promise(r => setTimeout(() => r(PROVEEDORES_FALSOS.map(p => clavesFalsas[p]
+      ? { proveedor: p, guardada: true, final: clavesFalsas[p] } : { proveedor: p, guardada: false })), 300)),
+    guardar_clave: ({ proveedor, clave }) => {
+      if (!PROVEEDORES_FALSOS.includes(proveedor)) throw new Error('proveedor desconocido')
+      const t = String(clave ?? '').trim()
+      if ([...t].length < 20 || /\s/.test(t)) throw new Error('forma')
+      if (url.has('clavefalla')) throw new Error('windows:1312')
+      clavesFalsas[proveedor] = [...t].slice(-4).join('')
+      console.info('[credenciales] guardada', proveedor)
+      return { guardada: true, final: clavesFalsas[proveedor] }
+    },
+    borrar_clave: ({ proveedor }) => {
+      if (!PROVEEDORES_FALSOS.includes(proveedor)) throw new Error('proveedor desconocido')
+      if (url.has('borrarfalla')) throw new Error('windows:5')
+      delete clavesFalsas[proveedor]
+      console.info('[credenciales] borrada', proveedor)
+      return { guardada: false }
+    },
+    probar_clave: ({ proveedor }) => new Promise((r, no) => setTimeout(() => {
+      if (!clavesFalsas[proveedor]) return no(new Error('sin clave'))
+      const resultado = url.get('probar') ?? (proveedor === 'gemini' ? 'rechazada' : 'valida')
+      r(resultado === 'otro' ? { resultado, estado: 500 } : { resultado })
+    }, url.has('clavelenta') ? 4000 : 1400)),
     // "Arrancar con Windows": ?arranquefalla imita un sistema que no deja prenderlo (vuelve la marca real)
     poner_arranque: ({ valor }) => {
       if (!url.has('arranquefalla')) arranqueFalso = !!valor

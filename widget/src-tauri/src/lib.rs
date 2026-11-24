@@ -1,4 +1,5 @@
 mod arranque;
+mod claves;
 mod diagnostico;
 mod equipo;
 mod preferencias;
@@ -662,6 +663,34 @@ async fn borrar_modelo(app: AppHandle) -> Result<u64, String> {
         let _ = app.emit(modelo::EVENTO, modelo::evento_estado(estado));
     }
     bytes
+}
+
+/// Las claves de API (configuracion-ux.md 9.2 y 9.4): por proveedor, si hay una guardada en
+/// Credenciales de Windows y sus últimos 4 caracteres. Nunca la clave.
+#[tauri::command]
+async fn claves_estado() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(claves::estado).await.map_err(|e| e.to_string())
+}
+
+/// Guarda una clave de API en Credenciales de Windows (`Avis/api/<proveedor>`), con el clic en
+/// "Guardar". La clave llega una sola vez y lo que vuelve es `{ guardada, final }`.
+#[tauri::command]
+async fn guardar_clave(proveedor: String, clave: String) -> Result<serde_json::Value, String> {
+    let secreto = claves::Secreto::from(clave);
+    tauri::async_runtime::spawn_blocking(move || claves::guardar(&proveedor, secreto)).await.map_err(|e| e.to_string())?
+}
+
+/// Borra la clave de un proveedor (el segundo clic de "¿Borrar la clave? Sí"). Si no había, no falla.
+#[tauri::command]
+async fn borrar_clave(proveedor: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || claves::borrar(&proveedor)).await.map_err(|e| e.to_string())?
+}
+
+/// "Probar" (solo con el clic): un pedido de solo lectura al proveedor con la clave guardada, 10 s
+/// como mucho. `{ resultado: valida | rechazada | sin-red | otro, estado? }`.
+#[tauri::command]
+async fn probar_clave(proveedor: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || claves::probar(&proveedor)).await.map_err(|e| e.to_string())?
 }
 
 /// Solo con el clic en "Cancelar" (o a los 60 s de pensando): corta la descarga (queda para seguir),
@@ -1427,6 +1456,10 @@ pub fn run() {
             estado_resumen,
             descargar_modelo,
             borrar_modelo,
+            claves_estado,
+            guardar_clave,
+            borrar_clave,
+            probar_clave,
             cancelar_resumen,
             pedir_resumen
         ])

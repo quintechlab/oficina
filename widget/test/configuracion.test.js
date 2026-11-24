@@ -87,7 +87,7 @@ test('valorInterruptor: lo que no es booleano vuelve al de fábrica', () => {
 
 test('abre en la última pestaña usada en esta ejecución; la primera vez, Mascota', () => {
   let c = configInicial()
-  assert.deepEqual(c, { abierta: false, tab: 'mascota', editando: null, armado: null, error: null, forma: 'base' })
+  assert.deepEqual(c, { abierta: false, tab: 'mascota', editando: null, armado: null, error: null, forma: 'base', ver: false, errorClave: null, pruebas: {} })
   c = abrirConfiguracion(c)
   assert.equal(c.abierta, true)
   assert.equal(c.tab, 'mascota')
@@ -101,7 +101,8 @@ test('abre en la última pestaña usada en esta ejecución; la primera vez, Masc
 
 test('cerrar descarta la clave que se escribía, desarma el borrado, saca el error y vuelve la vista previa a la base', () => {
   const c = cerrarConfiguracion({ abierta: true, tab: 'modelos', editando: 'anthropic', armado: 'clave:openai', error: { k: 'arriba' }, forma: 'evo' })
-  assert.deepEqual(c, { abierta: false, tab: 'modelos', editando: null, armado: null, error: null, forma: 'base' })
+  // Entrega 4: también se ocultan el "Mostrar" de la clave y su error (el texto vive solo en el campo)
+  assert.deepEqual(c, { abierta: false, tab: 'modelos', editando: null, armado: null, error: null, forma: 'base', ver: false, errorClave: null })
 })
 
 test('Esc: primero cancela la clave, después desarma el "¿Borrar? Sí", después cierra', () => {

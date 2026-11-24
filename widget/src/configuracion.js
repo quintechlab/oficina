@@ -81,7 +81,9 @@ export function limitesTamano(tamano) {
  * que no se pudo guardar y la forma de la vista previa de la mascota (no se guarda: es de la pantalla).
  */
 export function configInicial() {
-  return { abierta: false, tab: 'mascota', editando: null, armado: null, error: null, forma: 'base' }
+  // Entrega 4: `ver` ("Mostrar" la clave que se escribe), `errorClave` (su error o aviso) y `pruebas`
+  // (lo último que dijo "Probar", por proveedor; solo en memoria)
+  return { abierta: false, tab: 'mascota', editando: null, armado: null, error: null, forma: 'base', ver: false, errorClave: null, pruebas: {} }
 }
 
 /** Abre en la última pestaña usada, o en `tab` si es una de las cinco. */
@@ -94,7 +96,7 @@ export function abrirConfiguracion(config, tab) {
  * vuelve a la base (la figura se redibuja al abrir); la pestaña queda.
  */
 export function cerrarConfiguracion(config) {
-  return { ...config, abierta: false, editando: null, armado: null, error: null, forma: 'base' }
+  return { ...config, abierta: false, editando: null, armado: null, error: null, forma: 'base', ver: false, errorClave: null }
 }
 
 /**
@@ -104,7 +106,7 @@ export function cerrarConfiguracion(config) {
  */
 export function alEsc(config) {
   if (!config.abierta) return { config, accion: null }
-  if (config.editando) return { config: { ...config, editando: null, error: null }, accion: 'cancelar-clave' }
+  if (config.editando) return { config: { ...config, editando: null, error: null, ver: false, errorClave: null }, accion: 'cancelar-clave' }
   if (config.armado) return { config: { ...config, armado: null }, accion: 'desarmar' }
   return { config: cerrarConfiguracion(config), accion: 'cerrar' }
 }
@@ -289,4 +291,161 @@ export function filasEnEstaPC(lectura, revisionPasos) {
     : r.gh.instalado !== true ? { tono: 'aviso', pill: 'Sin instalar' }
       : r.cuenta?.estado === 'conectada' ? { tono: 'ok', pill: 'Conectado' } : { tono: 'aviso', pill: 'Sin conectar' }
   return { claude, github }
+}
+
+// ------------------------------------------------------------------ Claves de API (entrega 4: 7.1 y 9.4)
+// La clave entera nunca vive en `st` ni vuelve de Rust: lo único que se lee de ella es su final de 4
+// caracteres. El texto que se escribe vive solo en el campo y se lee al guardar.
+
+/**
+ * Los tres proveedores (4.4), en este orden, con la inicial del cuadro (sin logos, D11), lo que va a
+ * la derecha del nombre (`de`, el del boceto), la empresa de las frases ("Probando con…", "la
+ * rechazó") y el prefijo típico de sus claves (solo avisa, D13).
+ */
+export const PROVEEDORES = [
+  { id: 'anthropic', nombre: 'Claude', de: 'Anthropic', empresa: 'Anthropic', inicial: 'A', prefijo: 'sk-ant-' },
+  { id: 'openai', nombre: 'OpenAI', de: 'GPT', empresa: 'OpenAI', inicial: 'O', prefijo: 'sk-' },
+  { id: 'gemini', nombre: 'Gemini', de: 'Google', empresa: 'Google', inicial: 'G', prefijo: 'AIza' },
+]
+export const IDS_PROVEEDORES = PROVEEDORES.map(p => p.id)
+
+/** El proveedor `id`, o null si no es uno de los tres. */
+export function proveedorDe(id) {
+  return PROVEEDORES.find(p => p.id === id) ?? null
+}
+
+/** Una clave más corta no es una clave (lo mismo que `forma_valida` de claves.rs). */
+export const LARGO_MINIMO_CLAVE = 20
+
+/** Los últimos 4 caracteres (no unidades de UTF-16, como `final_de` de claves.rs). */
+export function finalDe(texto) {
+  return [...String(texto ?? '')].slice(-4).join('')
+}
+
+/**
+ * La forma de lo escrito antes de guardarlo (7.1): `vacia` (nada o solo espacios), `espacios` (en el
+ * medio), `corta` (menos de 20) o `ok` con la clave sin los espacios de las puntas, su final y
+ * `aviso: 'prefijo'` si no empieza como suelen las de ese proveedor (avisa, no bloquea: D13).
+ */
+export function formaClave(proveedor, texto) {
+  const t = String(texto ?? '').trim()
+  if (!t) return { estado: 'vacia' }
+  if (/\s/.test(t)) return { estado: 'espacios' }
+  if ([...t].length < LARGO_MINIMO_CLAVE) return { estado: 'corta' }
+  const p = proveedorDe(proveedor)
+  return { estado: 'ok', clave: t, final: finalDe(t), aviso: p && !t.startsWith(p.prefijo) ? 'prefijo' : null }
+}
+
+const AYUDA_CLAVE = 'Va al Administrador de credenciales de Windows. Después solo vas a ver el final.'
+const TEXTOS_FORMA = {
+  vacia: 'Pegá la clave para guardarla.',
+  espacios: 'Tiene espacios en el medio: revisá que esté entera.',
+  corta: 'Es muy corta para ser una clave.',
+}
+
+/**
+ * La ayuda debajo del campo (7.1 y 7.5) según `error`: null (la de siempre), `vacia`/`espacios`/
+ * `corta` (rojo, el campo inválido), `prefijo` (ámbar y el botón "Guardar igual") o `{ windows }`
+ * (rojo: Windows no dejó guardar). Un error nunca borra lo escrito: eso lo cuida main.js.
+ */
+export function ayudaClave(proveedor, error) {
+  const a = (texto, tono = '', invalida = false, boton = 'Guardar') => ({ texto, tono, invalida, boton })
+  if (typeof error === 'string' && Object.hasOwn(TEXTOS_FORMA, error)) return a(TEXTOS_FORMA[error], 'mal', true)
+  if (error === 'prefijo') {
+    const p = proveedorDe(proveedor)
+    return a(`No parece una clave de ${p?.empresa ?? 'ese proveedor'} (suelen empezar con ${p?.prefijo ?? '…'}). Guardala igual si estás seguro.`, 'aviso', false, 'Guardar igual')
+  }
+  if (error?.windows) return a(`Windows no dejó guardar la clave (${error.windows}).`, 'mal')
+  return a(AYUDA_CLAVE)
+}
+
+/**
+ * El detalle corto de un error de guardar_clave para la pantalla y widget.log: solo el código de
+ * Windows ("windows:1312" → "error 1312"). Cualquier otro texto se descarta: podría traer algo de la clave.
+ */
+export function detalleErrorClave(err) {
+  const m = /^windows:(\d{1,10})$/.exec(String(err?.message ?? err ?? ''))
+  return m ? `error ${m[1]}` : 'sin detalle'
+}
+
+/**
+ * La lectura de `claves_estado` (`[{ proveedor, guardada, final }]`) por proveedor, con el final
+ * recortado a 4 aunque Rust mandara más. Lo que no es una lista es null ("Revisando…").
+ */
+export function clavesDesdeLectura(lista) {
+  if (!Array.isArray(lista)) return null
+  const claves = {}
+  for (const c of lista) {
+    if (!proveedorDe(c?.proveedor)) continue
+    claves[c.proveedor] = { guardada: c.guardada === true, final: c.guardada === true ? finalDe(c.final) : '' }
+  }
+  return claves
+}
+
+/** Lo que devuelve `probar_clave` (`{ resultado, estado? }`) para la fila: valida, rechazada, sin-red u otro. */
+export function resultadoPrueba(r) {
+  const estado = ['valida', 'rechazada', 'sin-red'].includes(r?.resultado) ? r.resultado : 'otro'
+  return { estado, codigo: estado === 'otro' && Number.isInteger(r?.estado) ? r.estado : null }
+}
+
+/** El anuncio (`role=status`, 5) de una prueba. */
+export function anuncioPrueba(proveedor, prueba) {
+  const empresa = proveedorDe(proveedor)?.empresa ?? ''
+  switch (prueba?.estado) {
+    case 'valida': return 'La clave es válida'
+    case 'rechazada': return `${empresa} rechazó la clave`
+    case 'sin-red': return 'No se pudo probar: sin conexión'
+    default: return prueba?.codigo ? `No se pudo probar: ${empresa} respondió ${prueba.codigo}` : 'No se pudo probar'
+  }
+}
+
+/** El anuncio al guardar (5). */
+export function anuncioGuardada(proveedor) {
+  return `Clave de ${proveedorDe(proveedor)?.nombre ?? ''} guardada en Credenciales de Windows`
+}
+export const ANUNCIO_CLAVE_BORRADA = 'Clave borrada de Credenciales de Windows'
+
+/**
+ * La fila de una clave (7.1). `lectura`: `{ guardada, final }` de `clavesDesdeLectura`, o nada
+ * todavía ("Revisando…", 7.5); `prueba`: lo último de "Probar" (`{ estado, codigo }`); `editando`: el
+ * campo abierto, con `ver` y `error` (los de `ayudaClave`); `armado`: "¿Borrar la clave? Sí". Devuelve
+ * `{ estado, tono, linea, titulo?, mascara, acciones }`; la máscara son 4 puntos y el final de 4, nunca más.
+ */
+export function textoClave(proveedor, { lectura = null, prueba = null, editando = false, armado = false, ver = false, error = null } = {}) {
+  const p = proveedorDe(proveedor)
+  const empresa = p?.empresa ?? ''
+  const t = (estado, tono, linea, mascara, acciones, extra = {}) => ({ estado, tono, linea, ...extra, mascara, acciones })
+  if (editando) {
+    const ayuda = ayudaClave(proveedor, error)
+    return { ...t('editando', '', '', null, [{ id: 'guardar', texto: ayuda.boton }, { id: 'cancelar', texto: 'Cancelar' }]), ver: !!ver, ayuda }
+  }
+  if (!lectura) return t('revisando', 'nada', 'Revisando…', null, [])
+  if (!lectura.guardada) return t('sin', '', 'Sin clave', null, [{ id: 'agregar', texto: '+ Agregar clave' }])
+  const fin = finalDe(lectura.final)
+  const mascara = { texto: `••••${fin}`, oculto: `termina en ${fin}` }
+  const probar = { id: 'probar', texto: 'Probar' }
+  const reemplazar = { id: 'reemplazar', texto: 'Reemplazar' }
+  const borrar = { id: 'borrar', texto: 'Borrar', pregunta: '¿Borrar la clave? Sí', armado: !!armado }
+  switch (prueba?.estado) {
+    case 'probando': return t('probando', 'proc', `Probando con ${empresa}…`, mascara, [{ ...probar, deshabilitado: true }, reemplazar, borrar])
+    case 'valida': return t('valida', 'ok', '✓ Válida · probada recién', mascara, [reemplazar, borrar])
+    case 'rechazada': return t('rechazada', 'mal', `× ${empresa} la rechazó`, mascara, [reemplazar, borrar])
+    case 'sin-red': return t('sin-red', 'aviso', 'No se pudo probar: sin conexión', mascara, [probar, reemplazar, borrar])
+    case 'otro': {
+      const titulo = prueba.codigo ? `${empresa} respondió ${prueba.codigo}` : `${empresa} no respondió como se esperaba`
+      return t('otro', 'aviso', 'No se pudo probar', mascara, [probar, reemplazar, borrar], { titulo })
+    }
+    default: return t('guardada', '', 'Guardada', mascara, [probar, reemplazar, borrar])
+  }
+}
+
+/** Abre el campo de la clave de `proveedor` (vacío, nunca precargado): sin "Mostrar", sin error y desarmado. */
+export function empezarClave(config, proveedor) {
+  if (!proveedorDe(proveedor)) return config
+  return { ...config, editando: proveedor, ver: false, errorClave: null, armado: null, error: null }
+}
+
+/** Acoplada, el panel no se pliega mientras el campo de una clave está abierto (4.1). */
+export function retieneConfig(config) {
+  return !!(config?.abierta && config.editando)
 }
