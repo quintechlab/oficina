@@ -735,6 +735,28 @@ fn proceso_falso_un_turno_por_vez() {
     borrar(&base);
 }
 
+/// 7.3: al salir de Avis con un turno en curso, la interrupción llega por stdin antes de cerrarlo.
+#[cfg(windows)]
+#[test]
+fn proceso_falso_apagar_con_un_turno_en_curso_manda_la_interrupcion() {
+    let base = carpeta_temporal();
+    let copia = base.join("segunda.json");
+    // Lee el mensaje, después la línea siguiente, y la guarda (vacía si stdin se cerró)
+    let guion = format!(
+        "powershell -NoProfile -Command \"$m=[Console]::In.ReadLine(); $s=[Console]::In.ReadLine(); [IO.File]::WriteAllText('{}', [string]$s)\"",
+        copia.display()
+    );
+    let (chat, _r, carpeta) = chat_falso(guion, Tiempos::default());
+    chat.abrir("c-ap", "claude", None, "Avi", None).unwrap();
+    chat.enviar("c-ap", 1, "Hola", &[], &Value::Null).unwrap();
+    chat.apagar();
+    let segunda = fs::read_to_string(&copia).unwrap_or_default();
+    let linea: Value = serde_json::from_str(&segunda).unwrap_or(Value::Null);
+    assert_eq!(linea, pedido_frenar(1), "la segunda línea es la interrupción: {segunda:?}");
+    borrar(&carpeta);
+    borrar(&base);
+}
+
 /// E5: el archivo viaja en la línea de stdin como su bloque (7.4), y sin texto también se manda.
 #[cfg(windows)]
 #[test]

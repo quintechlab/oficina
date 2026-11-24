@@ -881,11 +881,13 @@ impl Chat {
             if let Some(t) = &e.local {
                 t.frenar.store(true, Ordering::SeqCst);
             }
+            // La interrupción antes de cerrar stdin: `retirar` lo cierra. Los que ya salían tienen
+            // stdin cerrado; si no terminan a tiempo, se matan abajo.
+            if let Some(p) = e.proceso.as_mut().filter(|p| p.turno_activo()) {
+                p.interrumpir();
+            }
             e.retirar();
-            for p in e.saliendo.iter_mut() {
-                if p.turno_activo() {
-                    p.interrumpir();
-                }
+            for p in &e.saliendo {
                 p.cerrar_entrada();
             }
             e.saliendo.iter().map(|p| p.vivo.clone()).collect()
