@@ -26,6 +26,15 @@
 //                 comando, leyendo, pensando, esperándote, proceso, inactiva); "elenco" coordina a los cinco
 //                 subagentes (escribiendo, leyendo, listo y falló recién, dormido; 4 fichas y "+1")
 //   ?pausa        arranca con "Pausar animaciones" marcado, como desde la bandeja
+//   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
+//                 docs/diseno/mascotas-avi-ux.md 9.1), con su forma evolucionada, sus bucles y sus actos;
+//                 los subagentes, sus variantes (7.3; con el Avi, el elenco por nombre)
+//   ?equipo=n     oficina arranca con n subagentes trabajando (0: ninguno; su Claude empieza en la base)
+//   ?evol=n       suma el proyecto avis-evol (el primero de la barra) con n sesiones que ya coordinan al abrir:
+//                 sus actos salen escalonados 250 ms, después la marca (6.10)
+//                 Desde la consola del iframe: window.__equipo(n, 'ses-oficina') pone n subagentes a
+//                 trabajar (0: terminan todos) y la evolución sigue la regla de 6.4 en la lectura siguiente
+//   &registro     anota los cambios de forma y los actos en window.__registroEvo (hora en ms y figura)
 //   ?acople=arriba&lugar=0.5  arranca acoplada (arriba, derecha, abajo o izquierda), como si estuviera guardado
 //   ?estado=reposo|trabajando  sin pregunta pendiente: todos esperan, o una sesión coordina (sin ?estado, catalogo pregunta)
 //   ?sinderecha   el borde derecho toca a otro monitor: no acopla
@@ -104,6 +113,8 @@
 // cualquier evento. Lo último pedido queda en window.__datosResumen.
 ;(() => {
   const url = new URLSearchParams(location.search)
+  // Las mascotas (especies.css) van junto a avis.css, como en src/index.html
+  if (!document.querySelector('link[href="especies.css"]')) document.write('<link rel="stylesheet" href="especies.css">')
   // ?muesca: atajos de los estados de la muesca A
   const muesca = url.get('muesca')
   if ((muesca === 'reposo' || muesca === 'trabajando') && !url.has('estado')) url.set('estado', muesca)
@@ -294,6 +305,50 @@
         }],
       }),
     }],
+  }
+
+  // ?equipo y ?evol: la evolución de la mascota (docs/diseno/mascotas-avi-ux.md 6)
+  const oficinaEquipo = SESIONES[0]
+  const ponerEquipo = (s, n) => {
+    const otros = s.agentes.filter(a => a.estado !== 'trabajando')
+    const ya = s.agentes.filter(a => a.estado === 'trabajando')
+    // Ids que no dependen de la hora: al recargar, cada subagente conserva su variante (7.3)
+    const nuevos = Array.from({ length: Math.max(0, n - ya.length) }, (_, k) => sub(`eq-${s.sesion}-${s.agentes.length + k}`,['Bruno', 'Paula', 'Nahuel', 'Lola'][k % 4], 'tarea de prueba', 'trabajando', { desde: new Date().toISOString() }))
+    const terminan = ya.slice(n).map(a => ({ ...a, estado: 'listo', hasta: new Date().toISOString() }))
+    s.agentes = [...ya.slice(0, n), ...nuevos, ...terminan, ...otros]
+    s.actividad = n ? 'lanzando subagentes' : 'esperándote'
+  }
+  if (url.has('equipo')) ponerEquipo(oficinaEquipo, Number(url.get('equipo')) || 0)
+  for (let k = 0; k < (Number(url.get('evol')) || 0); k++) {
+    SESIONES.push({
+      ...oficinaEquipo, sesion: `ses-evol-${k + 1}`, repo: 'quintechlab/avis-evol', rama: `feat/${30 + k}-evol`, tarea: 30 + k, inicio: hace(40 - k), preguntas: [], conversa: [],
+      agentes: [sub(`ev${k}`, ['Bruno', 'Paula', 'Nahuel'][k % 3], 'tarea en paralelo', 'trabajando', { desde: hace(2) })],
+    })
+  }
+  // ?registro: anota en window.__registroEvo cada cambio de forma (`evol`) y cada acto que arranca (anime.js
+  // escribe el estilo de `g.trans` o de `g.cambio`), con su hora y su figura, para medir la evolución
+  if (url.has('registro')) {
+    window.__registroEvo = []
+    const figura = svg => `${svg.closest('#marca-avi') ? 'marca' : svg.closest('#muesca-avi') ? 'muesca' : svg.closest('#split-g') ? 'mitad' : svg.closest('#sesiones') ? 'tarjeta' : 'chica'}:${svg.dataset.evo}${svg.classList.contains('chica') ? ':chica' : ''}`
+    addEventListener('DOMContentLoaded', () => new MutationObserver(cambios => {
+      const t = Math.round(performance.now())
+      for (const c of cambios) {
+        const el = c.target
+        if (c.attributeName === 'class' && el.matches?.('svg[data-evo]') && el.classList.contains('evol') !== c.oldValue?.split(' ').includes('evol')) {
+          window.__registroEvo.push({ t, que: el.classList.contains('evol') ? 'evol+' : 'evol-', figura: figura(el) })
+        }
+        if (c.attributeName === 'style' && el.matches?.('g.trans, g.cambio') && !c.oldValue && el.getAttribute('style')) {
+          window.__registroEvo.push({ t, que: el.matches('g.trans') ? 'acto' : 'vuelta', figura: figura(el.closest('svg')) })
+        }
+      }
+    }).observe(document.body, { subtree: true, attributes: true, attributeOldValue: true, attributeFilter: ['class', 'style'] }))
+  }
+
+  /** Pone `n` subagentes a trabajar en una sesión (0: terminan todos). */
+  window.__equipo = (n, sesion = 'ses-oficina') => {
+    const s = SESIONES.find(x => x.sesion === sesion)
+    if (s) ponerEquipo(s, n)
+    return s?.agentes.filter(a => a.estado === 'trabajando').length
   }
 
   // ?estado: sin pregunta pendiente; en reposo, además, sin subagentes trabajando
@@ -659,6 +714,8 @@
     tomar_aviso_mod: () => { const a = avisoModPendiente; avisoModPendiente = null; return a },
     poner_bandeja: ({ texto }) => { document.title = texto },
     estado_menu: () => ({ arriba: true, avisar: true, pausa: url.has('pausa'), tamano: paso, acople, flotante }),
+    // Como Rust (leer_mascota): lo que no es una especie es el Avi; la ventana lo valida otra vez
+    mascota: () => (['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen'].includes(url.get('mascota')) ? url.get('mascota') : 'avi'),
     leer_sesiones: () => {
       lecturas++
       if (url.has('cargando')) return new Promise(() => {})

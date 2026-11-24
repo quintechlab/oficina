@@ -3,11 +3,12 @@
 // "Escenario + chips"), equipo, vacío y tira mini. Arma texto HTML a partir de los datos reales;
 // todo texto que viene de una sesión se escapa.
 
-import { avi, CLAUDE } from './avis.js'
+import { avi, claudeDe, nombreClaude } from './avis.js'
+import { CLAVE_MARCA } from './evolucion.js'
 import { detalleSubagente } from './detalleSub.js'
 import { barraControl, puedeControlar } from './control.js'
 import {
-  animoSesion, animoSubagente, personajeDeNombre, tiempoSubagente, textoActividad, tituloActividad,
+  animoSesion, animoSubagente, personajeDeNombre, personajeSubagente, variantesEquipo, tiempoSubagente, textoActividad, tituloActividad,
   preguntasPendientes, escapar, tiempoRelativo, nombreProyecto, FUERA_DE_REPO,
 } from './logica.js'
 
@@ -33,12 +34,18 @@ function listaNombres(nombres) {
   return `${nombres.slice(0, -1).join(', ')} ${y} ${ultimo}`
 }
 
-/** Sesiones de un proyecto con ánimos y personajes ya resueltos para dibujar. */
-export function prepararProyecto(proyecto, ahoraMs) {
+/**
+ * Sesiones de un proyecto con ánimos y personajes ya resueltos para dibujar. `especie`: la de la
+ * mascota (mascotas-avi-ux.md 7.3): con el Avi, cada subagente con el personaje de su nombre; con
+ * otra, con su variante, sacada de la lista completa de la sesión (`variantesEquipo`, también los
+ * terminados), así el mismo subagente la conserva entre redibujos y reinicios.
+ */
+export function prepararProyecto(proyecto, ahoraMs, especie = 'avi') {
   return proyecto.sesiones.map(s => {
     const conPregunta = new Set((s.preguntas ?? []).map(p => p.agente).filter(Boolean))
+    const variantes = variantesEquipo(s.agentes)
     const sub = (s.agentes ?? []).map(a => ({
-      ...a, ...personajeDeNombre(a.nombre), animo: animoSubagente(a, ahoraMs, conPregunta.has(a.id)),
+      ...a, ...personajeSubagente(a, especie, variantes), animo: animoSubagente(a, ahoraMs, conPregunta.has(a.id)),
     }))
     return { s, animo: animoSesion(s, ahoraMs), sub }
   })
@@ -146,9 +153,17 @@ export function estadoMarca(n) {
  * El Avi de Claude de 112 de la marca "Escenario" (marca-avi-ux.md 3), con las capas que mueve
  * marcaMotion.js. Está solo, así que lleva nombre y estado: el ánimo real, nunca el juego.
  */
-export function figuraMarca(animo) {
-  return avi(CLAUDE, animo, 112, { alt: `Claude, ${ANIMO[animo] ?? animo}`, marca: true })
+export function figuraMarca(animo, mascota = 'avi', formas = new Set()) {
+  const evolucionada = formas.has(CLAVE_MARCA)
+  return avi(claudeDe(mascota), animo, 112, { alt: `${nombreClaude(mascota, evolucionada)}, ${ANIMO[animo] ?? animo}`, marca: true, claveEvo: CLAVE_MARCA, evolucionada })
 }
+
+/**
+ * Claude con la clave de evolución de su sesión (mascotas-avi-ux.md 6.2) y la forma que diga
+ * `formas` (las claves en `evo` o `cuenta`, 6.6): main.js pone o saca `evol` en su lugar después.
+ */
+const claudeEn = (mascota, clave, formas, animo, tamano, opciones = {}) =>
+  avi(claudeDe(mascota), animo, tamano, { ...opciones, claveEvo: clave, evolucionada: clave != null && formas.has(clave) })
 
 /** Una fila por proyecto (reemplaza a ◀ ▶). `i`: el proyecto activo. */
 export function barraProyectos(proyectos, i) {
@@ -342,11 +357,11 @@ function pilaMas(ocultos, pila, j) {
  * El escenario de una sesión (5.1): el piso, Claude de 96 con su antena, el elenco y los hilos de
  * coordinación hacia los que trabajan (5.5). Sin subagentes, más bajo y "sin subagentes".
  */
-function escena(animo, sub, ahoraMs, base, sesion = '', abiertoId = null) {
+function escena(animo, sub, ahoraMs, base, sesion = '', abiertoId = null, mascota = 'avi', formas = new Set()) {
   const { visibles, ocultos, resto } = subagentesVisibles(sub, { conMas: CON_PILA })
   const g = geometriaEscena(visibles.length + (resto ? 1 : 0), { pila: resto })
   const piso = '<div class="piso" aria-hidden="true"></div>'
-  const claude = `<div class="esc-claude" style="left:${g.claude.x}px;top:${g.claude.y}px">${avi(CLAUDE, animo, g.claude.t, { indice: base })}</div>`
+  const claude = `<div class="esc-claude" style="left:${g.claude.x}px;top:${g.claude.y}px">${claudeEn(mascota, sesion, formas, animo, g.claude.t, { indice: base })}</div>`
   if (!sub.length) return `<div class="esc solo">${piso}${claude}<p class="esc-nada">sin subagentes</p></div>`
   const hilos = visibles.map((a, j) => a.estado === 'trabajando' && { d: trazoHilo(g.foco, g.ranuras[j].destino), id: a.id }).filter(Boolean)
   if (resto && ocultos.some(a => a.estado === 'trabajando')) hilos.push({ d: trazoHilo(g.foco, g.pila.destino), id: 'pila' })
@@ -370,7 +385,7 @@ function rastro(r) {
   return `<p class="rastro${r.fin ? ' fin' : ''}" title="${escapar(`⇄ ${r.texto}`)}"><span class="rastro-m" aria-hidden="true">⇄</span> <span data-vivo>${escapar(r.texto)}</span></p>`
 }
 
-function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto, control) {
+function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto, control, mascota, formas) {
   const base = k * AVIS_POR_TARJETA
   const tag = s.tarea ? `<span class="tag">#${escapar(s.tarea)}</span>` : '<span class="tag sin">sin tarea</span>'
   const titulo = s.rama ? `<b${s.tarea ? '' : ' class="sin"'} title="${escapar(s.rama)}">${escapar(s.rama)}</b>` : ''
@@ -378,7 +393,7 @@ function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto, control) {
   return `<article class="ses"><div class="ses-cab"><h3 class="ses-tit">${tag}${titulo}</h3>${lleva}</div>`
     + `<p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span><span data-vivo>${escapar(textoActividad(s, ahoraMs))}</span></p>`
     + rastro(r)
-    + escena(animo, sub, ahoraMs, base, s.sesion, abierto?.sesion === s.sesion ? abierto.id : null)
+    + escena(animo, sub, ahoraMs, base, s.sesion, abierto?.sesion === s.sesion ? abierto.id : null, mascota, formas)
     + detalleAbierto({ s, sub }, ahoraMs, abierto)
     + barraControl(s, control?.[s.sesion], ahoraMs)
     + '</article>'
@@ -388,9 +403,11 @@ function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto, control) {
  * Las tarjetas de sesión del proyecto, en el orden de `agruparPorProyecto`. `rastros`: sesión →
  * rastro de su conversación con otra sesión (`rastroConversa` de dividida.js), si tiene.
  * `control`: sesión → estado de su barra de control (#19: borrador, confirmación, orden pendiente).
+ * `mascota`: la especie elegida para Claude (mascotas-avi-ux.md 9.1). `formas`: las claves con la forma
+ * evolucionada (6.6); la firma de las escenas no la lleva: la forma cambia en su lugar (6.7).
  */
-export function sesiones(preparadas, ahoraMs, rastros = new Map(), abierto = null, control = {}) {
-  return preparadas.map((p, k) => tarjeta(p, ahoraMs, k, rastros.get(p.s.sesion), abierto, control)).join('')
+export function sesiones(preparadas, ahoraMs, rastros = new Map(), abierto = null, control = {}, mascota = 'avi', formas = new Set()) {
+  return preparadas.map((p, k) => tarjeta(p, ahoraMs, k, rastros.get(p.s.sesion), abierto, control, mascota, formas)).join('')
 }
 
 /** El detalle de la tarjeta, si su subagente abierto tiene ficha; la flecha va al centro de su Avi. */
@@ -404,17 +421,17 @@ function detalleAbierto(p, ahoraMs, abierto) {
 }
 
 /** El Avi de Claude de 120 del vacío (`durmiendo`) o de la carga (`esperando`): está solo, lleva nombre. */
-export function figuraVacio(animo) {
-  return avi(CLAUDE, animo, 120, { alt: `Claude, ${ANIMO[animo] ?? animo}` })
+export function figuraVacio(animo, mascota = 'avi') {
+  return avi(claudeDe(mascota), animo, 120, { alt: `Claude, ${ANIMO[animo] ?? animo}` })
 }
 
 /**
  * Cabecitas de Avi de 32 de la tira mini (4.6), apiladas. Son decorativas (5.6): el grupo lleva
- * los nombres.
+ * los nombres. La cara de Claude (la antena) va con la `mascota` elegida.
  */
-export function carasMini(caras) {
+export function carasMini(caras, mascota = 'avi', formas = new Set()) {
   if (!caras.length) return ''
-  return `<span class="cabezas-g" role="img" aria-label="${escapar(listaNombres(caras.map(c => c.nombre)))}">${caras.map((c, k) => avi(c, c.animo, 32, { indice: k })).join('')}</span>`
+  return `<span class="cabezas-g" role="img" aria-label="${escapar(listaNombres(caras.map(c => c.nombre)))}">${caras.map((c, k) => (c.pj === 'antena' ? claudeEn(mascota, c.sesion ?? null, formas, c.animo, 32, { indice: k }) : avi(c, c.animo, 32, { indice: k }))).join('')}</span>`
 }
 
 // ------------------------------------------------------------------ equipo
@@ -430,7 +447,7 @@ export function firmaCompanero(c, ahoraMs) {
  * Un compañero en el pie de la barra: sus iniciales, el nombre y dónde está. Desplegado muestra
  * una fila compacta de su sesión principal. `abierto`: si el usuario lo desplegó.
  */
-export function companero(c, ahoraMs, abierto) {
+export function companero(c, ahoraMs, abierto, mascota = 'avi', formas = new Set()) {
   const ini = `<span class="ini" aria-hidden="true">${escapar(iniciales(c.nombre))}</span>`
   const flecha = '<span class="flecha" aria-hidden="true">▾</span>'
   const abre = `<details class="compa" data-usuario="${escapar(c.usuario)}"${abierto ? ' open' : ''}>`
@@ -439,7 +456,7 @@ export function companero(c, ahoraMs, abierto) {
   }
   const s = c.principal
   const proyecto = { repo: s.repo, nombre: nombreProyecto(s.repo), sesiones: [s] }
-  const [{ animo, sub }] = prepararProyecto(proyecto, ahoraMs)
+  const [{ animo, sub }] = prepararProyecto(proyecto, ahoraMs, mascota)
   const donde = `en ${proyecto.nombre} · hace ${tiempoRelativo(s.actualizado ?? c.actualizado, ahoraMs)}`
   const { visibles, ocultos, resto } = subagentesVisibles(sub)
   let cabezas = ''
@@ -448,6 +465,6 @@ export function companero(c, ahoraMs, abierto) {
     const mas = resto ? `<span class="mas-c" title="${escapar(textoMas(ocultos))}">+${resto}</span>` : ''
     cabezas = `<span class="cabezas" role="img" aria-label="${escapar(nombres)}">${visibles.map((a, k) => avi(a, a.animo, 20, { indice: k + 1 })).join('')}${mas}</span>`
   }
-  const fila = `<div class="fila">${avi(CLAUDE, animo, 26)}<div class="fila-t"><b>${s.tarea ? `#${escapar(s.tarea)} ` : ''}${escapar(s.rama ?? 'sin rama')}</b><p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span>${escapar(textoActividad(s, ahoraMs))}</p></div>${cabezas}</div>`
+  const fila = `<div class="fila">${claudeEn(mascota, s.sesion ?? null, formas, animo, 26)}<div class="fila-t"><b>${s.tarea ? `#${escapar(s.tarea)} ` : ''}${escapar(s.rama ?? 'sin rama')}</b><p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span>${escapar(textoActividad(s, ahoraMs))}</p></div>${cabezas}</div>`
   return `${abre}<summary>${ini}<span class="compa-t"><b>${escapar(c.nombre)}</b><small>${escapar(donde)}</small></span>${flecha}</summary>${fila}</details>`
 }

@@ -13,20 +13,24 @@ import {
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
   prepararProyecto, firmaEscenas, sesiones, carasMini, companero, firmaCompanero,
-  barraProyectos, animoMarca, estadoMarca, figuraVacio, conteos, chips, lineaEncabezado, colorProyecto,
+  barraProyectos, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, chips, lineaEncabezado, colorProyecto,
 } from './tablero.js'
 import {
   vistaBarra, clicFrenar, validarTexto, teclaControl, lineaResultado, lineaError, pasoOrden,
   borradorTrasOrden, lineaAlEscribir, MS_CONFIRMAR_FRENAR, MS_SONDEO_ORDEN, MS_LINEA,
 } from './control.js'
 import { globo, avisoOtroProyecto, quienPregunta, anuncioPregunta } from './pregunta.js'
-import { defsAvis } from './avis.js'
+import { defsAvis, nombreClaude } from './avis.js'
+import { especieValida, ESPECIE_POR_DEFECTO } from './especies.js'
+import { avanzarEvolucion, coordinaciones, debeActuar, ordenActos, actoPendiente, CLAVE_MARCA, TAMANO_MIN_ACTO } from './evolucion.js'
+import * as movimientoEvolucion from './evolucionMotion.js'
 import { entrada, cambioProyecto, hayMovimiento } from './tableroMotion.js'
 import { entradaEscenas, idsDeEscena, novedades, marcarNuevos, vigilarEscenas } from './escenaMotion.js'
 import { montarMarca } from './marcaMotion.js'
+import { pesosMarca } from './marca.js'
 import {
   esHorizontal, bordeCercano, lugarDe, lugarAjustado, disposicionAcoplada, zonaInteractiva, recorte, cajaArrastre,
-  posicionFlotante, dentroDe, ventanaDeArea, mismoRect, relativo, estadoMuesca, contenidoMuesca, contenidoPildora, ESTADO_INICIAL, siguiente, tocaGolpe, PILDORA,
+  posicionFlotante, dentroDe, ventanaDeArea, mismoRect, relativo, estadoMuesca, contenidoMuesca, contenidoPildora, estiloMuesca, ESTADO_INICIAL, siguiente, tocaGolpe, PILDORA,
   planVentana, tamMuescaDe, figuraMuesca, disposicionFlotante, disposicionTira, plegadoHacia, anclaHacia, fueraDelBorde, centroDe,
 } from './muesca.js'
 import * as movimientoMuesca from './muescaMotion.js'
@@ -90,6 +94,22 @@ const st = {
   fuera: false,
   /** Ya entró escalonado el tablero desde que se mostró la ventana (6.1). */
   revelado: false,
+  /**
+   * La mascota elegida para Claude (docs/diseno/mascotas-avi-ux.md 9.1): `mascota` de preferencias.json,
+   * leída al arrancar. Hasta Configuración (#23) no cambia con la ventana abierta.
+   */
+  mascota: ESPECIE_POR_DEFECTO,
+  /**
+   * La evolución (docs/diseno/mascotas-avi-ux.md 6): el estado de cada clave (una por sesión y
+   * `'marca'`) → { estado: 'base' | 'evo' | 'cuenta', hasta }, las claves con la forma evolucionada
+   * (lo que dibujan las figuras de Claude), los actos de la última vuelta (se hacen después de
+   * pintar), las figuras con el acto de la apertura pendiente (S4) y el temporizador al `hasta`.
+   */
+  evolucion: new Map(),
+  formas: new Set(),
+  actosEvo: [],
+  pendientesEvo: new Set(),
+  temporizadorEvo: null,
   /** Tamaño en porcentaje del original: 100, 125, 150, 175 o 200. */
   tamano: PASO_POR_DEFECTO,
   firmas: {},
@@ -274,7 +294,7 @@ function pintarEscenas(proyecto, preparadas, ahora, rastros) {
   const raiz = $('#sesiones')
   // Un detalle abierto de una sesión que ya no está en este proyecto se olvida
   if (st.detalleSub && !preparadas.some(({ s }) => s.sesion === st.detalleSub.sesion)) st.detalleSub = null
-  const html = sesiones(preparadas, ahora, rastros, st.detalleSub, st.control)
+  const html = sesiones(preparadas, ahora, rastros, st.detalleSub, st.control, st.mascota, st.formas)
   const firma = firmaEscenas(proyecto.repo, preparadas, rastros, st.detalleSub)
   const ids = idsDeEscena(proyecto.repo, preparadas)
   const foco = focoEnBarra()
@@ -469,8 +489,8 @@ function pintarPie() {
 
 /** Tira mini: caras, resumen y cuenta de preguntas. */
 function pintarTira(ahora) {
-  const r = resumenMini(st.proyectos, ahora)
-  poner('#tira-caras', carasMini(r.caras), r.caras.map(c => `${c.nombre}:${c.animo}`).join(','))
+  const r = resumenMini(st.proyectos, ahora, st.mascota)
+  poner('#tira-caras', carasMini(r.caras, st.mascota, st.formas), r.caras.map(c => `${c.nombre}:${c.animo}:${c.variante ?? ''}`).join(','))
   poner('#tira-resumen', `<b>${escapar(r.titulo)}</b><span class="dim">${escapar(r.detalle)}</span>`)
   poner('#tira-pend', insignia(r.pendientes))
 }
@@ -495,7 +515,7 @@ function pintarEquipo(ahora) {
   }
   const firma = `${firmas.join('/')}|${error}|${minuto}`
   if (st.firmas['#equipo'] === firma) return
-  for (const c of gente) html.push(companero(c, ahora, st.abiertos.has(c.usuario)))
+  for (const c of gente) html.push(companero(c, ahora, st.abiertos.has(c.usuario), st.mascota, st.formas))
   // Un problema con gh queda en una línea tranquila; la ventana sigue funcionando
   if (error) html.push(`<p class="compa-aviso" title="${escapar(error)}">Equipo sin datos: ${escapar(error)}</p>`)
   poner('#equipo', html.join(''), firma)
@@ -512,9 +532,15 @@ function pintarMuesca(ahora, faltan) {
   muescaAvi.animo(e.animo, reposoPermitido(st.proyectos, ahora), { ocupado: e.ocupado })
   const boton = $('#muesca')
   if (boton.dataset.modo !== e.modo) boton.dataset.modo = e.modo
+  // Manos del alféizar y luz de cara del color de la mascota (mascotas-avi-ux.md 16.1.4)
+  for (const [k, v] of Object.entries(estiloMuesca(st.mascota))) {
+    if (boton.style.getPropertyValue(k) === v) continue
+    if (v) boton.style.setProperty(k, v)
+    else boton.style.removeProperty(k)
+  }
   texto('#muesca .cuenta', e.sesiones ? String(e.sesiones) : '')
   texto('#muesca .excl', e.globo || '!')
-  poner('#pildora', contenidoPildora(e), `${e.animo}|${e.pregunta}|${e.chip}`)
+  poner('#pildora', contenidoPildora(e, st.mascota, st.formas), `${e.animo}|${e.pregunta}|${e.chip}`)
   // Primeros pasos: sin golpe ni luz; solo el nombre suma lo que falta (bienvenida-ux.md 3.5)
   const nombre = nombreMuesca(e.nombre, faltan)
   if (boton.getAttribute('aria-label') !== nombre) boton.setAttribute('aria-label', nombre)
@@ -542,12 +568,13 @@ function revisarGolpe(ahora) {
 
 // La marca "Escenario" (docs/diseno/marca-avi-ux.md): el Avi de Claude que mira y juega solo. La vista de
 // desarrollo puede acortar los tiempos del reposo (window.__escalaReposo, ver dev/falso.js)
-const marca = montarMarca($('#marca-avi'), { escala: Number(window.__escalaReposo) || 1 })
+// Todas las especies juegan el mismo repertorio, con sus propios canales (mascotas-avi-ux.md 10, P3; pesosMarca)
+const marca = montarMarca($('#marca-avi'), { escala: Number(window.__escalaReposo) || 1, figura: animo => figuraMarca(animo, st.mascota, st.formas), pesosDe: () => pesosMarca(st.mascota) })
 
 // La muesca A "Asoma" (docs/diseno/muesca-avi-ux.md): el armazón una sola vez y, adentro, el Avi de
 // Claude que asoma, movido por el mismo motor que la marca (solo el cucú; el curioseo se repite)
 $('#muesca').innerHTML = contenidoMuesca()
-const muescaAvi = montarMarca($('#muesca-avi'), { escala: Number(window.__escalaReposo) || 1, figura: figuraMuesca, repertorio: 'cucu', sigueOcupado: true })
+const muescaAvi = montarMarca($('#muesca-avi'), { escala: Number(window.__escalaReposo) || 1, figura: animo => figuraMuesca(animo, st.mascota, st.formas), repertorio: 'cucu', sigueOcupado: true })
 
 /**
  * Qué Avi se ve (marca-avi-ux.md 7.1 y muesca-avi-ux.md 7.1): la marca flotante, o acoplada con el
@@ -568,10 +595,143 @@ function verAvis() {
   if (!resumenALaVista()) movimientoResumen.terminar()
   muescaAvi.visible(!!st.acople && !st.vista && !st.fuera && !st.mini && !document.body.classList.contains('pildora') && !st.arrastre?.activo, true)
   enviarZona()
+  // Una figura que empieza a verse puede tener su acto de la apertura pendiente (mascotas-avi-ux.md 6.8)
+  programarFormas()
 }
+
+// ------------------------------------------------------------------ evolución (docs/diseno/mascotas-avi-ux.md 6)
+// La mascota de Claude evoluciona mientras coordina un equipo. El estado es de main.js (st.evolucion);
+// las figuras se dibujan con la forma de su clave (st.formas) y, después de cada pintada, la clase
+// `evol` se pone o se saca en su lugar, nunca redibujando (6.7). Los actos los dibuja evolucionMotion.js.
+
+/** Las figuras de 66 px o más de una clave (las que pueden hacer un acto): marca y muesca, o tarjeta y mitad. */
+const figurasDeClave = clave => (clave === CLAVE_MARCA ? ['marca', 'muesca'] : [`tarjeta:${clave}`, `mitad:${clave}`])
+const claveDeFigura = id => (id === 'marca' || id === 'muesca' ? CLAVE_MARCA : id.slice(id.indexOf(':') + 1))
+
+/** La figura de un SVG con clave (o null para las caras chicas, que nunca actúan). */
+function idFigura(svg) {
+  if (svg.classList.contains('chica')) return null
+  if (svg.closest('#marca-avi')) return 'marca'
+  if (svg.closest('#muesca-avi')) return 'muesca'
+  if (svg.closest('#sesiones')) return `tarjeta:${svg.dataset.evo}`
+  if (svg.closest('#split-g')) return `mitad:${svg.dataset.evo}`
+  return null
+}
+
+/**
+ * ¿Se ve la figura? (6.8): la marca con el panel a la vista, la muesca cerrada a la vista, la tarjeta
+ * sin `.quieta` y dentro de la columna, la mitad con la dividida abierta; nunca escondida ni minimizada.
+ */
+function figuraSeVe(lugar, svg) {
+  if (st.fuera || st.mini) return false
+  if (lugar === 'marca') return (!st.acople || st.vista) && !st.dividida.clave
+  if (lugar === 'muesca') return !!st.acople && !st.vista && !document.body.classList.contains('pildora') && !st.arrastre?.activo
+  if (!panelSeVe()) return false
+  if (lugar === 'mitad') return !!st.dividida.clave
+  if (st.dividida.clave || svg.closest('.quieta')) return false
+  const r = svg.getBoundingClientRect()
+  const c = $('.principal')?.getBoundingClientRect()
+  return r.width > 0 && (!c || (r.bottom > c.top && r.top < c.bottom))
+}
+
+/**
+ * Una vuelta del controlador (6.4 y 6.5): en cada lectura y al `hasta` más próximo (así la vuelta sale
+ * a los 20 s justos). Los actos de la apertura quedan pendientes por figura (S4); los demás, para
+ * después de pintar. Las sesiones del equipo cuentan para sus filas compactas.
+ */
+function actualizarEvolucion(ahora = Date.now()) {
+  const otras = st.equipo.lista.map(c => c.principal).filter(Boolean)
+  const r = avanzarEvolucion(st.evolucion, coordinaciones(st.proyectos, otras), ahora)
+  st.evolucion = r.mapa
+  st.formas = r.formas
+  for (const a of r.actos) {
+    if (a.acto === 'evoluciona' && a.apertura) for (const id of figurasDeClave(a.clave)) st.pendientesEvo.add(id)
+    else st.actosEvo.push(a)
+  }
+  for (const id of st.pendientesEvo) if (!st.evolucion.has(claveDeFigura(id))) st.pendientesEvo.delete(id)
+  clearTimeout(st.temporizadorEvo)
+  st.temporizadorEvo = r.proximo == null ? null : setTimeout(() => { actualizarEvolucion(); pintar() }, Math.max(0, r.proximo - ahora))
+}
+
+/** El nombre accesible de una figura con nombre (la marca, el riel): "Claude (Faro), …" (12). */
+function nombrarFigura(svg, evol) {
+  const span = svg.parentElement
+  if (span?.getAttribute('role') !== 'img') return
+  const nombre = span.getAttribute('aria-label') ?? ''
+  const nuevo = nombre.replace(/^Claude( \([^)]*\))?/, nombreClaude(st.mascota, evol))
+  if (nuevo !== nombre) span.setAttribute('aria-label', nuevo)
+}
+
+const vistasEvo = new WeakSet()
+let formasProgramadas = false
+
+/** Después de la pintada en curso (en la misma tarea, antes de dibujar el cuadro): `aplicarFormas`. */
+function programarFormas() {
+  if (formasProgramadas) return
+  formasProgramadas = true
+  queueMicrotask(() => { formasProgramadas = false; aplicarFormas() })
+}
+
+/**
+ * Los actos y la forma en su lugar (6.7 a 6.10): los actos de esta vuelta en las figuras que se ven
+ * (los otros se pierden), los pendientes de la apertura que ahora se ven, todos escalonados 250 ms; y
+ * en cada figura sin acto, `evol` según su clave. Una figura recién dibujada cambia sin transición; una
+ * con el acto de la apertura pendiente espera en la base.
+ */
+function aplicarFormas() {
+  const reducido = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  const pausa = document.body.classList.contains('pausa')
+  const figs = new Map()
+  for (const svg of document.querySelectorAll('svg[data-evo]')) {
+    const id = idFigura(svg)
+    if (!id || figs.has(id)) continue
+    const lugar = id.split(':')[0]
+    figs.set(id, { svg, lugar, visible: figuraSeVe(lugar, svg), arriba: svg.getBoundingClientRect().top })
+  }
+  const lista = []
+  for (const { clave, acto } of st.actosEvo) {
+    for (const id of figurasDeClave(clave)) {
+      const f = figs.get(id)
+      if (f && debeActuar({ visible: f.visible, reducido, pausa, tamano: TAMANO_MIN_ACTO })) lista.push({ ...f, acto })
+    }
+  }
+  st.actosEvo = []
+  for (const id of [...st.pendientesEvo]) {
+    // Sin movimiento no hay acto: la forma es el estado, con su fundido (8.4)
+    if (reducido || pausa) { st.pendientesEvo.delete(id); continue }
+    const f = figs.get(id)
+    const r = actoPendiente(true, { visible: !!f?.visible, evolucionada: st.formas.has(claveDeFigura(id)) })
+    if (!r.pendiente) st.pendientesEvo.delete(id)
+    if (r.actua) lista.push({ ...f, acto: 'evoluciona' })
+  }
+  for (const a of ordenActos(lista)) {
+    if (a.acto === 'evoluciona') movimientoEvolucion.evolucionar(a.svg, st.mascota, { retraso: a.retraso })
+    else movimientoEvolucion.devolver(a.svg, st.mascota, { retraso: a.retraso })
+  }
+  for (const svg of document.querySelectorAll('svg[data-evo]')) {
+    const nueva = !vistasEvo.has(svg)
+    vistasEvo.add(svg)
+    // Con un acto en curso, la forma es de evolucionMotion.js
+    if (!movimientoEvolucion.ocupada(svg)) {
+      const id = idFigura(svg)
+      const evol = st.formas.has(svg.dataset.evo) && !(id && st.pendientesEvo.has(id))
+      if (svg.classList.contains('evol') !== evol) {
+        if (nueva) movimientoEvolucion.formaAlInstante(svg, evol)
+        else svg.classList.toggle('evol', evol)
+      }
+    }
+    // El nombre sigue a la forma visible, también en las figuras con un acto o un acto pendiente (12)
+    nombrarFigura(svg, svg.classList.contains('evol'))
+  }
+}
+
+// Los cambios de forma de un acto (evolucionMotion.js avisa con `formaevo`): el nombre, en el momento
+document.addEventListener('formaevo', e => nombrarFigura(e.target, e.detail.evol))
 
 function pintar() {
   const ahora = Date.now()
+  // Después de pintar, la forma de cada figura de Claude en su lugar y los actos (6.7)
+  programarFormas()
   const pp = modeloPasos()
   const forma = formaAsistente({
     hayTablero: st.proyectos.length > 0, cargando: !st.actualizado && !st.error,
@@ -604,7 +764,7 @@ function pintar() {
     // Antes de la primera lectura: "Buscando sesiones…"; después, el vacío
     const cargando = !st.actualizado && !st.error
     modoMarco(cargando ? 'cargando' : 'vacio')
-    poner('#vacio-avi', figuraVacio(cargando ? 'esperando' : 'durmiendo'), cargando ? 'cargando' : 'vacio')
+    poner('#vacio-avi', figuraVacio(cargando ? 'esperando' : 'durmiendo', st.mascota), cargando ? 'cargando' : 'vacio')
     texto('#titulo', cargando ? 'Buscando sesiones…' : 'No hay sesiones de Claude Code abiertas.')
     texto('#subtitulo', cargando ? '' : 'Cuando abras una, aparece acá con sus subagentes.')
     poner('#proyectos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
@@ -625,9 +785,11 @@ function pintar() {
   // El aviso de primeros pasos va debajo del de pregunta; con la hoja abierta no hace falta (3.5)
   // En la dividida el aviso es de una pregunta en cualquier proyecto, también los dos que conversan (5.3)
   const enDividida = !!st.dividida.clave
-  poner('#otro', avisoOtroProyecto(st.proyectos, enDividida ? -1 : i) + (hoja || enDividida ? '' : avisoAsistente(pp) + avisoMod(st.pp.avisoMod)))
+  // La firma no lleva la forma de Claude: cambia en su lugar (6.7)
+  const htmlOtro = avisoOtroProyecto(st.proyectos, enDividida ? -1 : i, st.mascota, st.formas) + (hoja || enDividida ? '' : avisoAsistente(pp, st.mascota) + avisoMod(st.pp.avisoMod, st.mascota))
+  poner('#otro', htmlOtro, htmlOtro.replace(/ evol(?=[ "])/g, ''))
 
-  const preparadas = prepararProyecto(proyecto, ahora)
+  const preparadas = prepararProyecto(proyecto, ahora, st.mascota)
   const c = conteos(preparadas, ahora)
   texto('#titulo', proyecto.nombre)
   $('#titulo').title = proyecto.repo ?? proyecto.nombre
@@ -659,7 +821,7 @@ function pintar() {
     registrar(`globo pregunta=${visible.pregunta?.id} item=${visible.indice} modo=${visible.responde ? 'interactivo' : 'solo-lectura'} sesion=${visible.sesion} items=${visible.pregunta?.items?.length ?? 1}`)
   }
   const escribiendo = document.activeElement?.id === 'g-otra-in'
-  if (poner('#w-globo', globo(pend, { activa: st.activa, nuevo, ahoraMs: ahora, ui }), firmaGlobo)) {
+  if (poner('#w-globo', globo(pend, { activa: st.activa, nuevo, ahoraMs: ahora, ui, mascota: st.mascota, formas: st.formas }), firmaGlobo)) {
     st.firmas.clavesGlobo = claves
     if (escribiendo) enfocarOtra()
   }
@@ -752,6 +914,7 @@ async function leer() {
   }
   // Error de lectura: quedan los últimos datos y los tiempos siguen corriendo desde los ISO (8)
   const abrir = actualizarConversaciones(Date.now())
+  actualizarEvolucion(Date.now())
   pintar()
   for (const clave of abrir) abrirConversacion(clave, 'sola')
 }
@@ -1100,7 +1263,7 @@ function pintarDividida(ahora) {
   const animoDe = id => (pid.has(id) ? animoSesion(pid.get(id), ahora) : '-')
 
   // Fichas "Conversan" de la barra (5.9)
-  const htmlF = fichasConversan(visibles, { ahoraMs: ahora, porId: pid, nombre, nuevas: d.nuevas })
+  const htmlF = fichasConversan(visibles, { ahoraMs: ahora, porId: pid, nombre, nuevas: d.nuevas, mascota: st.mascota, formas: st.formas })
   $('#conversan').hidden = !htmlF
   const focoF = document.activeElement?.closest?.('#conversan [data-clave]')?.dataset.clave
   const firmaF = visibles.map(c => [c.clave, !!c.hasta, d.nuevas.has(c.clave), animoDe(c.a), animoDe(c.b)].join(':')).join('/')
@@ -1118,7 +1281,7 @@ function pintarDividida(ahora) {
     st.proyectos.map(p => `${p.repo}:${p.sesiones.length}:${preguntasPendientes(p).length}`).join(','),
     visibles.map(c => `${c.clave}:${!!c.hasta}:${d.nuevas.has(c.clave)}`).join(','), d.clave, d.vista?.repo, animoMarca(st.proyectos, ahora), !!st.error,
   ].join('/')
-  const htmlR = riel(st.proyectos, visibles, { ahoraMs: ahora, nombre, activa: d.clave, nuevas: d.nuevas, origen: d.vista?.repo, animoMarca: animoMarca(st.proyectos, ahora), estado: { error: !!st.error, texto: textoPie } })
+  const htmlR = riel(st.proyectos, visibles, { ahoraMs: ahora, nombre, activa: d.clave, nuevas: d.nuevas, origen: d.vista?.repo, animoMarca: animoMarca(st.proyectos, ahora), estado: { error: !!st.error, texto: textoPie }, mascota: st.mascota, formas: st.formas })
   if (ponerVivo('#riel', htmlR, firmaR) && focoR) {
     const sel = focoR.dataset.clave != null ? `[data-clave="${CSS.escape(focoR.dataset.clave)}"]` : `[data-proy="${focoR.dataset.proy}"]`
     $(`#riel ${sel}`)?.focus()
@@ -1157,7 +1320,7 @@ function pintarDividida(ahora) {
   const der = actual.a === izq ? actual.b : actual.a
   const nSub = id => (pid.get(id)?.agentes ?? []).length
   const geo = geometriaDividida(nSub(izq), nSub(der))
-  const ctx = { ahoraMs: ahora, porId: pid, nombre: n }
+  const ctx = { ahoraMs: ahora, porId: pid, nombre: n, mascota: st.mascota, formas: st.formas }
   if (ahora >= d.congelaHasta) {
     ponerVivo('#split-g', mitades(actual, izq, ctx, geo), firmaMitades(actual, izq, ctx))
     ponerVivo('#ficha-u', fichaUltimo(actual, ctx), `${actual.clave}|${fin}`)
@@ -1276,10 +1439,10 @@ async function elegir(q, eleccion) {
   }
   const { cuerpo, borrador } = r
   if (!cuerpo) return
-  const quien = quienPregunta(q)
+  const quien = quienPregunta(q, st.mascota)
   st.envios[id] = {
     estado: 'enviando', desde: Date.now(), texto: textoRespondido(q.pregunta, borrador),
-    quien: quien.nombre, pj: quien.pj, color: quien.color,
+    quien: quien.nombre, pj: quien.pj, color: quien.color, especie: quien.especie, variante: quien.variante, claveEvo: quien.claveEvo,
   }
   pintar()
   try {
@@ -2397,7 +2560,7 @@ function pintarAsistente(modelo, forma) {
   pista.classList.toggle('sin-elegida', k < 0)
 
   const escenaEl = $('#pp-escena')
-  const html = escenaPasos(modelo, pp.visible, forma, horaLocal)
+  const html = escenaPasos(modelo, pp.visible, forma, horaLocal, st.mascota)
   if (pp.firmas.escena !== html) {
     const mismoPaso = !nuevo && pp.firmas.visible === pp.visible
     escenaEl.innerHTML = html
@@ -2651,6 +2814,7 @@ function resumenALaVista() {
 function pintarMarca(ahora = Date.now()) {
   const animo = animoMarca(st.proyectos, ahora)
   const r = st.resumen
+  // Todas las especies tienen las voces del resumen (mascotas-avi-ux.md 10, P2)
   marca.voz(vozAvi(r.estado, r.hablando, animo), { hablando: r.hablando })
   marca.animo(animo, reposoPermitido(st.proyectos, ahora) && r.estado === 'cerrado')
   texto('#marca-animo', animoTexto(animo))
@@ -2877,6 +3041,8 @@ async function iniciar() {
   // Las definiciones de los Avis (piel, luz de piso y desenfoque), una vez por documento (5.1)
   document.body.insertAdjacentHTML('afterbegin', defsAvis())
   if (tauri?.core) {
+    // La mascota, antes del primer dibujo: las firmas no la llevan (mascotas-avi-ux.md 9.1)
+    try { st.mascota = especieValida(await invocar('mascota')) } catch { st.mascota = ESPECIE_POR_DEFECTO }
     try {
       const m = await invocar('estado_menu')
       if (typeof m.arriba === 'boolean') ponerArriba(m.arriba)

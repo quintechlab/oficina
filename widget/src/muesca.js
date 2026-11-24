@@ -3,7 +3,9 @@
 // recorte de la apertura, estado y nombre de la muesca, abrir y cerrar con el clic y el teclado, y
 // cuándo golpea una pregunta. Lógica pura: medidas en px lógicos de la pantalla (los de Tauri).
 
-import { avi, CLAUDE } from './avis.js'
+import { avi, claudeDe } from './avis.js'
+import { CLAVE_MARCA } from './evolucion.js'
+import { especieValida, datosEspecie } from './especies.js'
 import { animoSesion, preguntasPendientes, escapar, ANIMOS_DE_TRABAJO } from './logica.js'
 import { fueraDeLugar, esquinaTira } from './tamano.js'
 
@@ -334,14 +336,27 @@ export function contenidoMuesca() {
     + '<span class="excl" aria-hidden="true">!</span>'
 }
 
-/** El Avi que asoma: el de Claude de la marca, de 66 px (muesca-avi-ux.md 5.1). */
-export function figuraMuesca(animo) {
-  return avi(CLAUDE, animo, 66, { marca: true })
+/** El Avi que asoma: el de Claude de la marca, de 66 px (muesca-avi-ux.md 5.1), con la `mascota` elegida. */
+export function figuraMuesca(animo, mascota = 'avi', formas = new Set()) {
+  // Sigue la clave de la marca (mascotas-avi-ux.md 6.2): evolucionada si alguna sesión coordina
+  return avi(claudeDe(mascota), animo, 66, { marca: true, claveEvo: CLAVE_MARCA, evolucionada: formas.has(CLAVE_MARCA) })
+}
+
+/**
+ * Las variables de `#muesca` para la `mascota` (mascotas-avi-ux.md 15 y 16): `--mano-muesca`, las
+ * manos del alféizar del color de la especie, y `--c-muesca`, su acento para la luz de cara cuando
+ * trabaja. Con el Avi, vacías (se sacan): quedan el crema y el ámbar de estilos.css.
+ */
+export function estiloMuesca(mascota = 'avi') {
+  const e = especieValida(mascota)
+  if (e === 'avi') return { '--mano-muesca': '', '--c-muesca': '' }
+  const d = datosEspecie(e)
+  return { '--mano-muesca': d.mano, '--c-muesca': d.c }
 }
 
 /** La píldora flotante al arrastrar la muesca (7.3): el Avi, el título y el chip, como la tira mini. */
-export function contenidoPildora(e) {
-  return `<span class="asoma">${avi(CLAUDE, e.animo, 44)}</span><b>Avis</b>`
+export function contenidoPildora(e, mascota = 'avi', formas = new Set()) {
+  return `<span class="asoma">${avi(claudeDe(mascota), e.animo, 44, { claveEvo: CLAVE_MARCA, evolucionada: formas.has(CLAVE_MARCA) })}</span><b>Avis</b>`
     + `<span class="chip${e.pregunta ? ' chip-preg' : ''}">${escapar(e.chip)}</span>`
 }
 

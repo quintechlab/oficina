@@ -3,21 +3,38 @@
 // data-item y data-globo; la lógica de envío sigue en main.js y responder.js. Regla firme (11):
 // ninguna opción viene marcada ni recibe el foco, y "Recomendada" es solo un rótulo.
 
-import { avi, CLAUDE } from './avis.js'
-import { personajeDeNombre, preguntasPendientes, etiquetaOpcion, escapar, tiempoRelativo, nombreProyecto } from './logica.js'
+import { avi, claudeDe } from './avis.js'
+import { personajeDeNombre, personajeSubagente, variantesEquipo, preguntasPendientes, etiquetaOpcion, escapar, tiempoRelativo, nombreProyecto } from './logica.js'
+import { especieValida } from './especies.js'
 
-/** Datos de quien pregunta: nombre, personaje y en qué sesión. */
-export function quienPregunta(q) {
-  const pj = q.agente ? personajeDeNombre(q.quien) : CLAUDE
-  return { ...pj, nombre: q.quien, ses: q.tarea ? `#${q.tarea}` : 'sin tarea' }
+/**
+ * Datos de quien pregunta: nombre, personaje (Claude con la `mascota` elegida) y en qué sesión.
+ * Claude lleva además `claveEvo`, su sesión: su cara sigue la forma de esa sesión (mascotas-avi-ux.md 6.2).
+ * Un subagente, con el Avi, el personaje de su nombre (P1); con otra especie, la variante de su ficha
+ * (`variantesEquipo` sobre la lista completa de su sesión, 7.3).
+ */
+export function quienPregunta(q, mascota = 'avi') {
+  if (q.agente) {
+    const pj = especieValida(mascota) === 'avi'
+      ? personajeDeNombre(q.quien)
+      : personajeSubagente({ id: q.agente, nombre: q.quien }, mascota, variantesEquipo(q.equipo))
+    return { ...pj, nombre: q.quien, ses: q.tarea ? `#${q.tarea}` : 'sin tarea' }
+  }
+  return { ...claudeDe(mascota), nombre: q.quien, ses: q.tarea ? `#${q.tarea}` : 'sin tarea', ...(q.sesion != null ? { claveEvo: q.sesion } : {}) }
 }
+
+/**
+ * La cara de quien pregunta: la de Claude, con la clave de su sesión y su forma (`formas`: las
+ * claves con la forma evolucionada, 6.6); la de un subagente, como siempre.
+ */
+const cara = (pj, animo, tamano, formas) => avi(pj, animo, tamano, pj.claveEvo != null ? { claveEvo: pj.claveEvo, evolucionada: formas.has(pj.claveEvo) } : {})
 
 /**
  * Píldora de aviso (4.3.2): la pregunta de otro proyecto (`data-accion="ir"`) o la propia
  * plegada con "Más tarde" (`data-accion="ver"`). Solo muestra: nunca responde.
  */
-function aviso(atributos, pj, textoHtml) {
-  return `<button type="button" class="aviso" ${atributos}>${avi(pj, 'teEspera', 28)}<span>${textoHtml}</span><span class="ir">Ver →</span></button>`
+function aviso(atributos, pj, textoHtml, formas) {
+  return `<button type="button" class="aviso" ${atributos}>${cara(pj, 'teEspera', 28, formas)}<span>${textoHtml}</span><span class="ir">Ver →</span></button>`
 }
 
 /** Una opción con su número, su etiqueta, el rótulo "Recomendada" si lo trae y la descripción. */
@@ -31,26 +48,28 @@ function cuerpoOpcion(o, k, marcada) {
  * Tarjeta de pregunta (dirección 4.5). Interactiva si la sesión acepta respuestas del widget
  * (`q.responde`); si no, la variante de solo lectura. `ui`: estado de la interacción
  * (selección múltiple, "Otra respuesta", borrador de la llamada, envío en curso, plegada y hecho).
+ * `mascota`: la especie de Claude cuando pregunta él (mascotas-avi-ux.md 9.1); `formas`: las claves
+ * con la forma evolucionada (6.6), para su cara.
  */
-export function globo(pendientes, { activa = 0, nuevo = false, ahoraMs, ui = {} }) {
-  if (ui.hecho) return tarjetaHecho(ui.hecho, ui.saliendo)
+export function globo(pendientes, { activa = 0, nuevo = false, ahoraMs, ui = {}, mascota = 'avi', formas = new Set() }) {
+  if (ui.hecho) return tarjetaHecho(ui.hecho, ui.saliendo, formas)
   if (!pendientes.length) return ''
-  const i = Math.min(activa, pendientes.length - 1), q = pendientes[i], qn = quienPregunta(q)
+  const i = Math.min(activa, pendientes.length - 1), q = pendientes[i], qn = quienPregunta(q, mascota)
   if (ui.plegado) {
     const texto = pendientes.length === 1 ? `<b>${escapar(qn.nombre)}</b> te pregunta algo` : `${pendientes.length} preguntas esperan`
-    return aviso('data-accion="ver"', qn, texto)
+    return aviso('data-accion="ver"', qn, texto, formas)
   }
   const borrador = ui.borradores?.[q.pregunta?.id] ?? {}
   const envio = ui.envios?.[q.pregunta?.id]
   let h = `<div class="preg${nuevo ? ' entra' : ''}" role="dialog" aria-labelledby="g-p" data-globo${q.responde ? ` data-pregunta="${escapar(q.pregunta?.id ?? '')}" data-item="${q.indice}"` : ''}>`
   if (pendientes.length > 1) {
     h += `<div class="preg-tabs" role="tablist" aria-label="Preguntas pendientes">${pendientes.map((x, k) => {
-      const xq = quienPregunta(x)
+      const xq = quienPregunta(x, mascota)
       const hecha = !!ui.borradores?.[x.pregunta?.id]?.[x.item.pregunta]
       return `<button type="button" class="preg-tab" role="tab" aria-selected="${k === i}" data-accion="tab" data-i="${k}"><span class="pt" style="--c:${xq.color}" aria-hidden="true"></span>${escapar(xq.nombre)}${x.item.encabezado ? ` · ${escapar(x.item.encabezado)}` : ''} <span aria-hidden="true">${hecha ? '✓' : '!'}</span></button>`
     }).join('')}</div>`
   }
-  h += `<div class="preg-cab">${avi(qn, 'teEspera', 28)}<span><b>${escapar(qn.nombre)}</b> te pregunta · ${escapar(qn.ses)} · hace ${escapar(tiempoRelativo(q.desde, ahoraMs))}</span></div>`
+  h += `<div class="preg-cab">${cara(qn, 'teEspera', 28, formas)}<span><b>${escapar(qn.nombre)}</b> te pregunta · ${escapar(qn.ses)} · hace ${escapar(tiempoRelativo(q.desde, ahoraMs))}</span></div>`
   h += `<p class="preg-txt" id="g-p">${escapar(q.item.pregunta)}</p>`
   const total = q.pregunta?.items?.length ?? 1
   const modos = []
@@ -94,19 +113,19 @@ function ultimo(q, borrador) {
 }
 
 /** "Listo, le respondiste a …" (4.5.10): una píldora con borde verde y el Avi de 26 que festeja. */
-function tarjetaHecho(hecho, saliendo) {
-  const pj = { color: hecho.color, pj: hecho.pj }
-  return `<div class="hecho${saliendo ? ' sale' : ''}" role="status">${avi(pj, hecho.listo ? 'listo' : 'esperando', 26)}${escapar(hecho.mensaje)}</div>`
+function tarjetaHecho(hecho, saliendo, formas) {
+  const pj = { color: hecho.color, pj: hecho.pj, especie: hecho.especie, ...(hecho.variante != null ? { variante: hecho.variante } : {}), ...(hecho.claveEvo != null ? { claveEvo: hecho.claveEvo } : {}) }
+  return `<div class="hecho${saliendo ? ' sale' : ''}" role="status">${cara(pj, hecho.listo ? 'listo' : 'esperando', 26, formas)}${escapar(hecho.mensaje)}</div>`
 }
 
 /** Aviso cuando la pregunta está en otro proyecto: al tocarlo, va a ese proyecto. */
-export function avisoOtroProyecto(proyectos, indiceActual) {
+export function avisoOtroProyecto(proyectos, indiceActual, mascota = 'avi', formas = new Set()) {
   for (let k = 0; k < proyectos.length; k++) {
     if (k === indiceActual) continue
     const pend = preguntasPendientes(proyectos[k])
     if (pend.length) {
-      const qn = quienPregunta(pend[0])
-      return aviso(`data-accion="ir" data-proy="${k}"`, qn, `<b>${escapar(qn.nombre)}</b> te pregunta algo en <b>${escapar(proyectos[k].nombre)}</b>`)
+      const qn = quienPregunta(pend[0], mascota)
+      return aviso(`data-accion="ir" data-proy="${k}"`, qn, `<b>${escapar(qn.nombre)}</b> te pregunta algo en <b>${escapar(proyectos[k].nombre)}</b>`, formas)
     }
   }
   return ''
