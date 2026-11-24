@@ -258,6 +258,14 @@ Con `chat.rs` y el `claude` real (`cargo test real_ -- --ignored`, Haiku): preca
   - `GET /context?project=oficina` con una observación de `oficina` y la charla en `avis`: lista solo la de `oficina` (test `real_engram_guardar_buscar_sin_tocar_otro_proyecto_y_borrar`). Con un proyecto que no existe: `404 {"code":"unknown_project","available_projects":[…]}`.
   - `DELETE /observations/{id}?expected_project=oficina` sobre una de `avis` → `409 {"error":"expected_project does not match observation owner"}`; con `avis` → `200 {"hard_delete":false,"status":"deleted"}`. Borrada (sin `hard`), deja de aparecer en `/search` y `GET /observations/{id}` da `404`. Guardar después el mismo `topic_key` crea otra observación (otro id).
 
+### 7.12 Adjuntos por la vía de la ventana (medido en E5, 24/11)
+
+- **Un PDF real por `chat_enviar` (medido, Haiku):** un `Chat` recibió la ruta de un PDF de una página con la palabra CEREZO, armado en el test con su tabla xref (`adjuntos::pdf_minimo`). Rust lo leyó y lo mandó como bloque `document` en base64, sin herramientas. Respondió "CEREZO" en 3,7 s, con `listo`, `pidiendo`, `recibido`, `texto` y `fin`. Test: `real_un_pdf_adjunto_se_lee`.
+- **Un `.md` sin nada escrito (medido, Haiku):** en el mismo proceso, un segundo turno solo con el archivo (sin bloque de texto vacío, que la API no acepta) llegó como "Archivo: clave.md" y el contenido en una cerca. La respuesta citó "ALMENDRO", la palabra del archivo.
+- **La línea de stdin con dos archivos** (proceso falso de PowerShell que la guarda): el `document` con el base64 exacto del PDF y el `text` "Archivo: notas.md\n```md\n# Notas\n```", sin un tercer bloque de texto.
+- **Arrastrar con el mouse: sin medir.** La Avis instalada sigue ocupando la instancia única y arrastrar desde el Explorador requiere manejar el escritorio. El camino de la ventana (`onDragDropEvent` → `sobreHoja` → `chat_adjunto`) se probó en Edge sin ventana con el arrastre de Tauri imitado (`dev/falso.js`, `window.__arrastrar`); el resto es lo leído en 7.9.
+- **Supuestos que quedan:** JPG, GIF y WebP (el tipo sale de los primeros bytes, no del nombre) y el techo real del PDF (20 MB, D27).
+
 ## Flags recomendados para Avis
 
 Actualizado con las mediciones de E0 (7.1):

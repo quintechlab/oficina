@@ -105,11 +105,16 @@
 //   ?chat=frenada      se frena a los 2,6 s: el parcial y "■ frenaste acá"
 //   ?chat=error-red    tres reintentos sin respuesta y el error `red` (D33), con el modelo local instalado
 //   ?chat=historial    dos charlas rápidas y el cajón "Charlas" abierto
-//   ?chat=soltar       la capa de soltar un archivo (la entrega 5 la conecta con el arrastre de verdad)
+//   ?chat=soltar       la capa de soltar un archivo, quieta (el arrastre en curso sobre la hoja)
+//   ?chat=adjuntos     se sueltan un PDF y unas notas sobre la hoja: los dos chips (el PDF con sus páginas)
+//   ?chat=error-adjunto se suelta una planilla .xlsx: la tarjeta "No puedo leer planilla.xlsx"
+//   &cancelaAdjunto    el clip se cancela (sin esto, elige presupuesto-2027.pdf de Descargas)
 //   ?chat=encima       al 200 % (si no hay ?zoom): la hoja no entra al costado y tapa la columna (D1)
 //   &motor=local       la próxima charla con el modelo local; &modelo=listo|bajando su estado (sin esto, falta)
 //   &cancelaCarpeta    "Elegir otra carpeta…" se cancela (sin esto, elige quintech-crm del escritorio)
 //   &engram            el pie del cajón dice "también en Engram" (sin esto, "Engram apagado")
+// window.__arrastrar({ type: 'enter' | 'over' | 'drop' | 'leave', paths, position }) imita el arrastre
+// de Tauri (onDragDropEvent, px físicos); window.__soltarEnHoja([ruta]) suelta en el medio de la hoja.
 // Desde la consola del iframe: window.__chat.despachar({ tipo: 'soltando', nombre: 'a.pdf' }) manda
 // cualquier evento a la hoja y window.__chat.estado() la lee; window.__borrarModelo() imita "Borrar el
 // modelo de IA" de la bandeja.
@@ -616,6 +621,17 @@
   }
 
   const ESCRITORIO = 'C:\\Users\\quintana\\Desktop'
+  const DESCARGAS = 'C:\\Users\\quintana\\Downloads'
+  /** Lo que diría chat_adjunto de un archivo (10): por el nombre, sin leer nada. */
+  function adjuntoFalso(ruta) {
+    const nombre = ruta.split(/[\\/]/).at(-1)
+    const ext = (/\.([^.]+)$/.exec(nombre)?.[1] ?? '').toLowerCase()
+    if (/grande/.test(nombre)) return { error: 'adjunto', nombre }
+    if (ext === 'pdf') return { nombre, tipo: 'pdf', bytes: 1468006, paginas: 14 }
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return { nombre, tipo: 'imagen', bytes: 245760, paginas: null }
+    if (['txt', 'md', 'json', 'csv', 'js', 'ts', 'rs', 'py', 'log'].includes(ext)) return { nombre, tipo: 'texto', bytes: 3200, paginas: null }
+    return { error: 'adjunto', nombre }
+  }
   let prefsChat = {
     motor: url.get('motor') === 'local' ? 'local' : 'claude',
     carpeta: url.has('sinCarpeta') ? null : `${ESCRITORIO}\\catalogo`,
@@ -694,12 +710,12 @@
       const local = { listo: 'instalado', bajando: 'bajando', roto: 'roto' }[modeloLocal.modelo] ?? 'falta'
       return { proceso: motor === 'claude' ? 'arrancando' : 'apagado', sesion, engram: url.has('engram') ? 'si' : 'no', local }
     },
-    chat_enviar: ({ conversacion, turno, texto }) => {
+    chat_enviar: ({ conversacion, turno, texto, adjuntos = [] }) => {
       const c = conocidas.get(conversacion)
       if (!c) throw new Error('la charla no está abierta')
       if (c.motor === 'local') throw new Error('el modelo de esta PC todavía no responde en la charla')
       if (enCurso?.c === conversacion) throw new Error('hay una respuesta en curso')
-      console.info('[chat] enviar', conversacion, turno, texto)
+      console.info('[chat] enviar', conversacion, turno, texto, adjuntos)
       turnoFalso(conversacion, turno, texto)
     },
     chat_frenar: ({ conversacion, turno }) => {
@@ -728,6 +744,17 @@
       return prefsChat
     },
     elegir_carpeta: () => (url.has('cancelaCarpeta') ? null : `${ESCRITORIO}\\quintech-crm`),
+    chat_adjunto: ({ ruta }) => adjuntoFalso(ruta),
+    elegir_adjuntos: () => (url.has('cancelaAdjunto') ? [] : [`${DESCARGAS}\\presupuesto-2027.pdf`]),
+  }
+  /** Suelta archivos en el medio de la hoja, como Tauri: enter, over y drop en px físicos. */
+  window.__soltarEnHoja = (rutas, { soltar = true } = {}) => {
+    const r = document.querySelector('#hoja')?.getBoundingClientRect()
+    if (!r || !window.__arrastrar) return
+    const position = { x: (r.left + r.width / 2) * devicePixelRatio, y: (r.top + r.height / 2) * devicePixelRatio }
+    window.__arrastrar({ type: 'enter', paths: rutas, position })
+    window.__arrastrar({ type: 'over', position })
+    if (soltar) setTimeout(() => window.__arrastrar({ type: 'drop', paths: rutas, position }), 700)
   }
   // ?chat=…: abre la hoja y la lleva a ese estado por el mismo camino que el usuario (window.__chat)
   window.__vistaDev = true
@@ -758,6 +785,13 @@
           break
         case 'soltar':
           ch.despachar({ tipo: 'soltando', nombre: 'presupuesto-2027.pdf' })
+          break
+        // Después de la mudanza (6.1), como el usuario: arrastrar y soltar sobre la hoja
+        case 'adjuntos':
+          setTimeout(() => window.__soltarEnHoja([`${DESCARGAS}\\presupuesto-2027.pdf`, `${DESCARGAS}\\notas.md`]), 1300)
+          break
+        case 'error-adjunto':
+          setTimeout(() => window.__soltarEnHoja([`${DESCARGAS}\\planilla.xlsx`]), 1300)
           break
       }
     }, 1500)
@@ -888,6 +922,15 @@
     },
     window: {
       getCurrentWindow: () => ({ isVisible: async () => true, isMinimized: async () => false }),
+    },
+    // Los archivos que se arrastran (10): window.__arrastrar(payload) hace de Tauri
+    webview: {
+      getCurrentWebview: () => ({
+        onDragDropEvent: async f => {
+          window.__arrastrar = payload => f({ payload })
+          return () => { window.__arrastrar = null }
+        },
+      }),
     },
   }
 })()

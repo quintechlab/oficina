@@ -23,6 +23,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
+use crate::adjuntos;
 use crate::modelo;
 use crate::primeros_pasos::{self, trabajo::Trabajo, Programa};
 
@@ -278,13 +279,18 @@ pub fn detalle_herramienta(nombre: &str, entrada: &Value) -> String {
 
 // ------------------------------------------------------------------ entrada (7.4) y frenar (7.6)
 
-/// La línea de stdin de un mensaje: el bloque `<avis>` (si va) y el texto.
-pub fn mensaje_usuario(texto: &str, avis: Option<&str>) -> Value {
+/// La línea de stdin de un mensaje (7.4): el bloque `<avis>` (si va), los adjuntos (los bloques de
+/// `adjuntos::bloques`, en su orden) y el texto. Sin texto (solo un archivo) no va un bloque de
+/// texto vacío, que la API no acepta.
+pub fn mensaje_usuario(texto: &str, avis: Option<&str>, adjuntos: &[Value]) -> Value {
     let mut contenido = Vec::new();
     if let Some(a) = avis {
         contenido.push(json!({ "type": "text", "text": format!("<avis>\n{a}\n</avis>") }));
     }
-    contenido.push(json!({ "type": "text", "text": texto }));
+    contenido.extend(adjuntos.iter().cloned());
+    if !texto.is_empty() || contenido.is_empty() {
+        contenido.push(json!({ "type": "text", "text": texto }));
+    }
     json!({ "type": "user", "message": { "role": "user", "content": contenido } })
 }
 
@@ -749,22 +755,38 @@ impl Chat {
         Ok(())
     }
 
-    /// `chat_enviar` (7.4): manda un turno. Sin un turno en curso (D7) y con texto.
-    pub fn enviar(&self, conversacion: &str, turno: u64, texto: &str, datos: &Value) -> Result<(), String> {
+    /// `chat_enviar` (7.4): manda un turno. Sin un turno en curso (D7) y con texto o algún adjunto.
+    /// `adjuntos`: rutas; Rust las lee recién acá (la ventana nunca toca los bytes). Uno que no entra
+    /// (o el sexto) es el error `adjunto` con su nombre, sin escribirle nada al proceso.
+    pub fn enviar(&self, conversacion: &str, turno: u64, texto: &str, adjuntos: &[String], datos: &Value) -> Result<(), String> {
         let texto = texto.trim();
-        if texto.is_empty() {
+        if texto.is_empty() && adjuntos.is_empty() {
             return Err(String::from("el mensaje está vacío"));
         }
         if texto.chars().count() > MAX_TEXTO {
             return Err(String::from("el mensaje es demasiado largo"));
         }
-        let mut e = self.estado();
+        let e = self.estado();
         match e.conversaciones.get(conversacion) {
             None => return Err(String::from("la charla no está abierta")),
             // Nunca a la nube una charla del motor local (regla 3): ese motor llega con la entrega 6
             Some(c) if c.local => return Err(String::from("el modelo de esta PC todavía no responde en la charla")),
             Some(_) => {}
         }
+        if e.proceso.as_ref().is_some_and(|p| p.conversacion == conversacion && p.turno_activo()) {
+            return Err(String::from("hay una respuesta en curso"));
+        }
+        // Los archivos se leen fuera del candado (hasta 5 de 20 MB)
+        drop(e);
+        let bloques = match adjuntos::bloques(adjuntos) {
+            Ok(b) => b,
+            Err(nombre) => {
+                registrar("chat: un adjunto no entra");
+                (self.0.emitir)(con_turno(conversacion, turno, &EventoChat::Error { motivo: "adjunto", detalle: Some(nombre) }));
+                return Ok(());
+            }
+        };
+        let mut e = self.estado();
         if e.proceso.as_ref().is_some_and(|p| p.conversacion == conversacion && p.turno_activo()) {
             return Err(String::from("hay una respuesta en curso"));
         }
@@ -780,7 +802,7 @@ impl Chat {
         let c = e.conversaciones.get_mut(conversacion).ok_or("la charla no está abierta")?;
         let (avis, firma) = bloque_avis(datos, c.firma);
         c.firma = firma;
-        let linea = mensaje_usuario(texto, avis.as_deref());
+        let linea = mensaje_usuario(texto, avis.as_deref(), &bloques);
         let p = e.proceso.as_mut().ok_or("sin proceso")?;
         p.turno = Some(Turno::nuevo(turno, Instant::now()));
         p.ultimo_uso = Instant::now();

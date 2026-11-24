@@ -13,7 +13,7 @@ import { avi, claudeDe } from './avis.js'
 import { datosEspecie } from './especies.js'
 import {
   animoChat, ocupado, markdownSeguro, tramoVivo, piezasPalabras, textoHerramientas, sugerencias, nombreCarpeta, relojEspera,
-  mensajesVisibles, listaCharlas, coincideBusqueda, grupoDeFecha, horaCharla, cifrasDescarga, formatoGB,
+  mensajesVisibles, listaCharlas, coincideBusqueda, grupoDeFecha, horaCharla, cifrasDescarga, formatoGB, detalleAdjunto,
 } from './chat.js'
 
 /** Los iconos de 5.4: SVG de 16, trazo de 1,4 a 1,9 y `currentColor`. */
@@ -120,12 +120,12 @@ export function textoError(motivo, detalle = null) {
   }
 }
 
-function tarjetaError(m) {
-  const e = m.chat.error ?? { motivo: 'otro' }
+/** La tarjeta de un error (4.2). `cerrar`: la acción de "Cerrar" cuando el error no tiene otras. */
+function tarjetaError(e = { motivo: 'otro' }, cerrar = 'ch-descartar') {
   const t = textoError(e.motivo, e.detalle)
   const titulo = e.motivo === 'otro' && e.detalle ? ` title="${escapar(e.detalle)}"` : ''
   const acciones = t.acciones.map(([a, texto], k) => boton(a, escapar(texto), { primario: k === 0 }))
-  if (!t.acciones.length) acciones.push(boton('ch-descartar', 'Cerrar'))
+  if (!t.acciones.length) acciones.push(boton(cerrar, 'Cerrar'))
   return `<div class="err" role="alert"${titulo}><b>${ICONOS.nube}${escapar(t.titulo)}</b>${t.cuerpo ? `<p>${conCodigo(t.cuerpo)}</p>` : ''}<div class="acc">${acciones.join('')}</div></div>`
 }
 
@@ -256,7 +256,9 @@ export function hilo(m) {
       }
     })
   }
-  if (c.estado === 'error') partes.push(tarjetaError(m))
+  if (c.estado === 'error') partes.push(tarjetaError(c.error ?? undefined))
+  // Un archivo que no entró (10): su tarjeta, aparte del turno, que solo se cierra
+  if (c.errorAdjunto) partes.push(tarjetaError({ motivo: 'adjunto', detalle: c.errorAdjunto.nombre }, 'ch-descartar-adjunto'))
   return partes.join('')
 }
 
@@ -270,10 +272,17 @@ export function composer(m) {
   const boton = corre
     ? '<button type="button" class="frenar" data-accion="ch-frenar" aria-label="Frenar la respuesta">Frenar</button>'
     : `<button type="button" class="enviar" data-accion="ch-enviar" aria-label="Enviar"${vacio ? ' disabled' : ''}>${ICONOS.enviar}</button>`
-  const adjuntos = c.adjuntos.map(a => `<span class="chip-adj"><span class="doc" aria-hidden="true">${escapar((/\.([^.]+)$/.exec(a.nombre)?.[1] ?? '').toUpperCase().slice(0, 4))}</span><span><b>${escapar(a.nombre)}</b><small>${escapar(a.detalle ?? '')}</small></span><button type="button" class="ic" data-accion="ch-quitar" data-ruta="${escapar(a.ruta)}" aria-label="Quitar ${escapar(a.nombre)}">${ICONOS.cerrar}</button></span>`).join('')
+  const adjuntos = c.adjuntos.map(a => `<span class="chip-adj" data-ruta="${escapar(a.ruta)}"><span class="doc" aria-hidden="true">${escapar((/\.([^.]+)$/.exec(a.nombre)?.[1] ?? '').toUpperCase().slice(0, 4))}</span><span><b>${escapar(a.nombre)}</b><small>${escapar(detalleAdjunto(a))}</small></span><button type="button" class="ic" data-accion="ch-quitar" data-ruta="${escapar(a.ruta)}" aria-label="Quitar ${escapar(a.nombre)}">${ICONOS.cerrar}</button></span>`).join('')
   const pista = corre ? 'Esperá la respuesta o frená con Esc' : 'Enter envía · Shift+Enter, línea nueva'
   const pie = motorDe(m) === 'local' ? 'Local · sin internet' : `Claude Code · ${escapar(nombreCarpeta(carpetaDe(m)))}`
   return { adjuntos, boton, pista, pie }
+}
+
+/** El clip (3.4 y 10): con el motor local se apaga y dice por qué. */
+export function clipAdjuntar(m) {
+  return motorDe(m) === 'local'
+    ? { deshabilitado: true, titulo: 'El modelo local no lee archivos' }
+    : { deshabilitado: false, titulo: 'Adjuntar archivo' }
 }
 
 // ------------------------------------------------------------------ cajón del historial (4.1 y 9.1)

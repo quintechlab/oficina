@@ -58,12 +58,14 @@ export const GUARDAR_CADA_MS = 2000
  * `recientes`: las carpetas que devuelve Rust; `charlas`: las otras conversaciones, enteras (las de
  * esta ejecución) o solo su cabecera (las del disco, `charlaDeCabecera`: se leen al retomarlas);
  * `frenado`: el turno frenado, cuyos eventos se descartan; `soltando`: `{ nombre }` mientras se
- * arrastra un archivo encima; `menuCharla`: `{ id, confirmar }`, el menú de una charla del cajón (D24).
+ * arrastra un archivo encima; `menuCharla`: `{ id, confirmar }`, el menú de una charla del cajón (D24);
+ * `adjuntos`: `{ ruta, nombre, tipo, bytes, paginas }` de los chips; `errorAdjunto`: `{ nombre }`, el
+ * archivo que no entró (su tarjeta solo se cierra; no es un error del turno).
  */
 export function chatInicial() {
   return {
     abierta: false, lado: null, conversacion: null, estado: 'vacio', paso: 0, desdeMs: null, ultimoMs: null, listoMs: null,
-    borrador: '', adjuntos: [], menu: false, cajon: false, soltando: null, error: null, todos: false,
+    borrador: '', adjuntos: [], errorAdjunto: null, menu: false, cajon: false, soltando: null, error: null, todos: false,
     proceso: 'apagado', engram: 'sin-saber', local: 'falta', progreso: null,
     motor: 'claude', carpeta: null, recientes: [], turno: 0, frenado: null, charlas: [], firmas: {}, menuCharla: null,
   }
@@ -142,7 +144,7 @@ function mandar(c, texto, adjuntos, ctx, { campo = false } = {}) {
   return {
     chat: {
       ...c, turno, estado: 'esperando', paso: 0, desdeMs: ahora, ultimoMs: ahora, listoMs: null, error: null, frenado: null,
-      borrador: campo ? '' : c.borrador, adjuntos: campo ? [] : c.adjuntos, menu: false,
+      borrador: campo ? '' : c.borrador, adjuntos: campo ? [] : c.adjuntos, errorAdjunto: campo ? null : c.errorAdjunto, menu: false,
       firmas: avis ? { ...c.firmas, [conv.id]: firma } : c.firmas,
       conversacion: { ...conv, titulo, actualizada: ahora, mensajes },
     },
@@ -432,6 +434,24 @@ export function transicionChat(c, ev, ctx = {}) {
       return NADA({ ...c, todos: true })
     case 'soltando':
       return NADA({ ...c, soltando: ev.nombre ? { nombre: String(ev.nombre) } : null })
+    case 'soltado': {
+      // Soltó sobre la hoja (main.js ya miró que fuera sobre ella, D26): Rust revisa cada ruta. Con el
+      // motor local o la hoja cerrada, solo se va la capa (10)
+      const chat = c.soltando ? { ...c, soltando: null } : c
+      if (!c.abierta || motorDe(c) === 'local' || !rutasDe(ev).length) return NADA(chat)
+      return { chat, efectos: [{ tipo: 'revisar-adjuntos', rutas: rutasDe(ev), desdeCapa: true }] }
+    }
+    case 'adjuntar':
+      // El clip o "Resumime un PDF": el selector de archivos, solo con ese clic (D10)
+      return motorDe(c) === 'local' ? NADA(c) : { chat: c, efectos: [{ tipo: 'elegir-adjuntos' }] }
+    case 'elegidos':
+      return rutasDe(ev).length && motorDe(c) !== 'local' ? { chat: c, efectos: [{ tipo: 'revisar-adjuntos', rutas: rutasDe(ev), desdeCapa: false }] } : NADA(c)
+    case 'adjunto':
+      return conAdjunto(c, ev)
+    case 'quitar':
+      return { chat: { ...c, adjuntos: c.adjuntos.filter(a => a.ruta !== ev.ruta) }, efectos: [{ tipo: 'foco', a: 'campo' }] }
+    case 'descartar-adjunto':
+      return c.errorAdjunto ? NADA({ ...c, errorAdjunto: null }) : NADA(c)
     case 'modelo': {
       const local = { listo: 'instalado', bajando: 'bajando', roto: 'roto', falta: 'falta' }[ev.modelo] ?? c.local
       const progreso = ev.total != null ? { bajado: Number(ev.bajado) || 0, total: Number(ev.total) || 0 } : c.progreso
@@ -697,6 +717,67 @@ export const MAX_ADJUNTOS = 5
 const IMAGENES = ['png', 'jpg', 'jpeg', 'gif', 'webp']
 const TEXTOS = ['txt', 'md', 'json', 'csv', 'js', 'ts', 'tsx', 'rs', 'py', 'html', 'css', 'yml', 'toml', 'sql', 'log']
 
+/** El motor de la charla de ahora (o el de la próxima). */
+const motorDe = c => c.conversacion?.motor ?? c.motor
+/** Las rutas de un evento de soltar o del selector, solo textos no vacíos. */
+const rutasDe = ev => (Array.isArray(ev.rutas) ? ev.rutas.filter(r => typeof r === 'string' && r) : [])
+
+/**
+ * Lo que dijo Rust de un archivo (`chat_adjunto`): si entra, un chip más (sin repetir la ruta) y su
+ * anuncio; si no (`{ error }`, o la ventana ve que no entra: el tamaño, el sexto, el motor local), la
+ * tarjeta del error `adjunto` con su nombre (4.2), que solo se cierra y no toca el turno ni lo escrito.
+ * `desdeCapa`: vino de soltar, así el chip nace desde la capa (6.2).
+ */
+function conAdjunto(c, ev) {
+  const r = ev.resultado ?? {}
+  const ruta = typeof ev.ruta === 'string' ? ev.ruta : ''
+  const nombre = String(r.nombre ?? nombreArchivo(ruta))
+  if (!ruta || c.adjuntos.some(a => a.ruta === ruta)) return NADA(c)
+  // Con el motor local no se adjunta nada, y sin aviso: la capa ya lo dijo (10)
+  if (motorDe(c) === 'local') return NADA(c)
+  const v = r.error ? { ok: false } : validarAdjunto({ nombre, bytes: r.bytes }, { cuantos: c.adjuntos.length })
+  if (!v.ok) return NADA({ ...c, errorAdjunto: { nombre } })
+  const a = { ruta, nombre, tipo: v.tipo, bytes: Number(r.bytes), paginas: Number.isFinite(r.paginas) ? r.paginas : null }
+  return {
+    chat: { ...c, adjuntos: [...c.adjuntos, a], errorAdjunto: null },
+    efectos: [{ tipo: 'anunciar', texto: `Adjuntaste ${nombre}` }, { tipo: 'chip', ruta, desdeCapa: !!ev.desdeCapa }],
+  }
+}
+
+/** El nombre de un archivo, sin la carpeta (con `\` o `/`). */
+export function nombreArchivo(ruta) {
+  return String(ruta ?? '').split(/[\\/]/).filter(Boolean).at(-1) ?? ''
+}
+
+/** "512 B", "12 KB", "1,4 MB" o "20 MB". */
+export function tamanoArchivo(bytes) {
+  const n = Math.max(0, Number(bytes) || 0)
+  if (n < 1024) return `${n} B`
+  if (n < MB) return `${Math.round(n / 1024)} KB`
+  const mb = Math.round((n / MB) * 10) / 10
+  return `${String(mb).replace('.', ',')} MB`
+}
+
+/** Lo que dice el chip debajo del nombre (4.1): "{n} páginas · {tamaño}" (PDF) o "{tamaño}". */
+export function detalleAdjunto({ tipo, bytes, paginas } = {}) {
+  const tam = tamanoArchivo(bytes)
+  if (tipo !== 'pdf' || !Number.isFinite(paginas) || paginas < 1) return tam
+  return `${paginas} ${paginas === 1 ? 'página' : 'páginas'} · ${tam}`
+}
+
+/**
+ * ¿La posición de un arrastre cae sobre la hoja? (10, D26). `posicion`: px físicos relativos a la
+ * ventana (`onDragDropEvent`); `dpr`: `devicePixelRatio`; `hoja`: su rectángulo en px CSS de la
+ * ventana sin el zoom (`d.local.hoja`); `z`: el zoom de `<html>`. Sin hoja (cerrada o plegada), nunca.
+ */
+export function sobreHoja(posicion, dpr, hoja, z = 1) {
+  if (!posicion || !hoja || !(dpr > 0)) return false
+  const p = { x: posicion.x / dpr, y: posicion.y / dpr }
+  return dentroDeRect(p, { x: hoja.x * z, y: hoja.y * z, ancho: hoja.ancho * z, alto: hoja.alto * z })
+}
+
+const dentroDeRect = (p, r) => p.x >= r.x && p.x < r.x + r.ancho && p.y >= r.y && p.y < r.y + r.alto
+
 /** ¿Se puede adjuntar? `{ ok, tipo }` (pdf, imagen o texto) o `{ ok: false, motivo: 'adjunto' }`. */
 export function validarAdjunto({ nombre, bytes }, { motor = 'claude', cuantos = 0 } = {}) {
   const no = { ok: false, motivo: 'adjunto' }
@@ -912,6 +993,17 @@ export const PISTAS_CERRAR = Object.freeze({
 export const FUNDIDO_MS = 160
 /** Si al soltar el tablero la hoja cambia de lado, se funde hacia el nuevo (D2). */
 export const CAMBIA_LADO_MS = 180
+/** El chip que nace de la capa de soltar (6.2): 420 ms desde 0,6, y la capa se funde en 300. */
+export const PISTA_CHIP = Object.freeze({ dura: 420, escala: 0.6, capa: 300 })
+
+/**
+ * De dónde arranca el chip (6.2): del centro de la capa (`desde`, px de la ventana) a su lugar (`chip`,
+ * su `getBoundingClientRect`). `k`: px CSS del documento por px de la ventana (1 / zoom).
+ */
+export function pistaChip(desde, chip, k = 1) {
+  const cx = chip.left + chip.width / 2, cy = chip.top + chip.height / 2
+  return { dx: Math.round((desde.x - cx) * k), dy: Math.round((desde.y - cy) * k) }
+}
 /** La hoja empieza a plegarse con el panel 60 ms antes que el tablero (3.1). */
 export const ADELANTO_PLIEGUE_MS = 60
 /** La mascota de la marca (112) en la del escenario (96). */

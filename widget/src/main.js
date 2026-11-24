@@ -43,8 +43,9 @@ import * as movimientoPasos from './primerosPasosMotion.js'
 import {
   chatInicial, transicionChat, ocupado, datosAvis, relojEspera, tramoVivo, markdownSeguro, sugerencias, nombreCarpeta,
   carpetasDeProyectos, ladoHoja, rectHoja, SALUDA_MS, FELIZ_MS, ADELANTO_PLIEGUE_MS, aArchivo, guardadosPendientes, GUARDAR_CADA_MS,
+  sobreHoja, nombreArchivo,
 } from './chat.js'
-import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, cajon, listaHistorial, capaSoltar, htmlPalabras } from './chatVista.js'
+import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, cajon, listaHistorial, capaSoltar, htmlPalabras, clipAdjuntar } from './chatVista.js'
 import * as movimientoChat from './chatMotion.js'
 import {
   conversaciones, conversacionesNuevas, mensajesNuevos, convsVisibles, debeAbrirseSola, ladoIzquierdo, primeroDe, pausaVuelta, nombreLado, textoSub,
@@ -2892,12 +2893,55 @@ function hojaSeVe() {
   return st.chat.abierta && !st.fuera && !st.mini && (!st.acople || st.vista)
 }
 
-/** Lo que dibuja chatVista.js. Los adjuntos llegan con la entrega 5: hasta entonces, ni el clip ni "Resumime un PDF". */
+/** Lo que dibuja chatVista.js (con los adjuntos de la entrega 5: el clip y "Resumime un PDF"). */
 function modeloVista(ahora = Date.now()) {
   const c = st.chat
   const reciente = (c.estado === 'listo' && c.listoMs != null && ahora - c.listoMs < FELIZ_MS)
     || (c.estado === 'vacio' && st.chatSaludo != null && ahora - st.chatSaludo < SALUDA_MS)
-  return { chat: c, especie: st.mascota, ahoraMs: ahora, reciente, hablando: false, puedeAdjuntar: false, proyectos: carpetasDeProyectos(st.proyectos) }
+  return { chat: c, especie: st.mascota, ahoraMs: ahora, reciente, hablando: false, puedeAdjuntar: true, proyectos: carpetasDeProyectos(st.proyectos) }
+}
+
+/** El centro de la capa de soltar del último archivo soltado (px de la ventana): de ahí nacen sus chips (6.2). */
+let centroSoltar = null
+/** Las rutas del arrastre en curso: solo `enter` y `drop` las traen (`over` trae la posición). */
+let rutasArrastre = []
+
+/**
+ * Los archivos que se arrastran sobre la ventana (10, `onDragDropEvent` de Tauri: px físicos y
+ * rutas). Solo sobre la hoja a la vista (D26): la capa con el nombre mientras está encima; al
+ * soltar, Rust revisa cada ruta. Fuera de la hoja, cerrada o plegada, nada.
+ */
+function alArrastrarArchivo(p) {
+  if (!p?.type) return
+  if (p.type === 'enter' || p.type === 'drop') rutasArrastre = Array.isArray(p.paths) ? p.paths.filter(r => typeof r === 'string') : rutasArrastre
+  const sobre = p.type !== 'leave' && hojaSeVe() && sobreHoja(p.position, window.devicePixelRatio || 1, st.disp?.local?.hoja, zoom())
+  if (p.type === 'drop' && sobre) {
+    const rutas = rutasArrastre
+    rutasArrastre = []
+    centroSoltar = movimientoChat.fundirCapa($('#chat-soltar .soltar'))
+    despacharChat({ tipo: 'soltado', rutas })
+    return
+  }
+  if (p.type === 'drop' || p.type === 'leave') rutasArrastre = []
+  const nombre = sobre && p.type !== 'drop' ? nombreArchivo(rutasArrastre[0]) || 'archivo' : null
+  if ((st.chat.soltando?.nombre ?? null) !== nombre) despacharChat({ tipo: 'soltando', nombre })
+}
+
+/**
+ * Rust revisa cada archivo (`chat_adjunto`: el tipo, el tamaño, las páginas), de a uno y en orden,
+ * así la cuenta de 5 por mensaje es la de verdad. La ventana nunca lee los bytes (10).
+ */
+async function revisarAdjuntos(rutas, desdeCapa) {
+  for (const ruta of rutas) {
+    let resultado
+    try {
+      resultado = await invocar('chat_adjunto', { ruta })
+    } catch (err) {
+      registrar(`chat adjunto: ${err}`)
+      resultado = { error: 'adjunto', nombre: nombreArchivo(ruta) }
+    }
+    despacharChat({ tipo: 'adjunto', ruta, resultado, desdeCapa })
+  }
 }
 
 /** Un aviso en `#anuncio-chat` (12): se vacía antes, así el mismo texto se vuelve a oír. */
@@ -2946,6 +2990,11 @@ function despacharChat(ev) {
   if (abre && hojaSeVe()) abrirConMudanza()
   if (cierra && hojaCerrando) cerrarConMudanza()
   if (chat.estado === 'listo' && antes.estado !== 'listo' && hojaSeVe()) movimientoChat.aparecerPie([...$$('#chat-hilo .pie-m')].at(-1))
+  // El chip de un archivo soltado nace desde el centro de la capa (6.2); el del clip aparece quieto
+  for (const e of efectos) {
+    if (e.tipo !== 'chip' || !e.desdeCapa || !hojaSeVe()) continue
+    movimientoChat.nacerChip([...$$('#chat-adjuntos .chip-adj')].find(x => x.dataset.ruta === e.ruta), centroSoltar)
+  }
   for (const e of efectos) {
     if (e.tipo !== 'foco') continue
     // Al abrir, el foco va al campo cuando la mascota aterrizó (3.5)
@@ -3068,9 +3117,9 @@ function efectoChat(e) {
       break
     }
     case 'enviar': {
-      const { conversacion, turno, texto } = e
-      // `adjuntos` llega con la entrega 5: Rust todavía no lo recibe
-      abriendo.then(() => invocar('chat_enviar', { conversacion, turno, texto, datos: datosAvis(st.proyectos, Date.now()) }))
+      const { conversacion, turno, texto, adjuntos } = e
+      // Los adjuntos van como rutas: los bytes los lee Rust (10)
+      abriendo.then(() => invocar('chat_enviar', { conversacion, turno, texto, adjuntos, datos: datosAvis(st.proyectos, Date.now()) }))
         .catch(err => {
           registrar(`chat enviar: ${err}`)
           const motivo = st.chat.conversacion?.motor === 'local' ? 'local' : 'otro'
@@ -3085,6 +3134,15 @@ function efectoChat(e) {
       invocar('guardar_chat', { motor: e.motor, carpeta: e.carpeta })
         .then(r => despacharChat({ tipo: 'recientes', recientes: r?.recientes }))
         .catch(err => registrar(`chat preferencias: ${err}`))
+      break
+    case 'elegir-adjuntos':
+      // El selector nativo de archivos (D10), solo con el clic en el clip o en "Resumime un PDF"
+      invocar('elegir_adjuntos')
+        .then(rutas => despacharChat({ tipo: 'elegidos', rutas }))
+        .catch(err => registrar(`chat elegir adjuntos: ${err}`))
+      break
+    case 'revisar-adjuntos':
+      revisarAdjuntos(e.rutas, e.desdeCapa)
       break
     case 'elegir-carpeta':
       // El selector nativo de carpetas (D10), solo con el clic en "Elegir otra carpeta…"
@@ -3276,7 +3334,11 @@ function pintarHoja() {
   hojaEl.setAttribute('aria-label', `Charla con ${nombre}`)
   campoChat.setAttribute('aria-label', `Mensaje para ${nombre}`)
   campoChat.setAttribute('placeholder', `Preguntale a ${nombre}…`)
-  $('#chat-clip').hidden = !m.puedeAdjuntar
+  // El clip: con el motor local se apaga y dice por qué (3.4)
+  const clip = clipAdjuntar(m)
+  const clipEl = $('#chat-clip')
+  clipEl.disabled = clip.deshabilitado
+  clipEl.title = clip.titulo
   const hist = $('#hoja .arriba [data-accion="ch-hist"]')
   hist.setAttribute('aria-expanded', String(c.cajon))
   poner('#chat-avi', aviEscena(m))
@@ -3344,9 +3406,13 @@ async function accionChat(a, b) {
       // Una sugerencia es un clic explícito: manda su texto como si se hubiera escrito (3.5)
       const conv = c.conversacion
       const s = sugerencias(conv?.motor ?? c.motor, conv?.carpeta ? nombreCarpeta(conv.carpeta) : null)[Number(b.dataset.i)]
-      if (s && !s.adjuntar) despacharChat({ tipo: 'enviar', texto: s.texto })
+      // "Resumime un PDF" abre el selector de archivos: no manda nada (4.1)
+      if (s) despacharChat(s.adjuntar ? { tipo: 'adjuntar' } : { tipo: 'enviar', texto: s.texto })
       break
     }
+    case 'ch-adjuntar': if (!b.disabled) despacharChat({ tipo: 'adjuntar' }); break
+    case 'ch-quitar': despacharChat({ tipo: 'quitar', ruta: b.dataset.ruta }); break
+    case 'ch-descartar-adjunto': despacharChat({ tipo: 'descartar-adjunto' }); campoChat.focus(); break
     case 'ch-reintentar': despacharChat({ tipo: 'reintentar' }); break
     case 'ch-volver-a-preguntar': despacharChat({ tipo: 'volver-a-preguntar' }); break
     case 'ch-nueva': despacharChat({ tipo: 'nueva' }); break
@@ -3539,6 +3605,9 @@ async function iniciar() {
     escuchar('oficina://chat', ev => despacharChat({ tipo: 'backend', payload: ev.payload }))
     // El modelo de esta PC (3.6): la descarga y el borrado desde la bandeja
     escuchar('oficina://modelo', ev => alEventoModelo(ev.payload))
+    // Los archivos que se sueltan (10): Tauri los toma antes que el HTML (`dragDropEnabled`)
+    tauri.webview?.getCurrentWebview?.()?.onDragDropEvent(ev => alArrastrarArchivo(ev.payload))
+      ?.catch(err => registrar(`chat arrastrar: ${err}`))
     // El historial de la charla (9.1): la lista del disco y, si es de las últimas 12 h, la última (D11)
     efectoChat({ tipo: 'historial' })
   } else {

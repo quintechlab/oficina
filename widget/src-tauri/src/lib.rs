@@ -1,3 +1,4 @@
+mod adjuntos;
 mod arranque;
 mod chat;
 mod diagnostico;
@@ -784,12 +785,48 @@ async fn chat_abrir(conversacion: String, motor: String, carpeta: Option<String>
     .map_err(|e| e.to_string())?
 }
 
-/// Solo con Enter o Enviar: manda un turno. Lo que pasa llega como `oficina://chat`.
+/// Solo con Enter o Enviar: manda un turno. Lo que pasa llega como `oficina://chat`. `adjuntos`:
+/// las rutas de los archivos (10); los bytes los lee Rust, nunca la ventana.
 #[tauri::command]
-async fn chat_enviar(conversacion: String, turno: u64, texto: String, datos: Option<serde_json::Value>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || el_chat()?.enviar(&conversacion, turno, &texto, &datos.unwrap_or_default()))
+async fn chat_enviar(conversacion: String, turno: u64, texto: String, adjuntos: Option<Vec<String>>, datos: Option<serde_json::Value>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || el_chat()?.enviar(&conversacion, turno, &texto, &adjuntos.unwrap_or_default(), &datos.unwrap_or_default()))
         .await
         .map_err(|e| e.to_string())?
+}
+
+/// Un archivo soltado sobre la hoja o elegido con el clip (10): `{ nombre, tipo, bytes, paginas }` o
+/// `{ error: "adjunto", nombre }`. Solo lee el archivo para revisarlo (el tipo, el tamaño, las páginas).
+#[tauri::command]
+async fn chat_adjunto(ruta: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || adjuntos::info(std::path::Path::new(&ruta)))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// El clip y "Resumime un PDF" (10, D10): el selector nativo de archivos con los tipos que se leen,
+/// solo con ese clic. Las rutas elegidas, o ninguna si se canceló.
+#[tauri::command]
+async fn elegir_adjuntos(app: AppHandle) -> Result<Vec<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut dialogo = app
+            .dialog()
+            .file()
+            .set_title("Elegí qué archivo leer")
+            .add_filter("PDF, imágenes, texto o código", &adjuntos::EXTENSIONES);
+        if let Some(v) = ventana(&app) {
+            dialogo = dialogo.set_parent(&v);
+        }
+        dialogo
+            .blocking_pick_files()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|r| r.into_path().ok())
+            .map(|r| r.to_string_lossy().into_owned())
+            .collect()
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// Frenar (o Esc): la interrupción del turno en curso (7.6).
@@ -1731,6 +1768,8 @@ pub fn run() {
             cancelar_modelo,
             chat_abrir,
             chat_enviar,
+            chat_adjunto,
+            elegir_adjuntos,
             chat_frenar,
             chat_cerrar,
             chat_guardar,

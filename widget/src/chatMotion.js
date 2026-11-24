@@ -13,6 +13,7 @@ import * as movimientoMuesca from './muescaMotion.js'
 import { avi, claudeDe } from './avis.js'
 import {
   PISTAS_ABRIR, PISTAS_CERRAR, FUNDIDO_MS, CAMBIA_LADO_MS, CURVAS, recorteHoja, pistaVuelo, pistaVuelta, modoMovimiento,
+  PISTA_CHIP, pistaChip,
 } from './chat.js'
 
 const curva = nombre => cubicBezier(...CURVAS[nombre])
@@ -196,6 +197,39 @@ export function cambiarLado(hoja) {
 export function aparecerPie(pie) {
   if (!pie || modo() !== 'completo') return
   animate(pie, { opacity: [0, 1], duration: 200, ease: 'linear', onComplete: () => limpiar([pie], 'opacity') })
+}
+
+/**
+ * Al soltar (6.2): la capa se funde mientras el chip nace. `capa` sale del DOM (la vista ya no la
+ * dibuja): un clon toma su lugar el tiempo del fundido y se va. Devuelve el centro de la capa en px
+ * de la ventana, de donde nace el chip (o `null` si no había capa).
+ */
+export function fundirCapa(capa) {
+  if (!capa?.isConnected) return null
+  const r = capa.getBoundingClientRect()
+  const centro = { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+  if (modo() !== 'completo') return centro
+  const copia = capa.cloneNode(true)
+  copia.removeAttribute('role')
+  copia.setAttribute('aria-hidden', 'true')
+  copia.classList.add('se-va')
+  capa.parentElement.parentElement.append(copia)
+  animate(copia, { opacity: [1, 0], duration: PISTA_CHIP.capa, ease: 'linear', onComplete: () => copia.remove() })
+  return centro
+}
+
+/**
+ * El chip de un adjunto nace desde el centro de la capa de soltar hasta su lugar en el composer
+ * (6.2: `scale .6 → 1`, 420 ms, `--rebote`). Sin movimiento completo, aparece quieto.
+ */
+export function nacerChip(chip, desde) {
+  if (!chip || !desde || modo() !== 'completo') return
+  const k = escalaDe(chip)
+  const { dx, dy } = pistaChip(desde, chip.getBoundingClientRect(), k)
+  animate(chip, {
+    translateX: [dx, 0], translateY: [dy, 0], scale: [PISTA_CHIP.escala, 1], duration: PISTA_CHIP.dura, ease: curva('rebote'),
+    onComplete: () => limpiar([chip], 'transform'),
+  })
 }
 
 /**

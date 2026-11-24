@@ -545,7 +545,7 @@ fn el_error_lleva_el_detalle_recortado() {
 
 #[test]
 fn el_mensaje_lleva_el_bloque_avis_primero() {
-    let m = mensaje_usuario("¿En qué anda?", Some("sesiones:\n  - x"));
+    let m = mensaje_usuario("¿En qué anda?", Some("sesiones:\n  - x"), &[]);
     assert_eq!(
         m,
         json!({ "type": "user", "message": { "role": "user", "content": [
@@ -553,8 +553,20 @@ fn el_mensaje_lleva_el_bloque_avis_primero() {
             { "type": "text", "text": "¿En qué anda?" }
         ]}})
     );
-    let solo = mensaje_usuario("Hola", None);
+    let solo = mensaje_usuario("Hola", None, &[]);
     assert_eq!(solo["message"]["content"], json!([{ "type": "text", "text": "Hola" }]));
+}
+
+#[test]
+fn el_mensaje_con_adjuntos_va_avis_archivos_y_texto() {
+    // 7.4: el bloque <avis>, los archivos en el orden en que se adjuntaron y al final lo escrito
+    let doc = json!({ "type": "document", "source": { "type": "base64", "media_type": "application/pdf", "data": "JVBE" } });
+    let img = json!({ "type": "image", "source": { "type": "base64", "media_type": "image/png", "data": "iVBO" } });
+    let m = mensaje_usuario("Resumime esto", Some("x"), &[doc.clone(), img.clone()]);
+    assert_eq!(m["message"]["content"], json!([{ "type": "text", "text": "<avis>\nx\n</avis>" }, doc, img, { "type": "text", "text": "Resumime esto" }]));
+    // Solo un archivo, sin texto: la API no acepta un bloque de texto vacío
+    let m = mensaje_usuario("", None, &[doc.clone()]);
+    assert_eq!(m["message"]["content"], json!([doc]));
 }
 
 #[test]
@@ -657,7 +669,7 @@ fn proceso_falso_un_turno_completo() {
     let (chat, r, carpeta) = chat_falso(format!("set /p x= & type \"{}\"", f.display()), Tiempos::default());
     let abierto = chat.abrir("c-1", "claude", None, "Avi", None).unwrap();
     assert_eq!(abierto["proceso"], "arrancando");
-    chat.enviar("c-1", 7, "Respondé solo OK.", &Value::Null).unwrap();
+    chat.enviar("c-1", 7, "Respondé solo OK.", &[], &Value::Null).unwrap();
     r.esperar_final();
     assert_eq!(r.tipos(), vec!["listo", "pidiendo", "recibido", "texto", "fin"]);
     for v in r.todos() {
@@ -678,7 +690,7 @@ fn proceso_falso_cortado_a_mitad_es_error_proceso() {
     let f = fixture_en_archivo(&base, TEXTO, Some(7));
     let (chat, r, carpeta) = chat_falso(format!("set /p x= & type \"{}\"", f.display()), Tiempos::default());
     chat.abrir("c-2", "claude", None, "Avi", None).unwrap();
-    chat.enviar("c-2", 1, "Hola", &Value::Null).unwrap();
+    chat.enviar("c-2", 1, "Hola", &[], &Value::Null).unwrap();
     r.esperar_final();
     let todos = r.todos();
     let ultimo = todos.last().unwrap();
@@ -698,7 +710,7 @@ fn proceso_falso_con_el_aviso_de_mcp_en_stderr_no_es_error() {
     let guion = format!("set /p x= & echo Warning: claude.ai MCP servers blocked by enterprise policy: x 1>&2 & type \"{}\"", f.display());
     let (chat, r, carpeta) = chat_falso(guion, Tiempos::default());
     chat.abrir("c-3", "claude", None, "Avi", None).unwrap();
-    chat.enviar("c-3", 1, "Hola", &Value::Null).unwrap();
+    chat.enviar("c-3", 1, "Hola", &[], &Value::Null).unwrap();
     r.esperar_final();
     assert_eq!(r.tipos().last().map(String::as_str), Some("fin"));
     assert!(!r.tipos().contains(&String::from("error")));
@@ -714,11 +726,78 @@ fn proceso_falso_un_turno_por_vez() {
     // Lee la línea y espera: el turno queda en curso
     let (chat, r, carpeta) = chat_falso(String::from("set /p x= & ping -n 30 127.0.0.1 >nul"), Tiempos::default());
     chat.abrir("c-4", "claude", None, "Avi", None).unwrap();
-    chat.enviar("c-4", 1, "Hola", &Value::Null).unwrap();
-    assert!(chat.enviar("c-4", 2, "Otra", &Value::Null).is_err(), "D7: sin cola");
-    assert!(chat.enviar("c-4", 3, "   ", &Value::Null).is_err(), "texto vacío");
+    chat.enviar("c-4", 1, "Hola", &[], &Value::Null).unwrap();
+    assert!(chat.enviar("c-4", 2, "Otra", &[], &Value::Null).is_err(), "D7: sin cola");
+    assert!(chat.enviar("c-4", 3, "   ", &[], &Value::Null).is_err(), "texto vacío");
     chat.apagar();
     assert!(r.tipos().iter().all(|t| t != "texto"));
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+/// E5: el archivo viaja en la línea de stdin como su bloque (7.4), y sin texto también se manda.
+#[cfg(windows)]
+#[test]
+fn proceso_falso_un_adjunto_viaja_en_la_linea_y_sin_texto_tambien_se_manda() {
+    let base = carpeta_temporal();
+    let f = fixture_en_archivo(&base, TEXTO, None);
+    let pdf = crate::adjuntos::pdf_minimo("CEREZO");
+    let ruta_pdf = base.join("presupuesto.pdf");
+    fs::write(&ruta_pdf, &pdf).unwrap();
+    let ruta_md = base.join("notas.md");
+    fs::write(&ruta_md, "# Notas").unwrap();
+    let copia = base.join("linea.json");
+    // PowerShell guarda la línea que llega por stdin y escribe el fixture
+    let guion = format!(
+        "powershell -NoProfile -Command \"$l=[Console]::In.ReadLine(); [IO.File]::WriteAllText('{}', $l); [Console]::Out.Write([IO.File]::ReadAllText('{}'))\"",
+        copia.display(),
+        f.display()
+    );
+    let (chat, r, carpeta) = chat_falso(guion, Tiempos::default());
+    chat.abrir("c-adj", "claude", None, "Avi", None).unwrap();
+    let rutas = [ruta_pdf.to_string_lossy().into_owned(), ruta_md.to_string_lossy().into_owned()];
+    chat.enviar("c-adj", 1, "", &rutas, &Value::Null).unwrap();
+    r.esperar_final();
+    assert_eq!(r.tipos().last().map(String::as_str), Some("fin"), "{:?}", r.tipos());
+    let linea: Value = serde_json::from_str(&fs::read_to_string(&copia).unwrap()).unwrap();
+    let contenido = linea["message"]["content"].as_array().unwrap();
+    assert_eq!(contenido.len(), 2, "el PDF y el texto, sin un bloque de texto vacío");
+    assert_eq!(contenido[0]["type"], "document");
+    assert_eq!(contenido[0]["source"]["data"], crate::adjuntos::base64(&pdf));
+    assert_eq!(contenido[1]["text"], "Archivo: notas.md\n```md\n# Notas\n```");
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+/// E5: un adjunto que no entra (un .xlsx, o uno que ya no está) es el error `adjunto` con su nombre,
+/// sin escribirle nada al proceso; el turno no queda en curso.
+#[cfg(windows)]
+#[test]
+fn proceso_falso_un_adjunto_que_no_entra_es_error_adjunto_sin_mandar_nada() {
+    let base = carpeta_temporal();
+    let f = fixture_en_archivo(&base, TEXTO, None);
+    let xlsx = base.join("planilla.xlsx");
+    fs::write(&xlsx, b"PK\x03\x04").unwrap();
+    let (chat, r, carpeta) = chat_falso(format!("set /p x= & type \"{}\"", f.display()), Tiempos::default());
+    chat.abrir("c-xl", "claude", None, "Avi", None).unwrap();
+    chat.enviar("c-xl", 1, "¿Qué tiene?", &[xlsx.to_string_lossy().into_owned()], &Value::Null).unwrap();
+    assert_eq!(r.todos(), vec![json!({ "conversacion": "c-xl", "turno": 1, "tipo": "error", "motivo": "adjunto", "detalle": "planilla.xlsx" })]);
+    // Seis archivos, tampoco
+    let md = base.join("n.md");
+    fs::write(&md, "x").unwrap();
+    chat.enviar("c-xl", 2, "Hola", &vec![md.to_string_lossy().into_owned(); 6], &Value::Null).unwrap();
+    assert_eq!(r.todos()[1]["motivo"], "adjunto");
+    // Nada quedó en curso: el turno siguiente sale y responde
+    chat.enviar("c-xl", 3, "Hola", &[], &Value::Null).unwrap();
+    let limite = Instant::now() + Duration::from_secs(10);
+    while !r.tipos().contains(&String::from("fin")) && Instant::now() < limite {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(r.tipos().last().map(String::as_str), Some("fin"), "{:?}", r.tipos());
+    // Sin texto y sin archivos, nada
+    assert!(chat.enviar("c-xl", 4, "  ", &[], &Value::Null).is_err());
+    chat.apagar();
     borrar(&carpeta);
     borrar(&base);
 }
@@ -729,7 +808,7 @@ fn proceso_falso_sin_eco_a_tiempo_es_error_proceso_y_lo_mata() {
     let tiempos = Tiempos { eco: Duration::from_millis(400), ..Tiempos::default() };
     let (chat, r, carpeta) = chat_falso(String::from("set /p x= & ping -n 30 127.0.0.1 >nul"), tiempos);
     chat.abrir("c-5", "claude", None, "Avi", None).unwrap();
-    chat.enviar("c-5", 1, "Hola", &Value::Null).unwrap();
+    chat.enviar("c-5", 1, "Hola", &[], &Value::Null).unwrap();
     r.esperar_final();
     assert_eq!(r.todos().last().unwrap()["motivo"], "proceso");
     // El proceso ya no está: el próximo envío lanza otro
@@ -752,7 +831,7 @@ fn proceso_falso_la_inactividad_cierra_stdin_y_el_proceso_sale() {
     let tiempos = Tiempos { inactividad: Duration::from_millis(300), ..Tiempos::default() };
     let (chat, r, carpeta) = chat_falso(guion, tiempos);
     chat.abrir("c-6", "claude", None, "Avi", None).unwrap();
-    chat.enviar("c-6", 1, "Hola", &Value::Null).unwrap();
+    chat.enviar("c-6", 1, "Hola", &[], &Value::Null).unwrap();
     r.esperar_final();
     let limite = Instant::now() + Duration::from_secs(5);
     while chat.vivo("c-6") && Instant::now() < limite {
@@ -774,7 +853,7 @@ fn proceso_falso_cerrar_deja_terminar_el_turno() {
     let guion = format!("set /p x= & ping -n 2 127.0.0.1 >nul & type \"{}\"", f.display());
     let (chat, r, carpeta) = chat_falso(guion, Tiempos::default());
     chat.abrir("c-7", "claude", None, "Avi", None).unwrap();
-    chat.enviar("c-7", 1, "Hola", &Value::Null).unwrap();
+    chat.enviar("c-7", 1, "Hola", &[], &Value::Null).unwrap();
     chat.cerrar("c-7");
     r.esperar_final();
     assert_eq!(r.tipos().last().map(String::as_str), Some("fin"));
@@ -793,7 +872,7 @@ fn sin_claude_el_envio_da_error_sin_claude() {
     let abierto = chat.abrir("c-8", "claude", None, "Avi", None).unwrap();
     assert_eq!(abierto["proceso"], "apagado");
     assert_eq!(abierto["motivo"], "sin-claude");
-    chat.enviar("c-8", 1, "Hola", &Value::Null).unwrap();
+    chat.enviar("c-8", 1, "Hola", &[], &Value::Null).unwrap();
     assert_eq!(r.todos(), vec![json!({ "conversacion": "c-8", "turno": 1, "tipo": "error", "motivo": "sin-claude" })]);
     borrar(&carpeta);
 }
@@ -811,7 +890,7 @@ fn abrir_valida_la_conversacion_y_la_carpeta() {
     let local = chat.abrir("c-9", "local", None, "Avi", None).unwrap();
     assert_eq!(local["proceso"], "apagado");
     // Enviar sin abrir
-    assert!(chat.enviar("c-otra", 1, "Hola", &Value::Null).is_err());
+    assert!(chat.enviar("c-otra", 1, "Hola", &[], &Value::Null).is_err());
     borrar(&carpeta);
 }
 
@@ -828,7 +907,7 @@ fn una_charla_del_motor_local_nunca_lanza_claude() {
     let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
     chat.abrir("c-local", "local", None, "Avi", None).unwrap();
     // Mandar con el motor local no puede terminar en la nube (regla 3): error y nada lanzado
-    assert!(chat.enviar("c-local", 1, "¿Quién me espera?", &Value::Null).is_err());
+    assert!(chat.enviar("c-local", 1, "¿Quién me espera?", &[], &Value::Null).is_err());
     assert_eq!(lanzados.load(std::sync::atomic::Ordering::SeqCst), 0);
     assert!(r.todos().is_empty());
     // Vacía, la misma charla puede pasar a Claude Code (D8: solo cambia la cabecera) y entonces sí lanza
@@ -836,7 +915,7 @@ fn una_charla_del_motor_local_nunca_lanza_claude() {
     assert_eq!(lanzados.load(std::sync::atomic::Ordering::SeqCst), 1);
     // Y una de Claude Code vacía puede volver a local: deja de mandar
     chat.abrir("c-local", "local", None, "Avi", None).unwrap();
-    assert!(chat.enviar("c-local", 2, "Hola", &Value::Null).is_err());
+    assert!(chat.enviar("c-local", 2, "Hola", &[], &Value::Null).is_err());
     assert_eq!(lanzados.load(std::sync::atomic::Ordering::SeqCst), 1);
     borrar(&carpeta);
 }
@@ -870,7 +949,7 @@ fn proceso_falso_retomar_una_sesion_perdida_empieza_una_nueva() {
     let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
     let vieja = "11111111-2222-4333-8444-555555555555";
     chat.abrir("c-9", "claude", None, "Avi", Some(String::from(vieja))).unwrap();
-    chat.enviar("c-9", 1, "Hola", &Value::Null).unwrap();
+    chat.enviar("c-9", 1, "Hola", &[], &Value::Null).unwrap();
     r.esperar_final();
     assert_eq!(r.todos().last().unwrap()["motivo"], "otro");
     let primero = lanzados.lock().unwrap()[0].clone();
@@ -880,7 +959,7 @@ fn proceso_falso_retomar_una_sesion_perdida_empieza_una_nueva() {
     while chat.vivo("c-9") && Instant::now() < limite {
         std::thread::sleep(Duration::from_millis(50));
     }
-    chat.enviar("c-9", 2, "Hola", &Value::Null).unwrap();
+    chat.enviar("c-9", 2, "Hola", &[], &Value::Null).unwrap();
     let ultimo = lanzados.lock().unwrap().last().unwrap().clone();
     assert!(!ultimo.contains(&String::from("--resume")), "{ultimo:?}");
     let k = ultimo.iter().position(|a| a == "--session-id").expect("sin --session-id");
@@ -918,7 +997,7 @@ fn real_el_init_lista_solo_read_glob_grep_y_no_oficina() {
     c.current_dir(&l.cwd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
     let mut hijo = c.spawn().unwrap();
     let mut entrada = hijo.stdin.take().unwrap();
-    writeln!(entrada, "{}", mensaje_usuario("Respondé solo OK.", None)).unwrap();
+    writeln!(entrada, "{}", mensaje_usuario("Respondé solo OK.", None, &[])).unwrap();
     let salida = std::io::BufReader::new(hijo.stdout.take().unwrap());
     let mut init = None;
     for l in salida.lines() {
@@ -956,7 +1035,7 @@ fn real_texto_en_streaming_frenar_y_el_proceso_sigue_vivo() {
     // Precalentado: el arranque pasa mientras "se escribe"
     std::thread::sleep(Duration::from_secs(3));
     let t0 = Instant::now();
-    chat.enviar("c-real", 1, "Contá del 1 al 400, un número por línea, sin nada más.", &json!({ "sesiones": [{ "proyecto": "catalogo", "animo": "trabajando" }] })).unwrap();
+    chat.enviar("c-real", 1, "Contá del 1 al 400, un número por línea, sin nada más.", &[], &json!({ "sesiones": [{ "proyecto": "catalogo", "animo": "trabajando" }] })).unwrap();
     // Frenar con el primer texto
     let limite = Instant::now() + Duration::from_secs(60);
     while !r.tipos().contains(&String::from("texto")) && Instant::now() < limite {
@@ -974,7 +1053,7 @@ fn real_texto_en_streaming_frenar_y_el_proceso_sigue_vivo() {
     assert!(chat.vivo("c-real"), "frenar deja el proceso vivo");
     // El mismo proceso responde el turno siguiente
     let antes = r.todos().len();
-    chat.enviar("c-real", 2, "¿Cómo te llamás? Una palabra.", &Value::Null).unwrap();
+    chat.enviar("c-real", 2, "¿Cómo te llamás? Una palabra.", &[], &Value::Null).unwrap();
     let limite = Instant::now() + Duration::from_secs(60);
     while !r.todos()[antes..].iter().any(|v| v["tipo"] == "fin" || v["tipo"] == "error") && Instant::now() < limite {
         std::thread::sleep(Duration::from_millis(20));
@@ -989,6 +1068,45 @@ fn real_texto_en_streaming_frenar_y_el_proceso_sigue_vivo() {
     borrar(&carpeta);
 }
 
+/// E5: Claude lee un PDF adjunto por la misma vía que la ventana (`chat_enviar` con su ruta), y un
+/// texto adjunto sin nada escrito (lo pide #22).
+#[cfg(windows)]
+#[test]
+#[ignore]
+fn real_un_pdf_adjunto_se_lee() {
+    let carpeta = carpeta_temporal();
+    let ruta = carpeta.join("palabra.pdf");
+    fs::write(&ruta, crate::adjuntos::pdf_minimo("CEREZO")).unwrap();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador_real_haiku(), r.emisor(), Tiempos::default());
+    chat.abrir("c-pdf", "claude", None, "Avi", None).unwrap();
+    let t0 = Instant::now();
+    chat.enviar("c-pdf", 1, "¿Qué palabra dice el PDF? Respondé solo la palabra.", &[ruta.to_string_lossy().into_owned()], &Value::Null).unwrap();
+    let hasta_fin = |r: &Recibidos, desde: usize| {
+        let limite = Instant::now() + Duration::from_secs(90);
+        while !r.todos()[desde..].iter().any(|v| ["fin", "error", "frenada"].contains(&v["tipo"].as_str().unwrap_or(""))) && Instant::now() < limite {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    };
+    hasta_fin(&r, 0);
+    let texto: String = r.todos().iter().filter(|v| v["tipo"] == "texto").map(|v| v["texto"].as_str().unwrap_or("").to_string()).collect();
+    println!("PDF: {texto:?} en {} ms; eventos {:?}", t0.elapsed().as_millis(), r.tipos());
+    assert_eq!(r.tipos().last().map(String::as_str), Some("fin"));
+    assert!(texto.to_uppercase().contains("CEREZO"));
+    // Un .md sin texto escrito: llega como "Archivo: …" en una cerca
+    let md = carpeta.join("clave.md");
+    fs::write(&md, "La clave del depósito es ALMENDRO.").unwrap();
+    let antes = r.todos().len();
+    chat.enviar("c-pdf", 2, "", &[md.to_string_lossy().into_owned()], &Value::Null).unwrap();
+    hasta_fin(&r, antes);
+    let texto: String = r.todos()[antes..].iter().filter(|v| v["tipo"] == "texto").map(|v| v["texto"].as_str().unwrap_or("").to_string()).collect();
+    println!("texto: {texto:?}; eventos {:?}", r.todos()[antes..].iter().map(|v| v["tipo"].clone()).collect::<Vec<_>>());
+    assert_eq!(r.todos().last().unwrap()["tipo"], "fin");
+    assert!(texto.to_uppercase().contains("ALMENDRO"));
+    chat.apagar();
+    borrar(&carpeta);
+}
+
 /// E4: el historial sobrevive a cerrar Avis y la charla retomada con `--resume` recuerda lo hablado.
 /// Dos `Chat` distintos (como dos arranques de Avis) y el archivo de `historial.rs` en el medio.
 #[cfg(windows)]
@@ -999,7 +1117,7 @@ fn real_retomar_despues_de_cerrar_avis_recuerda_lo_hablado() {
     let r = Recibidos::default();
     let chat = Chat::nuevo(carpeta.clone(), lanzador_real_haiku(), r.emisor(), Tiempos::default());
     chat.abrir("c-recuerda", "claude", None, "Avi", None).unwrap();
-    chat.enviar("c-recuerda", 1, "Mi color favorito es el turquesa. Respondé solo: anotado.", &Value::Null).unwrap();
+    chat.enviar("c-recuerda", 1, "Mi color favorito es el turquesa. Respondé solo: anotado.", &[], &Value::Null).unwrap();
     r.esperar_final();
     assert_eq!(r.tipos().last().map(String::as_str), Some("fin"), "{:?}", r.tipos());
     let sesion = r.todos().iter().find(|v| v["tipo"] == "listo").and_then(|v| v["sesion"].as_str().map(String::from)).expect("sin init");
@@ -1021,7 +1139,7 @@ fn real_retomar_despues_de_cerrar_avis_recuerda_lo_hablado() {
     let chat2 = Chat::nuevo(carpeta.clone(), lanzador_real_haiku(), r2.emisor(), Tiempos::default());
     let abierto = chat2.abrir("c-recuerda", "claude", None, "Avi", leido["sesionClaude"].as_str().map(String::from)).unwrap();
     assert_eq!(abierto["sesion"], json!(sesion));
-    chat2.enviar("c-recuerda", 1, "¿Cuál es mi color favorito? Una palabra.", &Value::Null).unwrap();
+    chat2.enviar("c-recuerda", 1, "¿Cuál es mi color favorito? Una palabra.", &[], &Value::Null).unwrap();
     r2.esperar_final();
     let texto: String = r2.todos().iter().filter(|v| v["tipo"] == "texto").map(|v| v["texto"].as_str().unwrap_or("").to_string()).collect();
     println!("sesión {sesion}; retomada responde: {texto:?}; eventos {:?}", r2.tipos());
