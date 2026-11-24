@@ -45,9 +45,9 @@ import * as movimientoPasos from './primerosPasosMotion.js'
 import {
   chatInicial, transicionChat, ocupado, datosAvis, relojEspera, tramoVivo, markdownSeguro, sugerencias, nombreCarpeta,
   carpetasDeProyectos, ladoHoja, rectHoja, hojaBaja, anuncioAdjuntos, SALUDA_MS, FELIZ_MS, ADELANTO_PLIEGUE_MS, aArchivo, guardadosPendientes, GUARDAR_CADA_MS,
-  sobreHoja, nombreArchivo, puedeVencer,
+  sobreHoja, nombreArchivo, puedeVencer, modeloValido, nombreModelo,
 } from './chat.js'
-import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, cajon, listaHistorial, capaSoltar, htmlPalabras, clipAdjuntar } from './chatVista.js'
+import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, menuModelo, cajon, listaHistorial, capaSoltar, htmlPalabras, clipAdjuntar } from './chatVista.js'
 import * as movimientoChat from './chatMotion.js'
 import {
   conversaciones, conversacionesNuevas, mensajesNuevos, convsVisibles, debeAbrirseSola, ladoIzquierdo, primeroDe, pausaVuelta, nombreLado, textoSub,
@@ -59,7 +59,7 @@ import {
   configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion, pestanaSiguiente, validarAjuste,
   valorInterruptor, INTERRUPTORES, ubicacionDe, bordeDeUbicacion, IDS_PESTANAS, elegirForma, anuncioEspecie, anuncioForma,
   textoMod, textoModelo, modeloDesdeChat, descargaDesdeConfig, puntoPestana, filasEnEstaPC, clicBorrar, armadoVigente, desarmarVencido, MS_CONFIRMAR,
-  MOTORES, textoHistorial,
+  MOTORES, modeloDeValor, textoHistorial,
   PROVEEDORES, finalDe, formaClave, textoClave, clavesDesdeLectura, resultadoPrueba, anuncioPrueba, anuncioGuardada,
   ANUNCIO_CLAVE_BORRADA, empezarClave, retieneConfig, detalleErrorClave, marcoBajo,
 } from './configuracion.js'
@@ -3202,8 +3202,9 @@ function datosConfiguracion(local = modeloDesdeChat(st.chat), ahora = Date.now()
     transcurrido: armado ? Math.max(0, MS_CONFIRMAR - (armado.hasta - ahora)) : 0,
     claves: datosClaves(ahora),
     recien: st.claveRecien,
-    // Entrega 5: el motor de las charlas nuevas y el historial del chat
+    // Entrega 5: el motor de las charlas nuevas y el historial del chat; #35: su modelo de Claude
     motor: st.chat.motor,
+    modeloNuevas: st.chat.modelo,
     historial: textoHistorial(st.historialChat),
   }
 }
@@ -3636,10 +3637,10 @@ async function elegirMotorConfig(motor) {
   try {
     let r
     try {
-      r = await invocar('guardar_chat', { motor, carpeta: st.chat.carpeta ?? null })
+      r = await invocar('guardar_chat', { motor, carpeta: st.chat.carpeta ?? null, modelo: st.chat.modelo ?? null })
     } catch (err) {
       if (!String(err).includes('la carpeta no existe')) throw err
-      r = await invocar('guardar_chat', { motor, carpeta: null })
+      r = await invocar('guardar_chat', { motor, carpeta: null, modelo: st.chat.modelo ?? null })
     }
     despacharChat({ tipo: 'motor-nuevas', motor })
     if (r && Array.isArray(r.recientes)) despacharChat({ tipo: 'recientes', recientes: r.recientes })
@@ -3650,6 +3651,35 @@ async function elegirMotorConfig(motor) {
   }
   pintarConfiguracion()
   $(`#cfg [data-k="cfg-motor-${st.chat.motor}"]`)?.focus({ preventScroll: true })
+}
+
+/**
+ * "Modelo" (#35, S2): guarda el modelo de Claude de las charlas nuevas (`guardar_chat` con el juego
+ * completo: el motor y la carpeta de siempre) y lo pone en la charla (`modelo-nuevas`); la charla
+ * abierta sigue con el suyo. Si la carpeta guardada ya no existe, se guarda sin ella. Si no se pudo,
+ * la opción vuelve y lo dice.
+ */
+async function elegirModeloConfig(valor) {
+  const modelo = modeloDeValor(valor)
+  if (modelo === undefined || modelo === modeloValido(st.chat.modelo)) return
+  st.config = { ...st.config, error: null }
+  try {
+    let r
+    try {
+      r = await invocar('guardar_chat', { motor: st.chat.motor, carpeta: st.chat.carpeta ?? null, modelo })
+    } catch (err) {
+      if (!String(err).includes('la carpeta no existe')) throw err
+      r = await invocar('guardar_chat', { motor: st.chat.motor, carpeta: null, modelo })
+    }
+    despacharChat({ tipo: 'modelo-nuevas', modelo })
+    if (r && Array.isArray(r.recientes)) despacharChat({ tipo: 'recientes', recientes: r.recientes })
+    decirConfig(modelo ? `Las charlas nuevas usan ${nombreModelo(modelo)}` : 'Las charlas nuevas usan el modelo de Claude Code')
+  } catch (err) {
+    registrar(`configuración: modelo: no se pudo guardar (${err})`)
+    st.config = { ...st.config, error: 'modelo-claude' }
+  }
+  pintarConfiguracion()
+  $(`#cfg [data-k="cfg-modelo-${modeloValido(st.chat.modelo) ?? 'defecto'}"]`)?.focus({ preventScroll: true })
 }
 
 /** Cuenta las charlas guardadas (`chat_contar`, solo lectura): al abrir la configuración, al entrar a Datos y después de borrar. */
@@ -3873,6 +3903,7 @@ async function accionConfiguracion(a, b) {
       break
     case 'cfg-pp': abrirAsistente({ foco: true }); break
     case 'cfg-motor': await elegirMotorConfig(b.dataset.valor); break
+    case 'cfg-modelo': await elegirModeloConfig(b.dataset.valor); break
     case 'cfg-hist': await clicHistorialConfig(b.dataset.valor); break
     case 'cfg-clave-agregar': abrirCampoClave(b.dataset.valor); break
     case 'cfg-clave-cancelar': cancelarClave(); break
@@ -4201,8 +4232,9 @@ function efectoChat(e) {
   if (!tauri?.core && e.tipo !== 'anunciar' && e.tipo !== 'foco') return
   switch (e.tipo) {
     case 'abrir': {
-      // Precalienta sin mandar nada (D19). Con el motor local, además, qué hay del modelo (solo lee)
-      abriendo = invocar('chat_abrir', { conversacion: e.conversacion, motor: e.motor, carpeta: e.carpeta, mascota: nombreMascota(), sesionClaude: e.sesionClaude })
+      // Precalienta sin mandar nada (D19). Con el motor local, además, qué hay del modelo (solo lee).
+      // Con otro modelo de Claude (#35), Rust la vuelve a abrir con él y la misma sesión
+      abriendo = invocar('chat_abrir', { conversacion: e.conversacion, motor: e.motor, carpeta: e.carpeta, mascota: nombreMascota(), sesionClaude: e.sesionClaude, modelo: e.modelo })
         .then(resultado => despacharChat({ tipo: 'abierta', conversacion: e.conversacion, resultado }))
         .catch(err => registrar(`chat abrir: ${err}`))
       if (e.motor === 'local') leerModelo()
@@ -4223,7 +4255,7 @@ function efectoChat(e) {
       invocar('chat_frenar', { conversacion: e.conversacion, turno: e.turno }).catch(err => registrar(`chat frenar: ${err}`))
       break
     case 'preferencias':
-      invocar('guardar_chat', { motor: e.motor, carpeta: e.carpeta })
+      invocar('guardar_chat', { motor: e.motor, carpeta: e.carpeta, modelo: e.modelo })
         .then(r => despacharChat({ tipo: 'recientes', recientes: r?.recientes }))
         .catch(err => registrar(`chat preferencias: ${err}`))
       break
@@ -4269,7 +4301,7 @@ function enfocarEnHoja(a, id = null) {
   if (a === 'marca') { marcaBoton.focus({ preventScroll: true }); return }
   if (!hojaSeVe()) return
   const destino = {
-    campo: campoChat, carpeta: $('#chat-cab .carpeta'), hist: $('#hoja .arriba [data-accion="ch-hist"]'), buscar: $('#chat-buscar'),
+    campo: campoChat, carpeta: $('#chat-cab .carpeta'), modelo: $('#chat-cab .modelo'), hist: $('#hoja .arriba [data-accion="ch-hist"]'), buscar: $('#chat-buscar'),
     borrar: $('#chat-hist-lista .h-borrar'),
     charla: id ? [...$$('#chat-hist-lista [data-accion="ch-retomar"]')].find(x => x.dataset.id === id) : null,
   }[a]
@@ -4456,9 +4488,12 @@ function pintarHoja() {
   ponerConFoco('#chat-boton', comp.boton)
   texto('#chat-pista', comp.pista)
   texto('#chat-pie', comp.pie)
+  // El lugar del menú es uno: el de carpeta o el del modelo (#35, alineado a su botón, a la derecha)
   const menu = $('#chat-menu')
-  menu.hidden = !c.menu
+  menu.hidden = !c.menu && !c.menuModelo
+  menu.classList.toggle('de-modelo', !c.menu && !!c.menuModelo)
   if (c.menu) ponerConFoco('#chat-menu', menuCarpeta(m))
+  else if (c.menuModelo) ponerConFoco('#chat-menu', menuModelo(m))
   else st.firmas['#chat-menu'] = null
   pintarCajon(m)
   poner('#chat-soltar', capaSoltar(m))
@@ -4505,6 +4540,13 @@ async function accionChat(a, b) {
       if (st.chat.menu) ($('#chat-menu [aria-checked="true"]') ?? $('#chat-menu [role^="menuitem"]'))?.focus()
       break
     case 'ch-carpeta': despacharChat({ tipo: 'carpeta', carpeta: b.dataset.carpeta || null }); enfocarEnHoja('carpeta'); break
+    case 'ch-modelo-menu':
+      // Con un turno en curso queda en aria-disabled: el modelo cambia entre turnos (#35)
+      if (b.getAttribute('aria-disabled') === 'true') return
+      despacharChat({ tipo: 'menu-modelo' })
+      if (st.chat.menuModelo) ($('#chat-menu [aria-checked="true"]') ?? $('#chat-menu [role^="menuitem"]'))?.focus()
+      break
+    case 'ch-modelo': despacharChat({ tipo: 'elegir-modelo', modelo: b.dataset.modelo || null }); enfocarEnHoja('modelo'); break
     case 'ch-otra-carpeta': despacharChat({ tipo: 'elegir-otra' }); enfocarEnHoja('carpeta'); break
     case 'ch-motor': elegirMotor(b.dataset.motor); break
     case 'ch-enviar': if (!b.disabled) mandarCampo(); break
@@ -4571,12 +4613,12 @@ function teclaChat(e) {
   // El menú de una charla del cajón con la tecla Menú o Shift+F10 (D24)
   const charla = e.target.closest?.('#chat-hist-lista [data-accion="ch-retomar"]')
   if (charla && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) { e.preventDefault(); despacharChat({ tipo: 'menu-charla', id: charla.dataset.id }); return true }
-  if (c.menu && e.target.closest('#chat-menu')) {
+  if ((c.menu || c.menuModelo) && e.target.closest('#chat-menu')) {
     const items = [...$$('#chat-menu [role^="menuitem"]')]
     const k = items.indexOf(e.target)
     const destino = { ArrowDown: k + 1, ArrowUp: k - 1, Home: 0, End: items.length - 1 }[e.key]
     if (destino != null) { e.preventDefault(); items[(destino + items.length) % items.length]?.focus(); return true }
-    if (e.key === 'Tab') { despacharChat({ tipo: 'menu' }); return false }
+    if (e.key === 'Tab') { despacharChat({ tipo: c.menu ? 'menu' : 'menu-modelo' }); return false }
   }
   const radio = e.target.closest?.('[data-motor]')
   if (radio && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
@@ -4609,6 +4651,7 @@ document.addEventListener('input', e => {
 // Un clic afuera del menú de carpeta lo cierra (3.5); lo mismo el menú de una charla del cajón
 document.addEventListener('pointerdown', e => {
   if (st.chat.menu && !e.target.closest?.('#chat-menu, #chat-cab .carpeta')) despacharChat({ tipo: 'menu' })
+  if (st.chat.menuModelo && !e.target.closest?.('#chat-menu, #chat-cab .modelo')) despacharChat({ tipo: 'menu-modelo' })
   if (st.chat.menuCharla && !e.target.closest?.('#chat-hist-lista .h-menu')) despacharChat({ tipo: 'menu-charla', id: st.chat.menuCharla.id })
 })
 // Clic derecho en una charla del cajón: su menú, con "Borrar" (D24)
@@ -4657,10 +4700,10 @@ async function iniciar() {
       st.version = typeof m.version === 'string' ? m.version : null
       // Dónde quedó el tablero flotante la última vez (fracciones del área, 9.7)
       if (m.flotante && typeof m.flotante === 'object') st.fraccion = { x: Number(m.flotante.x), y: Number(m.flotante.y) }
-      // El motor y la carpeta de la próxima charla, y las recientes (chat-avis-ux.md 3.4, D11)
+      // El motor, la carpeta y el modelo (#35) de la próxima charla, y las recientes (chat-avis-ux.md 3.4, D11)
       if (m.chat && typeof m.chat === 'object') {
         st.chat = {
-          ...st.chat, motor: m.chat.motor === 'local' ? 'local' : 'claude',
+          ...st.chat, motor: m.chat.motor === 'local' ? 'local' : 'claude', modelo: modeloValido(m.chat.modelo),
           carpeta: typeof m.chat.carpeta === 'string' ? m.chat.carpeta : null, recientes: Array.isArray(m.chat.recientes) ? m.chat.recientes : [],
         }
       }

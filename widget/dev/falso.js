@@ -136,6 +136,7 @@
 //   &motor=local       la próxima charla con el modelo local; &modelo=listo|bajando su estado (sin esto, falta).
 //                      Con &modelo=listo, ?chat=esperando|escribiendo|listo|frenada responde el modelo falso
 //                      (despierta en 1,2 s la primera vez, como "Despertando el modelo de esta PC")
+//   &modeloChat=opus   el modelo de Claude de las charlas nuevas (#35): fable|opus|sonnet|haiku (sin esto, Por defecto)
 //   &cancelaCarpeta    "Elegir otra carpeta…" se cancela (sin esto, elige quintech-crm del escritorio)
 //   &engram            el pie del cajón dice "también en Engram" (sin esto, "Engram apagado")
 // window.__arrastrar({ type: 'enter' | 'over' | 'drop' | 'leave', paths, position }) imita el arrastre
@@ -711,6 +712,8 @@
   let prefsChat = {
     motor: url.get('motor') === 'local' ? 'local' : 'claude',
     carpeta: url.has('sinCarpeta') ? null : `${ESCRITORIO}\\catalogo`,
+    // El modelo de Claude de las charlas nuevas (#35): ?modeloChat=opus; si no, "Por defecto"
+    modelo: ['fable', 'opus', 'sonnet', 'haiku'].includes(url.get('modeloChat')) ? url.get('modeloChat') : null,
     recientes: [`${ESCRITORIO}\\catalogo`, 'C:\\Users\\quintana\\Downloads'],
   }
   const conocidas = new Map()
@@ -801,11 +804,12 @@
       if (modeloLocal.modelo === 'bajando') modeloLocal.modelo = 'falta'
       emitirModelo('cancelado', {})
     },
-    chat_abrir: ({ conversacion, motor, sesionClaude }) => {
+    chat_abrir: ({ conversacion, motor, sesionClaude, modelo = null }) => {
       const antes = conocidas.get(conversacion)
       const sesion = antes?.sesion ?? sesionClaude ?? crypto.randomUUID()
-      conocidas.set(conversacion, { motor, sesion })
-      console.info('[chat] abrir', conversacion, motor)
+      conocidas.set(conversacion, { motor, sesion, modelo })
+      // Como Rust: con otro modelo (#35), la misma sesión con --model <alias>; "Por defecto", sin --model
+      console.info('[chat] abrir', conversacion, motor, modelo ?? 'por defecto')
       const local = { listo: 'instalado', bajando: 'bajando', roto: 'roto' }[modeloLocal.modelo] ?? 'falta'
       return { proceso: motor === 'claude' ? 'arrancando' : 'apagado', sesion, engram: url.has('engram') ? 'si' : 'no', local }
     },
@@ -855,8 +859,8 @@
       console.info('[chat] borrar todo', ids.length, 'borradas', falla, 'sin borrar')
       r({ borradas: ids.length, fallidas: falla })
     }, 900)),
-    guardar_chat: ({ motor, carpeta }) => {
-      prefsChat = { motor, carpeta: carpeta ?? null, recientes: carpeta ? [carpeta, ...prefsChat.recientes.filter(r => r !== carpeta)].slice(0, 5) : prefsChat.recientes }
+    guardar_chat: ({ motor, carpeta, modelo = null }) => {
+      prefsChat = { motor, carpeta: carpeta ?? null, modelo: ['fable', 'opus', 'sonnet', 'haiku'].includes(modelo) ? modelo : null, recientes: carpeta ? [carpeta, ...prefsChat.recientes.filter(r => r !== carpeta)].slice(0, 5) : prefsChat.recientes }
       console.info('[chat] preferencias', JSON.stringify(prefsChat))
       return prefsChat
     },

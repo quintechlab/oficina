@@ -5,7 +5,7 @@
 // lo conecta main.js.
 
 import { NOMBRES_ESPECIES, datosEspecie, especieValida } from './especies.js'
-import { cifrasDescarga, formatoGB } from './chat.js'
+import { cifrasDescarga, formatoGB, MODELOS } from './chat.js'
 
 /** Orden fijo de las pestañas (4.4). */
 export const PESTANAS = [
@@ -188,6 +188,15 @@ export function desarmarVencido(config, ahoraMs) {
 
 /** "Quién responde" en las charlas nuevas (D10): el `motor` que guarda `guardar_chat`. */
 export const MOTORES = [['claude', 'Claude Code'], ['local', 'Local']]
+
+/** "Modelo" de las charlas nuevas (#35, S2): los segmentos de `MODELOS`; "Por defecto" viaja como `defecto`. */
+export const OPCIONES_MODELO = MODELOS.map(({ id, nombre }) => [id ?? 'defecto', nombre])
+
+/** El `data-valor` de un segmento → el modelo (`null` es "Por defecto"); `undefined` si no es una opción. */
+export function modeloDeValor(v) {
+  if (v === 'defecto') return null
+  return MODELOS.some(m => m.id !== null && m.id === v) ? v : undefined
+}
 
 const MB = 1024 * 1024
 

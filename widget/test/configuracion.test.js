@@ -343,7 +343,7 @@ test('el motor de las charlas nuevas: cambia la preferencia y no la charla abier
   assert.equal(n.chat.conversacion.id, 'c-2')
   assert.equal(n.chat.conversacion.motor, 'local')
   assert.equal(n.chat.conversacion.carpeta, null)
-  assert.deepEqual(n.efectos[0], { tipo: 'abrir', conversacion: 'c-2', motor: 'local', carpeta: null, sesionClaude: null })
+  assert.deepEqual(n.efectos[0], { tipo: 'abrir', conversacion: 'c-2', motor: 'local', carpeta: null, sesionClaude: null, modelo: null })
 })
 
 test('cada panel empieza con su h2 oculto: no hay salto de h1 a h3 (16, D-f)', () => {

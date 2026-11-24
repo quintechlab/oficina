@@ -307,7 +307,7 @@ claude -p --input-format stream-json --output-format stream-json --verbose
 - **`--strict-mcp-config`** deja afuera los MCP del usuario, incluido `mem_save` de Engram, que escribe.
 - **`--session-id <uuid>`** en la primera vuelta, generado por Avis: así se conoce el id antes del `init` y se guarda enseguida en la conversación. Después se usa `--resume <id>`: repetir un `--session-id` falla sin escribir nada en stdout ("Session ID … is already in use" en stderr, medido en E0). La sesión cuenta como usada con su primer `init` o eco: un proceso precalentado que se cerró sin mensaje deja volver a usar el mismo `--session-id` (medido en E1). Si stderr dice "already in use", Rust la marca usada y el próximo intento retoma.
 - **`--max-budget-usd 2`** por proceso es un tope de seguridad; si salta, el error es `tope`. No se muestra ningún costo (lo pidió #22: el costo medido es ambiguo). **(D16)**
-- Sin `--model`: usa el modelo por defecto del usuario. **(D17)**
+- ~~Sin `--model`: usa el modelo por defecto del usuario.~~ **(D17, reemplazada por #35 el 24/11)**: el modelo se elige por charla en la cabecera (Por defecto, Fable, Opus, Sonnet, Haiku) y en Configuración › Modelos › Charla para las nuevas. "Por defecto" no pasa `--model`; los demás pasan `--model <alias>` (`fable`, `opus`, `sonnet`, `haiku`). Cambiarlo a mitad sigue la misma charla (relanza con `--resume` + `--model`; con un turno en curso, en el próximo envío). El motor local no tiene modelo.
 - **El ejecutable:** la búsqueda de `primeros_pasos::ruta(Programa::Claude, …)` (si encuentra el `claude.cmd` de npm, corre directo el `node_modules@anthropic-aiclaude-codeinclaude.exe` que tiene al lado, sin pasar por `cmd.exe`: `claude_directo`), sin consola (`CREATE_NO_WINDOW`), con el cwd de la conversación (o `<config>/chat/trabajo` con "Solo Avis") y metido en el Job Object de `modelo.rs`, para que muera con Avis.
 - **`--safe-mode` (medido en E0):** funciona con la suscripción y baja el contexto de ~40 000 a ~6 500 tokens (sin CLAUDE.md, skills, hooks, plugins ni estilos del usuario). **Se suma, no reemplaza:** solo, el `init` sigue listando `oficina`, `engram` y el estilo del usuario aunque no corran; con `--settings` (7.2) y `--strict-mcp-config` el `init` queda limpio y se puede verificar. Los tests de `argumentos_chat` exigen las tres. **(D34)**
 - **La mascota de una charla es la del primer mensaje (medido en E0):** al retomar con `--resume`, otro `--append-system-prompt` no cambia el nombre (`--system-prompt-snapshot`, prendido por defecto, reusa el primero, y la charla ya lo dijo). Una charla vieja sigue con su nombre aunque se cambie la especie; las nuevas usan la nueva.
@@ -632,7 +632,7 @@ Las tomaron el orquestador o la diseñadora, porque el usuario pidió avanzar si
   - D14 el nombre de la mascota sin personaje en el texto;
   - D15 los enlaces no se abren;
   - D16 `--max-budget-usd 2` por proceso;
-  - D17 el modelo por defecto del usuario;
+  - D17 el modelo por charla (#35; antes, siempre el modelo por defecto del usuario);
   - D18 sin hooks, sin el plugin de Engram y con el estilo por defecto dentro del chat;
   - D19 precalentar al abrir la hoja;
   - D20 un proceso de chat por vez;

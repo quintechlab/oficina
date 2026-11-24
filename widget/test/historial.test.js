@@ -106,7 +106,9 @@ test('deArchivo: de vuelta a la ventana; ida y vuelta da lo mismo', () => {
   assert.equal(conv.mensajes[1].avis, true)
   const { engramId, ...sinEngram } = DOC
   assert.equal(engramId, 12)
-  assert.deepEqual(aArchivo(conv), { ...sinEngram, engramId: null })
+  // Un archivo de antes del #35 (sin `modelo`) se lee como "Por defecto" y se vuelve a guardar con él
+  assert.equal(conv.modelo, null)
+  assert.deepEqual(aArchivo(conv), { ...sinEngram, engramId: null, modelo: null })
   // Algo que no es una charla: null
   for (const malo of [null, {}, { ...DOC, v: 2 }, { ...DOC, id: 7 }, { ...DOC, mensajes: 'x' }]) assert.equal(deArchivo(malo), null)
 })
@@ -114,7 +116,7 @@ test('deArchivo: de vuelta a la ventana; ida y vuelta da lo mismo', () => {
 test('charlaDeCabecera: lo que lista Rust (sin mensajes, con texto para buscar)', () => {
   const { mensajes, ...cab } = DOC
   const x = charlaDeCabecera({ ...cab, texto: 'Mi color es verde\nAnotado: verde.' })
-  assert.deepEqual(x, { id: 'c-7', titulo: 'Colores', motor: 'claude', carpeta: 'C:\\Desktop\\catalogo', creada: Date.parse(DOC.creada), actualizada: Date.parse(DOC.actualizada), texto: 'Mi color es verde\nAnotado: verde.' })
+  assert.deepEqual(x, { id: 'c-7', titulo: 'Colores', motor: 'claude', carpeta: 'C:\\Desktop\\catalogo', modelo: null, creada: Date.parse(DOC.creada), actualizada: Date.parse(DOC.actualizada), texto: 'Mi color es verde\nAnotado: verde.' })
   assert.equal(mensajes.length, 2)
   assert.equal(charlaDeCabecera({ id: 'c-1' })?.titulo ?? null, null)
   assert.equal(charlaDeCabecera(null), null)
@@ -187,7 +189,7 @@ test('retomar una charla del disco: primero se lee, después se retoma con su se
   assert.equal(r2.chat.conversacion.id, 'c-7')
   assert.equal(r2.chat.estado, 'listo')
   assert.equal(r2.chat.cajon, false)
-  assert.deepEqual(r2.efectos.find(e => e.tipo === 'abrir'), { tipo: 'abrir', conversacion: 'c-7', motor: 'claude', carpeta: 'C:\\Desktop\\catalogo', sesionClaude: SESION })
+  assert.deepEqual(r2.efectos.find(e => e.tipo === 'abrir'), { tipo: 'abrir', conversacion: 'c-7', motor: 'claude', carpeta: 'C:\\Desktop\\catalogo', sesionClaude: SESION, modelo: null })
   // Lo leído de otra charla no se mezcla
   assert.equal(transicionChat(r1.chat, { tipo: 'retomar', id: 'c-7', conversacion: { ...DOC, id: 'c-8' } }, CTX).chat, r1.chat)
 })

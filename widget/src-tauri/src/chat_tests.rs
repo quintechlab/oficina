@@ -42,7 +42,11 @@ fn sesion_nueva() -> Sesion {
 }
 
 fn args(sesion: &Sesion) -> Vec<String> {
-    argumentos_chat(&Pedido { ajustes: Path::new(r"C:\config\chat\ajustes.json"), mascota: "Ascua", sesion })
+    args_con_modelo(sesion, None)
+}
+
+fn args_con_modelo(sesion: &Sesion, modelo: Option<&str>) -> Vec<String> {
+    argumentos_chat(&Pedido { ajustes: Path::new(r"C:\config\chat\ajustes.json"), mascota: "Ascua", sesion, modelo })
 }
 
 /// El valor que sigue a `bandera` en la lista.
@@ -107,7 +111,38 @@ fn argumentos_con_las_barreras_de_seguridad() {
         assert!(a.contains(&String::from("--strict-mcp-config")));
         assert_eq!(valor(&a, "--settings"), Some(r"C:\config\chat\ajustes.json"));
         assert_eq!(valor(&a, "--max-budget-usd"), Some("2"));
-        assert!(!a.contains(&String::from("--model")), "D17: sin --model");
+        // "Por defecto" (#35): sin `--model`, el modelo por defecto de Claude Code
+        assert!(!a.contains(&String::from("--model")), "por defecto: sin --model");
+    }
+}
+
+#[test]
+fn los_modelos_son_los_cuatro_alias_y_nada_mas() {
+    assert_eq!(MODELOS, ["fable", "opus", "sonnet", "haiku"]);
+    for m in MODELOS {
+        assert!(modelo_valido(m), "{m}");
+    }
+    for malo in ["", "Sonnet", " sonnet", "sonnet ", "claude-sonnet-4-5", "default", "por-defecto", "opus[1m]", "--model"] {
+        assert!(!modelo_valido(malo), "{malo:?}");
+    }
+}
+
+#[test]
+fn con_modelo_va_model_con_el_alias_una_vez_y_el_resto_igual() {
+    // #35 (S3): `--model <alias>`, antes del par de la sesión; lo demás de 7.1 no cambia
+    for s in [sesion_nueva(), Sesion::Retomar(String::from("7ee41c33-05e9-4265-9ade-a67a92f48f2d"))] {
+        let sin = args(&s);
+        for m in MODELOS {
+            let a = args_con_modelo(&s, Some(m));
+            assert_eq!(a.iter().filter(|x| *x == "--model").count(), 1, "{a:?}");
+            assert_eq!(valor(&a, "--model"), Some(m));
+            let k = a.iter().position(|x| x == "--model").unwrap();
+            let par = a.iter().position(|x| x == "--session-id" || x == "--resume").unwrap();
+            assert!(k < par, "--model antes de la sesión: {a:?}");
+            let mut resto = a.clone();
+            resto.drain(k..k + 2);
+            assert_eq!(resto, sin);
+        }
     }
 }
 
@@ -950,6 +985,99 @@ fn una_charla_del_motor_local_nunca_lanza_claude() {
     borrar(&carpeta);
 }
 
+// ---------------------------------------------------------------- el modelo de la charla (#35)
+
+/// Un lanzador `cmd.exe` que anota los argumentos de cada lanzamiento.
+#[cfg(windows)]
+fn lanzador_que_anota(guion: String) -> (Lanzador, Arc<Mutex<Vec<Vec<String>>>>) {
+    let lanzados: Arc<Mutex<Vec<Vec<String>>>> = Arc::default();
+    let anotar = lanzados.clone();
+    let interno = lanzador_cmd(guion);
+    let lanzador: Lanzador = Arc::new(move |l: &Lanzamiento| {
+        anotar.lock().unwrap().push(l.args.clone());
+        interno(l)
+    });
+    (lanzador, lanzados)
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_cambiar_el_modelo_de_una_charla_usada_sigue_la_misma_sesion() {
+    let base = carpeta_temporal();
+    let f = fixture_en_archivo(&base, TEXTO, None);
+    // Responde un turno y queda vivo, con stdin abierto
+    let (lanzador, lanzados) = lanzador_que_anota(format!("set /p x= & type \"{}\" & ping -n 30 127.0.0.1 >nul", f.display()));
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    let cuantos = || lanzados.lock().unwrap().len();
+    let ultimo = || lanzados.lock().unwrap().last().unwrap().clone();
+    let abierto = chat.abrir_con("c-mod", "claude", None, "Avi", None, Some(String::from("haiku"))).unwrap();
+    let sesion = abierto["sesion"].as_str().unwrap().to_string();
+    assert_eq!(valor(&ultimo(), "--model"), Some("haiku"));
+    assert_eq!(valor(&ultimo(), "--session-id"), Some(sesion.as_str()));
+    chat.enviar("c-mod", 1, "Hola", &[], &Value::Null).unwrap();
+    r.esperar_final();
+    assert_eq!(r.tipos().last().map(String::as_str), Some("fin"));
+    // El mismo modelo: el mismo proceso
+    let mismo = chat.abrir_con("c-mod", "claude", None, "Avi", None, Some(String::from("haiku"))).unwrap();
+    assert_eq!(mismo["proceso"], "listo");
+    assert_eq!(cuantos(), 1);
+    // Otro modelo en una charla con mensajes (S1): sin error, la misma conversación con `--resume`
+    let otro = chat.abrir_con("c-mod", "claude", None, "Avi", None, Some(String::from("sonnet"))).unwrap();
+    assert_eq!(otro["sesion"], json!(sesion));
+    assert_eq!(cuantos(), 2);
+    let a = ultimo();
+    assert_eq!(valor(&a, "--resume"), Some(sesion.as_str()));
+    assert_eq!(valor(&a, "--model"), Some("sonnet"));
+    assert!(!a.contains(&String::from("--session-id")));
+    // Volver a "Por defecto": sin `--model`, la misma sesión
+    chat.abrir_con("c-mod", "claude", None, "Avi", None, None).unwrap();
+    assert_eq!(cuantos(), 3);
+    let a = ultimo();
+    assert_eq!(valor(&a, "--resume"), Some(sesion.as_str()));
+    assert!(!a.contains(&String::from("--model")));
+    // La carpeta y el motor de una charla con mensajes siguen sin cambiar (D8)
+    assert!(chat.abrir_con("c-mod", "local", None, "Avi", None, None).is_err());
+    assert!(chat.abrir_con("c-mod", "claude", Some(base.clone()), "Avi", None, None).is_err());
+    // Un modelo desconocido no se acepta
+    assert_eq!(chat.abrir_con("c-mod", "claude", None, "Avi", None, Some(String::from("gpt"))), Err(String::from("modelo desconocido")));
+    assert_eq!(chat.abrir_con("c-otra", "claude", None, "Avi", None, Some(String::from("Sonnet"))), Err(String::from("modelo desconocido")));
+    assert_eq!(cuantos(), 3);
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_cambiar_el_modelo_con_un_turno_en_curso_espera_al_proximo_envio() {
+    let base = carpeta_temporal();
+    let f = fixture_en_archivo(&base, TEXTO, None);
+    // Tarda ~2 s en responder: el turno sigue en curso cuando cambia el modelo
+    let (lanzador, lanzados) = lanzador_que_anota(format!("set /p x= & ping -n 3 127.0.0.1 >nul & type \"{}\" & ping -n 30 127.0.0.1 >nul", f.display()));
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    let abierto = chat.abrir_con("c-curso", "claude", None, "Avi", None, Some(String::from("haiku"))).unwrap();
+    let sesion = abierto["sesion"].as_str().unwrap().to_string();
+    chat.enviar("c-curso", 1, "Hola", &[], &Value::Null).unwrap();
+    // El turno no se corta ni se lanza otro proceso sobre la misma sesión
+    chat.abrir_con("c-curso", "claude", None, "Avi", None, Some(String::from("sonnet"))).unwrap();
+    assert_eq!(lanzados.lock().unwrap().len(), 1);
+    r.esperar_final();
+    assert_eq!(r.tipos().last().map(String::as_str), Some("fin"));
+    // El envío siguiente sale con el modelo nuevo, en la misma sesión
+    chat.enviar("c-curso", 2, "Otra", &[], &Value::Null).unwrap();
+    let l = lanzados.lock().unwrap().clone();
+    assert_eq!(l.len(), 2);
+    assert_eq!(valor(&l[1], "--model"), Some("sonnet"));
+    assert_eq!(valor(&l[1], "--resume"), Some(sesion.as_str()));
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
 // ---------------------------------------------------------------- 7. una sesión que Claude Code ya no tiene (E4)
 
 #[test]
@@ -1003,7 +1131,8 @@ fn proceso_falso_retomar_una_sesion_perdida_empieza_una_nueva() {
 // ---------------------------------------------------------------- con el claude real (a mano)
 //
 // `cargo test real_ -- --ignored --nocapture`. Gastan unos centavos: usan Haiku por
-// `ANTHROPIC_MODEL` (los argumentos de 7.1 no llevan `--model`).
+// `ANTHROPIC_MODEL` (sin modelo elegido, los argumentos de 7.1 no llevan `--model`), salvo el de
+// #35, que lo elige con `--model`.
 
 #[cfg(windows)]
 fn lanzador_real_haiku() -> Lanzador {
@@ -1022,7 +1151,7 @@ fn real_el_init_lista_solo_read_glob_grep_y_no_oficina() {
     let carpeta = carpeta_temporal();
     let ajustes = escribir_ajustes(&carpeta).unwrap();
     let sesion = Sesion::Nueva(nuevo_uuid());
-    let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: "Avi", sesion: &sesion }), cwd: carpeta_trabajo(&carpeta) };
+    let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: "Avi", sesion: &sesion, modelo: None }), cwd: carpeta_trabajo(&carpeta) };
     let mut c = (lanzador_real_haiku())(&l).unwrap();
     c.current_dir(&l.cwd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
     let mut hijo = c.spawn().unwrap();
@@ -1178,5 +1307,50 @@ fn real_retomar_despues_de_cerrar_avis_recuerda_lo_hablado() {
     let listo2 = r2.todos().iter().find(|v| v["tipo"] == "listo").and_then(|v| v["sesion"].as_str().map(String::from));
     assert_eq!(listo2.as_deref(), Some(sesion.as_str()), "retomar sigue en la misma sesión");
     chat2.apagar();
+    borrar(&carpeta);
+}
+
+/// #35 (S1): cambiar el modelo a mitad de una charla sigue la misma conversación con el modelo nuevo
+/// (`--resume` con otro `--model`). Qué modelo respondió cada turno sale de la transcripción de
+/// Claude Code (el `init` no viaja a la ventana).
+#[cfg(windows)]
+#[test]
+#[ignore]
+fn real_cambiar_de_haiku_a_sonnet_sigue_la_misma_sesion() {
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), Arc::new(comando_claude), r.emisor(), Tiempos::default());
+    chat.abrir_con("c-modelo", "claude", None, "Avi", None, Some(String::from("haiku"))).unwrap();
+    chat.enviar("c-modelo", 1, "Respondé solo OK.", &[], &Value::Null).unwrap();
+    r.esperar_final();
+    assert_eq!(r.tipos().last().map(String::as_str), Some("fin"), "{:?}", r.tipos());
+    let sesion = r.todos().iter().find(|v| v["tipo"] == "listo").and_then(|v| v["sesion"].as_str().map(String::from)).expect("sin init");
+    let antes = r.todos().len();
+    let abierto = chat.abrir_con("c-modelo", "claude", None, "Avi", None, Some(String::from("sonnet"))).unwrap();
+    assert_eq!(abierto["sesion"], json!(sesion));
+    chat.enviar("c-modelo", 2, "Respondé solo OK otra vez.", &[], &Value::Null).unwrap();
+    let limite = Instant::now() + Duration::from_secs(90);
+    while !r.todos()[antes..].iter().any(|v| ["fin", "error", "frenada"].contains(&v["tipo"].as_str().unwrap_or(""))) && Instant::now() < limite {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let segundo: Vec<Value> = r.todos()[antes..].to_vec();
+    println!("turno 2: {:?}", segundo.iter().map(|v| v["tipo"].clone()).collect::<Vec<_>>());
+    assert_eq!(segundo.last().unwrap()["tipo"], "fin");
+    let listo2 = segundo.iter().find(|v| v["tipo"] == "listo").and_then(|v| v["sesion"].as_str().map(String::from));
+    assert_eq!(listo2.as_deref(), Some(sesion.as_str()), "el cambio de modelo sigue en la misma sesión");
+    chat.apagar();
+    let claude = crate::transcripcion::carpeta_claude().expect("sin ~/.claude");
+    let ruta = crate::transcripcion::ruta_transcripcion(&claude, &sesion).expect("sin transcripción");
+    let mut modelos: Vec<String> = fs::read_to_string(ruta)
+        .unwrap()
+        .lines()
+        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+        .filter(|v| v["type"] == "assistant")
+        .filter_map(|v| v["message"]["model"].as_str().map(String::from))
+        .collect();
+    modelos.dedup();
+    println!("sesión {sesion}; modelos: {modelos:?}");
+    assert!(modelos.first().is_some_and(|m| m.contains("haiku")), "{modelos:?}");
+    assert!(modelos.last().is_some_and(|m| m.contains("sonnet")), "{modelos:?}");
     borrar(&carpeta);
 }

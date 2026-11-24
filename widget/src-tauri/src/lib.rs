@@ -725,11 +725,12 @@ fn estado_local() -> &'static str {
 
 /// Al abrir la hoja o cambiar de conversación: con Claude Code, precalienta el proceso sin mandarle
 /// nada (D19). `{ proceso, sesion, motivo?, engram, local }`. `sesionClaude`: la de una charla que
-/// ya tuvo mensajes (se retoma con `--resume`).
+/// ya tuvo mensajes (se retoma con `--resume`). `modelo` (#35): `fable`, `opus`, `sonnet`, `haiku` o
+/// `null` ("Por defecto", sin `--model`); cambiarlo sigue la misma conversación.
 #[tauri::command]
-async fn chat_abrir(conversacion: String, motor: String, carpeta: Option<String>, mascota: Option<String>, sesion_claude: Option<String>) -> Result<serde_json::Value, String> {
+async fn chat_abrir(conversacion: String, motor: String, carpeta: Option<String>, mascota: Option<String>, sesion_claude: Option<String>, modelo: Option<String>) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let mut r = el_chat()?.abrir(&conversacion, &motor, carpeta.map(std::path::PathBuf::from), mascota.as_deref().unwrap_or(""), sesion_claude)?;
+        let mut r = el_chat()?.abrir_con(&conversacion, &motor, carpeta.map(std::path::PathBuf::from), mascota.as_deref().unwrap_or(""), sesion_claude, modelo)?;
         // Si hay Engram (9.2): /health con 1 s, como mucho cada 5 min
         r["engram"] = serde_json::json!(if engram::ENGRAM.get().is_some_and(engram::Engram::hay) { "si" } else { "no" });
         r["local"] = serde_json::json!(estado_local());
@@ -916,15 +917,17 @@ async fn chat_borrar_todo() -> Result<serde_json::Value, String> {
     .map_err(|e| e.to_string())?
 }
 
-/// El motor y la carpeta de la charla (chat-avis-ux.md 3.4): quedan para la próxima charla nueva y
-/// la carpeta va primera en las recientes. Devuelve `{ motor, carpeta, recientes }` como el `chat` de `leer_configuracion`.
+/// El motor, la carpeta y el modelo de la charla (chat-avis-ux.md 3.4 y #35): quedan para la próxima
+/// charla nueva y la carpeta va primera en las recientes. `modelo`: uno de `chat::MODELOS` o `null`
+/// ("Por defecto"), guardado tal cual. Devuelve `{ motor, carpeta, recientes, modelo }` como el `chat`
+/// de `leer_configuracion`.
 #[tauri::command]
-fn guardar_chat(app: AppHandle, motor: String, carpeta: Option<String>) -> Result<serde_json::Value, String> {
+fn guardar_chat(app: AppHandle, motor: String, carpeta: Option<String>, modelo: Option<String>) -> Result<serde_json::Value, String> {
     let ruta = ruta_preferencias(&app).ok_or_else(|| String::from("sin carpeta de configuración"))?;
     if carpeta.as_deref().is_some_and(|c| !std::path::Path::new(c).is_dir()) {
         return Err(String::from("la carpeta no existe"));
     }
-    preferencias::guardar_chat(&ruta, &motor, carpeta.as_deref()).map(valor_chat)
+    preferencias::guardar_chat(&ruta, &motor, carpeta.as_deref(), modelo.as_deref()).map(valor_chat)
 }
 
 /// "＋ Elegir otra carpeta…" (D10): el selector nativo de carpetas, solo con ese clic. `null` si se
@@ -972,6 +975,7 @@ fn valor_chat(c: preferencias::Chat) -> serde_json::Value {
         "motor": c.motor,
         "carpeta": c.carpeta.filter(existe),
         "recientes": c.recientes.into_iter().filter(existe).collect::<Vec<_>>(),
+        "modelo": c.modelo,
     })
 }
 
