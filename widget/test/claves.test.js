@@ -102,7 +102,7 @@ test('textoClave: guardada, probando, válida, rechazada, sin red y otra respues
   assert.deepEqual(textoClave('gemini', { lectura: LEIDA, prueba: { estado: 'rechazada' } }), { estado: 'rechazada', tono: 'mal', linea: '× Google la rechazó', mascara, acciones: [reemplazar, borrar] })
   assert.deepEqual(textoClave('openai', { lectura: LEIDA, prueba: { estado: 'sin-red' } }), { estado: 'sin-red', tono: 'aviso', linea: 'No se pudo probar: sin conexión', mascara, acciones: [probar, reemplazar, borrar] })
   assert.deepEqual(textoClave('openai', { lectura: LEIDA, prueba: { estado: 'otro', codigo: 500 } }), {
-    estado: 'otro', tono: 'aviso', linea: 'No se pudo probar', titulo: 'OpenAI respondió 500', mascara, acciones: [probar, reemplazar, borrar],
+    estado: 'otro', tono: 'aviso', linea: 'No se pudo probar · respondió 500', titulo: 'OpenAI respondió 500', mascara, acciones: [probar, reemplazar, borrar],
   })
   // Armado: "Borrar" pide confirmar en el mismo botón (D5)
   assert.deepEqual(textoClave('anthropic', { lectura: LEIDA, armado: true }).acciones[2], { ...borrar, armado: true })
@@ -139,7 +139,8 @@ test('resultadoPrueba y los anuncios: lo que devuelve probar_clave, en la fila y
   assert.deepEqual(resultadoPrueba({ resultado: 'otro', estado: 500 }), { estado: 'otro', codigo: 500 })
   assert.deepEqual(resultadoPrueba({ resultado: 'raro' }), { estado: 'otro', codigo: null })
   assert.deepEqual(resultadoPrueba(null), { estado: 'otro', codigo: null })
-  assert.equal(anuncioPrueba('anthropic', { estado: 'valida' }), 'La clave es válida')
+  assert.equal(anuncioPrueba('anthropic', { estado: 'valida' }), 'La clave de Claude es válida')
+  assert.equal(anuncioPrueba('gemini', { estado: 'valida' }), 'La clave de Gemini es válida')
   assert.equal(anuncioPrueba('gemini', { estado: 'rechazada' }), 'Google rechazó la clave')
   assert.equal(anuncioPrueba('openai', { estado: 'sin-red' }), 'No se pudo probar: sin conexión')
   assert.equal(anuncioPrueba('openai', { estado: 'otro', codigo: 500 }), 'No se pudo probar: OpenAI respondió 500')
@@ -188,7 +189,7 @@ test('Modelos: "Claves de API" va antes del modelo local, con el candado, las tr
   assert.match(html, /<h3 class="sub">Claves de API<\/h3><p class="cand"><svg[^>]*aria-hidden="true"/)
   assert.match(html, /Se guardan en el Administrador de credenciales de Windows, nunca en un archivo\. Avis solo vuelve a mostrar los últimos 4 caracteres\./)
   for (const [id, inicial, nombre, de] of [['anthropic', 'A', 'Claude', 'Anthropic'], ['openai', 'O', 'OpenAI', 'GPT'], ['gemini', 'G', 'Gemini', 'Google']]) {
-    assert.match(html, new RegExp(`data-parte="clave-${id}"><div class="cl"><span class="prov" aria-hidden="true">${inicial}</span><div><div class="cl-t"><b>${nombre}</b><span class="cl-de">${de}</span>`))
+    assert.match(html, new RegExp(`data-parte="clave-${id}"><div class="cl" role="group" aria-labelledby="cfg-cl-${id}"><span class="prov" aria-hidden="true">${inicial}</span><div><div class="cl-t"><b id="cfg-cl-${id}">${nombre}</b><span class="cl-de">${de}</span>`))
   }
   assert.match(html, /Las usa la charla por API cuando llegue/)
   assert.match(html, /data-parte="local"/)
@@ -222,14 +223,14 @@ test('Clave: probando apaga Probar, rechazada en rojo, otra respuesta con su có
   assert.match(probando, /data-accion="cfg-clave-probar"[^>]*aria-disabled="true" title="Probando…">Probar/)
   assert.match(fila(textoClave('anthropic', { lectura: LEIDA, prueba: { estado: 'rechazada' } })), /<span class="est mal">× Anthropic la rechazó /)
   assert.match(fila(textoClave('anthropic', { lectura: LEIDA, prueba: { estado: 'valida' } })), /<span class="est ok">✓ Válida · probada recién /)
-  assert.match(fila(textoClave('anthropic', { lectura: LEIDA, prueba: { estado: 'otro', codigo: 500 } })), /<span class="est aviso" title="Anthropic respondió 500">No se pudo probar /)
+  assert.match(fila(textoClave('anthropic', { lectura: LEIDA, prueba: { estado: 'otro', codigo: 500 } })), /<span class="est aviso" title="Anthropic respondió 500">No se pudo probar · respondió 500 /)
   const armado = fila(textoClave('anthropic', { lectura: LEIDA, armado: true }), { transcurrido: 900 })
   assert.match(armado, /class="armado" data-accion="cfg-clave-borrar" data-valor="anthropic" data-k="b-anthropic"[^>]*--ya:-900ms[^>]*>¿Borrar la clave\? Sí</)
   // Un borrado que falló lo dice debajo de su fila
   assert.match(fila(textoClave('anthropic', { lectura: LEIDA }), { error: 'clave:anthropic' }), /No se pudo borrar\. Probá de nuevo\./)
   assert.doesNotMatch(fila(textoClave('anthropic', { lectura: LEIDA }), { error: 'clave:openai' }), /No se pudo borrar/)
   // Recién guardada, la fila se baña de verde una vez
-  assert.match(fila(textoClave('anthropic', { lectura: LEIDA }), { recien: 'anthropic' }), /<div class="cl recien">/)
+  assert.match(fila(textoClave('anthropic', { lectura: LEIDA }), { recien: 'anthropic' }), /<div class="cl recien" role="group"/)
 })
 
 test('Clave editando: campo de contraseña sin valor, label oculto, ayuda descrita y "Mostrar"', () => {

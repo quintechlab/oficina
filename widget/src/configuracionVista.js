@@ -3,7 +3,7 @@
 // primerosPasosVista.js: los datos llegan armados desde main.js y nada de acá toca el DOM.
 // Entrega 1: la pestaña Panel. Entrega 2: Mascota (el escenario con la vista previa y las fichas) y el
 // Avi de 40 junto al título. Entrega 3: Instalación y el modelo local. Entrega 4: las claves de API.
-// Datos muestra solo su rótulo hasta que llegue el chat.
+// Datos muestra "Dónde queda cada cosa"; el historial del chat se suma con él (E5).
 
 import { escapar } from './logica.js'
 import { PESTANAS, UBICACIONES, limitesTamano, CLAVE_VISTA_PREVIA, opcionesForma, rotuloEspecie, PROVEEDORES, textoClave } from './configuracion.js'
@@ -52,37 +52,74 @@ export function avisoPreguntaConfiguracion(pendientes) {
   return '<button type="button" class="aviso cfg-aviso" data-accion="cfg-ver"><span>Claude te hace una pregunta</span><span class="ir">Ver →</span></button>'
 }
 
-/** El contenido de una pestaña. Las que todavía no tienen el suyo muestran solo su rótulo. */
+/**
+ * El contenido de una pestaña, con su `h2` oculto al principio: el `aria-labelledby` del panel no crea
+ * un encabezado, y sin él se saltaba del `h1` a los `h3` (16, D-f).
+ */
 export function seccionConfiguracion(tab, datos) {
-  if (tab === 'panel') return seccionPanel(datos)
-  if (tab === 'mascota') return seccionMascota(datos)
-  if (tab === 'modelos') return seccionModelos(datos)
-  if (tab === 'instalacion') return seccionInstalacion(datos)
   const p = PESTANAS.find(x => x.id === tab)
-  return p ? `<h3 class="sub">${p.nombre}</h3>` : ''
+  if (!p) return ''
+  const cuerpo = tab === 'panel' ? seccionPanel(datos)
+    : tab === 'mascota' ? seccionMascota(datos)
+      : tab === 'modelos' ? seccionModelos(datos)
+        : tab === 'instalacion' ? seccionInstalacion(datos)
+          : seccionDatos()
+  return `<h2 class="oculto">${p.nombre}</h2>${cuerpo}`
+}
+
+/** Dónde queda cada cosa (4.4 y 5), de solo lectura. "Charlas → carpeta de Avis\chat" llega con el chat (E5). */
+export const UBICACIONES_DATOS = [
+  ['Preferencias', 'preferencias.json, en la carpeta de Avis'],
+  ['Claves', 'Administrador de credenciales de Windows · Avis/api/…'],
+  ['Modelo local', '%LOCALAPPDATA%\\avis-ia'],
+]
+
+/** Pestaña Datos: por ahora solo la lista; el historial del chat se suma con E5 (D6). */
+function seccionDatos() {
+  const filas = UBICACIONES_DATOS.map(([t, d]) => `<dt>${escapar(t)}</dt><dd>${escapar(d)}</dd>`).join('')
+  return `<h3 class="sub">Dónde queda cada cosa</h3><dl class="datos">${filas}</dl>`
 }
 
 // ------------------------------------------------------------------ piezas (6.1)
 
-const errorDe = (datos, clave) => (datos.error === clave ? `<p class="aj-error">${TEXTO_ERROR_GUARDAR}</p>` : '')
+// role=alert: el interruptor vuelve solo, y sin el anuncio el lector no sabe por qué (16, M3)
+const errorDe = (datos, clave) => (datos.error === clave ? `<p class="aj-error" role="alert">${TEXTO_ERROR_GUARDAR}</p>` : '')
 
-/** Una fila: título, descripción y el control a la derecha (`apilada`: abajo, a todo el ancho). */
-function fila(titulo, descripcion, control, { apilada = false, error = '' } = {}) {
-  return `<div class="aj${apilada ? ' apilada' : ''}"><div><span class="aj-t">${titulo}</span><span class="aj-d">${descripcion}</span></div>`
+/**
+ * Una fila: título, descripción y el control a la derecha (`apilada`: abajo, a todo el ancho). `para`:
+ * el id del control; el título pasa a ser su `label` (clic en el título = clic en el control) y la
+ * descripción lleva `<para>-d`, para su `aria-describedby` (16, D-b).
+ */
+function fila(titulo, descripcion, control, { apilada = false, error = '', para = null } = {}) {
+  const t = para ? `<label class="aj-t" for="${para}">${titulo}</label>` : `<span class="aj-t">${titulo}</span>`
+  const d = `<span class="aj-d"${para ? ` id="${para}-d"` : ''}>${descripcion}</span>`
+  return `<div class="aj${apilada ? ' apilada' : ''}"><div>${t}${d}</div>`
     + `<div class="aj-ctl">${control}</div>${error}</div>`
 }
 
+/** El id del interruptor de un ajuste. */
+const idInterruptor = clave => `cfg-sw-${clave}`
+
 /** Interruptor (`role=switch`): "Sí"/"No" a la izquierda solo a la vista; el estado lo da `aria-checked`. */
 function interruptor(clave, etiqueta, valor) {
+  const id = idInterruptor(clave)
   return `<span class="sw-e" aria-hidden="true">${valor ? 'Sí' : 'No'}</span>`
-    + `<button type="button" class="sw" role="switch" aria-checked="${!!valor}" aria-label="${etiqueta}" data-accion="cfg-sw" data-valor="${clave}" data-k="sw-${clave}"><i></i></button>`
+    + `<button type="button" class="sw" id="${id}" role="switch" aria-checked="${!!valor}" aria-label="${etiqueta}" aria-describedby="${id}-d" data-accion="cfg-sw" data-valor="${clave}" data-k="sw-${clave}"><i></i></button>`
 }
+
+/** Fila con interruptor: el título es su label y la descripción, su descripción. */
+function filaInterruptor(clave, titulo, descripcion, valor, datos) {
+  return fila(titulo, descripcion, interruptor(clave, titulo, valor), { error: errorDe(datos, clave), para: idInterruptor(clave) })
+}
+
+/** El texto de un segmento: la "✦" de la forma evolucionada se ve, pero no se lee (16, D-c). */
+const textoSegmento = t => escapar(t).replace(/ ✦$/, ' <span aria-hidden="true">✦</span>')
 
 /** Segmentos (`radiogroup` con foco itinerante): la opción elegida es la única en el orden de tabulación. */
 function segmentos(accion, opciones, actual, etiqueta, clase = '') {
   const botones = opciones.map(([v, t]) => {
     const sel = v === actual
-    return `<button type="button" role="radio" aria-checked="${sel}" tabindex="${sel ? 0 : -1}" data-accion="${accion}" data-valor="${v}" data-k="${accion}-${v}">${t}</button>`
+    return `<button type="button" role="radio" aria-checked="${sel}" tabindex="${sel ? 0 : -1}" data-accion="${accion}" data-valor="${v}" data-k="${accion}-${v}">${textoSegmento(t)}</button>`
   }).join('')
   return `<div class="seg${clase ? ` ${clase}` : ''}" role="radiogroup" aria-label="${etiqueta}">${botones}</div>`
 }
@@ -105,10 +142,10 @@ function pasoTamano(tamano) {
 export function seccionPanel(datos) {
   return fila('Tamaño', 'De 100 a 200 %, de a 25. También con Ctrl + y Ctrl −.', pasoTamano(datos.tamano), { error: errorDe(datos, 'tamano') })
     + fila('Dónde vive', 'Flotando, o acoplada a un borde de la pantalla.', segmentos('cfg-ubic', UBICACIONES, datos.ubicacion, 'Dónde vive', 'ancho'), { apilada: true, error: errorDe(datos, 'ubicacion') })
-    + fila('Siempre arriba', 'Queda encima de las otras ventanas.', interruptor('arriba', 'Siempre arriba', datos.arriba), { error: errorDe(datos, 'arriba') })
-    + fila('Avisarme con cada pregunta', 'Una notificación de Windows cuando Claude te pregunta algo.', interruptor('avisar', 'Avisarme con cada pregunta', datos.avisar), { error: errorDe(datos, 'avisar') })
-    + fila('Pausar animaciones', 'Las mascotas quedan quietas en su pose.', interruptor('pausa', 'Pausar animaciones', datos.pausa), { error: errorDe(datos, 'pausa') })
-    + fila('Arrancar con Windows', 'Apagado de fábrica: solo lo cambia tu clic.', interruptor('arranque', 'Arrancar con Windows', datos.arranque), { error: errorDe(datos, 'arranque') })
+    + filaInterruptor('arriba', 'Siempre arriba', 'Queda encima de las otras ventanas.', datos.arriba, datos)
+    + filaInterruptor('avisar', 'Avisarme con cada pregunta', 'Una notificación de Windows cuando Claude te pregunta algo.', datos.avisar, datos)
+    + filaInterruptor('pausa', 'Pausar animaciones', 'Las mascotas quedan quietas en su pose.', datos.pausa, datos)
+    + filaInterruptor('arranque', 'Arrancar con Windows', 'Apagado de fábrica: solo lo cambia tu clic.', datos.arranque, datos)
 }
 
 // ------------------------------------------------------------------ Mascota (4.4, 5 y 6.1)
@@ -192,7 +229,7 @@ function tarjetaLocal(m, { armado = false, transcurrido = 0, error = false } = {
   return `<div class="tarj"><div class="tarj-t"><div><b>Qwen3-4B</b> <span class="tarj-de">en esta PC, sin internet</span></div>${pill(m.tono, m.pill, bajando ? ' data-cfg-pill' : '')}</div>`
     + barra
     + (acciones ? `<div class="acc">${acciones}</div>` : '')
-    + (error ? `<p class="aj-error">${TEXTO_ERROR_BORRAR}</p>` : '')
+    + (error ? `<p class="aj-error" role="alert">${TEXTO_ERROR_BORRAR}</p>` : '')
     + '</div>'
 }
 
@@ -238,17 +275,20 @@ function accionClave(p, a, transcurrido) {
  * verde una vez al guardar; `errorBorrar`: "No se pudo borrar" debajo.
  */
 export function filaClave(p, t, { recien = false, errorBorrar = false, transcurrido = 0 } = {}) {
-  const cab = `<div class="cl-t"><b>${escapar(p.nombre)}</b><span class="cl-de">${escapar(p.de)}</span></div>`
+  // Cada fila es un grupo con el nombre del proveedor: "Probar", "Reemplazar" y "Borrar" se repiten (16, M1)
+  const nombre = `cfg-cl-${escapar(p.id)}`
+  const grupo = ` role="group" aria-labelledby="${nombre}"`
+  const cab = `<div class="cl-t"><b id="${nombre}">${escapar(p.nombre)}</b><span class="cl-de">${escapar(p.de)}</span></div>`
   const prov = `<span class="prov" aria-hidden="true">${escapar(p.inicial)}</span>`
-  if (t.estado === 'editando') return `<div class="cl">${prov}${cab}${campoClave(p, t)}</div>`
+  if (t.estado === 'editando') return `<div class="cl"${grupo}>${prov}${cab}${campoClave(p, t)}</div>`
   const enPildora = t.estado === 'revisando' || t.estado === 'probando'
   const linea = enPildora ? pill(t.tono, t.linea) : escapar(t.linea)
   const tono = ['ok', 'mal', 'aviso'].includes(t.tono) ? ` ${t.tono}` : ''
   const est = `<span class="est${tono}"${t.titulo ? ` title="${escapar(t.titulo)}"` : ''}>${linea}${mascaraClave(t.mascara)}</span>`
   const acciones = t.acciones.map(a => accionClave(p, a, transcurrido)).join('')
-  return `<div class="cl${recien ? ' recien' : ''}">${prov}<div>${cab}${est}</div>`
+  return `<div class="cl${recien ? ' recien' : ''}"${grupo}>${prov}<div>${cab}${est}</div>`
     + (acciones ? `<div class="acc">${acciones}</div>` : '')
-    + (errorBorrar ? `<p class="aj-error">${TEXTO_ERROR_BORRAR}</p>` : '')
+    + (errorBorrar ? `<p class="aj-error" role="alert">${TEXTO_ERROR_BORRAR}</p>` : '')
     + '</div>'
 }
 

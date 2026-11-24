@@ -392,7 +392,7 @@ export function resultadoPrueba(r) {
 export function anuncioPrueba(proveedor, prueba) {
   const empresa = proveedorDe(proveedor)?.empresa ?? ''
   switch (prueba?.estado) {
-    case 'valida': return 'La clave es válida'
+    case 'valida': return `La clave de ${proveedorDe(proveedor)?.nombre ?? ''} es válida`
     case 'rechazada': return `${empresa} rechazó la clave`
     case 'sin-red': return 'No se pudo probar: sin conexión'
     default: return prueba?.codigo ? `No se pudo probar: ${empresa} respondió ${prueba.codigo}` : 'No se pudo probar'
@@ -433,7 +433,7 @@ export function textoClave(proveedor, { lectura = null, prueba = null, editando 
     case 'sin-red': return t('sin-red', 'aviso', 'No se pudo probar: sin conexión', mascara, [probar, reemplazar, borrar])
     case 'otro': {
       const titulo = prueba.codigo ? `${empresa} respondió ${prueba.codigo}` : `${empresa} no respondió como se esperaba`
-      return t('otro', 'aviso', 'No se pudo probar', mascara, [probar, reemplazar, borrar], { titulo })
+      return t('otro', 'aviso', prueba.codigo ? `No se pudo probar · respondió ${prueba.codigo}` : 'No se pudo probar', mascara, [probar, reemplazar, borrar], { titulo })
     }
     default: return t('guardada', '', 'Guardada', mascara, [probar, reemplazar, borrar])
   }
@@ -449,3 +449,9 @@ export function empezarClave(config, proveedor) {
 export function retieneConfig(config) {
   return !!(config?.abierta && config.editando)
 }
+
+/** Con el tablero más bajo que esto (px CSS), la hoja compacta su encabezado (16, M4). */
+export const ALTO_MARCO_BAJO = 520
+
+/** ¿El tablero es bajo? `alto` en px CSS (sin el zoom), el de `d.local.tablero`. */
+export const marcoBajo = alto => Number(alto) < ALTO_MARCO_BAJO

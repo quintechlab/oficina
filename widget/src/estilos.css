@@ -229,7 +229,9 @@ h1, h2, h3 { font: inherit }
 .cab::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: var(--e-4); background: linear-gradient(var(--negro), transparent); pointer-events: none }
 #marco.vacio .cab::after, #marco.cargando .cab::after { display: none }
 .cab-t { flex: 1; min-width: 0; padding-top: var(--e-1); cursor: grab; user-select: none; contain: inline-size }
-.cab h1 { font: var(--t-display); letter-spacing: -.035em; overflow-wrap: anywhere }
+.cab h1 { width: fit-content; max-width: 100%; font: var(--t-display); letter-spacing: -.035em; overflow-wrap: anywhere }
+/* El foco al abrir la configuración va al h1: el anillo abraza la palabra (configuracion-ux.md 16, D-a) */
+#titulo:focus-visible { outline-offset: 4px; border-radius: 4px }
 .cab p { margin-top: var(--e-1); font: var(--t-cuerpo); color: var(--crema2) }
 .controles { display: flex; flex: none; margin: -4px -6px 0 0 }
 .tb {
@@ -1304,6 +1306,9 @@ p.det-rot { margin-top: var(--e-5) }
 
 /* La fila de la barra (6.1): el molde de un proyecto, con el engranaje; abierta, colores de .pj.activo */
 .pj.engr { --c: var(--crema2); margin-bottom: var(--e-4) }
+/* Su lugar: la línea y el aire que eran de .lado-pie, pegado al pie de lo que se ve (16, D-g) */
+.lado-cfg { position: sticky; bottom: 0; z-index: 1; margin-top: auto; padding-top: var(--e-5); border-top: 1px solid var(--linea); background: var(--negro) }
+.lado-cfg + .lado-pie { margin-top: 0; padding-top: 0; border-top: 0 }
 .pj.engr .pj-ic { background: var(--s2); color: var(--crema2) }
 .pj.engr svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round }
 .pj.engr kbd { flex: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
@@ -1318,6 +1323,13 @@ p.det-rot { margin-top: var(--e-5) }
 #marco.con-cfg #vacio-avi, #marco.con-cfg #otro, #marco.con-cfg #pestanas, #marco.con-cfg .split, #marco.con-cfg .ficha-u,
 #marco.con-cfg #w-globo, #marco.con-cfg #resumen, #marco.con-cfg #pp, #marco.con-cfg .conteos, #marco.con-cfg .sesiones { display: none }
 #marco.con-cfg .principal { overflow: hidden }
+/* Poco alto (16, M4): sin la bajada, el aviso en una línea de 28 y las pestañas de 32 */
+#marco.con-cfg.bajo #subtitulo { display: none }
+#marco.bajo #cfg-aviso .aviso { min-height: 28px; padding-block: 0 }
+#marco.bajo #cfg-aviso .aviso > span:not(.ir) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#marco.bajo #cfg-aviso { margin-bottom: var(--e-3) }
+#marco.bajo #cfg .pes { min-height: 32px }
+#marco.bajo #cfg .pestanas { margin-bottom: var(--e-4) }
 #marco.con-cfg #cfg { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
 #cfg > * { flex: none }
 #cfg-aviso { margin-bottom: var(--e-5) }
@@ -1340,7 +1352,12 @@ p.det-rot { margin-top: var(--e-5) }
 
 /* Filas (6.1): título y descripción a la izquierda, el control a la derecha; `.apilada`, abajo */
 #cfg .sub { margin: var(--e-8) 0 var(--e-2); font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
-#cfg .sub:first-child { margin-top: var(--e-2) }
+#cfg .sub:first-child, #cfg h2.oculto:first-child + .sub { margin-top: var(--e-2) }
+#cfg label.aj-t { cursor: pointer }
+/* Datos (6.1): dos columnas, el nombre en --tenue y el lugar en mono (16, B1) */
+#cfg .datos { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px var(--e-8); margin: 0; padding: 12px 0; border-top: 1px solid var(--linea) }
+#cfg .datos dt { font: var(--t-chico); color: var(--tenue) }
+#cfg .datos dd { margin: 0; font: var(--t-mono-s); color: var(--crema2); overflow-wrap: anywhere }
 #cfg .aj { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--e-2) var(--e-8); padding: 11px 0; border-top: 1px solid var(--linea) }
 #cfg .aj.apilada { grid-template-columns: 1fr }
 #cfg .aj-t { display: block; font: var(--t-cuerpo-f) }
@@ -1365,11 +1382,11 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .sw[aria-checked="true"]:focus-visible { outline-color: var(--crema) }
 
 /* Segmentos (radiogroup, 6.1): la elegida en crema con tinta, como el motor del chat */
-#cfg .seg { display: inline-flex; gap: var(--e-1); padding: 3px; border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s2) }
+#cfg .seg { display: inline-flex; gap: var(--e-1); padding: 2px; border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s2) }
 #cfg .seg.ancho { display: flex }
 #cfg .seg.ancho > button { flex: 1 }
 #cfg .seg > button {
-  min-height: 30px; padding: 0 var(--e-6); border: 0; border-radius: var(--r-pildora); background: none; color: var(--crema2);
+  min-height: 32px; padding: 0 var(--e-6); border: 0; border-radius: var(--r-pildora); background: none; color: var(--crema2);
   font: 700 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
   transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
 }
@@ -1393,7 +1410,7 @@ p.det-rot { margin-top: var(--e-5) }
 @property --cc { syntax: '<color>'; inherits: true; initial-value: #F2B632 }
 #cfg .esc-m {
   position: relative; display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: var(--e-2);
-  height: var(--alto-escena-cfg); padding: 0 var(--e-8) 0 var(--e-3); border: 1px solid var(--linea); border-radius: var(--r-tarjeta); overflow: hidden;
+  min-height: var(--alto-escena-cfg); padding: var(--e-3) var(--e-8) var(--e-3) var(--e-3); border: 1px solid var(--linea); border-radius: var(--r-tarjeta); overflow: hidden;
   background:
     radial-gradient(160px 70px at 80px 140px, color-mix(in srgb, var(--cc) 30%, transparent), transparent 72%),
     radial-gradient(260px 160px at 80px 120px, color-mix(in srgb, var(--cc) 10%, transparent), transparent 70%),
@@ -1407,7 +1424,7 @@ p.det-rot { margin-top: var(--e-5) }
 }
 #cfg .esc-fig { display: grid; place-items: center; padding-top: var(--e-2) }
 #cfg .esc-t { display: grid; gap: 5px; align-content: center; min-width: 0 }
-#cfg .esc-t .kick { font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+#cfg .esc-t .kick { font: var(--t-rotulo); line-height: 1.35; letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
 #cfg .esc-n { margin: 0; font: 800 26px/1 var(--f); letter-spacing: -.04em; color: var(--crema) }
 #cfg .esc-c { margin: 0; max-width: 34ch; font: var(--t-chico); color: var(--crema2) }
 #cfg .esc-t .seg { justify-self: start; margin-top: var(--e-2) }
@@ -1433,8 +1450,8 @@ p.det-rot { margin-top: var(--e-5) }
   background: var(--c); color: var(--negro); font: 800 11px/1 var(--f); font-style: normal;
 }
 #cfg .esp-nota {
-  margin: 0; display: grid; align-content: center; padding: var(--e-4) var(--e-5); border: 1px dashed var(--linea-hover);
-  border-radius: var(--r-ficha); font: var(--t-chico); color: var(--tenue);
+  margin: 0; display: grid; align-content: center; align-self: start; min-height: 96px; padding: var(--e-2) var(--e-3); border: 1px dashed var(--linea-hover);
+  border-radius: var(--r-ficha); font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue);
 }
 #cfg .esp-error:empty { display: none }
 #cfg .esp-error .aj-error { margin: var(--e-4) 0 0 }

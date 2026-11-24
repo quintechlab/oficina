@@ -56,7 +56,7 @@ import {
   valorInterruptor, INTERRUPTORES, ubicacionDe, bordeDeUbicacion, IDS_PESTANAS, elegirForma, anuncioEspecie, anuncioForma,
   textoMod, textoModelo, puntoPestana, filasEnEstaPC, clicBorrar, armadoVigente, desarmarVencido, MS_CONFIRMAR,
   PROVEEDORES, finalDe, formaClave, textoClave, clavesDesdeLectura, resultadoPrueba, anuncioPrueba, anuncioGuardada,
-  ANUNCIO_CLAVE_BORRADA, empezarClave, retieneConfig, detalleErrorClave,
+  ANUNCIO_CLAVE_BORRADA, empezarClave, retieneConfig, detalleErrorClave, marcoBajo,
 } from './configuracion.js'
 import {
   esqueletoConfiguracion, avisoPreguntaConfiguracion, seccionConfiguracion, partesMascota, partesModelos, miniConfiguracion, nombrePestana,
@@ -2009,7 +2009,11 @@ function colocar(d) {
     cuerpo.setProperty(`--${prefijo}h`, `${c.alto}px`)
   }
   if (d.local.muesca) { poner('m', d.local.muesca); poner('l', d.local.luz) }
-  if (d.local.tablero) poner('t', d.local.tablero)
+  if (d.local.tablero) {
+    poner('t', d.local.tablero)
+    // Poco alto (200 % en una pantalla de 768): la hoja de la configuración compacta su encabezado (configuracion-ux.md 16, M4)
+    $('#marco').classList.toggle('bajo', marcoBajo(d.local.tablero.alto))
+  }
   if (d.local.tira) poner('q', d.local.tira)
   st.disp = d
   st.ventana = { ...d.ventana }
@@ -3176,12 +3180,23 @@ async function guardarAjusteConfig(clave, valor) {
   }
 }
 
-/** Un anuncio en la región `role=status` de la hoja: se vacía antes, así el mismo texto se vuelve a oír. */
+/**
+ * Un anuncio en la región `role=status` de la hoja: se vacía antes, así el mismo texto se vuelve a oír.
+ * Dos que llegan casi juntos (probar dos claves a la vez) se dicen juntos: uno no pisa al otro (16, D-e).
+ */
+let anunciosConfig = []
+let anuncioConfigEn = null
 function decirConfig(mensaje) {
   const el = $('#cfg-vivo')
-  if (!el) return
+  if (!el || !mensaje) return
+  anunciosConfig.push(mensaje)
+  if (anuncioConfigEn) return
   el.textContent = ''
-  setTimeout(() => { el.textContent = mensaje }, 30)
+  anuncioConfigEn = setTimeout(() => {
+    el.textContent = anunciosConfig.join('. ')
+    anunciosConfig = []
+    anuncioConfigEn = null
+  }, 150)
 }
 
 /**

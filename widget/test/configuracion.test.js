@@ -11,7 +11,7 @@ import {
   limitesTamano, configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion,
   pestanaValida, valorInterruptor, FORMAS_VISTA, opcionesForma, elegirForma, rotuloEspecie, anuncioEspecie, anuncioForma,
   modoVistaPrevia, CLAVE_VISTA_PREVIA, horaArgentina, textoMod, textoModelo, puntoPestana, clicBorrar, armadoVigente,
-  desarmarVencido, MS_CONFIRMAR, filasEnEstaPC,
+  desarmarVencido, MS_CONFIRMAR, filasEnEstaPC, marcoBajo,
 } from '../src/configuracion.js'
 import {
   pestanasConfiguracion, seccionConfiguracion, avisoPreguntaConfiguracion, esqueletoConfiguracion, partesMascota, miniConfiguracion,
@@ -194,10 +194,10 @@ test('Panel: las seis filas, en orden y con los textos de la dirección', () => 
 
 test('Panel: cada interruptor es un switch con su estado y "Sí"/"No" oculto al lector', () => {
   const html = seccionConfiguracion('panel', PANEL)
-  assert.match(html, /<span class="sw-e" aria-hidden="true">Sí<\/span><button type="button" class="sw" role="switch" aria-checked="true" aria-label="Siempre arriba" data-accion="cfg-sw" data-valor="arriba" data-k="sw-arriba">/)
-  assert.match(html, /aria-hidden="true">No<\/span><button type="button" class="sw" role="switch" aria-checked="false" aria-label="Avisarme con cada pregunta"/)
+  assert.match(html, /<span class="sw-e" aria-hidden="true">Sí<\/span><button type="button" class="sw" id="cfg-sw-arriba" role="switch" aria-checked="true" aria-label="Siempre arriba" aria-describedby="cfg-sw-arriba-d" data-accion="cfg-sw" data-valor="arriba" data-k="sw-arriba">/)
+  assert.match(html, /aria-hidden="true">No<\/span><button type="button" class="sw" id="cfg-sw-avisar" role="switch" aria-checked="false" aria-label="Avisarme con cada pregunta"/)
   assert.match(html, /aria-checked="false" aria-label="Pausar animaciones"/)
-  assert.match(html, /aria-checked="false" aria-label="Arrancar con Windows" data-accion="cfg-sw" data-valor="arranque"/)
+  assert.match(html, /aria-checked="false" aria-label="Arrancar con Windows" aria-describedby="cfg-sw-arranque-d" data-accion="cfg-sw" data-valor="arranque"/)
   const prendido = seccionConfiguracion('panel', { ...PANEL, arranque: true, pausa: true })
   assert.match(prendido, /aria-checked="true" aria-label="Arrancar con Windows"/)
   assert.match(prendido, /aria-checked="true" aria-label="Pausar animaciones"/)
@@ -228,10 +228,36 @@ test('Panel: un error al guardar queda debajo de su fila, y solo en esa', () => 
   assert.doesNotMatch(seccionConfiguracion('panel', PANEL), /No se pudo guardar/)
 })
 
-test('las pestañas que todavía no tienen contenido muestran solo su rótulo', () => {
-  for (const { id, nombre } of PESTANAS.filter(p => p.id === 'datos')) {
-    assert.equal(seccionConfiguracion(id, PANEL), `<h3 class="sub">${nombre}</h3>`, id)
+test('Datos: "Dónde queda cada cosa" con las tres filas de 5, sin las charlas hasta el chat (16, B1)', () => {
+  const html = seccionConfiguracion('datos', PANEL)
+  assert.match(html, /<h3 class="sub">Dónde queda cada cosa<\/h3><dl class="datos">/)
+  const filas = [...html.matchAll(/<dt>([^<]+)<\/dt><dd>([^<]+)<\/dd>/g)].map(m => [m[1], m[2]])
+  assert.deepEqual(filas, [
+    ['Preferencias', 'preferencias.json, en la carpeta de Avis'],
+    ['Claves', 'Administrador de credenciales de Windows · Avis/api/…'],
+    ['Modelo local', '%LOCALAPPDATA%\\avis-ia'],
+  ])
+  assert.doesNotMatch(html, /Charlas/)
+})
+
+test('cada panel empieza con su h2 oculto: no hay salto de h1 a h3 (16, D-f)', () => {
+  for (const { id, nombre } of PESTANAS.filter(p => ['panel', 'datos', 'mascota'].includes(p.id))) {
+    assert.ok(seccionConfiguracion(id, { ...PANEL, mascota: 'avi', forma: 'base' }).startsWith(`<h2 class="oculto">${nombre}</h2>`), id)
   }
+})
+
+test('los errores de guardar se anuncian: role=alert (16, M3)', () => {
+  assert.match(seccionConfiguracion('panel', { ...PANEL, error: 'arriba' }), /<p class="aj-error" role="alert">No se pudo guardar\. Probá de nuevo\.<\/p>/)
+})
+
+test('cada interruptor: el título es su label y la descripción lo describe (16, D-b)', () => {
+  const html = seccionConfiguracion('panel', PANEL)
+  assert.match(html, /<label class="aj-t" for="cfg-sw-arriba">Siempre arriba<\/label><span class="aj-d" id="cfg-sw-arriba-d">Queda encima de las otras ventanas\.<\/span>/)
+  assert.match(html, /<button type="button" class="sw" id="cfg-sw-arriba" role="switch"[^>]* aria-describedby="cfg-sw-arriba-d"/)
+})
+
+test('la estrella de la forma evolucionada no se lee (16, D-c)', () => {
+  assert.match(partesMascota({ mascota: 'avi', forma: 'base' }).texto, />Faro <span aria-hidden="true">✦<\/span><\/button>/)
 })
 
 test('con una pregunta pendiente, arriba de las pestañas: "Claude te hace una pregunta · Ver →"', () => {
@@ -301,7 +327,7 @@ test('Mascota: "Base · {evo}" es un radiogroup con la forma elegida enfocable',
   const base = seccionConfiguracion('mascota', MASCOTA)
   assert.match(base, /role="radiogroup" aria-label="Vista previa de la forma"/)
   assert.match(base, /role="radio" aria-checked="true" tabindex="0" data-accion="cfg-forma" data-valor="base"[^>]*>Base</)
-  assert.match(base, /role="radio" aria-checked="false" tabindex="-1" data-accion="cfg-forma" data-valor="evo"[^>]*>Pira ✦</)
+  assert.match(base, /role="radio" aria-checked="false" tabindex="-1" data-accion="cfg-forma" data-valor="evo"[^>]*>Pira <span aria-hidden="true">✦<\/span></)
   const evo = seccionConfiguracion('mascota', { ...MASCOTA, forma: 'evo' })
   assert.match(evo, /aria-checked="true" tabindex="0" data-accion="cfg-forma" data-valor="evo"/)
 })
@@ -327,7 +353,7 @@ test('Mascota: siete fichas en un radiogroup, la elegida con ✓ y la única en 
 
 test('Mascota: un error al guardar la especie queda debajo de las fichas', () => {
   assert.doesNotMatch(seccionConfiguracion('mascota', MASCOTA), /No se pudo guardar/)
-  assert.match(seccionConfiguracion('mascota', { ...MASCOTA, error: 'mascota' }), /<p class="aj-error">No se pudo guardar. Probá de nuevo.<\/p>/)
+  assert.match(seccionConfiguracion('mascota', { ...MASCOTA, error: 'mascota' }), /<p class="aj-error" role="alert">No se pudo guardar. Probá de nuevo.<\/p>/)
   assert.doesNotMatch(seccionConfiguracion('mascota', { ...MASCOTA, error: 'arriba' }), /No se pudo guardar/)
 })
 
@@ -634,13 +660,16 @@ test('Instalación: las versiones se escapan', () => {
   assert.doesNotMatch(html, /<b>1<\/b>|<i>x<\/i>/)
 })
 
-test('Datos sigue mostrando solo su rótulo hasta su entrega', () => {
-  assert.equal(seccionConfiguracion('datos', DATOS3), '<h3 class="sub">Datos</h3>')
-})
-
 test('pestanasConfiguracion: el punto de estado con su texto oculto; sin estado, sin punto', () => {
   const html = pestanasConfiguracion('mascota', { instalacion: { tono: 'aviso', texto: ', el mod necesita atención' } })
   assert.match(html, /id="cfg-t-instalacion"[^>]*>Instalación<i class="pt t-aviso" aria-hidden="true"><\/i><span class="oculto">, el mod necesita atención<\/span><\/button>/)
   assert.match(html, /id="cfg-t-modelos"[^>]*>Modelos<\/button>/)
   assert.equal(nombrePestana('modelos', null), 'Modelos')
+})
+
+test('marcoBajo: menos de 520 px CSS de tablero compacta el encabezado de la hoja (16, M4)', () => {
+  assert.equal(marcoBajo(327), true)
+  assert.equal(marcoBajo(519), true)
+  assert.equal(marcoBajo(520), false)
+  assert.equal(marcoBajo(640), false)
 })
