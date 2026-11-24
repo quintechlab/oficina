@@ -597,18 +597,7 @@ fn cancelar_un_pedido_avisa_cancelado_y_lo_descarta() {
     assert!(ia.en_curso.lock().unwrap().is_none());
 }
 
-// ---------------------------------------------------------------- bandeja: borrar el modelo
-
-#[test]
-fn borrar_pide_confirmacion_con_lo_que_se_libera() {
-    let t = texto_confirmar_borrado(3_246_663_558);
-    assert!(t.starts_with("¿Borrar el modelo de IA?"));
-    assert!(t.contains("3,2 GB"));
-    // Solo "Sí" borra; cerrar el cuadro o "No", nada
-    assert!(debe_borrar(IDYES));
-    assert!(!debe_borrar(7));
-    assert!(!debe_borrar(0));
-}
+// ---------------------------------------------------------------- borrar el modelo (configuración, 7.2)
 
 #[test]
 fn los_gigas_van_con_una_cifra_y_coma() {

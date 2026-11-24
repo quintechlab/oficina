@@ -256,7 +256,7 @@ export function hilo(m) {
         partes.push(mascota(m, msg, k, k === todos.length - 1))
       }
     })
-    // Sin el modelo (se borró desde la bandeja o se está bajando), la descarga al final: sin ella no se manda (8)
+    // Sin el modelo (se borró desde la configuración o se está bajando), la descarga al final: sin ella no se manda (8)
     if (motorDe(m) === 'local' && (c.local === 'falta' || c.local === 'bajando')) partes.push(descargaLocal(m))
   }
   if (c.estado === 'error') partes.push(tarjetaError(c.error ?? undefined))

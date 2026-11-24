@@ -55,6 +55,17 @@ import {
 } from './dividida.js'
 import { fichasConversan, riel, cabConversa, pestanas as pestanasConv, mitades, firmaMitades, puente, fichaUltimo } from './divididaVista.js'
 import * as movimientoDividida from './divididaMotion.js'
+import {
+  configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion, pestanaSiguiente, validarAjuste,
+  valorInterruptor, INTERRUPTORES, ubicacionDe, bordeDeUbicacion, IDS_PESTANAS, elegirForma, anuncioEspecie, anuncioForma,
+  textoMod, textoModelo, modeloDesdeChat, descargaDesdeConfig, puntoPestana, filasEnEstaPC, clicBorrar, armadoVigente, desarmarVencido, MS_CONFIRMAR,
+  PROVEEDORES, finalDe, formaClave, textoClave, clavesDesdeLectura, resultadoPrueba, anuncioPrueba, anuncioGuardada,
+  ANUNCIO_CLAVE_BORRADA, empezarClave, retieneConfig, detalleErrorClave, marcoBajo,
+} from './configuracion.js'
+import {
+  esqueletoConfiguracion, avisoPreguntaConfiguracion, seccionConfiguracion, partesMascota, partesModelos, miniConfiguracion, nombrePestana,
+} from './configuracionVista.js'
+import * as movimientoConfig from './configuracionMotion.js'
 
 const INTERVALO_MS = 1500
 const INTERVALO_EQUIPO_MS = 60000
@@ -94,10 +105,37 @@ const st = {
   repo: undefined,
   /** Pestaña elegida de la tarjeta de pregunta. */
   activa: 0,
-  /** Marcas del menú de la bandeja. */
+  /** Los interruptores de la configuración (configuracion-ux.md 9.1), guardados en preferencias.json. */
   arriba: true,
   avisar: true,
   pausa: false,
+  /** "Arrancar con Windows": la marca real del sistema (`leer_configuracion`, `poner_arranque`). */
+  arranque: false,
+  /**
+   * La configuración dentro del panel (#23, configuracion-ux.md 4.6): abierta, la pestaña (la última
+   * de esta ejecución), la clave que se escribe, el borrado armado y el ajuste que no se pudo guardar.
+   */
+  config: configInicial(),
+  /** Partes de la hoja ya dibujadas, para no redibujar lo que no cambió. */
+  cfgFirmas: {},
+  /**
+   * La lectura del mod para la pestaña Instalación (`estado_mod`, configuracion-ux.md 9.2):
+   * `{ claude, mod, revisado, fallo }`, o null hasta leerla (al abrir la configuración y cuando cambia el mod).
+   */
+  cfgMod: null,
+  /** El último aviso del mod automático (`tomar_aviso_mod`) con la hora en que llegó: "Se actualizó solo…" (7.3). */
+  ultimoAvisoMod: null,
+  /** La versión de Avis (`leer_configuracion`), al pie de la pestaña Instalación. */
+  version: null,
+  /**
+   * Las claves de API (configuracion-ux.md 7.1 y 9.4): `{ <proveedor>: { guardada, final } }` de
+   * `claves_estado`, o null hasta leerlas. Solo el final de 4: la clave nunca vuelve a la ventana.
+   */
+  claves: null,
+  /** La clave recién guardada: su fila se baña de verde una vez (8). */
+  claveRecien: null,
+  /** Acoplada, el panel quedó fijado mientras se escribe una clave (4.1) y vuelve a su marca al terminar. */
+  cfgRet: { retuvo: false, fijaAntes: false, fijaTocada: false },
   mini: false,
   /** La ventana está escondida en la bandeja o minimizada: los Avis se pausan (6.5). */
   fuera: false,
@@ -105,7 +143,8 @@ const st = {
   revelado: false,
   /**
    * La mascota elegida para Claude (docs/diseno/mascotas-avi-ux.md 9.1): `mascota` de preferencias.json,
-   * leída al arrancar. Hasta Configuración (#23) no cambia con la ventana abierta.
+   * leída al arrancar. Cambia en la pestaña Mascota de la configuración y con `oficina://mascota`
+   * (configuracion-ux.md 9.3): toda la ventana se redibuja con la especie nueva, sin acto.
    */
   mascota: ESPECIE_POR_DEFECTO,
   /**
@@ -876,6 +915,8 @@ function aplicarFormas() {
     else movimientoEvolucion.devolver(a.svg, st.mascota, { retraso: a.retraso })
   }
   for (const svg of document.querySelectorAll('svg[data-evo]')) {
+    // La vista previa de la configuración no es de ninguna clave: su forma la elige "Base · {evo}"
+    if (svg.closest('#cfg')) continue
     const nueva = !vistasEvo.has(svg)
     vistasEvo.add(svg)
     // Con un acto en curso, la forma es de evolucionMotion.js
@@ -916,6 +957,12 @@ function pintar() {
   pintarMuesca(ahora, pp.faltan)
   // Sin sesiones no hay conversación que mirar: la dividida se suelta sin animación (8, vacío)
   if (!st.proyectos.length && st.dividida.clave) soltarDividida()
+  // La configuración (configuracion-ux.md 4.2): la hoja de la columna principal, también sin sesiones
+  $('#marco').classList.toggle('con-cfg', st.config.abierta)
+  if (st.config.abierta) $('#cfg-fila').setAttribute('aria-current', 'page')
+  else $('#cfg-fila').removeAttribute('aria-current')
+  if (st.config.abierta) { pintarHojaConfiguracion(); return }
+  pintarConfiguracion()
 
   if (!st.proyectos.length && forma === 'escenario') {
     // Sin tablero y con algo pendiente: el escenario de primeros pasos en lugar del vacío (3.2)
@@ -1697,6 +1744,7 @@ function moverProyecto(dir) {
 function ponerArriba(valor) {
   st.arriba = valor
   pintarControles()
+  pintarConfiguracion()
 }
 
 /**
@@ -1721,6 +1769,7 @@ function ponerPausa(valor) {
   st.pausa = valor
   document.body.classList.toggle('pausa', valor)
   verAvis()
+  pintarConfiguracion()
 }
 
 /**
@@ -1793,6 +1842,11 @@ document.addEventListener('click', async e => {
     if (b.getAttribute('aria-disabled') !== 'true') await accionPasos(a, b)
     return
   }
+  if (a.startsWith('cfg-')) {
+    // La configuración: un control en su punta (aria-disabled, 7) ignora el clic
+    if (b.getAttribute('aria-disabled') !== 'true') await accionConfiguracion(a, b)
+    return
+  }
   if (a === 'conv') {
     // Una ficha "Conversan" de la barra o del riel abre la dividida en esa conversación (3.4)
     abrirConversacion(b.dataset.clave, 'clic')
@@ -1828,6 +1882,13 @@ document.addEventListener('click', async e => {
     if (b.closest('#otro')) st.pp.abierto = false
     // Un proyecto de la barra o el aviso de una pregunta en otro proyecto
     const p = st.proyectos[+b.dataset.proy]
+    // Con la configuración abierta, elegir un proyecto la cierra y lo muestra (configuracion-ux.md 4.1)
+    if (p && st.config.abierta) {
+      cerrarConfig({ foco: false })
+      if (p.repo !== st.repo) irAProyecto(p.repo, 1)
+      $(`#proyectos [data-proy="${b.dataset.proy}"]`)?.focus()
+      return
+    }
     if (p) irAProyecto(p.repo, 1)
   } else if (a === 'tab') {
     st.activa = +b.dataset.i
@@ -1879,11 +1940,8 @@ document.addEventListener('click', async e => {
   } else if (a === 'cerrar' && st.acople && b.closest('#marco')) {
     evento({ tipo: 'cerrar' })
   } else if (a === 'pin') {
-    const nuevo = !st.arriba
-    try {
-      await invocar('fijar_arriba', { valor: nuevo })
-      ponerArriba(nuevo)
-    } catch (err) { st.error = `No se pudo fijar la ventana: ${err}`; pintarPie() }
+    // "Siempre arriba" del encabezado: el mismo ajuste que el interruptor de la configuración (se guarda)
+    if (!(await guardarAjusteConfig('arriba', !st.arriba))) { st.error = 'No se pudo fijar la ventana'; pintarPie() }
   } else if (a === 'mini') {
     await ponerMini(true)
   } else if (a === 'expandir') {
@@ -1914,12 +1972,46 @@ document.addEventListener('input', e => {
     refrescarBarra(e.target.closest('.ctl'))
   }
 })
+// Al escribir de nuevo en el campo de la clave, su error o su aviso se van (el texto queda, 7.1)
+document.addEventListener('input', e => {
+  if (e.target.id !== 'cfg-clave-in' || !st.config.errorClave) return
+  st.config = { ...st.config, errorClave: null }
+  pintarConfiguracion()
+})
 document.addEventListener('compositionstart', e => { if (e.target.matches?.('.ctl-in')) st.componiendo = true })
 document.addEventListener('compositionend', () => { st.componiendo = false })
 
 document.addEventListener('keydown', e => {
   // Las teclas de la hoja de la charla (chat-avis-ux.md 3.5): van antes que el Esc de la pregunta y el de la muesca
   if (teclaChat(e)) return
+  // Ctrl , con el panel a la vista abre la configuración (configuracion-ux.md 4.1); abierta, el foco va al título
+  if (esAtajoConfiguracion(e)) {
+    e.preventDefault()
+    if (!st.mini && (!st.acople || st.vista)) abrirConfig()
+    return
+  }
+  // Esc con la configuración abierta, una capa por vez (4.1): la clave que se escribe, el "¿Borrar? Sí"
+  // y la hoja. Cerrada la hoja, el Esc siguiente es el de siempre (acoplada, pliega el panel)
+  if (e.key === 'Escape' && st.config.abierta) {
+    e.preventDefault()
+    const proveedor = st.config.editando
+    const { config, accion } = alEsc(st.config)
+    if (accion === 'cerrar') cerrarConfig()
+    else {
+      st.config = config
+      pintarConfiguracion()
+      // La clave cancelada: el texto se fue con el campo y el foco vuelve a "+ Agregar clave" o "Reemplazar"
+      if (accion === 'cancelar-clave') enfocarClave(proveedor, 'r')
+    }
+    return
+  }
+  // Enter en el campo de la clave la guarda (7.1); nada mientras compone el IME
+  if (e.key === 'Enter' && e.target.id === 'cfg-clave-in' && !e.isComposing) {
+    e.preventDefault()
+    guardarClaveConfig(e.target.dataset.valor)
+    return
+  }
+  if (teclaConfiguracion(e)) return
   // Barra de control (#19, D4): Enter envía, Shift+Enter hace línea nueva, nada mientras compone el IME.
   // Las demás teclas son del campo; Esc sigue de largo (pliega el detalle o la muesca, como en todo campo)
   if (e.target.matches?.('#sesiones .ctl-in')) {
@@ -1962,7 +2054,7 @@ document.addEventListener('keydown', e => {
   if (teclaDividida(e)) return
   // Fuera de la pregunta, Esc cierra la muesca aunque esté fijada y devuelve el foco a la muesca (7.2)
   if (e.key === 'Escape' && st.acople && st.muesca.abierta) { e.preventDefault(); evento({ tipo: 'esc' }); return }
-  if (st.mini || e.target.closest?.('input, textarea, summary, #pp, #hoja')) return
+  if (st.mini || e.target.closest?.('input, textarea, summary, #pp, #hoja, #cfg')) return
   // ↑ ↓ mueven el foco entre los proyectos de la barra (no cambian de proyecto)
   const fila = e.target.closest?.('#proyectos [data-proy]')
   if (fila && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
@@ -1971,6 +2063,8 @@ document.addEventListener('keydown', e => {
     filas[(filas.indexOf(fila) + (e.key === 'ArrowDown' ? 1 : -1) + filas.length) % filas.length].focus()
     return
   }
+  // Con la configuración abierta no hay proyecto a la vista: ← → no cambian ninguno por detrás
+  if (st.config.abierta) return
   if (e.key === 'ArrowLeft') { e.preventDefault(); moverProyecto(-1) }
   if (e.key === 'ArrowRight') { e.preventDefault(); moverProyecto(1) }
 })
@@ -1987,6 +2081,7 @@ async function aplicarTamano(porcentaje) {
   ponerPaso(porcentaje)
   recolocar()
   programarAjuste()
+  pintarConfiguracion()
 }
 
 /** Aplica el paso `p` en `<html>` (todo crece junto). */
@@ -2117,7 +2212,11 @@ function colocar(d) {
     cuerpo.setProperty(`--${prefijo}h`, `${c.alto}px`)
   }
   if (d.local.muesca) { poner('m', d.local.muesca); poner('l', d.local.luz) }
-  if (d.local.tablero) poner('t', d.local.tablero)
+  if (d.local.tablero) {
+    poner('t', d.local.tablero)
+    // Poco alto (200 % en una pantalla de 768): la hoja de la configuración compacta su encabezado (configuracion-ux.md 16, M4)
+    $('#marco').classList.toggle('bajo', marcoBajo(d.local.tablero.alto))
+  }
   if (d.local.tira) poner('q', d.local.tira)
   colocarHoja(d, poner)
   st.disp = d
@@ -2257,6 +2356,7 @@ function evento(ev) {
   st.muesca = e
   // Mientras el código de GitHub retiene el panel, un cambio de la marca es del usuario (alfiler o Esc)
   if (st.pp.retuvo && e.fija !== antes.fija) st.pp.fijaTocada = true
+  if (st.cfgRet.retuvo && e.fija !== antes.fija) st.cfgRet.fijaTocada = true
   if (e.foco) st.focoPendiente = e.foco
   pintarControles()
   if (e.efecto) sincronizar()
@@ -2269,6 +2369,9 @@ function aplicarFoco() {
   st.focoPendiente = null
   if (foco === 'muesca') $('#muesca').focus()
   else if (foco === 'pp' && $('#pp-h')) $('#pp-h').focus()
+  // La configuración: su título al abrir, o una pieza de la hoja (`cfg:<data-k>`)
+  else if (foco === 'cfg' && st.config.abierta) $('#titulo').focus()
+  else if (foco.startsWith('cfg:') && st.config.abierta) ($(`#cfg [data-k="${CSS.escape(foco.slice(4))}"]`) ?? $('#titulo')).focus()
   else ($('#proyectos .pj.activo') ?? $('#proyectos [data-proy]') ?? $('#marco [data-accion="pin"]'))?.focus()
 }
 
@@ -2860,6 +2963,8 @@ async function irAPaso(destino, { foco = 'titulo' } = {}) {
 async function abrirAsistente({ foco = false } = {}) {
   st.pp.abierto = true
   st.pp.cerrado = false
+  // Primeros pasos va en la misma columna: abrirlo cierra la configuración
+  if (st.config.abierta) cerrarConfig({ foco: false })
   if (st.mini) await ponerMini(false)
   revisarPasos()
   pintar()
@@ -2906,7 +3011,6 @@ function revisarPasos({ aLaVista = true } = {}) {
     }
     st.pp.revisando = false
     st.pp.leyendo = false
-    invocar('menu_primeros_pasos', { faltan: modeloPasos().faltan }).catch(() => {})
     pintar()
   })()
   return st.pp.promesa
@@ -2937,6 +3041,8 @@ function alEventoPaso(payload) {
     revisarPasos({ aLaVista: false }).then(() => {
       if (payload.estado === 'listo' && (payload.accion === 'conectar' || payload.accion === 'permiso')) leerEquipo()
     })
+    // El mod cambió (prendido o instalado): la pestaña Instalación lo vuelve a leer
+    if (st.config.abierta && (payload.accion === 'mod' || payload.accion === 'activar')) leerEstadoMod()
   }
   pintar()
 }
@@ -2958,6 +3064,9 @@ async function tomarAvisoMod() {
     const texto = textoAvisoMod(aviso)
     if (!texto) return
     st.pp.avisoMod = aviso
+    // La tarjeta del mod de la configuración dice "Se actualizó solo…" el mismo día (7.3)
+    st.ultimoAvisoMod = { ...aviso, cuando: Date.now() }
+    if (st.config.abierta) leerEstadoMod()
     anunciar(texto)
     // La versión nueva ya está: el asistente la lee sin pasar los pasos a "Revisando"
     revisarPasos({ aLaVista: false })
@@ -3049,6 +3158,669 @@ function retenerPanel(modelo, forma) {
     if (st.muesca.fija !== fija) st.muesca = { ...st.muesca, fija }
     pintarControles()
   }
+}
+
+// ------------------------------------------------------------------ configuración (#23, docs/diseno/configuracion-ux.md)
+// Reglas (3 y 13): todo se aplica en el clic y se guarda al instante (no hay "Guardar"); un ajuste
+// que no se pudo guardar vuelve a su valor y lo dice debajo de su fila; lo que no existe todavía no
+// se muestra. La hoja vive en #cfg, en la columna principal, como la de primeros pasos.
+
+/**
+ * Lo que muestran las pestañas. `local`: el estado del modelo local (por defecto el que guarda la
+ * charla, `modeloDesdeChat(st.chat)`; la firma de la sección lo pasa sin el progreso de la descarga,
+ * que se cambia en su lugar).
+ */
+function datosConfiguracion(local = modeloDesdeChat(st.chat), ahora = Date.now()) {
+  const ejecMod = st.pp.ejec.mod
+  const corriendo = ejecMod?.fase === 'corriendo' || ejecMod?.fase === 'verificando'
+  // La lectura del mod: la de estado_mod; sin ella todavía, la de primeros pasos (sin la hora de revisión)
+  const lectura = st.cfgMod ?? (st.pp.revision?.claude ? st.pp.revision : null)
+  const armado = st.config.armado
+  return {
+    tamano: st.tamano, ubicacion: ubicacionDe(st.acople), arriba: st.arriba, avisar: st.avisar, pausa: st.pausa,
+    arranque: st.arranque, error: st.config.error, mascota: st.mascota, forma: st.config.forma,
+    modelo: textoModelo(local),
+    mod: textoMod(lectura, st.cfgMod, st.ultimoAvisoMod, ahora, { instalando: corriendo && ejecMod.accion === 'mod', prendiendo: corriendo && ejecMod.accion === 'activar' }),
+    enEstaPC: filasEnEstaPC(st.cfgMod, st.pp.revision),
+    version: st.version,
+    armado: armado && armadoVigente(st.config, armado.id, ahora) ? armado.id : null,
+    transcurrido: armado ? Math.max(0, MS_CONFIRMAR - (armado.hasta - ahora)) : 0,
+    claves: datosClaves(ahora),
+    recien: st.claveRecien,
+  }
+}
+
+/** La fila de cada clave (7.1): lo leído de Credenciales (solo el final), la última prueba y el campo abierto. */
+function datosClaves(ahora) {
+  const c = st.config
+  return Object.fromEntries(PROVEEDORES.map(({ id }) => [id, textoClave(id, {
+    lectura: st.claves ? (st.claves[id] ?? { guardada: false }) : null,
+    prueba: c.pruebas?.[id] ?? null,
+    editando: c.editando === id,
+    ver: c.ver,
+    error: c.errorClave,
+    armado: armadoVigente(c, `clave:${id}`, ahora),
+  })]))
+}
+
+/** Las mismas pestañas sin el progreso de la descarga: lo que decide si la sección se redibuja. */
+function firmaConfiguracion(tab, ahora) {
+  // El "¿Borrar? Sí" lleva cuánto lleva armado (para retomar la línea): no cuenta para la firma
+  return seccionConfiguracion(tab, datosFirma(ahora))
+}
+
+/** El encabezado y la barra con la configuración abierta: ningún proyecto elegido, la hoja abajo. */
+function pintarHojaConfiguracion() {
+  modoMarco('tablero')
+  $('#marco').classList.remove('con-hoja')
+  const enfocado = document.activeElement?.closest?.('#proyectos [data-proy]')
+  if (poner('#proyectos', barraProyectos(st.proyectos, -1)) && enfocado) $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
+  texto('#titulo', 'Configuración')
+  $('#titulo').title = ''
+  texto('#subtitulo', 'Se guarda al instante')
+  pintarConfiguracion()
+}
+
+/**
+ * Dibuja la hoja en #cfg por partes (4.6): el esqueleto una vez, la línea de la pregunta, la pestaña
+ * elegida y la sección solo si cambiaron. El foco vuelve a la misma pieza (`data-k`). Cerrada, vacía.
+ * La luz de la mascota (`--cc`) va en #cfg, que no se redibuja: así cambia con su transición (8).
+ */
+function pintarConfiguracion() {
+  const raiz = $('#cfg')
+  const mini = $('#cfg-mini')
+  if (!st.config.abierta) {
+    if (raiz.firstChild) { raiz.innerHTML = ''; st.cfgFirmas = {} }
+    if (mini.firstChild) mini.innerHTML = ''
+    $('#marco').classList.remove('con-mini')
+    retenerPorClave()
+    return
+  }
+  if (!raiz.firstChild) { raiz.innerHTML = esqueletoConfiguracion(st.config.tab); st.cfgFirmas = {} }
+  raiz.style.setProperty('--cc', datosEspecie(st.mascota).c)
+  // El Avi de 40 junto al título, fuera de Mascota (6.1 `.mini`)
+  const htmlMini = miniConfiguracion(st.mascota, st.config.tab)
+  if (st.cfgFirmas.mini !== htmlMini) {
+    mini.innerHTML = htmlMini
+    $('#marco').classList.toggle('con-mini', !!htmlMini)
+    st.cfgFirmas.mini = htmlMini
+  }
+  const pendientes = st.proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
+  const aviso = avisoPreguntaConfiguracion(pendientes)
+  if (st.cfgFirmas.aviso !== aviso) { $('#cfg-aviso').innerHTML = aviso; st.cfgFirmas.aviso = aviso }
+  const ahora = Date.now()
+  const datos = datosConfiguracion(modeloDesdeChat(st.chat), ahora)
+  // Las pestañas no se redibujan: cambia cuál está elegida, así el indicador viaja desde donde estaba.
+  // El punto de estado (6.3) se reescribe solo si cambió; la pestaña elegida que cambia de ancho
+  // vuelve a poner el indicador, sin viaje
+  const puntos = { modelo: datos.modelo.estado, mod: datos.mod.estado, claves: datos.claves }
+  let anchoCambio = false
+  for (const b of document.querySelectorAll('#cfg [role="tab"]')) {
+    const sel = b.dataset.valor === st.config.tab
+    b.setAttribute('aria-selected', String(sel))
+    b.tabIndex = sel ? 0 : -1
+    const nombre = nombrePestana(b.dataset.valor, puntoPestana(puntos, b.dataset.valor))
+    if (st.cfgFirmas[`tab-${b.dataset.valor}`] !== nombre) {
+      b.innerHTML = nombre
+      st.cfgFirmas[`tab-${b.dataset.valor}`] = nombre
+      anchoCambio = true
+    }
+  }
+  const lista = $('#cfg .pestanas')
+  if (!$('#cfg .ind').style.width || anchoCambio) movimientoConfig.colocarIndicador(lista, false)
+  const html = seccionConfiguracion(st.config.tab, datos)
+  const firma = firmaConfiguracion(st.config.tab, ahora)
+  // Lo único que cambia sin redibujar: el progreso de la descarga del modelo local (7.2)
+  if (st.cfgFirmas.seccion === firma && st.config.tab === 'modelos') ponerProgresoConfig(datos.modelo)
+  else if (st.cfgFirmas.seccion !== firma) {
+    const cont = $('#cfg-cont')
+    const k = cont.contains(document.activeElement) ? document.activeElement.closest('[data-k]')?.dataset.k : null
+    // Mascota y Modelos ya dibujadas: cambia solo la parte que cambió. En Mascota la figura sigue si
+    // cambia la forma y la luz del escenario hace su transición; en Modelos, el campo de la clave que
+    // se escribe no se toca cuando cambia otra fila o el modelo local (4.6). La firma de cada parte
+    // sale de los datos sin el progreso de la descarga (que se pone en su lugar)
+    const tab = st.config.tab
+    const partes = tab === 'mascota' ? partesMascota(datos) : tab === 'modelos' ? partesModelos(datos) : null
+    const firmasPartes = tab === 'modelos' ? partesModelos(datosFirma(ahora)) : partes
+    const armada = tab === 'mascota' ? cont.querySelector('.esc-m') : tab === 'modelos' ? cont.querySelector('[data-parte="local"]') : null
+    if (partes && armada) {
+      for (const [parte, h] of Object.entries(partes)) {
+        const f = firmasPartes[parte]
+        if (st.cfgFirmas[`m-${parte}`] === f) continue
+        const el = cont.querySelector(`[data-parte="${parte}"]`)
+        if (el) ponerParteConCampo(el, h)
+        st.cfgFirmas[`m-${parte}`] = f
+      }
+      if (tab === 'modelos') ponerProgresoConfig(datos.modelo)
+    } else {
+      cont.innerHTML = html
+      for (const [parte, f] of Object.entries(firmasPartes ?? {})) st.cfgFirmas[`m-${parte}`] = f
+    }
+    $('#cfg-p').setAttribute('aria-labelledby', `cfg-t-${tab}`)
+    if (k && cont.contains(document.activeElement) === false) cont.querySelector(`[data-k="${CSS.escape(k)}"]`)?.focus({ preventScroll: true })
+    st.cfgFirmas.seccion = firma
+  }
+  retenerPorClave()
+}
+
+/** Los datos de la hoja sin el progreso de la descarga ni lo que lleva armado un borrado: lo que decide si algo se redibuja. */
+function datosFirma(ahora) {
+  const r = modeloDesdeChat(st.chat)
+  const datos = datosConfiguracion(r.trabajo === 'descargando' ? { ...r, progreso: { bajado: 0, total: r.progreso?.total ?? 0 } } : r, ahora)
+  return { ...datos, transcurrido: 0 }
+}
+
+/**
+ * Reemplaza una parte de la hoja. Si adentro está el campo de la clave que se escribe, su texto, la
+ * selección y el foco pasan al campo nuevo: el texto vive solo en el `<input>` (4.6), nunca en el HTML.
+ */
+function ponerParteConCampo(el, html) {
+  const viejo = el.querySelector('#cfg-clave-in')
+  const guardado = viejo && { valor: viejo.value, ini: viejo.selectionStart, fin: viejo.selectionEnd, foco: document.activeElement === viejo }
+  el.innerHTML = html
+  const nuevo = guardado && el.querySelector('#cfg-clave-in')
+  if (!nuevo) return
+  nuevo.value = guardado.valor
+  try { nuevo.setSelectionRange(guardado.ini, guardado.fin) } catch { /* el tipo no admite selección */ }
+  if (guardado.foco) nuevo.focus({ preventScroll: true })
+}
+
+/**
+ * Acoplada, el panel no se pliega mientras el campo de una clave está abierto (4.1, el mismo
+ * mecanismo que `retenerPanel` de primeros pasos): queda fijado y al guardar o cancelar vuelve a la
+ * marca que tenía, salvo que el usuario la haya cambiado mientras tanto.
+ */
+function retenerPorClave() {
+  const r = st.cfgRet
+  const retener = !!st.acople && retieneConfig(st.config)
+  if (retener && !r.retuvo && !st.muesca.fija) {
+    r.retuvo = true
+    r.fijaAntes = st.muesca.fija
+    r.fijaTocada = false
+    st.muesca = { ...st.muesca, fija: true }
+    pintarControles()
+  } else if (!retener && r.retuvo) {
+    r.retuvo = false
+    const fija = fijaAlSoltar({ antes: r.fijaAntes, actual: st.muesca.fija, tocada: r.fijaTocada })
+    if (st.muesca.fija !== fija) st.muesca = { ...st.muesca, fija }
+    pintarControles()
+  }
+}
+
+/** El progreso de la descarga en la tarjeta del modelo local, en su lugar (la barra sigue su transición). */
+function ponerProgresoConfig(m) {
+  if (m.estado !== 'bajando') return
+  const barra = $('#cfg [data-cfg-barra]')
+  if (barra) {
+    barra.style.setProperty('--p', String(m.fraccion))
+    barra.setAttribute('aria-valuenow', String(m.porcentaje))
+  }
+  for (const [sel, valor] of [['#cfg [data-cfg-cifras]', m.linea], ['#cfg [data-cfg-pill] > span', m.pill]]) if ($(sel)) texto(sel, valor)
+}
+
+/**
+ * Abre la configuración (la fila de la barra, Ctrl ,, la bandeja o una tarjeta con `tab`). Sale de la
+ * dividida y de la tira; acoplada, abre también el panel. Ya abierta, solo lleva el foco al título
+ * (no la cierra: cerrar es "‹ Tablero" o Esc). El foco va al `h1` (11).
+ */
+async function abrirConfig({ tab, foco = true } = {}) {
+  if (st.config.abierta) {
+    if (tab && tab !== st.config.tab) cambiarPestanaConfig(tab)
+    if (foco) $('#titulo').focus()
+    return
+  }
+  if (st.dividida.clave) await cerrarConversacion({ descartar: true })
+  if (st.mini) await ponerMini(false)
+  st.config = { ...abrirConfiguracion(st.config, tab), error: null }
+  // El mod, las claves y el modelo local se leen al abrir (solo lectura, sin red): los puntos de las
+  // pestañas se ven desde cualquiera
+  leerEstadoMod()
+  leerClaves()
+  leerModelo()
+  pintar()
+  movimientoConfig.abrirHoja($('#marco .cab'), $('#cfg-tabs'), $('#cfg-cont'))
+  if (st.acople) {
+    evento({ tipo: 'clic' })
+    if (foco) { st.focoPendiente = 'cfg'; aplicarFoco() }
+  } else if (foco) {
+    $('#titulo').focus()
+  }
+}
+
+/** Cierra la hoja ("‹ Tablero", Esc o un proyecto de la barra): el tablero vuelve como estaba. */
+function cerrarConfig({ foco = true } = {}) {
+  if (!st.config.abierta) return
+  st.config = cerrarConfiguracion(st.config)
+  pintar()
+  movimientoConfig.cerrarHoja([$('#otro'), $('#w-globo'), $('#conteos'), ...document.querySelectorAll('#sesiones > .ses')])
+  if (foco) $('#cfg-fila').focus()
+}
+
+/** Cambia de pestaña (clic o flechas): el indicador viaja y el contenido entra desde su lado. */
+function cambiarPestanaConfig(tab, { foco = false } = {}) {
+  if (!IDS_PESTANAS.includes(tab) || tab === st.config.tab) return
+  const direccion = Math.sign(IDS_PESTANAS.indexOf(tab) - IDS_PESTANAS.indexOf(st.config.tab))
+  const salioDeMascota = st.config.tab === 'mascota'
+  // La vista previa vuelve a la base: la figura se redibuja al volver a Mascota
+  st.config = { ...st.config, tab, editando: null, armado: null, error: null, forma: 'base', ver: false, errorClave: null }
+  pintarConfiguracion()
+  movimientoConfig.colocarIndicador($('#cfg .pestanas'), true)
+  movimientoConfig.cambioPestana($('#cfg-cont'), direccion, { mini: salioDeMascota ? $('#cfg-mini > .avi') : null })
+  $('#cfg-p').scrollTop = 0
+  if (foco) $(`#cfg-t-${tab}`)?.focus()
+}
+
+/** Aplica un interruptor en la ventana (sin guardar): lo mismo que hace el evento de Rust. */
+function aplicarInterruptor(clave, valor) {
+  if (clave === 'arriba') ponerArriba(valor)
+  else if (clave === 'avisar') st.avisar = valor
+  else if (clave === 'pausa') ponerPausa(valor)
+}
+
+/**
+ * Cambia un ajuste en el clic y lo guarda (`guardar_ajuste`): si no se pudo, vuelve a su valor de
+ * antes y lo dice debajo de su fila (7.5). Devuelve si quedó guardado.
+ */
+async function guardarAjusteConfig(clave, valor) {
+  if (!validarAjuste(clave, valor)) return false
+  const antes = st[clave]
+  aplicarInterruptor(clave, valor)
+  st.config = { ...st.config, error: null }
+  pintarConfiguracion()
+  try {
+    await invocar('guardar_ajuste', { clave, valor })
+    return true
+  } catch (err) {
+    registrar(`configuración: no se pudo guardar ${clave}: ${err}`)
+    aplicarInterruptor(clave, antes)
+    st.config = { ...st.config, error: clave }
+    pintarConfiguracion()
+    return false
+  }
+}
+
+/**
+ * Un anuncio en la región `role=status` de la hoja: se vacía antes, así el mismo texto se vuelve a oír.
+ * Dos que llegan casi juntos (probar dos claves a la vez) se dicen juntos: uno no pisa al otro (16, D-e).
+ */
+let anunciosConfig = []
+let anuncioConfigEn = null
+function decirConfig(mensaje) {
+  const el = $('#cfg-vivo')
+  if (!el || !mensaje) return
+  anunciosConfig.push(mensaje)
+  if (anuncioConfigEn) return
+  el.textContent = ''
+  anuncioConfigEn = setTimeout(() => {
+    el.textContent = anunciosConfig.join('. ')
+    anunciosConfig = []
+    anuncioConfigEn = null
+  }, 150)
+}
+
+/**
+ * Cambia la mascota en toda la ventana (configuracion-ux.md 9.3): la marca, la muesca, la tira, las
+ * tarjetas, los subagentes y el equipo se redibujan con la especie nueva, sin acto. Las firmas no
+ * llevan la mascota, así que se olvidan; la forma evolucionada de cada clave sigue (st.formas). La
+ * vista previa de la configuración vuelve a la base. Devuelve si cambió.
+ */
+function ponerMascota(especie) {
+  if (!validarAjuste('mascota', especie) || especie === st.mascota) return false
+  st.mascota = especie
+  st.config = { ...st.config, forma: 'base' }
+  for (const k of Object.keys(st.firmas)) if (k.startsWith('#')) st.firmas[k] = null
+  marca.redibujar()
+  muescaAvi.redibujar()
+  pintar()
+  return true
+}
+
+/**
+ * Elige la especie en la pestaña Mascota: se ve en toda la ventana en el clic, con su acto en el
+ * escenario (8), y se guarda (`guardar_ajuste`, que también avisa `oficina://mascota`). Si no se pudo
+ * guardar, vuelve la de antes y lo dice debajo de las fichas (7.5).
+ */
+async function elegirEspecieConfig(especie) {
+  if (!validarAjuste('mascota', especie) || especie === st.mascota) return
+  const antes = st.mascota
+  st.config = { ...st.config, error: null }
+  ponerMascota(especie)
+  movimientoConfig.elegirEspecie({
+    figura: $('#cfg .esc-fig > .avi'), textos: [...document.querySelectorAll('#cfg .esc-t > *')], marca: $('#marca-avi > .avi'),
+  })
+  decirConfig(anuncioEspecie(especie))
+  try {
+    await invocar('guardar_ajuste', { clave: 'mascota', valor: especie })
+  } catch (err) {
+    registrar(`configuración: no se pudo guardar mascota: ${err}`)
+    st.config = { ...st.config, error: 'mascota' }
+    // Si mientras tanto se eligió otra, esa manda: solo se vuelve si sigue la que falló
+    if (st.mascota !== especie || !ponerMascota(antes)) pintarConfiguracion()
+  }
+}
+
+/** "Base · {evo}" (8): la forma de la vista previa, con el acto real de la especie o al instante. */
+function cambiarFormaConfig(forma) {
+  const config = elegirForma(st.config, forma)
+  if (config.forma === st.config.forma) return
+  st.config = config
+  pintarConfiguracion()
+  movimientoConfig.vistaPrevia($('#cfg .esc-fig svg'), st.mascota, forma, $('#cfg .esc-m'))
+  decirConfig(anuncioForma(st.mascota, forma))
+}
+
+/** "Arrancar con Windows": solo con este clic cambia el inicio de Windows; la marca es la real. */
+async function ponerArranqueConfig(valor) {
+  const antes = st.arranque
+  st.arranque = valor
+  st.config = { ...st.config, error: null }
+  pintarConfiguracion()
+  try {
+    st.arranque = (await invocar('poner_arranque', { valor })) === true
+    if (st.arranque !== valor) st.config = { ...st.config, error: 'arranque' }
+  } catch (err) {
+    registrar(`configuración: arrancar con Windows: ${err}`)
+    st.arranque = antes
+    st.config = { ...st.config, error: 'arranque' }
+  }
+  pintarConfiguracion()
+}
+
+/** "Dónde vive": flotar o acoplar a un borde, como al soltar el tablero; acoplada, el panel queda abierto. */
+async function ubicarConfig(ubicacion) {
+  const borde = bordeDeUbicacion(ubicacion)
+  if (borde === undefined || ubicacion === ubicacionDe(st.acople)) return
+  // Mientras otra forma anima o se arrastra, no se cambia: la opción vuelve a la de ahora, sin error
+  if (st.arrastre || st.transicion) { st.cfgFirmas.seccion = null; pintarConfiguracion(); return }
+  st.config = { ...st.config, error: null }
+  await acoplarA(borde)
+  if (ubicacionDe(st.acople) !== ubicacion) {
+    st.config = { ...st.config, error: 'ubicacion' }
+    pintarConfiguracion()
+    return
+  }
+  // Acoplada, la configuración sigue a la vista: el panel se abre con el foco en la opción elegida
+  if (st.acople && st.config.abierta) {
+    evento({ tipo: 'clic' })
+    st.focoPendiente = `cfg:cfg-ubic-${ubicacion}`
+    aplicarFoco()
+  } else {
+    $(`#cfg [data-k="cfg-ubic-${ubicacion}"]`)?.focus()
+  }
+}
+
+/**
+ * Lee el mod para la pestaña Instalación (`estado_mod`: solo comandos de lectura). Al abrir la
+ * configuración y cuando el mod cambia con ella abierta; nunca en el ciclo de 1,5 s.
+ */
+async function leerEstadoMod() {
+  if (!tauri?.core) return
+  try {
+    const e = await invocar('estado_mod')
+    if (e && typeof e === 'object') st.cfgMod = e
+  } catch (err) {
+    registrar(`configuración: estado del mod: ${err}`)
+  }
+  if (st.config.abierta) pintarConfiguracion()
+}
+
+let relojArmado = null
+/** El "¿Borrar? Sí" vuelve solo a los 3 s (D5). */
+function vigilarArmado() {
+  clearTimeout(relojArmado)
+  const a = st.config.armado
+  if (!a) return
+  relojArmado = setTimeout(() => {
+    const c = desarmarVencido(st.config, Date.now())
+    if (c === st.config) return vigilarArmado()
+    st.config = c
+    pintarConfiguracion()
+  }, Math.max(0, a.hasta - Date.now()) + 20)
+}
+
+/**
+ * "Borrar" del modelo local (7.2): el primer clic arma "¿Borrar …? Sí" 3 s; el segundo borra una vez
+ * (`borrar_modelo`, sin cuadro nativo). Rust avisa el estado nuevo y la tarjeta vuelve a "Sin
+ * instalar"; el foco va a "Descargar". Si no se pudo, lo dice debajo de la tarjeta.
+ */
+async function clicBorrarModelo() {
+  const { config, ejecutar } = clicBorrar(st.config, 'local', Date.now())
+  st.config = { ...config, error: null }
+  vigilarArmado()
+  pintarConfiguracion()
+  if (!ejecutar) return
+  try {
+    await invocar('borrar_modelo')
+    decirConfig('Modelo local borrado')
+    await leerModelo()
+    if (st.config.abierta) $('#cfg [data-k="local-descargar"]')?.focus({ preventScroll: true })
+  } catch (err) {
+    registrar(`configuración: no se pudo borrar el modelo: ${err}`)
+    st.config = { ...st.config, error: 'modelo' }
+    await leerModelo()
+    pintarConfiguracion()
+  }
+}
+
+// ------------------------------------------------------------------ claves de API (entrega 4: 7.1 y 9.4)
+// La clave cruza a Rust una sola vez (guardar_clave) y nunca vuelve: de Credenciales de Windows solo
+// llegan si hay una y su final de 4. El texto que se escribe vive solo en el campo; ni `st`, ni
+// widget.log, ni los errores lo llevan. Probar sale a la red solo con su clic.
+
+/** Lee qué claves hay (`claves_estado`: solo el final). Al abrir la configuración; nunca en el ciclo. */
+async function leerClaves() {
+  if (!tauri?.core) return
+  try {
+    st.claves = clavesDesdeLectura(await invocar('claves_estado')) ?? st.claves
+  } catch (err) {
+    registrar(`configuración: claves: no se pudieron leer (${detalleErrorClave(err)})`)
+  }
+  if (st.config.abierta) pintarConfiguracion()
+}
+
+/** El foco en una pieza de la fila de un proveedor, o en la que quede en su lugar (11). */
+function enfocarClave(proveedor, ...ks) {
+  for (const k of ks) {
+    const el = $(`#cfg [data-k="${k}-${proveedor}"]`) ?? $(`#cfg [data-k="${k}"]`)
+    if (el) { el.focus({ preventScroll: true }); return }
+  }
+}
+
+/** "+ Agregar clave" o "Reemplazar": abre el campo vacío (nunca precargado) con el foco adentro. */
+function abrirCampoClave(proveedor) {
+  st.config = empezarClave(st.config, proveedor)
+  vigilarArmado()
+  pintarConfiguracion()
+  $('#cfg-clave-in')?.focus()
+}
+
+/** "Cancelar" o Esc: el texto escrito se descarta con el campo; el foco vuelve a "+ Agregar clave" o "Reemplazar". */
+function cancelarClave() {
+  const p = st.config.editando
+  if (!p) return
+  st.config = { ...st.config, editando: null, ver: false, errorClave: null }
+  pintarConfiguracion()
+  enfocarClave(p, 'r')
+}
+
+/**
+ * "Guardar" (o Enter en el campo): lee lo escrito, revisa su forma (un error nunca borra lo escrito;
+ * un prefijo raro pide "Guardar igual", D13) y lo manda a Credenciales de Windows una sola vez. Al
+ * guardar: el campo se vacía y se va, la fila se baña de verde, se anuncia y el foco va a "Probar".
+ */
+async function guardarClaveConfig(proveedor) {
+  const campo = $('#cfg-clave-in')
+  if (!campo || st.config.editando !== proveedor || st.config.guardandoClave) return
+  const forma = formaClave(proveedor, campo.value)
+  const error = forma.estado !== 'ok' ? forma.estado : forma.aviso && st.config.errorClave !== 'prefijo' ? forma.aviso : null
+  if (error) {
+    st.config = { ...st.config, errorClave: error }
+    pintarConfiguracion()
+    $('#cfg-clave-in')?.focus()
+    return
+  }
+  st.config = { ...st.config, guardandoClave: true }
+  try {
+    const r = await invocar('guardar_clave', { proveedor, clave: forma.clave })
+    campo.value = ''
+    const actual = $('#cfg-clave-in')
+    if (actual) actual.value = ''
+    st.claves = { ...(st.claves ?? {}), [proveedor]: { guardada: true, final: finalDe(r?.final) } }
+    st.config = { ...st.config, editando: null, ver: false, errorClave: null, guardandoClave: false, pruebas: { ...st.config.pruebas, [proveedor]: null } }
+    st.claveRecien = proveedor
+    pintarConfiguracion()
+    decirConfig(anuncioGuardada(proveedor))
+    enfocarClave(proveedor, 'p', 'r')
+    setTimeout(() => {
+      if (st.claveRecien !== proveedor) return
+      st.claveRecien = null
+      if (st.config.abierta) pintarConfiguracion()
+    }, 1300)
+  } catch (err) {
+    // El campo sigue abierto con su texto: el detalle es solo el código de Windows, nunca la clave
+    const detalle = detalleErrorClave(err)
+    registrar(`configuración: claves: no se pudo guardar ${proveedor} (${detalle})`)
+    st.config = { ...st.config, errorClave: { windows: detalle }, guardandoClave: false }
+    pintarConfiguracion()
+    $('#cfg-clave-in')?.focus()
+  }
+}
+
+/** "Probar" (solo con el clic, D7): un pedido de solo lectura al proveedor con la clave guardada. */
+async function probarClaveConfig(proveedor) {
+  if (st.config.pruebas?.[proveedor]?.estado === 'probando') return
+  const poner = prueba => { st.config = { ...st.config, pruebas: { ...st.config.pruebas, [proveedor]: prueba } } }
+  poner({ estado: 'probando' })
+  pintarConfiguracion()
+  let prueba
+  try {
+    prueba = resultadoPrueba(await invocar('probar_clave', { proveedor }))
+  } catch (err) {
+    registrar(`configuración: claves: no se pudo probar ${proveedor} (${detalleErrorClave(err)})`)
+    prueba = { estado: 'otro', codigo: null }
+  }
+  poner(prueba)
+  pintarConfiguracion()
+  decirConfig(anuncioPrueba(proveedor, prueba))
+  // "Probar" se va con válida o rechazada: el foco queda en "Reemplazar"
+  if (!$('#cfg').contains(document.activeElement)) enfocarClave(proveedor, 'p', 'r')
+}
+
+/**
+ * "Borrar" de una clave: el primer clic arma "¿Borrar la clave? Sí" 3 s (D5); el segundo la borra de
+ * Credenciales una vez. Después, "Sin clave" y el foco en "+ Agregar clave". Si no se pudo, lo dice
+ * debajo de su fila.
+ */
+async function clicBorrarClave(proveedor) {
+  const { config, ejecutar } = clicBorrar(st.config, `clave:${proveedor}`, Date.now())
+  st.config = { ...config, error: null }
+  vigilarArmado()
+  pintarConfiguracion()
+  if (!ejecutar) return
+  try {
+    await invocar('borrar_clave', { proveedor })
+    st.claves = { ...(st.claves ?? {}), [proveedor]: { guardada: false, final: '' } }
+    st.config = { ...st.config, pruebas: { ...st.config.pruebas, [proveedor]: null } }
+    pintarConfiguracion()
+    decirConfig(ANUNCIO_CLAVE_BORRADA)
+    enfocarClave(proveedor, 'r')
+  } catch (err) {
+    registrar(`configuración: claves: no se pudo borrar ${proveedor} (${detalleErrorClave(err)})`)
+    st.config = { ...st.config, error: `clave:${proveedor}` }
+    pintarConfiguracion()
+    enfocarClave(proveedor, 'b')
+  }
+}
+
+/** Los botones de la hoja (`data-accion="cfg-…"`). Cada uno hace solo lo suyo, y solo con el clic. */
+async function accionConfiguracion(a, b) {
+  switch (a) {
+    case 'cfg-abrir': await abrirConfig({ tab: b.dataset.tab }); break
+    case 'cfg-cerrar': cerrarConfig(); break
+    case 'cfg-tab': cambiarPestanaConfig(b.dataset.valor); break
+    case 'cfg-sw': {
+      const clave = b.dataset.valor
+      if (clave === 'arranque') await ponerArranqueConfig(!st.arranque)
+      else await guardarAjusteConfig(clave, !st[clave])
+      break
+    }
+    case 'cfg-tam':
+      st.config = { ...st.config, error: null }
+      try {
+        await invocar('cambiar_tamano', { direccion: Number(b.dataset.valor) })
+      } catch (err) {
+        registrar(`configuración: tamaño: ${err}`)
+        st.config = { ...st.config, error: 'tamano' }
+        pintarConfiguracion()
+      }
+      break
+    case 'cfg-ubic': await ubicarConfig(b.dataset.valor); break
+    case 'cfg-esp': await elegirEspecieConfig(b.dataset.valor); break
+    case 'cfg-forma': cambiarFormaConfig(b.dataset.valor); break
+    case 'cfg-local':
+      // El modelo local (7.2): bajarlo sin abrir la hoja de la charla ni mandarle nada al terminar, o
+      // borrarlo con el segundo clic
+      if (b.dataset.valor === 'descargar') {
+        st.config = { ...st.config, error: null }
+        if (descargaDesdeConfig(st.chat)) await descargarModelo('configuración')
+      } else if (b.dataset.valor === 'borrar') await clicBorrarModelo()
+      break
+    case 'cfg-mod':
+      // "Prender" corre el paso activar de primeros pasos (el mismo botón del asistente); sin Claude
+      // Code o sin el mod, "Abrir primeros pasos"
+      if (b.dataset.valor === 'activar') await correrPaso('activar')
+      else if (b.dataset.valor === 'pp') abrirAsistente({ foco: true })
+      break
+    case 'cfg-pp': abrirAsistente({ foco: true }); break
+    case 'cfg-clave-agregar': abrirCampoClave(b.dataset.valor); break
+    case 'cfg-clave-cancelar': cancelarClave(); break
+    case 'cfg-clave-ver':
+      // "Mostrar"/"Ocultar": el campo se redibuja con su texto (ponerParteConCampo) y el foco sigue en el botón
+      st.config = { ...st.config, ver: !st.config.ver }
+      pintarConfiguracion()
+      break
+    case 'cfg-clave-guardar': await guardarClaveConfig(b.dataset.valor); break
+    case 'cfg-clave-probar': await probarClaveConfig(b.dataset.valor); break
+    case 'cfg-clave-borrar': await clicBorrarClave(b.dataset.valor); break
+    case 'cfg-ver': {
+      // La pregunta pendiente (4.1): cierra la configuración y la muestra, en su proyecto
+      const k = st.proyectos.findIndex(p => preguntasPendientes(p).length)
+      cerrarConfig({ foco: false })
+      st.plegado = false
+      st.firmas.clavesGlobo = null
+      if (k >= 0 && st.proyectos[k].repo !== st.repo) irAProyecto(st.proyectos[k].repo, 1)
+      else pintar()
+      ;($('#w-globo button') ?? $('#otro .aviso') ?? $('#cfg-fila'))?.focus()
+      break
+    }
+  }
+}
+
+/**
+ * Teclado de la hoja (11): ← → Inicio Fin entre pestañas (activación automática); en los segmentos,
+ * ←↑ la anterior y →↓ la siguiente, que se elige al moverse (como un radio nativo). Devuelve si la usó.
+ */
+function teclaConfiguracion(e) {
+  if (!st.config.abierta) return false
+  const tab = e.target.closest?.('#cfg [role="tab"]')
+  if (tab && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+    e.preventDefault()
+    cambiarPestanaConfig(pestanaSiguiente(st.config.tab, e.key), { foco: true })
+    return true
+  }
+  const radio = e.target.closest?.('#cfg [role="radio"]')
+  const tecla = { ArrowDown: 'ArrowRight', ArrowUp: 'ArrowLeft' }[e.key] ?? e.key
+  if (radio && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(tecla)) {
+    e.preventDefault()
+    const grupo = [...radio.closest('[role="radiogroup"]').querySelectorAll('[role="radio"]')]
+    const sig = grupo.find(x => x.dataset.valor === pestanaSiguiente(radio.dataset.valor, tecla, grupo.map(x => x.dataset.valor)))
+    if (sig && sig !== radio) {
+      sig.focus()
+      sig.click()
+    }
+    return true
+  }
+  return false
 }
 
 // ------------------------------------------------------------------ la charla con la mascota (docs/diseno/chat-avis-ux.md)
@@ -3203,6 +3975,8 @@ function despacharChat(ev) {
     enviarZona()
   }
   pintarHoja()
+  // La tarjeta del modelo local de la configuración sigue la misma descarga (configuracion-ux.md 7.2)
+  if (st.config.abierta && (chat.local !== antes.local || chat.progreso !== antes.progreso)) pintarConfiguracion()
   if (abre && hojaSeVe()) abrirConMudanza()
   if (cierra && hojaCerrando) cerrarConMudanza()
   if (chat.estado === 'listo' && antes.estado !== 'listo' && hojaSeVe()) movimientoChat.aparecerPie([...$$('#chat-hilo .pie-m')].at(-1))
@@ -3402,12 +4176,12 @@ function enfocarEnHoja(a, id = null) {
 
 /** `estado_modelo` (solo lee, sin red): si el modelo de esta PC está, falta o se está bajando. */
 function leerModelo() {
-  if (!tauri?.core) return
-  invocar('estado_modelo').then(e => despacharChat({ tipo: 'modelo', modelo: e?.modelo, bajado: e?.bajado, total: e?.total }))
+  if (!tauri?.core) return Promise.resolve()
+  return invocar('estado_modelo').then(e => despacharChat({ tipo: 'modelo', modelo: e?.modelo, bajado: e?.bajado, total: e?.total }))
     .catch(err => registrar(`chat modelo: ${err}`))
 }
 
-/** Un evento `oficina://modelo` (la descarga o el borrado desde la bandeja). */
+/** Un evento `oficina://modelo` (la descarga o el borrado desde la configuración). */
 function alEventoModelo(p) {
   switch (p?.tipo) {
     case 'estado': despacharChat({ tipo: 'modelo', modelo: p.modelo, bajado: p.bajado, total: p.total }); break
@@ -3416,6 +4190,17 @@ function alEventoModelo(p) {
     case 'fallo': registrar(`chat modelo: ${p.motivo} ${p.detalle ?? ''}`); leerModelo(); break
     case 'cancelado': leerModelo(); break
   }
+}
+
+/**
+ * La única salida a la red del modelo local, solo con el clic en "Descargar" (de la hoja o de la
+ * configuración, 7.2). Solo baja: no abre la hoja ni manda nada al terminar. `desde`: para el log.
+ */
+async function descargarModelo(desde) {
+  try {
+    await invocar('descargar_modelo')
+    despacharChat({ tipo: 'modelo', modelo: 'bajando' })
+  } catch (err) { registrar(`${desde} descargar: ${err}`) }
 }
 
 /**
@@ -3641,13 +4426,7 @@ async function accionChat(a, b) {
     case 'ch-usar-local': elegirMotor('local'); break
     case 'ch-usar-claude': elegirMotor('claude'); break
     case 'ch-primeros-pasos': await abrirAsistente({ foco: true }); break
-    case 'ch-descargar':
-      // La única salida a la red del modelo local, solo con este clic
-      try {
-        await invocar('descargar_modelo')
-        despacharChat({ tipo: 'modelo', modelo: 'bajando' })
-      } catch (err) { registrar(`chat descargar: ${err}`) }
-      break
+    case 'ch-descargar': await descargarModelo('chat'); break
     case 'ch-retomar': despacharChat({ tipo: 'retomar', id: b.dataset.id }); break
     case 'ch-borrar': despacharChat({ tipo: 'borrar-charla' }); break
     case 'ch-copiar': await copiarDeHoja(b, c.conversacion?.mensajes[Number(b.dataset.i)]?.texto ?? ''); break
@@ -3764,13 +4543,16 @@ async function iniciar() {
   // Las definiciones de los Avis (piel, luz de piso y desenfoque), una vez por documento (5.1)
   document.body.insertAdjacentHTML('afterbegin', defsAvis())
   if (tauri?.core) {
-    // La mascota, antes del primer dibujo: las firmas no la llevan (mascotas-avi-ux.md 9.1)
-    try { st.mascota = especieValida(await invocar('mascota')) } catch { st.mascota = ESPECIE_POR_DEFECTO }
     try {
-      const m = await invocar('estado_menu')
-      if (typeof m.arriba === 'boolean') ponerArriba(m.arriba)
-      if (typeof m.avisar === 'boolean') st.avisar = m.avisar
-      if (typeof m.pausa === 'boolean') ponerPausa(m.pausa)
+      // Lo guardado en preferencias.json y la marca real del arranque (configuracion-ux.md 9.2)
+      const m = await invocar('leer_configuracion')
+      // La mascota, antes del primer dibujo: las firmas no la llevan (mascotas-avi-ux.md 9.1)
+      st.mascota = especieValida(m.mascota)
+      ponerArriba(valorInterruptor(m.arriba, INTERRUPTORES.arriba))
+      st.avisar = valorInterruptor(m.avisar, INTERRUPTORES.avisar)
+      ponerPausa(valorInterruptor(m.pausa, INTERRUPTORES.pausa))
+      st.arranque = m.arranque === true
+      st.version = typeof m.version === 'string' ? m.version : null
       // Dónde quedó el tablero flotante la última vez (fracciones del área, 9.7)
       if (m.flotante && typeof m.flotante === 'object') st.fraccion = { x: Number(m.flotante.x), y: Number(m.flotante.y) }
       // El motor y la carpeta de la próxima charla, y las recientes (chat-avis-ux.md 3.4, D11)
@@ -3787,15 +4569,23 @@ async function iniciar() {
         aplicarModo()
       }
       await aplicarTamano(typeof m.tamano === 'number' ? m.tamano : PASO_POR_DEFECTO)
-    } catch { await aplicarTamano(PASO_POR_DEFECTO) }
+    } catch {
+      st.mascota = ESPECIE_POR_DEFECTO
+      await aplicarTamano(PASO_POR_DEFECTO)
+    }
     const escuchar = tauri.event.listen
-    escuchar('oficina://arriba', ev => ponerArriba(!!ev.payload))
-    escuchar('oficina://avisar', ev => { st.avisar = !!ev.payload })
+    // "Pausar animaciones" de la bandeja o de la configuración
     escuchar('oficina://pausa', ev => ponerPausa(!!ev.payload))
     escuchar('oficina://tamano', ev => aplicarTamano(Number(ev.payload)))
+    // La mascota guardada (configuracion-ux.md 9.3): toda la ventana se redibuja con ella, sin acto;
+    // si la eligió esta misma ventana, ya está puesta y no pasa nada
+    escuchar('oficina://mascota', ev => ponerMascota(ev.payload?.mascota))
+    // "Configuración…" de la bandeja (configuracion-ux.md 4.1): muestra el panel y abre la hoja
+    escuchar('oficina://configuracion', ev => { if (ev.payload?.abrir) abrirConfig({ tab: ev.payload.tab }) })
     // Se abrió Avis otra vez estando en la tira mini: volver a la ventana completa
     escuchar('oficina://expandir', () => ponerMini(false))
-    // "Acoplar a" de la bandeja (7.3): un borde o Flotante (null)
+    // Acoplar a un borde o flotar (null) desde afuera: la bandeja ya no lo manda (la configuración
+    // llama a acoplarA directo); queda para la vista de desarrollo (`__bandeja`)
     escuchar('oficina://acoplar', ev => acoplarA(typeof ev.payload === 'string' ? ev.payload : null))
     // "Mostrar Avis", la notificación o abrir Avis otra vez: acoplada, abre el panel
     escuchar('oficina://abrir', () => { if (st.acople) evento({ tipo: 'clic' }) })
@@ -3814,8 +4604,8 @@ async function iniciar() {
       st.zonaN = n
       ponerDentro(!!ev.payload.dentro)
     })
-    // Primeros pasos: el ítem de la bandeja abre el asistente (3.5) y cada paso que corre avisa (9.5)
-    escuchar('oficina://primeros-pasos-abrir', () => abrirAsistente({ foco: true }))
+    // Primeros pasos: cada paso que corre avisa (9.5). Se abre desde la pestaña Instalación de la
+    // configuración (la bandeja ya no lo tiene, configuracion-ux.md 4.5) o desde el aviso del tablero
     escuchar('oficina://primeros-pasos', ev => alEventoPaso(ev.payload))
     // El mod automático (#17): la instalación sola que empieza y el aviso de una vez
     escuchar('oficina://mod-auto', ev => alEventoModAuto(ev.payload))
@@ -3823,7 +4613,7 @@ async function iniciar() {
     // La charla (chat-avis-ux.md 7.5): cada evento lleva su conversación y su turno; transicionChat
     // descarta los de otra conversación o de un turno viejo
     escuchar('oficina://chat', ev => despacharChat({ tipo: 'backend', payload: ev.payload }))
-    // El modelo de esta PC (3.6): la descarga y el borrado desde la bandeja
+    // El modelo de esta PC (3.6): la descarga y el borrado desde la configuración
     escuchar('oficina://modelo', ev => alEventoModelo(ev.payload))
     // Los archivos que se sueltan (10): Tauri los toma antes que el HTML (`dragDropEnabled`)
     tauri.webview?.getCurrentWebview?.()?.onDragDropEvent(ev => alArrastrarArchivo(ev.payload))

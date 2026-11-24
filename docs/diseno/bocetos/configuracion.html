@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Avis · Configuración — boceto (#23)</title>
+<link rel="stylesheet" href="../../../widget/src/avis.css">
+<link rel="stylesheet" href="../../../widget/src/especies.css">
+<style>
+/* Boceto de la pantalla de Configuración (#23). Servir desde la raíz del repo: importa avis.js,
+   especies.js, evolucionMotion.js y anime.js reales de widget/src. Tokens: los de estilos.css, sin
+   cambios; lo nuevo va marcado "nuevo". Las notas violetas punteadas son del boceto, no del widget. */
+@font-face{font-family:"Manrope";src:url("../../../widget/src/fuentes/manrope-latin.woff2") format("woff2");font-weight:400 800;font-display:swap}
+@font-face{font-family:"Manrope";src:url("../../../widget/src/fuentes/manrope-simbolos.woff2") format("woff2");font-weight:400 800;unicode-range:U+2192,U+25BE,U+2713}
+@font-face{font-family:"Martian Mono";src:url("../../../widget/src/fuentes/martian-mono-latin.woff2") format("woff2");font-weight:400 600;font-stretch:75%;font-display:swap}
+:root{
+  --negro:#000;--s1:#0C0C0E;--s2:#141417;--s3:#1D1D21;--linea:#25252A;--linea-hover:#36363C;
+  --crema:#F3EBD8;--crema2:#BDB5A4;--tenue:#8A8478;--ambar:#F2B632;--ambar-osc:#1D1707;--pico:#E9A13B;
+  --violeta:#A58BFF;--celeste:#7FB3FF;--verde:#8FD694;--rosa:#E78FB3;--rojo:#FF7A6B;--tinta:#14110C;
+  --f:"Manrope","Segoe UI Variable",sans-serif;--m:"Martian Mono","Cascadia Mono",monospace;
+  --t-display:800 21px/1.1 var(--f);--t-titulo:800 14.5px/1.3 var(--f);--t-cuerpo-f:700 13px/1.3 var(--f);
+  --t-cuerpo:500 12.5px/1.45 var(--f);--t-chico:500 11.5px/1.35 var(--f);--t-mono:400 10.5px/1.5 var(--m);
+  --t-mono-s:500 10px/1.3 var(--m);--t-rotulo:500 10px/1 var(--m);
+  --r-ventana:26px;--r-tarjeta:18px;--r-cuadro:14px;--r-ficha:13px;--r-fila:11px;--r-campo:10px;--r-icono:7px;--r-pildora:999px;
+  --ease:cubic-bezier(.16,1,.3,1);--rebote:cubic-bezier(.34,1.56,.64,1);--d-presion:140ms;--d-color:200ms;
+  /* nuevo (configuracion-ux.md 5.1) */
+  --alto-escena-cfg:176px;--d-pestana:320ms;--d-confirma:3s;
+}
+@property --cc{syntax:'<color>';inherits:true;initial-value:#F2B632}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html{background:#050506}
+body{color:var(--crema);font:var(--t-cuerpo);-webkit-font-smoothing:antialiased;min-height:100vh;
+  background:radial-gradient(900px 420px at 18% -8%,rgba(242,182,50,.09),transparent 70%),radial-gradient(1px 1px at 1px 1px,rgba(255,255,255,.05) 1px,transparent 0) 0 0/22px 22px,#050506}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.oculto{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+
+/* ---------------- página del boceto */
+.pagina{max-width:1440px;margin:0 auto;padding:44px 24px 96px}
+.kick{font:var(--t-rotulo);letter-spacing:.14em;text-transform:uppercase;color:var(--tenue)}
+.pag-h{display:grid;gap:12px;max-width:820px;margin-bottom:40px}
+.pag-h h1{font:800 clamp(30px,5vw,52px)/1 var(--f);letter-spacing:-.04em}
+.pag-h h1 em{font-style:normal;color:var(--ambar)}
+.pag-h p{color:var(--crema2);font:500 14px/1.55 var(--f);max-width:68ch}
+.pag-h p b{color:var(--crema)}
+.opciones{display:grid;gap:56px 28px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:1400px){.opciones{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.op-h{display:flex;align-items:flex-end;gap:16px;margin-bottom:16px}
+.op-l{font:800 64px/.8 var(--f);color:transparent;-webkit-text-stroke:1.2px var(--crema2);letter-spacing:-.04em}
+.op.reco .op-l{-webkit-text-stroke-color:var(--ambar)}
+.op-n{font:800 22px/1.1 var(--f);letter-spacing:-.03em}
+.op-n small{display:block;margin-top:4px;font:var(--t-mono-s);color:var(--tenue);letter-spacing:.06em}
+.reco-b{margin-left:auto;align-self:center;padding:6px 10px;border-radius:var(--r-pildora);background:var(--ambar);color:var(--negro);font:600 10px/1 var(--m);letter-spacing:.1em;text-transform:uppercase}
+.op-p{display:grid;gap:6px;margin-top:16px;max-width:70ch;color:var(--crema2);font:500 13px/1.5 var(--f)}
+.op-p b{color:var(--crema)}
+.lienzo{min-width:0}
+.nota-pag{margin-top:64px;display:grid;gap:12px;max-width:820px;color:var(--crema2);font:500 13px/1.55 var(--f)}
+.nota-pag h2{font:800 18px/1.2 var(--f);color:var(--crema);letter-spacing:-.02em}
+.estados{margin-top:72px}
+.estados>h2{font:800 22px/1.1 var(--f);letter-spacing:-.03em;margin-bottom:6px}
+.estados>p{color:var(--crema2);margin-bottom:24px;max-width:70ch}
+.grilla-e{display:grid;gap:20px;grid-template-columns:repeat(auto-fill,minmax(min(100%,440px),1fr))}
+.caja-e{background:var(--negro);border:1px solid rgba(255,255,255,.07);border-radius:var(--r-tarjeta);padding:14px 16px 6px}
+.caja-e>.kick{display:block;margin-bottom:8px;color:var(--violeta)}
+.nx{display:inline-flex;align-items:center;gap:6px;margin:6px 0 2px;padding:3px 8px;border:1px dashed rgba(165,139,255,.6);border-radius:6px;color:var(--violeta);font:var(--t-mono-s);font-stretch:75%}
+
+/* ---------------- el tablero (copia fiel de estilos.css 4.x) */
+.marco{width:694px;height:672px;display:flex;overflow:hidden;padding:16px 14px 16px 16px;gap:16px;background:var(--negro);border:1px solid rgba(255,255,255,.07);border-radius:var(--r-ventana);box-shadow:0 16px 32px -16px rgba(0,0,0,.8),0 50px 120px -60px rgba(242,182,50,.12);--cc:#F2B632}
+.marco.angosto{width:494px}
+.marco.angosto .lado{display:none}
+.lado{width:188px;flex:none;display:flex;flex-direction:column;gap:14px;min-height:0}
+.marca{display:flex;flex-direction:column;align-items:center;text-align:center;padding:4px 4px 2px}
+.marca-n{margin-top:4px;font:var(--t-display);letter-spacing:-.03em}
+.marca .estado{margin-top:6px;padding:4px 10px 4px 8px;background:var(--s2);border-radius:var(--r-pildora);font:var(--t-mono-s);color:var(--crema2);display:inline-flex;gap:6px;align-items:center}
+.pt{display:inline-block;width:7px;height:7px;flex:none;border-radius:50%;background:var(--c,var(--ambar));box-shadow:0 0 0 3px color-mix(in srgb,var(--c,var(--ambar)) 20%,transparent)}
+.pj{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:6px 8px;border:0;border-radius:var(--r-fila);background:transparent;color:var(--crema2);font:var(--t-cuerpo-f);text-align:left;cursor:pointer;transition:background var(--d-color) ease,color var(--d-color) ease,transform var(--d-presion) ease}
+.pj:hover{background:var(--s2);color:var(--crema)}
+.pj:active{transform:scale(.97)}
+.pj.activo,.pj[aria-current="page"]{background:var(--ambar-osc);color:var(--ambar)}
+.pj-ic{width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:var(--r-icono);background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c);font:500 10px/1 var(--m)}
+.pj-n{flex:1}
+.chip{flex:none;padding:3px 6px;border-radius:var(--r-pildora);background:var(--s3);color:var(--crema2);font:500 10px/1 var(--m)}
+.pj.activo .chip{background:color-mix(in srgb,var(--ambar) 22%,var(--ambar-osc));color:var(--ambar)}
+.lado-pie{margin-top:auto;padding-top:10px;border-top:1px solid var(--linea);display:grid;gap:6px}
+.rot{display:block;margin:4px 0 0 8px;font:var(--t-rotulo);letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+.pie-w{margin:0 0 0 8px;font:var(--t-mono-s);color:var(--tenue)}
+/* nuevo: el engranaje de la barra (configuracion-ux.md 3.1) */
+.engr{--c:var(--crema2)}
+.engr .pj-ic{background:var(--s2);color:var(--crema2)}
+.engr svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linejoin:round;transition:transform .6s var(--rebote)}
+.engr:hover svg{transform:rotate(45deg)}
+.engr[aria-current="page"] .pj-ic{background:color-mix(in srgb,var(--ambar) 18%,transparent);color:var(--ambar)}
+.engr[aria-current="page"] svg{transform:rotate(90deg)}
+.engr kbd{font:var(--t-mono-s);color:var(--tenue);font-stretch:75%}
+
+.principal{width:460px;flex:none;display:flex;flex-direction:column;min-height:0;min-width:0}
+.cab{display:flex;align-items:flex-start;gap:12px;padding-bottom:10px}
+.cab-t{flex:1;min-width:0;display:flex;gap:10px;align-items:center}
+.cab h1{font:var(--t-display);letter-spacing:-.035em}
+.cab p{margin-top:2px;font:var(--t-cuerpo);color:var(--crema2)}
+.mini{width:40px;height:40px;flex:none;display:grid;place-items:center}
+.controles{display:flex;align-items:center;flex:none;margin:-4px -6px 0 0}
+.tb{width:32px;height:32px;display:grid;place-items:center;border:0;border-radius:var(--r-fila);background:transparent;color:var(--crema2);cursor:pointer;transition:background var(--d-color) ease,color var(--d-color) ease}
+.tb:hover{background:var(--s2);color:var(--crema)}
+.tb svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.tb[aria-pressed="true"]{color:var(--ambar)}
+.volver{min-height:32px;padding:0 10px 0 8px;margin-right:4px;border:0;border-radius:var(--r-pildora);background:var(--s2);color:var(--crema);font:700 12px/1 var(--f);cursor:pointer}
+.volver:hover{background:var(--s3)}
+.cfg-cuerpo{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--linea-hover) transparent;padding:2px 4px 8px 2px;margin-left:-2px}
+
+/* tablero cerrado (fuera de la configuración) */
+.sesion{display:flex;gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--linea);border-radius:var(--r-tarjeta);background:var(--s1)}
+.sesion b{display:block;font:var(--t-titulo)}
+.sesion span{font:var(--t-chico);color:var(--crema2)}
+
+/* ---------------- B · pestañas (nuevo) */
+.pestanas{position:relative;display:flex;gap:2px;border-bottom:1px solid var(--linea);margin-bottom:12px}
+.pes{position:relative;min-height:36px;padding:0 10px;border:0;background:none;color:var(--crema2);font:700 12px/1 var(--f);cursor:pointer;display:inline-flex;align-items:center;gap:6px;border-radius:8px 8px 0 0;transition:color var(--d-color) ease,background var(--d-color) ease}
+.pes:hover{color:var(--crema);background:var(--s1)}
+.pes[aria-selected="true"]{color:var(--crema)}
+.pes .pt{width:6px;height:6px}
+.ind{position:absolute;left:0;bottom:-1px;height:2px;width:40px;border-radius:2px;background:var(--ambar);box-shadow:0 0 10px rgba(242,182,50,.6)}
+
+/* ---------------- A · índice fijo (nuevo) */
+.indice{display:flex;gap:4px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--linea);margin-bottom:4px}
+.ix{min-height:28px;padding:0 8px;border:1px solid var(--linea);border-radius:var(--r-pildora);background:none;color:var(--tenue);font:var(--t-mono-s);font-stretch:75%;letter-spacing:.04em;cursor:pointer;transition:color var(--d-color),border-color var(--d-color),background var(--d-color)}
+.ix:hover{color:var(--crema)}
+.ix[aria-current="true"]{color:var(--ambar);border-color:color-mix(in srgb,var(--ambar) 50%,transparent);background:var(--ambar-osc)}
+.sec-a{padding:18px 0 6px}
+.sec-h{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.sec-h .num{font:600 10px/1 var(--m);color:var(--ambar);letter-spacing:.08em}
+.sec-h h2{font:var(--t-titulo);letter-spacing:-.01em}
+.sec-h::after{content:"";flex:1;height:1px;background:var(--linea);align-self:center}
+
+/* ---------------- piezas comunes de la configuración (nuevo) */
+.sub{margin:16px 0 4px;font:var(--t-rotulo);letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+.sub:first-child{margin-top:4px}
+.aj{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 16px;padding:11px 0;border-top:1px solid var(--linea)}
+.aj.apilada{grid-template-columns:1fr}
+.aj-t{display:block;font:var(--t-cuerpo-f)}
+.aj-d{display:block;margin-top:2px;font:var(--t-chico);color:var(--tenue)}
+.ctl{display:flex;align-items:center;gap:8px}
+.sw-e{font:var(--t-mono-s);color:var(--tenue);min-width:16px;text-align:right}
+.sw{position:relative;width:40px;height:24px;border:1px solid var(--linea-hover);border-radius:var(--r-pildora);background:var(--s3);cursor:pointer;transition:background var(--d-color),border-color var(--d-color)}
+.sw i{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--tenue);transition:transform .32s var(--rebote),background var(--d-color)}
+.sw[aria-checked="true"]{background:var(--ambar);border-color:var(--ambar)}
+.sw[aria-checked="true"] i{transform:translateX(16px);background:var(--negro)}
+.sw:focus-visible{outline-offset:3px}
+.sw::before{content:"";position:absolute;inset:-10px -4px}
+.seg{display:inline-flex;padding:3px;gap:2px;border-radius:var(--r-pildora);background:var(--s2);border:1px solid var(--linea)}
+.seg.ancho{display:flex}
+.seg.ancho>button{flex:1}
+.seg>button{min-height:30px;padding:0 12px;border:0;border-radius:var(--r-pildora);background:none;color:var(--crema2);font:700 11.5px/1 var(--f);cursor:pointer;white-space:nowrap;transition:background var(--d-color),color var(--d-color)}
+.seg>button:hover{color:var(--crema)}
+.seg>button[aria-checked="true"]{background:var(--crema);color:var(--tinta)}
+.paso{display:inline-flex;align-items:center;gap:4px}
+.pb{width:32px;height:32px;border:0;border-radius:50%;background:var(--s3);color:var(--crema);font:800 15px/1 var(--f);cursor:pointer;transition:transform var(--d-presion),background var(--d-color)}
+.pb:hover{background:#27272C}.pb:active{transform:scale(.92)}
+.pb[aria-disabled="true"]{opacity:.38;cursor:not-allowed;transform:none}
+.pv{min-width:58px;text-align:center;font:600 12px/1 var(--m);font-variant-numeric:tabular-nums}
+.btn{min-height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 14px;border:0;border-radius:var(--r-pildora);background:var(--ambar);color:var(--negro);font:800 12px/1 var(--f);cursor:pointer;white-space:nowrap;transition:transform var(--d-presion),filter var(--d-color)}
+.btn:hover{filter:brightness(1.08)}.btn:active{transform:scale(.97)}
+.btn:focus-visible{outline-color:var(--crema)}
+.btn.sec{background:var(--s3);color:var(--crema)}.btn.sec:focus-visible{outline-color:var(--ambar)}
+.btn[aria-disabled="true"]{opacity:.38;cursor:not-allowed;filter:none;transform:none}
+.lnk{min-height:32px;padding:0 6px;border:0;border-radius:6px;background:none;color:var(--crema2);font:700 12px/1 var(--f);cursor:pointer}
+.lnk:hover{color:var(--crema);text-decoration:underline;text-underline-offset:3px}
+.lnk.peligro{color:var(--rojo)}
+.lnk[aria-disabled="true"]{opacity:.38;cursor:not-allowed;text-decoration:none}
+/* Confirmar en el mismo botón (como "¿Frenar? Sí" de control.js): 3 s y vuelve solo */
+.armado{position:relative;overflow:hidden;min-height:32px;padding:0 12px;border:0;border-radius:var(--r-pildora);background:var(--rojo);color:var(--negro);font:800 12px/1 var(--f);cursor:pointer;white-space:nowrap}
+.armado::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--negro);opacity:.45;transform-origin:left;animation:drena var(--d-confirma) linear forwards}
+@keyframes drena{to{transform:scaleX(0)}}
+.acc{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px;margin-left:-6px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 9px 4px 7px;border-radius:var(--r-pildora);background:var(--s2);font:var(--t-mono-s);color:var(--crema2);white-space:nowrap}
+.pill .pt{width:6px;height:6px}
+.t-ok{--c:var(--verde)}.t-aviso{--c:var(--ambar)}.t-proc{--c:var(--celeste)}.t-error{--c:var(--rojo)}.t-nada{--c:var(--tenue)}
+.t-proc .pt{animation:late 1.2s ease-in-out infinite}
+@keyframes late{50%{opacity:.35}}
+
+/* Mascota · escenario (B) */
+.esc-m{position:relative;display:grid;grid-template-columns:150px minmax(0,1fr);align-items:center;gap:4px;height:var(--alto-escena-cfg);padding:0 16px 0 6px;border:1px solid var(--linea);border-radius:var(--r-tarjeta);overflow:hidden;
+  background:radial-gradient(160px 70px at 80px 140px,color-mix(in srgb,var(--cc) 30%,transparent),transparent 72%),radial-gradient(260px 160px at 80px 120px,color-mix(in srgb,var(--cc) 10%,transparent),transparent 70%),linear-gradient(var(--s1),var(--negro));transition:--cc .5s ease}
+.esc-m::before{content:"";position:absolute;left:20px;width:120px;top:142px;height:1px;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--cc) 70%,transparent),transparent)}
+.esc-fig{display:grid;place-items:center;padding-top:4px}
+.esc-t{display:grid;gap:5px;align-content:center}
+.esc-n{font:800 26px/1 var(--f);letter-spacing:-.04em}
+.esc-n small{font:var(--t-mono-s);color:var(--tenue);letter-spacing:.02em;margin-left:6px}
+.esc-c{font:var(--t-chico);color:var(--crema2);max-width:34ch}
+.esc-t .seg{justify-self:start;margin-top:4px}
+.esc-q{font:var(--t-mono-s);color:var(--tenue);font-stretch:75%}
+.especies{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
+.esp{position:relative;display:grid;justify-items:center;align-content:start;gap:1px;min-height:96px;padding:6px 4px 8px;border:1px solid var(--linea);border-radius:var(--r-ficha);background:var(--s1);color:var(--crema);cursor:pointer;transition:background var(--d-color),border-color var(--d-color),transform var(--d-presion)}
+.esp:hover{background:var(--s2)}
+.esp:hover .avi{transform:translateY(-3px)}
+.esp .avi{transition:transform .35s var(--rebote)}
+.esp:active{transform:scale(.96)}
+.esp[aria-checked="true"]{border-color:var(--c);background:color-mix(in srgb,var(--c) 9%,var(--s1));box-shadow:0 0 0 1px var(--c) inset}
+.esp-n{font:var(--t-cuerpo-f)}
+.esp-e{font:var(--t-mono-s);color:var(--tenue);font-stretch:75%}
+.esp-ok{position:absolute;top:6px;right:6px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--c);color:var(--negro);font:800 11px/1 var(--f);font-style:normal}
+.esp-nota{display:grid;align-content:center;padding:8px 10px;border:1px dashed var(--linea-hover);border-radius:var(--r-ficha);font:var(--t-chico);color:var(--tenue)}
+/* Mascota · A (compacta) */
+.esc-a{display:grid;grid-template-columns:104px minmax(0,1fr);gap:8px;align-items:center;padding:6px 12px 6px 0;border-radius:var(--r-tarjeta);background:radial-gradient(90px 40px at 52px 92px,color-mix(in srgb,var(--cc) 28%,transparent),transparent 72%);transition:--cc .5s ease}
+.fila-esp{display:flex;gap:4px;margin-top:8px}
+.fila-esp .esp{min-height:0;flex:1;padding:4px 0 2px}
+.fila-esp .esp-ok{top:3px;right:3px;width:14px;height:14px;font-size:9px}
+
+/* Claves */
+.cand{display:flex;gap:8px;align-items:flex-start;padding:2px 0 10px;font:var(--t-chico);color:var(--crema2)}
+.cand svg{width:14px;height:14px;flex:none;margin-top:1px;fill:none;stroke:var(--ambar);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.cl{display:grid;grid-template-columns:30px minmax(0,1fr);gap:4px 12px;padding:11px 0;border-top:1px solid var(--linea)}
+.prov{width:30px;height:30px;display:grid;place-items:center;border-radius:var(--r-icono);background:var(--s2);border:1px solid var(--linea);font:600 12px/1 var(--m);color:var(--crema)}
+.cl-t{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.cl-t b{font:var(--t-cuerpo-f)}
+.cl-de{font:var(--t-chico);color:var(--tenue)}
+.est{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:2px;font:var(--t-chico);color:var(--crema2)}
+.est.ok{color:var(--verde)}.est.mal{color:var(--rojo)}.est.aviso{color:var(--ambar)}
+.mask{font:var(--t-mono);color:var(--crema);letter-spacing:.04em;padding:1px 6px;border-radius:5px;background:var(--s2)}
+.cl>.acc{grid-column:2}
+.cl-form{grid-column:2;display:grid;gap:6px;margin-top:6px}
+.campo{display:flex;align-items:center;gap:4px;padding:0 4px 0 12px;min-height:38px;border:1px solid var(--linea);border-radius:var(--r-campo);background:var(--s1);transition:border-color var(--d-color),box-shadow var(--d-color)}
+.campo:focus-within{border-color:var(--ambar);box-shadow:0 0 0 3px rgba(242,182,50,.14)}
+.campo.mal{border-color:rgba(255,122,107,.7)}
+.campo input{flex:1;min-width:0;border:0;background:none;outline:none;font:var(--t-mono);letter-spacing:.03em}
+.campo input::placeholder{color:var(--tenue)}
+.cl-ayuda{font:var(--t-chico);color:var(--tenue)}
+.cl-ayuda.mal{color:var(--rojo)}.cl-ayuda.aviso{color:var(--ambar)}
+.cl.recien{animation:recien 1.2s var(--ease)}
+@keyframes recien{0%{background:color-mix(in srgb,var(--verde) 12%,transparent)}100%{background:transparent}}
+/* Modelo local y mod */
+.tarj{display:grid;gap:8px;padding:12px 14px;margin-top:6px;border:1px solid var(--linea);border-radius:var(--r-cuadro);background:var(--s1)}
+.tarj-t{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.tarj-t b{font:var(--t-cuerpo-f)}
+.tarj p{font:var(--t-chico);color:var(--crema2)}
+.barra{height:6px;border-radius:3px;background:var(--s3);overflow:hidden}
+.barra i{display:block;height:100%;width:var(--p,0%);border-radius:3px;background:linear-gradient(90deg,var(--celeste),#B5D3FF);transition:width .4s var(--ease)}
+.cifras{font:var(--t-mono-s);color:var(--tenue);font-variant-numeric:tabular-nums}
+.datos{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 14px;padding:10px 0;border-top:1px solid var(--linea);font:var(--t-chico)}
+.datos dt{color:var(--tenue)}.datos dd{font:var(--t-mono-s);color:var(--crema2);overflow-wrap:anywhere}
+.ver-avis{margin-top:14px;font:var(--t-mono-s);color:var(--tenue)}
+
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="defs"></div>
+<div class="pagina">
+  <header class="pag-h">
+    <span class="kick">Boceto · Issue #23 · 23/11/2026 · Delfina</span>
+    <h1>Configuración, <em>adentro</em> del panel</h1>
+    <p>Un engranaje al pie de la barra lateral abre la configuración en la columna principal, como Primeros pasos; <b>Esc</b> o «‹ Tablero» vuelven. Mueve ahí lo de la bandeja (tamaño, ubicación, siempre arriba, avisos, pausa, arrancar con Windows, IA local, primeros pasos) y suma la <b>mascota</b> con vista previa real, las <b>claves de API</b>, el <b>historial del chat</b> y el estado del <b>mod</b>. Todo cambia en el clic: no hay botón Guardar.</p>
+    <p>Las figuras son las del widget (<code>avis.js</code>, <code>especies.js</code>), y «Ver la forma evolucionada» corre el acto real de <code>evolucionMotion.js</code>. Las notas <span class="nx">así</span> son del boceto: marcan lo que se conecta cuando llegue otra pieza.</p>
+  </header>
+
+  <div class="opciones">
+    <section class="op" aria-labelledby="op-a-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">A</span><h2 class="op-n" id="op-a-n">Ficha<small>UNA HOJA · ÍNDICE FIJO</small></h2></div>
+      <div class="lienzo" data-op="a"></div>
+      <div class="op-p">
+        <p><b>Qué cambia:</b> las cinco secciones en una sola hoja que se recorre, numeradas, con un índice fijo que marca dónde estás.</p>
+        <p><b>Por qué sirve:</b> se ve todo bajando, sin abrir nada; la mascota queda compacta (fila de siete).</p>
+        <p><b>Lo que cuesta:</b> en 640 px son tres pantallas de scroll y las claves quedan al lado de lo cotidiano.</p>
+      </div>
+    </section>
+    <section class="op reco" aria-labelledby="op-b-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">B</span><h2 class="op-n" id="op-b-n">Taller<small>PESTAÑAS · ESCENARIO DE LA MASCOTA</small></h2><span class="reco-b">Recomendada</span></div>
+      <div class="lienzo" data-op="b"></div>
+      <div class="op-p">
+        <p><b>Qué cambia:</b> cinco pestañas; la mascota tiene su escenario con luz de su especie y, en las otras pestañas, te acompaña chica junto al título.</p>
+        <p><b>Por qué sirve:</b> cuatro de las cinco pestañas entran sin scroll al 100 % (Modelos desplaza un poco), las claves y el borrado viven aparte y las flechas recorren las pestañas. Los puntos de estado avisan sin abrir.</p>
+        <p><b>Lo que cuesta:</b> un control más (las pestañas) y no se ve todo junto.</p>
+      </div>
+    </section>
+  </div>
+
+  <section class="estados" aria-labelledby="h-estados">
+    <h2 id="h-estados">Estados</h2>
+    <p>Los mismos componentes de las dos opciones, congelados en cada estado. Se dibujan con las mismas funciones que los tableros de arriba.</p>
+    <div class="grilla-e" id="grilla-e"></div>
+  </section>
+
+  <section class="nota-pag">
+    <h2>Troko</h2>
+    <p>Busqué Troko en la web (Bing, GitHub, DuckDuckGo) y no encontré ninguna fuente fiable sobre qué es ni sobre su configuración. Las dos capturas del repo (<code>marca-troko.png</code>, <code>muesca-troko.png</code>) muestran solo la marca y la muesca, no su configuración. Por eso las opciones salen de lo que Avis ya ofrece en la bandeja y de lo pedido en #23; cuando lleguen capturas de su configuración, se comparan contra esta lista.</p>
+  </section>
+</div>
+
+<script type="module">
+import { avi, svgAvi, claudeDe, defsAvis, nombreClaude } from '../../../widget/src/avis.js'
+import { NOMBRES_ESPECIES, datosEspecie } from '../../../widget/src/especies.js'
+import { evolucionar, devolver, formaAlInstante } from '../../../widget/src/evolucionMotion.js'
+import { animate, stagger } from '../../../widget/src/vendor/animejs/anime.esm.min.js'
+
+document.getElementById('defs').innerHTML = defsAvis()
+const reducido = matchMedia('(prefers-reduced-motion: reduce)').matches
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+
+// Tipo y concepto de cada especie: los del boceto de mascotas (`M`), que especies.js todavía no trae (dirección 9.2)
+const ESP = {
+  avi: ['Familia · el de siempre', 'El Avi de Claude de hoy: huevo crema, pico y antena ámbar. Ahora también evoluciona.'],
+  ascua: ['Dracónico · brasa', 'Un dragoncito que guarda una brasa en el pecho: cuanto más trabaja, más brilla.'],
+  escarcha: ['Dracónico · cristal', 'Un dragón tallado en hielo, todo facetas: piensa en frío y nunca pierde la forma.'],
+  nodo: ['Digital · datos', 'Nació en la memoria caché: cara de pantalla, orejas de antena y una evolución guardada.'],
+  bruma: ['Abisal · bioluz', 'Viene del fondo del mar de datos: no camina, flota, y brilla cuando piensa.'],
+  morro: ['Gólem · runas', 'Un gólem petiso de basalto: lento, firme, y sus runas se encienden cuando algo importa.'],
+  lumen: ['Polilla · luz', 'Una polilla mullida que junta la luz de las pantallas y la devuelve en polvo.'],
+}
+const PROV = [
+  { id: 'anthropic', nombre: 'Claude', de: 'Anthropic', letra: 'A', pref: 'sk-ant-' },
+  { id: 'openai', nombre: 'OpenAI', de: 'GPT', letra: 'O', pref: 'sk-' },
+  { id: 'gemini', nombre: 'Gemini', de: 'Google', letra: 'G', pref: 'AIza' },
+]
+const PESTANAS = [['mascota', 'Mascota'], ['panel', 'Panel'], ['modelos', 'Modelos'], ['datos', 'Datos'], ['instalacion', 'Instalación']]
+const UBICACIONES = [['flota', 'Flota'], ['arriba', 'Arriba'], ['derecha', 'Derecha'], ['abajo', 'Abajo'], ['izquierda', 'Izquierda']]
+
+// ---------------------------------------------------------------- lógica pura (dirección 10)
+/** La forma de una clave antes de guardarla: bloquea vacía, con espacios o corta; avisa si el prefijo no es el típico. */
+function formaClave(proveedor, texto) {
+  const t = String(texto ?? '').trim()
+  if (!t) return { ok: false, motivo: 'vacia' }
+  if (/\s/.test(t)) return { ok: false, motivo: 'espacios' }
+  if (t.length < 20) return { ok: false, motivo: 'corta' }
+  const p = PROV.find(x => x.id === proveedor)
+  return { ok: true, clave: t, final: t.slice(-4), aviso: p && !t.startsWith(p.pref) ? 'prefijo' : null }
+}
+const TEXTO_MOTIVO = { vacia: 'Pegá la clave para guardarla.', espacios: 'Tiene espacios en el medio: revisá que esté entera.', corta: 'Es muy corta para ser una clave.' }
+/** Pestaña siguiente con el teclado (flechas, Inicio, Fin), con vuelta. */
+function pestanaSiguiente(actual, tecla, lista) {
+  const i = lista.indexOf(actual), n = lista.length
+  if (tecla === 'ArrowRight') return lista[(i + 1) % n]
+  if (tecla === 'ArrowLeft') return lista[(i - 1 + n) % n]
+  if (tecla === 'Home') return lista[0]
+  if (tecla === 'End') return lista[n - 1]
+  return actual
+}
+
+// ---------------------------------------------------------------- piezas
+const ICONO = {
+  engranaje: (() => {
+    let d = ''
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * 2 * Math.PI, w = Math.PI / 8
+      ;[[5.3, a - w * .62], [7, a - w * .36], [7, a + w * .36], [5.3, a + w * .62]].forEach(([r, t], j) => { d += `${i || j ? 'L' : 'M'}${(8 + r * Math.cos(t)).toFixed(2)} ${(8 + r * Math.sin(t)).toFixed(2)}` })
+    }
+    return `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${d}Z"/><circle cx="8" cy="8" r="2.1"/></svg>`
+  })(),
+  candado: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2M8 10v1.4"/></svg>',
+  pin: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2h5M6.5 2v4.2L4.5 8.5h7L9.5 6.2V2M8 8.5V14"/></svg>',
+  mini: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10"/></svg>',
+  cerrar: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+}
+const fila = (titulo, desc, control, extra = '') => `<div class="aj${extra}"><div><span class="aj-t">${titulo}</span>${desc ? `<span class="aj-d">${desc}</span>` : ''}</div>${control ? `<div class="ctl">${control}</div>` : ''}</div>`
+const sw = (m, clave, etiqueta) => `<span class="sw-e" aria-hidden="true">${m[clave] ? 'Sí' : 'No'}</span><button type="button" class="sw" role="switch" aria-checked="${m[clave]}" aria-label="${etiqueta}" data-a="sw" data-v="${clave}" data-k="sw-${clave}"><i></i></button>`
+const seg = (m, nombre, opciones, actual, etiqueta, clase = '') => `<div class="seg ${clase}" role="radiogroup" aria-label="${etiqueta}">${opciones.map(([v, t]) => `<button type="button" role="radio" aria-checked="${v === actual}" tabindex="${v === actual ? 0 : -1}" data-a="${nombre}" data-v="${v}" data-k="${nombre}-${v}">${t}</button>`).join('')}</div>`
+const pill = (tono, texto) => `<span class="pill t-${tono}"><i class="pt" aria-hidden="true"></i>${texto}</span>`
+/** Botón que confirma en el mismo lugar: primero "Borrar", después "¿…? Sí" 3 s. */
+const confirmable = (m, id, texto, pregunta) => m.armado === id
+  ? `<button type="button" class="armado" data-a="confirmar" data-v="${id}" data-k="c-${id}" aria-live="polite">${pregunta}</button>`
+  : `<button type="button" class="lnk peligro" data-a="armar" data-v="${id}" data-k="c-${id}">${texto}</button>`
+const nx = t => `<span class="nx">${t}</span>`
+
+// ---------------------------------------------------------------- secciones
+function figuraEscena(m, t) {
+  return `<span class="avi" style="--t:${t}px" data-fig>${svgAvi(claudeDe(m.especie), 'esperando', false, { claveEvo: `cfg-${m.op}` })}</span>`
+}
+function segForma(m) {
+  const d = datosEspecie(m.especie)
+  return seg(m, 'forma', [['base', 'Base'], ['evo', `${d.evoNombre} ✦`]], m.forma, 'Vista previa de la forma')
+}
+function secMascota(m) {
+  const d = datosEspecie(m.especie), [tipo, concepto] = ESP[m.especie], i = NOMBRES_ESPECIES.indexOf(m.especie)
+  const fichas = (t, conTexto) => NOMBRES_ESPECIES.map((e, j) => {
+    const de = datosEspecie(e), sel = e === m.especie
+    return `<button type="button" class="esp" role="radio" aria-checked="${sel}" tabindex="${sel ? 0 : -1}" data-a="esp" data-v="${e}" data-k="esp-${e}" style="--c:${de.c}" aria-label="${de.nombre}, evoluciona a ${de.evoNombre}" title="${de.nombre} › ${de.evoNombre}">${avi(claudeDe(e), 'esperando', t, { indice: j })}${conTexto ? `<span class="esp-n">${de.nombre}</span><span class="esp-e">› ${de.evoNombre}</span>` : ''}${sel ? '<i class="esp-ok" aria-hidden="true">✓</i>' : ''}</button>`
+  }).join('')
+  if (m.op === 'a') return `<div class="esc-a" style="--cc:${d.c}"><div class="esc-fig">${figuraEscena(m, 96)}</div><div class="esc-t"><span class="kick">${i + 1} de 7 · ${tipo}</span><h3 class="esc-n">${d.nombre}<small>› ${d.evoNombre}</small></h3><p class="esc-c">${concepto}</p>${segForma(m)}</div></div>
+    <div class="fila-esp" role="radiogroup" aria-label="Mascota de Claude">${fichas(46, false)}</div>`
+  return `<div class="esc-m" style="--cc:${d.c}"><div class="esc-fig">${figuraEscena(m, 120)}</div>
+    <div class="esc-t"><span class="kick">Especie ${i + 1} de 7 · ${tipo}</span><h3 class="esc-n">${d.nombre}</h3><p class="esc-c">${concepto}</p>${segForma(m)}<span class="esc-q">Evoluciona sola mientras Claude coordina un equipo</span></div></div>
+    <div class="especies" role="radiogroup" aria-label="Mascota de Claude">${fichas(54, true)}<p class="esp-nota">Se ve en la marca, la muesca y cada sesión. Sus subagentes son de su especie.</p></div>`
+}
+function secPanel(m) {
+  const tam = `<div class="paso" role="group" aria-label="Tamaño del panel"><button type="button" class="pb" data-a="tam" data-v="-1" aria-label="Achicar" aria-disabled="${m.tam <= 100}" data-k="tam-menos">−</button><output class="pv" aria-live="polite">${m.tam} %</output><button type="button" class="pb" data-a="tam" data-v="1" aria-label="Agrandar" aria-disabled="${m.tam >= 200}" data-k="tam-mas">+</button></div>`
+  return fila('Tamaño', 'De 100 a 200 %, de a 25. También con Ctrl + y Ctrl −.', tam)
+    + `<div class="aj apilada"><div><span class="aj-t">Dónde vive</span><span class="aj-d">Flotando, o acoplada a un borde de la pantalla.</span></div>${seg(m, 'ubic', UBICACIONES, m.ubic, 'Dónde vive', 'ancho')}</div>`
+    + fila('Siempre arriba', 'Queda encima de las otras ventanas.', sw(m, 'arriba', 'Siempre arriba'))
+    + fila('Avisarme con cada pregunta', 'Una notificación de Windows cuando Claude te pregunta algo.', sw(m, 'avisar', 'Avisarme con cada pregunta'))
+    + fila('Pausar animaciones', 'Las mascotas quedan quietas en su pose.', sw(m, 'pausa', 'Pausar animaciones'))
+    + fila('Arrancar con Windows', 'Apagado de fábrica: solo lo cambia tu clic.', sw(m, 'arranque', 'Arrancar con Windows'))
+}
+function filaClave(m, p) {
+  const c = m.claves[p.id], ed = m.editando === p.id, id = `${m.op}-in-${p.id}`
+  const mask = c.fin ? `<span class="mask" aria-label="termina en ${c.fin}">••••${c.fin}</span>` : ''
+  let est = '', acc = ''
+  if (ed) {
+    const f = m.error ? { ok: false, motivo: m.error } : null
+    const aviso = !f && m.aviso ? `No parece una clave de ${p.de} (suelen empezar con ${p.pref}). Guardala igual si estás seguro.` : null
+    const ayuda = f ? TEXTO_MOTIVO[f.motivo] : aviso ?? 'Va al Administrador de credenciales de Windows. Después solo vas a ver el final.'
+    return `<div class="cl"><span class="prov" aria-hidden="true">${p.letra}</span><div class="cl-t"><b>${p.nombre}</b><span class="cl-de">${p.de}</span></div>
+      <div class="cl-form"><label class="oculto" for="${id}">Clave de API de ${p.nombre}</label>
+      <div class="campo${f ? ' mal' : ''}"><input id="${id}" type="${m.ver ? 'text' : 'password'}" autocomplete="off" spellcheck="false" placeholder="${p.pref}…" value="${esc(m.borrador)}" data-k="clave-in" data-v="${p.id}" aria-invalid="${!!f}" aria-describedby="${id}-a"><button type="button" class="lnk" data-a="clave-ver" aria-pressed="${m.ver}" data-k="clave-ver">${m.ver ? 'Ocultar' : 'Mostrar'}</button></div>
+      <p class="cl-ayuda${f ? ' mal' : aviso ? ' aviso' : ''}" id="${id}-a">${ayuda}</p>
+      <div class="acc" style="margin-left:0;gap:6px"><button type="button" class="btn" data-a="clave-guardar" data-v="${p.id}" data-k="clave-guardar">${aviso ? 'Guardar igual' : 'Guardar'}</button><button type="button" class="btn sec" data-a="clave-cancelar" data-k="clave-cancelar">Cancelar</button></div></div></div>`
+  }
+  const borrar = confirmable(m, `clave:${p.id}`, 'Borrar', '¿Borrar la clave? Sí')
+  const reemplazar = `<button type="button" class="lnk" data-a="clave-agregar" data-v="${p.id}" data-k="r-${p.id}">Reemplazar</button>`
+  const probar = dis => `<button type="button" class="lnk" data-a="clave-probar" data-v="${p.id}" data-k="p-${p.id}" aria-disabled="${dis}">Probar</button>`
+  switch (c.e) {
+    case 'sin': est = `<span class="est">Sin clave</span>`; acc = `<button type="button" class="lnk" data-a="clave-agregar" data-v="${p.id}" data-k="r-${p.id}">+ Agregar clave</button>`; break
+    case 'guardada': est = `<span class="est">Guardada ${mask}</span>`; acc = probar(false) + reemplazar + borrar; break
+    case 'probando': est = `<span class="est">${pill('proc', 'Probando con ' + p.de + '…')} ${mask}</span>`; acc = probar(true) + reemplazar + borrar; break
+    case 'valida': est = `<span class="est ok">✓ Válida · probada recién ${mask}</span>`; acc = reemplazar + borrar; break
+    case 'rechazada': est = `<span class="est mal">× ${p.de} la rechazó ${mask}</span>`; acc = reemplazar + borrar; break
+    case 'sin-red': est = `<span class="est aviso">No se pudo probar: sin conexión ${mask}</span>`; acc = probar(false) + reemplazar + borrar; break
+  }
+  return `<div class="cl${m.recien === p.id ? ' recien' : ''}"><span class="prov" aria-hidden="true">${p.letra}</span><div><div class="cl-t"><b>${p.nombre}</b><span class="cl-de">${p.de}</span></div>${est}</div><div class="acc">${acc}</div></div>`
+}
+function tarjetaLocal(m) {
+  const l = m.local
+  const T = {
+    listo: [pill('ok', 'Listo'), 'Se apaga solo a los 10 min sin uso.', confirmable(m, 'local', 'Borrar 2,6 GB', '¿Borrar 2,6 GB? Sí')],
+    falta: [pill('nada', 'Sin instalar'), 'Hace falta para charlar sin internet. Se baja una sola vez.', `<button type="button" class="btn" data-a="local-bajar" data-k="local-bajar">Descargar 2,6 GB</button>`],
+    bajando: [pill('proc', `Bajando ${l.pct ?? 0} %`), '', ''],
+    roto: [pill('error', 'Roto'), 'Faltan piezas o no coinciden. Bajalo de nuevo.', `<button type="button" class="btn" data-a="local-bajar" data-k="local-bajar">Bajar de nuevo</button>` + confirmable(m, 'local', 'Borrar', '¿Borrar? Sí')],
+  }[l.e]
+  const barra = l.e === 'bajando' ? `<div class="barra" role="progressbar" aria-label="Descarga del modelo local" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${l.pct}" style="--p:${l.pct}%"><i></i></div><span class="cifras">${(2.6 * l.pct / 100).toFixed(1).replace('.', ',')} de 2,6 GB · si se corta, sigue donde quedó</span>` : ''
+  return `<div class="tarj"><div class="tarj-t"><div><b>Qwen3-4B</b> <span class="cl-de">en esta PC, sin internet</span></div>${T[0]}</div>${T[1] ? `<p>${T[1]}</p>` : ''}${barra}${T[2] ? `<div class="acc" style="margin-left:0;gap:6px">${T[2]}</div>` : ''}</div>`
+}
+function secModelos(m) {
+  return `<h3 class="sub">Charla</h3>${fila('Quién responde', 'En las charlas nuevas. Cada una puede cambiarlo.', seg(m, 'motor', [['claude', 'Claude Code'], ['local', 'Local']], m.motor, 'Quién responde en las charlas nuevas'))}${m.notas ? nx('se conecta cuando llegue el chat (#22)') : ''}
+    <h3 class="sub">Claves de API</h3><p class="cand">${ICONO.candado}<span>Se guardan en el Administrador de credenciales de Windows, nunca en un archivo. Avis solo vuelve a mostrar los últimos 4 caracteres.</span></p>
+    ${PROV.map(p => filaClave(m, p)).join('')}${m.notas ? nx('las usa la charla por API cuando llegue') : ''}
+    <h3 class="sub">Modelo local</h3>${tarjetaLocal(m)}`
+}
+function bloqueHistorial(m) {
+  const h = m.hist
+  if (h.e === 'sin-chat') return fila('Historial del chat', 'Aparece cuando llegue la charla con la mascota.', '')
+  if (!h.n) return fila('Historial del chat', 'No hay charlas guardadas.', pill('nada', 'Vacío'))
+  return fila(`${h.n} charlas · ${h.mb} MB`, 'En esta PC y, si Engram está prendido, una copia buscable en el proyecto avis. Se borran las dos.', confirmable(m, 'hist', 'Borrar todo', `¿Borrar ${h.n} charlas? Sí`))
+}
+function secDatos(m) {
+  return `<h3 class="sub">Historial del chat</h3>${bloqueHistorial(m)}${m.notas ? nx('se conecta cuando llegue el chat (#22)') : ''}
+    <h3 class="sub">Dónde queda cada cosa</h3><dl class="datos"><dt>Preferencias</dt><dd>preferencias.json, en la carpeta de Avis</dd><dt>Claves</dt><dd>Administrador de credenciales de Windows · Avis/api/…</dd><dt>Modelo local</dt><dd>%LOCALAPPDATA%\\avis-ia</dd><dt>Charlas</dt><dd>carpeta de Avis\\chat</dd></dl>`
+}
+function tarjetaMod(m) {
+  const T = {
+    'al-dia': ['ok', 'Prendido · 0.9.0', 'Al día. Se actualiza solo, una vez por día. Revisado hoy 10:33.', ''],
+    actualizado: ['ok', 'Prendido · 0.9.0', 'Se actualizó solo de 0.8.2 a 0.9.0 hoy a las 10:33.', ''],
+    apagado: ['aviso', 'Apagado · 0.9.0', 'Claude Code no lo carga: sin el mod, Avis no ve tus sesiones.', `<button type="button" class="btn" data-a="mod-prender" data-k="mod-prender">Prender</button>`],
+    instalando: ['proc', 'Instalando…', 'Faltaba el mod: Avis lo instala solo, no hace falta que hagas nada.', ''],
+    fallo: ['aviso', 'Prendido · 0.9.0', 'Hoy no se pudo revisar si hay versión nueva. Vuelve a probar mañana.', ''],
+    'sin-claude': ['error', 'Sin Claude Code', 'Avis no encontró Claude Code en esta PC.', `<button type="button" class="btn" data-a="pp" data-k="pp">Abrir primeros pasos</button>`],
+  }[m.mod.e]
+  return `<div class="tarj"><div class="tarj-t"><b>Mod de Claude Code</b>${pill(T[0], T[1])}</div><p>${T[2]}</p>${T[3] ? `<div class="acc" style="margin-left:0">${T[3]}</div>` : ''}</div>`
+}
+function secInstalacion(m) {
+  return `<h3 class="sub">Mod</h3>${tarjetaMod(m)}
+    <h3 class="sub">En esta PC</h3>${fila('Claude Code', 'Versión 2.1.329', pill('ok', 'Encontrado'))}${fila('GitHub', 'Para ver al equipo.', pill('ok', 'Conectado'))}
+    ${fila('Primeros pasos', 'Revisa y arregla la instalación, paso por paso.', `<button type="button" class="btn sec" data-a="pp" data-k="pp">Abrir →</button>`)}
+    <p class="ver-avis">Avis 0.10.0 · widget</p>`
+}
+const SECCIONES = { mascota: secMascota, panel: secPanel, modelos: secModelos, datos: secDatos, instalacion: secInstalacion }
+/** Puntos de estado de las pestañas (B): avisan sin abrir. Nunca solo color: el nombre accesible lo dice. */
+function puntoPestana(m, t) {
+  if (t === 'modelos' && Object.values(m.claves).some(c => c.e === 'rechazada')) return ['error', 'una clave rechazada']
+  if (t === 'modelos' && m.local.e === 'bajando') return ['proc', 'bajando el modelo']
+  if (t === 'instalacion' && ['apagado', 'sin-claude'].includes(m.mod.e)) return ['aviso', 'el mod necesita atención']
+  return null
+}
+
+// ---------------------------------------------------------------- tablero
+function nuevoEstado(op) {
+  return {
+    op, abierto: true, tab: 'mascota', especie: 'ascua', forma: 'base', tam: 125, ubic: 'flota', arriba: true, avisar: true, pausa: false, arranque: false,
+    motor: 'claude', claves: { anthropic: { e: 'sin' }, openai: { e: 'guardada', fin: 'Q7xK' }, gemini: { e: 'rechazada', fin: '9fLw' } },
+    editando: null, borrador: '', ver: false, error: null, aviso: null, recien: null, armado: null, reloj: null,
+    local: { e: 'listo' }, hist: { e: 'con', n: 24, mb: '1,2' }, mod: { e: 'al-dia' }, notas: true,
+  }
+}
+function lado(m) {
+  const d = datosEspecie(m.especie)
+  return `<aside class="lado"><div class="marca">${avi(claudeDe(m.especie), 'esperando', 104, { alt: nombreClaude(m.especie) + ', esperándote' })}<b class="marca-n">Avis</b><span class="estado"><i class="pt" style="--c:${d.c}"></i>1 sesión</span></div>
+    <nav aria-label="Proyectos"><button type="button" class="pj${m.abierto ? '' : ' activo'}" style="--c:var(--verde)" data-a="volver"><span class="pj-ic">o</span><span class="pj-n">oficina</span><span class="chip">1</span></button>
+    <button type="button" class="pj" style="--c:var(--celeste)" data-a="volver"><span class="pj-ic">c</span><span class="pj-n">catalogo</span><span class="chip">2</span></button></nav>
+    <div class="lado-pie"><button type="button" class="pj engr" data-a="engranaje" data-k="engranaje" ${m.abierto ? 'aria-current="page"' : ''} aria-keyshortcuts="Control+Comma"><span class="pj-ic">${ICONO.engranaje}</span><span class="pj-n">Configuración</span><kbd>Ctrl ,</kbd></button>
+    <span class="rot">Equipo</span><p class="pie-w">actualizado 10:33 · cada 1,5 s</p></div></aside>`
+}
+function cabecera(m) {
+  const controles = `<div class="controles">${m.abierto ? '<button type="button" class="volver" data-a="volver" data-k="volver" aria-keyshortcuts="Escape" title="Volver al tablero (Esc)">‹ Tablero</button>' : `<button type="button" class="tb solo-angosto" data-a="engranaje" aria-label="Configuración" title="Configuración">${ICONO.engranaje}</button>`}<button type="button" class="tb" aria-pressed="${m.arriba}" aria-label="Siempre arriba" title="Siempre arriba">${ICONO.pin}</button><button type="button" class="tb" aria-label="Minimizar a la tira">${ICONO.mini}</button><button type="button" class="tb" aria-label="Cerrar a la bandeja">${ICONO.cerrar}</button></div>`
+  if (!m.abierto) return `<header class="cab"><div class="cab-t"><div><h1>oficina</h1><p>1 sesión · esperando tu mensaje</p></div></div>${controles}</header>`
+  const mini = m.op === 'b' && m.tab !== 'mascota' ? `<span class="mini" data-mini>${avi(claudeDe(m.especie), 'esperando', 40)}</span>` : ''
+  return `<header class="cab"><div class="cab-t">${mini}<div><h1 id="${m.op}-h1" tabindex="-1">Configuración</h1><p>Se guarda al instante</p></div></div>${controles}</header>`
+}
+function principal(m) {
+  if (!m.abierto) return `${cabecera(m)}<div class="sesion">${avi(claudeDe(m.especie), 'esperando', 96)}<div><b>main</b><span>ahora · esperando tu mensaje</span></div></div>`
+  if (m.op === 'a') {
+    const ix = PESTANAS.map(([t, n], i) => `<button type="button" class="ix" data-a="ir" data-v="${t}" aria-current="${t === m.tab}">0${i + 1} ${n.toUpperCase()}</button>`).join('')
+    const secs = PESTANAS.map(([t, n], i) => `<section class="sec-a cfg-anim" data-sec="${t}" aria-labelledby="${m.op}-s-${t}"><div class="sec-h"><span class="num">0${i + 1}</span><h2 id="${m.op}-s-${t}">${n}</h2></div><div data-cont="${t}">${SECCIONES[t](m)}</div></section>`).join('')
+    return `${cabecera(m)}<nav class="indice cfg-anim" aria-label="Secciones">${ix}</nav><div class="cfg-cuerpo" data-scroll>${secs}</div><p class="oculto" role="status" data-vivo></p>`
+  }
+  const tabs = PESTANAS.map(([t, n]) => {
+    const p = puntoPestana(m, t), sel = t === m.tab
+    return `<button type="button" class="pes" role="tab" id="${m.op}-t-${t}" aria-selected="${sel}" aria-controls="${m.op}-p" tabindex="${sel ? 0 : -1}" data-a="tab" data-v="${t}" data-k="tab-${t}">${n}${p ? `<i class="pt t-${p[0]}" aria-hidden="true"></i><span class="oculto">, ${p[1]}</span>` : ''}</button>`
+  }).join('')
+  return `${cabecera(m)}<div class="pestanas cfg-anim" role="tablist" aria-label="Configuración">${tabs}<span class="ind" aria-hidden="true"></span></div>
+    <div class="cfg-cuerpo" role="tabpanel" id="${m.op}-p" aria-labelledby="${m.op}-t-${m.tab}" tabindex="0" data-scroll><div class="panel-in" data-cont="${m.tab}">${SECCIONES[m.tab](m)}</div></div><p class="oculto" role="status" data-vivo></p>`
+}
+
+const mocks = []
+function montar(lienzo) {
+  const m = nuevoEstado(lienzo.dataset.op)
+  m.lienzo = lienzo
+  lienzo.innerHTML = `<div class="marco" style="--cc:${datosEspecie(m.especie).c}"></div>`
+  m.el = lienzo.firstElementChild
+  pintarTodo(m)
+  m.el.addEventListener('click', e => clic(m, e))
+  m.el.addEventListener('keydown', e => tecla(m, e))
+  m.el.addEventListener('input', e => { if (e.target.dataset.k === 'clave-in') m.borrador = e.target.value })
+  mocks.push(m)
+  new ResizeObserver(() => ajustar(m)).observe(lienzo)
+}
+function ajustar(m) {
+  const w = m.lienzo.clientWidth, angosto = w < 640
+  m.el.classList.toggle('angosto', angosto)
+  m.el.style.zoom = Math.min(1, w / (angosto ? 496 : 696)).toFixed(3)
+  m.el.querySelectorAll('.solo-angosto').forEach(b => { b.hidden = !angosto })
+  colocarIndicador(m, false)
+}
+function pintarTodo(m) {
+  m.el.innerHTML = lado(m) + `<main class="principal">${principal(m)}</main>`
+  m.el.querySelectorAll('.solo-angosto').forEach(b => { b.hidden = !m.el.classList.contains('angosto') })
+  colocarIndicador(m, false)
+  if (m.op === 'a' && m.abierto) espiar(m)
+}
+/** Redibuja solo el contenido de una sección y devuelve el foco a la misma pieza (`data-k`). */
+function pintarSec(m, t) {
+  const cont = m.el.querySelector(`[data-cont="${t}"]`)
+  if (!cont) return
+  const k = document.activeElement?.closest?.('[data-k]')?.dataset.k
+  cont.innerHTML = SECCIONES[t](m)
+  if (k) m.el.querySelector(`[data-k="${CSS.escape(k)}"]`)?.focus({ preventScroll: true })
+  if (m.op === 'b') m.el.querySelectorAll('.pes').forEach(b => { const t2 = b.dataset.v, p = puntoPestana(m, t2); b.querySelector('.pt')?.remove(); b.querySelector('.oculto')?.remove(); if (p) b.insertAdjacentHTML('beforeend', `<i class="pt t-${p[0]}" aria-hidden="true"></i><span class="oculto">, ${p[1]}</span>`) })
+}
+const decir = (m, t) => { const v = m.el.querySelector('[data-vivo]'); if (v) { v.textContent = ''; setTimeout(() => { v.textContent = t }, 30) } }
+
+// ---------------------------------------------------------------- movimiento (configuracionMotion.js en el widget)
+function entrada(m) {
+  if (reducido) return
+  animate(m.el.querySelectorAll('.cab, .cfg-anim'), { opacity: [0, 1], translateY: [8, 0], duration: 420, delay: stagger(55), ease: 'outQuart' })
+  const cont = m.el.querySelector('[data-cont]')
+  if (cont) animate(cont.children, { opacity: [0, 1], translateY: [10, 0], duration: 460, delay: stagger(35, { start: 120 }), ease: 'outQuart' })
+  animate(m.el.querySelectorAll('.esp'), { opacity: [0, 1], scale: [.9, 1], duration: 420, delay: stagger(30, { start: 220 }), ease: 'outBack(1.4)' })
+  const fig = m.el.querySelector('[data-fig]')
+  if (fig) animate(fig, { translateY: [18, 0], opacity: [0, 1], duration: 620, delay: 160, ease: 'outBack(1.6)' })
+}
+function colocarIndicador(m, animado) {
+  const ind = m.el.querySelector('.ind'), t = m.el.querySelector('.pes[aria-selected="true"]')
+  if (!ind || !t) return
+  const destino = { translateX: t.offsetLeft + 8, width: t.offsetWidth - 16 }
+  if (animado && !reducido) animate(ind, { ...destino, duration: 320, ease: 'outQuart' })
+  else { ind.style.transform = `translateX(${destino.translateX}px)`; ind.style.width = destino.width + 'px' }
+}
+function cambiarPestana(m, t, enfocar) {
+  if (t === m.tab) return
+  const dir = PESTANAS.findIndex(p => p[0] === t) > PESTANAS.findIndex(p => p[0] === m.tab) ? 1 : -1
+  const ind = m.el.querySelector('.ind'), x = ind?.style.transform, w = ind?.style.width
+  m.tab = t; m.editando = null; m.armado = null
+  pintarTodo(m)
+  const ind2 = m.el.querySelector('.ind')
+  if (ind2 && x) { ind2.style.transform = x; ind2.style.width = w }
+  colocarIndicador(m, true)
+  if (enfocar) m.el.querySelector(`[data-k="tab-${t}"]`)?.focus()
+  if (reducido) return
+  animate(m.el.querySelector('[data-cont]').children, { opacity: [0, 1], translateX: [dir * 14, 0], duration: 260, delay: stagger(28), ease: 'outQuart' })
+  const mini = m.el.querySelector('[data-mini]')
+  if (mini && !m.miniVisto) { m.miniVisto = true; animate(mini, { scale: [.3, 1], opacity: [0, 1], duration: 480, ease: 'outBack(1.8)' }) }
+  if (t === 'mascota') { m.miniVisto = false; const f = m.el.querySelector('[data-fig]'); if (f) animate(f, { translateY: [16, 0], scale: [.8, 1], duration: 520, ease: 'outBack(1.6)' }) }
+}
+function cambiarEspecie(m, e) {
+  if (e === m.especie) return
+  m.especie = e; m.forma = 'base'
+  const c = datosEspecie(e).c
+  m.el.style.setProperty('--cc', c)
+  m.el.querySelector('.marca').outerHTML = lado(m).match(/<div class="marca">[\s\S]*?<\/span><\/div>/)[0]
+  pintarSec(m, 'mascota')
+  m.el.querySelector(`[data-k="esp-${e}"]`)?.focus({ preventScroll: true })
+  decir(m, `Tu mascota ahora es ${datosEspecie(e).nombre}`)
+  if (reducido) return
+  const f = m.el.querySelector('[data-fig]')
+  animate(f, { scale: [.55, 1], translateY: [14, 0], opacity: [0, 1], duration: 560, ease: 'outBack(1.7)' })
+  animate(m.el.querySelectorAll('.esc-t > *'), { opacity: [0, 1], translateX: [10, 0], duration: 300, delay: stagger(40), ease: 'outQuart' })
+  animate(m.el.querySelector('.marca .avi'), { scale: [.7, 1], duration: 520, ease: 'outBack(1.8)' })
+}
+function cambiarForma(m, forma) {
+  if (forma === m.forma) return
+  m.forma = forma
+  m.el.querySelectorAll('[data-a="forma"]').forEach(b => { const s = b.dataset.v === forma; b.setAttribute('aria-checked', s); b.tabIndex = s ? 0 : -1 })
+  const svg = m.el.querySelector('[data-fig] svg')
+  const d = datosEspecie(m.especie)
+  decir(m, forma === 'evo' ? `${d.nombre} evoluciona a ${d.evoNombre}` : `${d.evoNombre} vuelve a ${d.nombre}`)
+  if (reducido || document.body.classList.contains('pausa')) return formaAlInstante(svg, forma === 'evo')
+  if (forma === 'evo') evolucionar(svg, m.especie, { contenedor: m.el.querySelector('.esc-m, .esc-a') })
+  else devolver(svg, m.especie)
+}
+
+// ---------------------------------------------------------------- acciones
+function armar(m, id) {
+  clearTimeout(m.reloj)
+  m.armado = id
+  m.reloj = setTimeout(() => { m.armado = null; pintarSec(m, seccionDe(id)) }, 3000)
+  pintarSec(m, seccionDe(id))
+}
+const seccionDe = id => id.startsWith('clave') || id === 'local' ? 'modelos' : 'datos'
+function hacer(m, id) {
+  clearTimeout(m.reloj); m.armado = null
+  if (id.startsWith('clave:')) { const p = id.slice(6); m.claves[p] = { e: 'sin' }; decir(m, 'Clave borrada de Credenciales de Windows') }
+  if (id === 'local') { m.local = { e: 'falta' }; decir(m, 'Modelo local borrado') }
+  if (id === 'hist') { m.hist = { e: 'con', n: 0 }; decir(m, 'Historial borrado') }
+  pintarSec(m, seccionDe(id))
+  const sig = m.el.querySelector(id.startsWith('clave:') ? `[data-k="r-${id.slice(6)}"]` : id === 'local' ? '[data-k="local-bajar"]' : '[data-scroll]')
+  sig?.focus({ preventScroll: true })
+}
+function guardarClave(m, p) {
+  const f = formaClave(p, m.borrador)
+  if (!f.ok) { m.error = f.motivo; m.aviso = null; pintarSec(m, 'modelos'); return m.el.querySelector('[data-k="clave-in"]')?.focus() }
+  if (f.aviso && !m.aviso) { m.aviso = f.aviso; m.error = null; pintarSec(m, 'modelos'); return m.el.querySelector('[data-k="clave-in"]')?.focus() }
+  m.claves[p] = { e: 'guardada', fin: f.final }
+  m.editando = null; m.borrador = ''; m.ver = false; m.error = null; m.aviso = null; m.recien = p
+  pintarSec(m, 'modelos'); m.recien = null
+  m.el.querySelector(`[data-k="p-${p}"]`)?.focus()
+  decir(m, `Clave de ${PROV.find(x => x.id === p).nombre} guardada en Credenciales de Windows`)
+}
+function clic(m, e) {
+  const b = e.target.closest('[data-a]')
+  if (!b || b.getAttribute('aria-disabled') === 'true') return
+  const v = b.dataset.v
+  switch (b.dataset.a) {
+    case 'engranaje': if (!m.abierto) { m.abierto = true; pintarTodo(m); entrada(m); m.el.querySelector(`#${m.op}-h1`)?.focus({ preventScroll: true }) } else m.el.querySelector(`#${m.op}-h1`)?.focus(); break
+    case 'volver': cerrar(m); break
+    case 'tab': cambiarPestana(m, v, false); break
+    case 'ir': { const s = m.el.querySelector(`[data-sec="${v}"]`); s?.scrollIntoView({ behavior: reducido ? 'auto' : 'smooth', block: 'start' }); break }
+    case 'esp': cambiarEspecie(m, v); break
+    case 'forma': cambiarForma(m, v); break
+    case 'sw': m[v] = !m[v]; if (v === 'pausa') document.body.classList.toggle('pausa', m[v]); pintarSec(m, 'panel'); break
+    case 'tam': m.tam = Math.max(100, Math.min(200, m.tam + 25 * +v)); pintarSec(m, 'panel'); break
+    case 'ubic': m.ubic = v; pintarSec(m, 'panel'); break
+    case 'motor': m.motor = v; pintarSec(m, 'modelos'); break
+    case 'clave-agregar': m.editando = v; m.borrador = ''; m.error = null; m.aviso = null; m.ver = false; m.armado = null; pintarSec(m, 'modelos'); m.el.querySelector('[data-k="clave-in"]')?.focus(); break
+    case 'clave-cancelar': { const p = m.editando; m.editando = null; m.borrador = ''; m.error = null; m.aviso = null; pintarSec(m, 'modelos'); m.el.querySelector(`[data-k="r-${p}"]`)?.focus(); break }
+    case 'clave-ver': m.ver = !m.ver; pintarSec(m, 'modelos'); break
+    case 'clave-guardar': guardarClave(m, v); break
+    case 'clave-probar': m.claves[v].e = 'probando'; pintarSec(m, 'modelos'); setTimeout(() => { m.claves[v].e = v === 'gemini' ? 'rechazada' : 'valida'; pintarSec(m, 'modelos'); decir(m, m.claves[v].e === 'valida' ? 'La clave es válida' : 'El proveedor rechazó la clave') }, 1400); break
+    case 'armar': armar(m, v); break
+    case 'confirmar': hacer(m, v); break
+    case 'local-bajar': m.local = { e: 'bajando', pct: 0 }; pintarSec(m, 'modelos'); { const t = setInterval(() => { m.local.pct = Math.min(100, m.local.pct + 7); if (m.local.pct >= 100) { clearInterval(t); m.local = { e: 'listo' }; decir(m, 'Modelo local listo') } pintarSec(m, 'modelos') }, 260) } break
+    case 'mod-prender': m.mod = { e: 'al-dia' }; pintarSec(m, 'instalacion'); break
+    case 'pp': decir(m, 'Se abre Primeros pasos en esta columna'); break
+  }
+}
+function cerrar(m) {
+  if (!m.abierto) return
+  m.abierto = false; m.editando = null; m.armado = null
+  pintarTodo(m)
+  m.el.querySelector('[data-k="engranaje"]')?.focus({ preventScroll: true })
+  if (!reducido) animate(m.el.querySelector('.principal').children, { opacity: [0, 1], translateY: [6, 0], duration: 320, delay: stagger(50), ease: 'outQuart' })
+}
+function tecla(m, e) {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    if (m.editando) { const p = m.editando; m.editando = null; m.borrador = ''; m.error = null; m.aviso = null; pintarSec(m, 'modelos'); m.el.querySelector(`[data-k="r-${p}"]`)?.focus(); return }
+    if (m.armado) { const id = m.armado; clearTimeout(m.reloj); m.armado = null; pintarSec(m, seccionDe(id)); return }
+    return cerrar(m)
+  }
+  if (e.key === ',' && e.ctrlKey) { e.preventDefault(); m.el.querySelector('[data-k="engranaje"]')?.click() }
+  if (e.key === 'Enter' && e.target.dataset.k === 'clave-in') { e.preventDefault(); return guardarClave(m, e.target.dataset.v) }
+  const b = e.target.closest?.('[role="tab"], [role="radio"]')
+  if (!b || !['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
+  const k = { ArrowDown: 'ArrowRight', ArrowUp: 'ArrowLeft' }[e.key] ?? e.key
+  if (b.getAttribute('role') === 'tab') { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') return; e.preventDefault(); return cambiarPestana(m, pestanaSiguiente(m.tab, k, PESTANAS.map(p => p[0])), true) }
+  e.preventDefault()
+  const grupo = [...b.closest('[role="radiogroup"]').querySelectorAll('[role="radio"]')]
+  const sig = grupo.find(x => x.dataset.v === pestanaSiguiente(b.dataset.v, k, grupo.map(x => x.dataset.v)))
+  sig?.click(); m.el.querySelector(`[data-k="${CSS.escape(sig.dataset.k)}"]`)?.focus()
+}
+/** A: el índice marca la sección que está arriba del scroll. */
+function espiar(m) {
+  const raiz = m.el.querySelector('[data-scroll]')
+  const io = new IntersectionObserver(es => {
+    const vis = es.filter(x => x.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
+    if (!vis) return
+    m.tab = vis.target.dataset.sec
+    m.el.querySelectorAll('.ix').forEach(x => x.setAttribute('aria-current', x.dataset.v === m.tab))
+  }, { root: raiz, rootMargin: '0px 0px -70% 0px' })
+  raiz.querySelectorAll('[data-sec]').forEach(s => io.observe(s))
+}
+
+document.querySelectorAll('.lienzo').forEach(montar)
+mocks.forEach(m => { ajustar(m); entrada(m) })
+
+// ---------------------------------------------------------------- estados congelados
+const base = () => ({ ...nuevoEstado('e'), notas: false })
+const caja = (t, html) => `<div class="caja-e" inert><span class="kick">${t}</span>${html}</div>`
+const conClave = (e, extra = {}) => ({ ...base(), claves: { anthropic: { e, fin: 'a1B2' } }, ...extra })
+const P = PROV[0]
+document.getElementById('grilla-e').innerHTML = [
+  caja('Clave · sin clave / editando con error', filaClave(conClave('sin'), P) + filaClave({ ...conClave('sin'), editando: 'anthropic', borrador: 'sk-ant-api03 Xy9', error: 'espacios' }, P)),
+  caja('Clave · prefijo raro (avisa, no bloquea) / guardada', filaClave({ ...conClave('sin'), editando: 'anthropic', borrador: 'xk-1234567890abcdefghij', aviso: 'prefijo' }, P) + filaClave(conClave('guardada'), P)),
+  caja('Clave · probando / válida / rechazada / sin red', ['probando', 'valida', 'rechazada', 'sin-red'].map(e => filaClave(conClave(e), P)).join('')),
+  caja('Clave · confirmar el borrado (3 s)', filaClave(conClave('guardada', { armado: 'clave:anthropic' }), P)),
+  caja('Modelo local · falta / bajando / listo / roto', ['falta', 'bajando', 'listo', 'roto'].map(e => tarjetaLocal({ ...base(), local: { e, pct: 42 } })).join('')),
+  caja('Mod · al día / actualizado / apagado', ['al-dia', 'actualizado', 'apagado'].map(e => tarjetaMod({ ...base(), mod: { e } })).join('')),
+  caja('Mod · instalando / no pudo revisar / sin Claude Code', ['instalando', 'fallo', 'sin-claude'].map(e => tarjetaMod({ ...base(), mod: { e } })).join('')),
+  caja('Historial · con charlas / confirmar / vacío / antes del chat', [bloqueHistorial(base()), bloqueHistorial({ ...base(), armado: 'hist' }), bloqueHistorial({ ...base(), hist: { e: 'con', n: 0 } }), bloqueHistorial({ ...base(), hist: { e: 'sin-chat' } })].join('')),
+].join('')
+</script>
+</body>
+</html>

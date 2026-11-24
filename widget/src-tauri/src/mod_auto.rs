@@ -141,6 +141,19 @@ pub fn aviso(accion: Accion, antes: Option<&str>, despues: Option<&str>) -> Opti
     }
 }
 
+/// Lo que muestra la tarjeta "Mod de Claude Code" de la configuración (`estado_mod`,
+/// configuracion-ux.md 9.2 y 7.3): la lectura de `revisar_claude` (solo comandos de lectura) y la
+/// última revisión automática guardada, `{ claude, mod, revisado, fallo }`. Sin revisión, `revisado`
+/// es null. El aviso de una vez no va acá: lo toma la ventana con `tomar_aviso`.
+pub fn estado_para_ventana(revision: &Value, guardada: Option<RevisionMod>) -> Value {
+    json!({
+        "claude": revision["claude"].clone(),
+        "mod": revision["mod"].clone(),
+        "revisado": guardada.map(|g| g.revisado),
+        "fallo": guardada.is_some_and(|g| g.fallo),
+    })
+}
+
 // ------------------------------------------------------------------ lo que corre
 
 /// El aviso pendiente: la ventana lo toma una vez (`tomar_aviso`) y queda vacío.
@@ -452,5 +465,38 @@ mod tests {
         assert!(t.empezar(Accion::Activar).is_err());
         t.terminar();
         assert!(!t.ocupado());
+    }
+
+    #[test]
+    fn el_estado_para_la_configuracion_junta_la_lectura_y_la_ultima_revision() {
+        // configuracion-ux.md 9.2: { claude, mod, revisado, fallo }, sin correr nada que escriba
+        let e = estado_para_ventana(&revision(true, LISTA_REAL), guardada(HACE_UNA_HORA, false));
+        assert_eq!(e["claude"], json!({ "encontrado": true, "version": "2.1.329" }));
+        assert_eq!(e["mod"]["instalado"], true);
+        assert_eq!(e["mod"]["activo"], true);
+        assert_eq!(e["mod"]["version"], "0.9.0");
+        assert_eq!(e["revisado"], HACE_UNA_HORA);
+        assert_eq!(e["fallo"], false);
+        // La revisión que falló se ve; sin revisión guardada, null (nunca un número inventado)
+        assert_eq!(estado_para_ventana(&revision(true, LISTA_REAL), guardada(AYER, true))["fallo"], true);
+        let nunca = estado_para_ventana(&revision(true, "[]"), None);
+        assert_eq!(nunca["revisado"], Value::Null);
+        assert_eq!(nunca["fallo"], false);
+        assert_eq!(nunca["mod"]["instalado"], false);
+        // Sin Claude Code
+        assert_eq!(estado_para_ventana(&revision(false, "[]"), None)["claude"]["encontrado"], false);
+    }
+
+    #[test]
+    fn el_estado_para_la_configuracion_dice_lo_mismo_que_la_lectura_del_mod_automatico() {
+        // La tarjeta de la configuración y la decisión de mod_auto leen la misma revisión
+        for lista in [LISTA_REAL, "[]"] {
+            let r = revision(true, lista);
+            let e = estado_para_ventana(&r, None);
+            let l = lectura(&r);
+            assert_eq!(e["mod"]["instalado"], l.instalado);
+            assert_eq!(e["mod"]["activo"], l.activo);
+            assert_eq!(e["mod"]["version"].as_str().map(String::from), l.version);
+        }
     }
 }

@@ -66,6 +66,8 @@
   --celeste-borde: rgba(127, 179, 255, .40); --celeste-borde-f: rgba(127, 179, 255, .45);
   --ancho-riel: 56px; --ancho-principal-d: 592px; --mitad: 272px; --costura: 26px; --alto-esc-d: 218px;
   --d-cruza: 1680ms; --d-anillo: 1230ms; --d-cose: 500ms; --d-riel: 450ms; --espera-vuelta: 60s;
+  /* Configuración (configuracion-ux.md 6): el escenario de la mascota */
+  --alto-escena-cfg: 176px;
 
   /* 3.4 radios */
   --r-ventana: 26px; --r-panel: 26px; --r-muesca: 22px; --r-hombro: 16px; --r-tarjeta: 18px;
@@ -91,6 +93,9 @@
   /* La charla con la mascota (docs/diseno/chat-avis-ux.md 5): la hoja, su escenario y los tiempos de chatMotion.js */
   --ancho-hoja: 420px; --hueco-hoja: 14px; --alto-escena-chat: 172px;
   --d-mudanza: 900ms; --d-hoja: 640ms; --d-palabra-chat: 360ms; --d-chispa: 1300ms;
+  /* Configuración (docs/diseno/configuracion-ux.md 6): el indicador de la pestaña y la ventana del
+     "¿Borrar? Sí" (la de control.js) */
+  --d-pestana: 320ms; --d-confirma: 3s;
 }
 
 /* ------------------------------------------------------------------ base */
@@ -227,7 +232,9 @@ h1, h2, h3 { font: inherit }
 .cab::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: var(--e-4); background: linear-gradient(var(--negro), transparent); pointer-events: none }
 #marco.vacio .cab::after, #marco.cargando .cab::after { display: none }
 .cab-t { flex: 1; min-width: 0; padding-top: var(--e-1); cursor: grab; user-select: none; contain: inline-size }
-.cab h1 { font: var(--t-display); letter-spacing: -.035em; overflow-wrap: anywhere }
+.cab h1 { width: fit-content; max-width: 100%; font: var(--t-display); letter-spacing: -.035em; overflow-wrap: anywhere }
+/* El foco al abrir la configuración va al h1: el anillo abraza la palabra (configuracion-ux.md 16, D-a) */
+#titulo:focus-visible { outline-offset: 4px; border-radius: 4px }
 .cab p { margin-top: var(--e-1); font: var(--t-cuerpo); color: var(--crema2) }
 .controles { display: flex; flex: none; margin: -4px -6px 0 0 }
 .tb {
@@ -1568,3 +1575,277 @@ p.det-rot { margin-top: var(--e-5) }
 @media (prefers-reduced-motion: reduce) {
   .ses-hizo { transition: none }
 }
+
+/* ------------------------------------------------------------------ configuración (docs/diseno/configuracion-ux.md, opción B "Taller")
+   La hoja vive en la columna principal (#cfg, 4.2): reemplaza a avisos, pregunta, chips y sesiones
+   mientras está abierta; el encabezado y las pestañas quedan fijos y la pestaña desplaza adentro.
+   Todo va bajo #cfg: `.sub` e `.ind` ya existen en el tablero y el resumen. */
+
+/* La fila de la barra (6.1): el molde de un proyecto, con el engranaje; abierta, colores de .pj.activo */
+.pj.engr { --c: var(--crema2); margin-bottom: var(--e-4) }
+/* Su lugar: la línea y el aire que eran de .lado-pie, pegado al pie de lo que se ve (16, D-g) */
+.lado-cfg { position: sticky; bottom: 0; z-index: 1; margin-top: auto; padding-top: var(--e-5); border-top: 1px solid var(--linea); background: var(--negro) }
+.lado-cfg + .lado-pie { margin-top: 0; padding-top: 0; border-top: 0 }
+.pj.engr .pj-ic { background: var(--s2); color: var(--crema2) }
+.pj.engr svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round }
+.pj.engr kbd { flex: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+.pj.engr[aria-current="page"] { background: var(--ambar-osc); color: var(--ambar) }
+.pj.engr[aria-current="page"] .pj-ic { background: color-mix(in srgb, var(--ambar) 18%, transparent); color: var(--ambar) }
+.pj.engr[aria-current="page"] svg { transform: rotate(90deg) }
+
+/* La hoja en el marco */
+#cfg:empty, #cfg-aviso:empty { display: none }
+#marco:not(.con-cfg) #cfg-volver { display: none }
+#marco.con-cfg #cfg-volver { display: inline-flex; margin-right: var(--e-2) }
+#marco.con-cfg #vacio-avi, #marco.con-cfg #otro, #marco.con-cfg #pestanas, #marco.con-cfg .split, #marco.con-cfg .ficha-u,
+#marco.con-cfg #w-globo, #marco.con-cfg #pp, #marco.con-cfg .conteos, #marco.con-cfg .sesiones { display: none }
+#marco.con-cfg .principal { overflow: hidden }
+/* Poco alto (16, M4): sin la bajada, el aviso en una línea de 28 y las pestañas de 32 */
+#marco.con-cfg.bajo #subtitulo { display: none }
+#marco.bajo #cfg-aviso .aviso { min-height: 28px; padding-block: 0 }
+#marco.bajo #cfg-aviso .aviso > span:not(.ir) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#marco.bajo #cfg-aviso { margin-bottom: var(--e-3) }
+#marco.bajo #cfg .pes { min-height: 32px }
+#marco.bajo #cfg .pestanas { margin-bottom: var(--e-4) }
+#marco.con-cfg #cfg { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
+#cfg > * { flex: none }
+#cfg-aviso { margin-bottom: var(--e-5) }
+#cfg > .cfg-cuerpo {
+  flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--linea-hover) transparent; padding: var(--e-1) var(--e-2) var(--e-4) var(--e-1); margin-left: calc(-1 * var(--e-1));
+}
+
+/* Pestañas (6.1): fila de 36 con filete; el indicador ámbar viaja con translateX y width (configuracionMotion.js) */
+#cfg .pestanas { position: relative; display: flex; gap: var(--e-1); border-bottom: 1px solid var(--linea); margin-bottom: var(--e-6) }
+#cfg .pes {
+  position: relative; min-height: 36px; padding: 0 var(--e-5); border: 0; border-radius: 8px 8px 0 0; background: none;
+  color: var(--crema2); font: 700 12px/1 var(--f); cursor: pointer; display: inline-flex; align-items: center; gap: var(--e-3);
+  transition: color var(--d-color) ease, background var(--d-color) ease, transform var(--d-presion) ease;
+}
+#cfg .pes:hover { color: var(--crema); background: var(--s1) }
+#cfg .pes:active { transform: scale(.97) }
+#cfg .pes[aria-selected="true"] { color: var(--crema) }
+#cfg .ind { position: absolute; left: 0; bottom: -1px; width: 0; height: 2px; border-radius: 2px; background: var(--ambar); box-shadow: 0 0 10px rgba(242, 182, 50, .6); pointer-events: none }
+
+/* Filas (6.1): título y descripción a la izquierda, el control a la derecha; `.apilada`, abajo */
+#cfg .sub { margin: var(--e-8) 0 var(--e-2); font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+#cfg .sub:first-child, #cfg h2.oculto:first-child + .sub { margin-top: var(--e-2) }
+#cfg label.aj-t { cursor: pointer }
+/* Datos (6.1): dos columnas, el nombre en --tenue y el lugar en mono (16, B1) */
+#cfg .datos { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px var(--e-8); margin: 0; padding: 12px 0; border-top: 1px solid var(--linea) }
+#cfg .datos dt { font: var(--t-chico); color: var(--tenue) }
+#cfg .datos dd { margin: 0; font: var(--t-mono-s); color: var(--crema2); overflow-wrap: anywhere }
+#cfg .aj { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--e-2) var(--e-8); padding: 11px 0; border-top: 1px solid var(--linea) }
+#cfg .aj.apilada { grid-template-columns: 1fr }
+#cfg .aj-t { display: block; font: var(--t-cuerpo-f) }
+#cfg .aj-d { display: block; margin-top: var(--e-1); font: var(--t-chico); color: var(--tenue) }
+#cfg .aj-ctl { display: flex; align-items: center; gap: var(--e-4) }
+/* "No se pudo guardar. Probá de nuevo." (7.5): debajo de su fila, hasta el próximo cambio */
+#cfg .aj-error { grid-column: 1 / -1; font: var(--t-chico); color: var(--rojo) }
+
+/* Interruptor (6.1): 40 × 24, perilla de 16; el área de clic llega a 44 × 44 */
+#cfg .sw-e { min-width: 16px; text-align: right; font: var(--t-mono-s); color: var(--tenue) }
+#cfg .sw {
+  position: relative; width: 40px; height: 24px; flex: none; border: 1px solid var(--linea-hover); border-radius: var(--r-pildora);
+  background: var(--s3); cursor: pointer; transition: background var(--d-color) ease, border-color var(--d-color) ease;
+}
+#cfg .sw::before { content: ""; position: absolute; inset: -10px -4px }
+#cfg .sw i { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--tenue); transition: transform .32s var(--rebote), background var(--d-color) ease }
+#cfg .sw:hover { border-color: #4A4A52 }
+#cfg .sw[aria-checked="true"] { background: var(--ambar); border-color: var(--ambar) }
+#cfg .sw[aria-checked="true"] i { transform: translateX(16px); background: var(--negro) }
+#cfg .sw:focus-visible { outline-offset: 3px }
+/* Sobre ámbar el foco es crema (6.3) */
+#cfg .sw[aria-checked="true"]:focus-visible { outline-color: var(--crema) }
+
+/* Segmentos (radiogroup, 6.1): la elegida en crema con tinta, como el motor del chat */
+#cfg .seg { display: inline-flex; gap: var(--e-1); padding: 2px; border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s2) }
+#cfg .seg.ancho { display: flex }
+#cfg .seg.ancho > button { flex: 1 }
+#cfg .seg > button {
+  min-height: 32px; padding: 0 var(--e-6); border: 0; border-radius: var(--r-pildora); background: none; color: var(--crema2);
+  font: 700 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
+  transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
+}
+#cfg .seg > button:hover { color: var(--crema) }
+#cfg .seg > button:active { transform: scale(.97) }
+#cfg .seg > button[aria-checked="true"] { background: var(--crema); color: var(--tinta) }
+
+/* Tamaño (6.1): − / % / +, redondos de 32; en la punta, aria-disabled (sigue enfocable) */
+#cfg .paso { display: inline-flex; align-items: center; gap: var(--e-2) }
+#cfg .pb {
+  width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--s3); color: var(--crema);
+  font: 800 15px/1 var(--f); cursor: pointer; transition: transform var(--d-presion) ease, background var(--d-color) ease;
+}
+#cfg .pb:hover { background: #27272C }
+#cfg .pb:active { transform: scale(.92) }
+#cfg .pb[aria-disabled="true"] { opacity: .38; cursor: not-allowed; transform: none }
+#cfg .pv { min-width: 58px; text-align: center; font: 600 12px/1 var(--m); font-variant-numeric: tabular-nums }
+
+/* Mascota (6.1): el escenario con la luz de la especie y las siete fichas. La luz (--cc) la pone
+   main.js en #cfg, que no se redibuja; registrada como color, cambia con su transición (8) */
+@property --cc { syntax: '<color>'; inherits: true; initial-value: #F2B632 }
+#cfg .esc-m {
+  position: relative; display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: var(--e-2);
+  min-height: var(--alto-escena-cfg); padding: var(--e-3) var(--e-8) var(--e-3) var(--e-3); border: 1px solid var(--linea); border-radius: var(--r-tarjeta); overflow: hidden;
+  background:
+    radial-gradient(160px 70px at 80px 140px, color-mix(in srgb, var(--cc) 30%, transparent), transparent 72%),
+    radial-gradient(260px 160px at 80px 120px, color-mix(in srgb, var(--cc) 10%, transparent), transparent 70%),
+    linear-gradient(var(--s1), var(--negro));
+  transition: --cc .5s ease;
+}
+/* El piso: una línea de 120 con el color de la especie */
+#cfg .esc-m::before {
+  content: ""; position: absolute; left: 20px; top: 142px; width: 120px; height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--cc) 70%, transparent), transparent);
+}
+#cfg .esc-fig { display: grid; place-items: center; padding-top: var(--e-2) }
+#cfg .esc-t { display: grid; gap: 5px; align-content: center; min-width: 0 }
+#cfg .esc-t .kick { font: var(--t-rotulo); line-height: 1.35; letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+#cfg .esc-n { margin: 0; font: 800 26px/1 var(--f); letter-spacing: -.04em; color: var(--crema) }
+#cfg .esc-c { margin: 0; max-width: 34ch; font: var(--t-chico); color: var(--crema2) }
+#cfg .esc-t .seg { justify-self: start; margin-top: var(--e-2) }
+#cfg .esc-q { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+
+/* Fichas (6.1): grilla de 4; la elegida con el borde, el anillo y la insignia ✓ del color de su especie
+   (`--c` nunca lleva texto: solo luz, borde y la insignia, 6.2) */
+#cfg .especies { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--e-4); margin-top: var(--e-5) }
+#cfg .esp {
+  position: relative; display: grid; justify-items: center; align-content: start; gap: 1px; min-height: 96px;
+  padding: var(--e-3) var(--e-2) var(--e-4); border: 1px solid var(--linea); border-radius: var(--r-ficha); background: var(--s1);
+  color: var(--crema); cursor: pointer; transition: background var(--d-color) ease, border-color var(--d-color) ease, transform var(--d-presion) ease;
+}
+#cfg .esp:hover { background: var(--s2) }
+#cfg .esp .avi { transition: transform .35s var(--rebote) }
+#cfg .esp:hover .avi { transform: translateY(-3px) }
+#cfg .esp:active { transform: scale(.96) }
+#cfg .esp[aria-checked="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 9%, var(--s1)); box-shadow: 0 0 0 1px var(--c) inset }
+#cfg .esp-n { font: var(--t-cuerpo-f) }
+#cfg .esp-e { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#cfg .esp-ok {
+  position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--c); color: var(--negro); font: 800 11px/1 var(--f); font-style: normal;
+}
+#cfg .esp-nota {
+  margin: 0; display: grid; align-content: center; align-self: start; min-height: 96px; padding: var(--e-2) var(--e-3); border: 1px dashed var(--linea-hover);
+  border-radius: var(--r-ficha); font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue);
+}
+#cfg .esp-error:empty { display: none }
+#cfg .esp-error .aj-error { margin: var(--e-4) 0 0 }
+
+/* Modelos e Instalación (6.1, entrega 3): píldoras de estado con su texto siempre, tarjetas del
+   modelo local y del mod, y el "¿Borrar? Sí" que confirma en el mismo botón (D5) */
+#cfg .t-ok { --c: var(--verde) }
+#cfg .t-aviso { --c: var(--ambar) }
+#cfg .t-proc { --c: var(--celeste) }
+#cfg .t-error { --c: var(--rojo) }
+#cfg .t-nada { --c: var(--tenue) }
+/* El punto de estado de una pestaña (6.3): el texto va oculto al lado, el color nunca solo */
+#cfg .pes .pt { width: 6px; height: 6px; box-shadow: none }
+#cfg .pill {
+  display: inline-flex; align-items: center; gap: var(--e-3); flex: none; padding: 4px 9px 4px 7px; border-radius: var(--r-pildora);
+  background: var(--s2); font: var(--t-mono-s); color: var(--crema2); white-space: nowrap;
+}
+#cfg .pill .pt { width: 6px; height: 6px; box-shadow: none }
+#cfg .tarj { display: grid; gap: var(--e-4); padding: 12px 14px; margin-top: var(--e-3); border: 1px solid var(--linea); border-radius: var(--r-cuadro); background: var(--s1) }
+#cfg .tarj-t { display: flex; align-items: center; justify-content: space-between; gap: var(--e-4) }
+#cfg .tarj-t b { font: var(--t-cuerpo-f) }
+#cfg .tarj-de { font: var(--t-chico); color: var(--tenue) }
+#cfg .tarj p { margin: 0; font: var(--t-chico); color: var(--crema2) }
+#cfg .tarj .aj-error { color: var(--rojo) }
+#cfg .acc { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-3) }
+#cfg .btn[aria-disabled="true"] { opacity: .38; cursor: not-allowed; filter: none; transform: none }
+/* La barra de la descarga: la del globo, sobre fondo oscuro y en celeste */
+#cfg .barra { background: var(--s3) }
+#cfg .barra i { background: linear-gradient(90deg, var(--celeste), #B5D3FF); transition: transform .4s var(--ease) }
+#cfg .barra i::after { display: none }
+#cfg .cifras { font: var(--t-mono-s); color: var(--tenue); font-variant-numeric: tabular-nums }
+#cfg .lnk {
+  min-height: 32px; padding: 0 var(--e-3); border: 0; border-radius: var(--r-tag); background: none; color: var(--crema2);
+  font: 700 12px/1 var(--f); cursor: pointer; transition: color var(--d-color) ease, transform var(--d-presion) ease;
+}
+#cfg .lnk:hover { color: var(--crema); text-decoration: underline }
+#cfg .lnk:active { transform: scale(.97) }
+#cfg .lnk.peligro { color: var(--rojo) }
+#cfg .armado {
+  position: relative; overflow: hidden; min-height: 32px; padding: 0 var(--e-6); border: 0; border-radius: var(--r-pildora);
+  background: var(--rojo); color: var(--negro); font: 800 12px/1 var(--f); white-space: nowrap; cursor: pointer;
+}
+#cfg .armado:focus-visible { outline-color: var(--crema) }
+/* La línea que se vacía en los 3 s (`--ya` la retoma donde iba si la sección se redibuja) */
+#cfg .armado::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--negro); opacity: .45;
+  transform-origin: 0 50%; animation: drena var(--d-confirma) linear var(--ya, 0ms) both;
+}
+#cfg .ver-avis { margin: var(--e-7) 0 0; font: var(--t-mono-s); color: var(--tenue) }
+#cfg .lnk[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none; transform: none }
+
+/* Claves de API (6.1 y 7.1, entrega 4): el candado, una fila por proveedor con su inicial (sin logos,
+   D11), el estado con la máscara del final y, editando, el campo de contraseña con su ayuda */
+#cfg .cand { display: flex; gap: var(--e-4); align-items: flex-start; margin: 0; padding: 2px 0 10px; font: var(--t-chico); color: var(--crema2) }
+#cfg .cand svg { width: 14px; height: 14px; flex: none; margin-top: 1px; fill: none; stroke: var(--ambar); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round }
+#cfg .cl { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: var(--e-2) 12px; padding: 11px 0; border-top: 1px solid var(--linea) }
+#cfg .prov {
+  width: 30px; height: 30px; display: grid; place-items: center; border-radius: var(--r-icono); background: var(--s2);
+  border: 1px solid var(--linea); font: 600 12px/1 var(--m); color: var(--crema);
+}
+#cfg .cl-t { display: flex; align-items: baseline; justify-content: space-between; gap: var(--e-4) }
+#cfg .cl-t b { font: var(--t-cuerpo-f) }
+#cfg .cl-de { font: var(--t-chico); color: var(--tenue) }
+#cfg .est { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2) var(--e-4); margin-top: 2px; font: var(--t-chico); color: var(--crema2) }
+#cfg .est.ok { color: var(--verde) }
+#cfg .est.mal { color: var(--rojo) }
+#cfg .est.aviso { color: var(--ambar) }
+#cfg .mask { font: var(--t-mono); color: var(--crema); letter-spacing: .04em; padding: 1px 6px; border-radius: 5px; background: var(--s2) }
+#cfg .cl > .acc, #cfg .cl > .aj-error { grid-column: 2 }
+#cfg .cl > .aj-error { margin: 0 }
+#cfg .cl-form { grid-column: 2; display: grid; gap: 6px; margin-top: 6px }
+#cfg .campo {
+  display: flex; align-items: center; gap: var(--e-2); padding: 0 var(--e-2) 0 12px; min-height: 38px; border: 1px solid var(--linea);
+  border-radius: var(--r-campo); background: var(--s1); transition: border-color var(--d-color) ease, box-shadow var(--d-color) ease;
+}
+#cfg .campo:focus-within { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
+#cfg .campo.mal { border-color: rgba(255, 122, 107, .7) }
+#cfg .campo input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--crema); font: var(--t-mono); letter-spacing: .03em }
+#cfg .campo input::placeholder { color: var(--tenue) }
+#cfg .cl-ayuda { margin: 0; font: var(--t-chico); color: var(--tenue) }
+#cfg .cl-ayuda.mal { color: var(--rojo) }
+#cfg .cl-ayuda.aviso { color: var(--ambar) }
+#cfg .cl-nota { margin: var(--e-2) 0 0; padding-left: 42px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+/* Recién guardada (8): la fila se baña de verde 12 % y se apaga en 1,2 s */
+@keyframes cfgRecien { 0% { background: color-mix(in srgb, var(--verde) 12%, transparent) } 100% { background: transparent } }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) #cfg .cl.recien { animation: cfgRecien 1.2s var(--ease) }
+}
+@media (prefers-reduced-motion: reduce) {
+  #cfg .campo { transition: none }
+}
+@keyframes cfgLate { 50% { opacity: .35 } }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) #cfg .t-proc .pt { animation: cfgLate 1.2s ease-in-out infinite }
+}
+@media (prefers-reduced-motion: reduce) {
+  #cfg .barra i, #cfg .lnk { transition: none }
+  #cfg .armado::after { animation: none }
+}
+body.pausa #cfg .barra i { transition: none }
+body.pausa #cfg .armado::after { animation: none }
+
+/* El Avi de 40 junto al título, fuera de Mascota (6.1 `.mini`) */
+.cfg-mini { display: none }
+#marco.con-cfg.con-mini .cab-t { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: var(--e-5); align-items: center }
+#marco.con-cfg.con-mini .cfg-mini { display: grid; place-items: center; grid-row: 1 / span 2; width: 40px; height: 40px }
+#marco.con-cfg.con-mini .cab-t > h1, #marco.con-cfg.con-mini .cab-t > p { grid-column: 2 }
+
+/* Movimiento (8): el engranaje gira 45° al pasar; con movimiento reducido o pausa, nada se desliza y
+   la luz de la mascota cambia sin transición */
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .pj.engr svg { transition: transform .6s var(--rebote) }
+  body:not(.pausa) .pj.engr:not([aria-current]):hover svg { transform: rotate(45deg) }
+}
+@media (prefers-reduced-motion: reduce) {
+  #cfg .pes, #cfg .sw, #cfg .sw i, #cfg .seg > button, #cfg .pb, #cfg .esc-m, #cfg .esp, #cfg .esp .avi { transition: none }
+  #cfg .esp:hover .avi { transform: none }
+}
+body.pausa #cfg .sw i, body.pausa #cfg .esc-m, body.pausa #cfg .esp .avi { transition: none }
+body.pausa #cfg .esp:hover .avi { transform: none }

@@ -619,3 +619,23 @@ test('Lumen: el ocelo de las alas lleva su clase (la luz que se apaga); el dibuj
   const h = svgAvi(claudeDe('lumen'), 'esperando', false, { claveEvo: 's1' })
   assert.equal(h.match(/<circle class="ocelo" cx="19" cy="50" r="5\.6" fill="#5CE1E6"\/>/g).length, 2)
 })
+
+// ------------------------------------------------------------------ tipo y concepto (configuracion-ux.md 5 y 9.5)
+
+test('cada especie trae el tipo y el concepto del boceto de mascotas (M), para la pestaña Mascota', () => {
+  const esperado = {
+    avi: ['Familia · el de siempre', 'El Avi de Claude de hoy, sin cambios: huevo crema, pico y antena ámbar. Ahora también evoluciona.'],
+    ascua: ['Dracónico · brasa', 'Un dragoncito que guarda una brasa en el pecho: cuanto más trabaja, más brilla.'],
+    escarcha: ['Dracónico · cristal', 'Un dragón tallado en hielo, todo facetas: piensa en frío y nunca pierde la forma.'],
+    nodo: ['Digital · datos', 'Nació en la memoria caché: cara de pantalla, orejas de antena y una evolución guardada.'],
+    bruma: ['Abisal · bioluz', 'Viene del fondo del mar de datos: no camina, flota, y brilla cuando piensa.'],
+    morro: ['Gólem · runas', 'Un gólem petiso de basalto: lento, firme, y sus runas se encienden cuando algo importa.'],
+    lumen: ['Polilla · luz', 'Una polilla mullida que junta la luz de las pantallas y la devuelve en polvo.'],
+  }
+  for (const e of NOMBRES_ESPECIES) assert.deepEqual([ESPECIES[e].tipo, ESPECIES[e].concepto], esperado[e], e)
+  // Sumar el tipo y el concepto no toca lo que ya había (nombre, forma evolucionada y acento)
+  assert.deepEqual(NOMBRES_ESPECIES.map(e => [ESPECIES[e].nombre, ESPECIES[e].evoNombre, ESPECIES[e].c]), [
+    ['Avi', 'Faro', '#F2B632'], ['Ascua', 'Pira', '#FF7A2E'], ['Escarcha', 'Glaciar', '#7DF9FF'], ['Nodo', 'Nodo Ω', '#C6FF3D'],
+    ['Bruma', 'Regia', '#FF5FD2'], ['Morro', 'Monolito', '#FFC24A'], ['Lumen', 'Aurora', '#FFB37A'],
+  ])
+})

@@ -31,6 +31,22 @@
 //                 comando, leyendo, pensando, esperándote, proceso, inactiva); "elenco" coordina a los cinco
 //                 subagentes (escribiendo, leyendo, listo y falló recién, dormido; 4 fichas y "+1")
 //   ?pausa        arranca con "Pausar animaciones" marcado, como desde la bandeja
+// Configuración (#23, docs/diseno/configuracion-ux.md): la fila "Configuración" de la barra, Ctrl , o
+//   ?cfg=panel    abre la configuración al arrancar en esa pestaña (mascota, panel, modelos, datos,
+//                 instalacion), como "Configuración…" de la bandeja (window.__bandeja('oficina://configuracion', { abrir: true }))
+//   &arranque     "Arrancar con Windows" ya prendido   &arranquefalla  el sistema no deja cambiarlo
+//   &cfgfalla     guardar_ajuste falla: el interruptor (o la especie) vuelve y dice "No se pudo guardar. Probá de nuevo."
+//   ?cfg=mascota  la pestaña Mascota: elegir una especie cambia toda la ventana; "Base · {evo}" corre el acto
+//                 (con ?pausa o movimiento reducido, al instante)
+//   ?cfg=instalacion&mod=al-dia|actualizado|apagado|instalando|fallo|sin-claude|sin-instalar  la tarjeta
+//                 "Mod de Claude Code" (7.3): estado_mod falso, con la última revisión y el aviso de una vez;
+//                 instalando no termina nunca (para mirarlo). "Prender" corre el paso activar falso
+//   ?cfg=modelos&modelo=falta|bajando|listo|roto  la tarjeta del modelo local (7.2), el mismo modelo falso
+//                 del chat (bajando avanza solo). &borrarfalla: borrar_modelo falla
+//   ?cfg=modelos&clave=sin|guardada  las claves de API (7.1): ninguna o las tres (sin ?clave, Claude y
+//                 Gemini). Probar responde válida (Gemini, rechazada) o lo de &probar=valida|rechazada|sin-red|otro;
+//                 &clavelenta tarda 4 s; &clavefalla: Windows no deja guardar (windows:1312); &borrarfalla, borrar
+//   Lo guardado queda en window.__ajustes.
 //   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
 //                 docs/diseno/mascotas-avi-ux.md 9.1), con su forma evolucionada, sus bucles y sus actos;
 //                 los subagentes, sus variantes (7.3; con el Avi, el elenco por nombre)
@@ -95,8 +111,8 @@
 //   &modauto=instalo|actualizo  Avis instaló o actualizó el mod solo (#17): el aviso de una vez
 //   &modauto=solo  con ?pp=sinmod: a los 1,5 s Avis instala el mod solo (oficina://mod-auto) y avisa
 // Cada paso que corre avisa como Rust (oficina://primeros-pasos) y, si termina bien, cambia la
-// máquina falsa. El ítem de la bandeja se imita con window.__bandeja('oficina://primeros-pasos-abrir');
-// su texto queda en window.__menuPasos.
+// máquina falsa. El asistente se abre desde la pestaña Instalación de la configuración o desde el
+// aviso del tablero (la bandeja ya no lo tiene, configuracion-ux.md 4.5).
 // La charla con la mascota (#22, docs/diseno/chat-avis-ux.md): el backend falso de chat_abrir,
 // chat_enviar, chat_frenar, chat_cerrar, guardar_chat, elegir_carpeta, estado_modelo, descargar_modelo
 // y cancelar_modelo, con los eventos oficina://chat y oficina://modelo; el historial (chat_guardar,
@@ -123,8 +139,8 @@
 // window.__arrastrar({ type: 'enter' | 'over' | 'drop' | 'leave', paths, position }) imita el arrastre
 // de Tauri (onDragDropEvent, px físicos); window.__soltarEnHoja([ruta]) suelta en el medio de la hoja.
 // Desde la consola del iframe: window.__chat.despachar({ tipo: 'soltando', nombre: 'a.pdf' }) manda
-// cualquier evento a la hoja y window.__chat.estado() la lee; window.__borrarModelo() imita "Borrar el
-// modelo de IA" de la bandeja.
+// cualquier evento a la hoja y window.__chat.estado() la lee; window.__borrarModelo() imita "Borrar" del
+// modelo local en la configuración.
 ;(() => {
   const url = new URLSearchParams(location.search)
   const chatEsc = url.get('chat')
@@ -476,9 +492,20 @@
     ? { borde: url.get('acople'), lugar: url.has('lugar') ? Number(url.get('lugar')) : 0.5 }
     : null
   window.__acople = acople
+  /** preferencias.json falso (configuracion-ux.md 9.1): los interruptores; guardar_ajuste los cambia. */
+  const ESPECIES = ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']
+  const ajustes = { arriba: true, avisar: true, pausa: url.has('pausa'), mascota: ESPECIES.includes(url.get('mascota')) ? url.get('mascota') : 'avi' }
+  // Las claves de API falsas (entrega 4): solo el final de 4, como lo que devuelve Rust. ?clave=sin
+  // ninguna, ?clave=guardada las tres; sin ?clave, Claude y Gemini (las del boceto)
+  const PROVEEDORES_FALSOS = ['anthropic', 'openai', 'gemini']
+  const clavesFalsas = url.get('clave') === 'sin' ? {}
+    : url.get('clave') === 'guardada' ? { anthropic: 'a1B2', openai: 'Q7xK', gemini: '9fLw' } : { anthropic: 'a1B2', gemini: '9fLw' }
+  let arranqueFalso = url.has('arranque')
   const oyentes = {}
   let lecturas = 0
   const emitir = (nombre, payload) => { for (const f of oyentes[nombre] ?? []) f({ payload }) }
+  // ?cfg=<pestaña>: como "Configuración…" de la bandeja, abre la configuración en esa pestaña
+  if (url.has('cfg')) setTimeout(() => emitir('oficina://configuracion', { abrir: true, tab: url.get('cfg') || undefined }), 900)
 
   // ---- zona interactiva (9.6): imita el sondeo de Rust y el paso de los clics
   const zonaSt = { zona: null, toda: false, dentro: true, informado: false, n: 0, punto: null, desfase: null, mirada: false, cursor: null, cursorT: 0 }
@@ -531,10 +558,13 @@
 
   // ---- primeros pasos: la máquina falsa y los pasos que corren
   const pp = url.get('pp')
+  // ?mod=…: el estado de la tarjeta del mod de la configuración (7.3)
+  const modCfg = url.get('mod')
   const maquina = {
-    claude: !['nada', 'sinclaude'].includes(pp),
+    claude: !['nada', 'sinclaude'].includes(pp) && modCfg !== 'sin-claude',
     catalogo: !['sinmod'].includes(pp),
-    mod: pp === 'sinmod' || pp === 'nada' || pp === 'sinclaude' ? 'ausente' : pp === 'apagado' ? 'apagado' : 'activo',
+    mod: pp === 'sinmod' || pp === 'nada' || pp === 'sinclaude' || ['instalando', 'sin-instalar'].includes(modCfg) ? 'ausente'
+      : pp === 'apagado' || modCfg === 'apagado' ? 'apagado' : 'activo',
     gh: !['nada', 'singh', 'sinwinget'].includes(pp),
     winget: pp !== 'sinwinget',
     cuenta: ['nada', 'singh', 'sinwinget', 'sinsesion'].includes(pp) ? 'sin-sesion' : pp === 'sinred' ? 'sin-conexion' : 'conectada',
@@ -542,10 +572,13 @@
     membresia: pp === 'nomiembro' ? 'no-miembro' : pp === 'invitacion' ? 'pendiente' : 'activa',
   }
   let fallaPendiente = url.get('ppfalla')
+  const versionMod = modCfg ? '0.9.1' : '0.6.0'
+  // La última revisión automática guardada (preferencias.json, `mod`): hace 40 min; ?mod=fallo, falló
+  const revisionMod = modCfg ? { revisado: Date.now() - 40 * 60000, fallo: modCfg === 'fallo' } : null
   const revisionFalsa = () => ({
     claude: { encontrado: maquina.claude, version: maquina.claude ? '2.1.329' : null },
     mod: maquina.claude
-      ? { instalado: maquina.mod !== 'ausente', activo: maquina.mod === 'activo', version: maquina.mod === 'ausente' ? null : '0.6.0', catalogo: maquina.catalogo, error: null }
+      ? { instalado: maquina.mod !== 'ausente', activo: maquina.mod === 'activo', version: maquina.mod === 'ausente' ? null : versionMod, catalogo: maquina.catalogo, error: null }
       : { instalado: false, activo: false, version: null, catalogo: false, error: null },
     gh: { instalado: maquina.gh, version: maquina.gh ? '2.103.3' : null, winget: !maquina.gh && maquina.winget },
     cuenta: maquina.gh
@@ -560,7 +593,7 @@
   // El mod automático (#17): el aviso pendiente que la ventana toma una vez (tomar_aviso_mod)
   const modauto = url.get('modauto')
   let avisoModPendiente = modauto === 'instalo' ? { tipo: 'instalo', version: '0.9.1' }
-    : modauto === 'actualizo' ? { tipo: 'actualizo', version: '0.9.1', desde: '0.9.0' } : null
+    : modauto === 'actualizo' || modCfg === 'actualizado' ? { tipo: 'actualizo', version: '0.9.1', desde: '0.9.0' } : null
   const despues = (ms, f) => relojesPaso.push(setTimeout(f, ms))
   const avisarPaso = (accion, cuerpo) => emitir('oficina://primeros-pasos', { accion, paso: ['mod', 'activar'].includes(accion) ? 'mod' : 'gh', ...cuerpo })
   const terminar = (accion, cuerpo) => { corriendo = null; relojesPaso = []; avisarPaso(accion, cuerpo) }
@@ -613,6 +646,15 @@
     }
   }
 
+  // ?mod=instalando: Avis instala el mod solo y no termina nunca (para mirar "Instalando…")
+  if (modCfg === 'instalando') {
+    setTimeout(() => {
+      corriendo = 'mod'
+      emitir('oficina://mod-auto', { estado: 'empieza', accion: 'mod' })
+      avisarPaso('mod', { estado: 'comando', comando: 'claude plugin install oficina@quintech' })
+    }, 1500)
+  }
+
   // ?pp=sinmod&modauto=solo: Avis instala el mod solo, como mod_auto.rs (el paso 2 corre sin clic)
   if (modauto === 'solo' && maquina.claude && maquina.mod === 'ausente') {
     setTimeout(() => {
@@ -628,7 +670,7 @@
   const GB = 1024 ** 3
   const TOTAL_MODELO = Math.round(2.6 * GB)
   const modeloLocal = {
-    modelo: url.get('modelo') === 'listo' || chatEsc === 'error-red' ? 'listo' : url.get('modelo') === 'bajando' ? 'bajando' : 'falta',
+    modelo: url.get('modelo') === 'listo' || chatEsc === 'error-red' ? 'listo' : ['bajando', 'roto'].includes(url.get('modelo')) ? url.get('modelo') : 'falta',
     bajado: url.get('modelo') === 'bajando' ? Math.round(0.4 * GB) : 0,
     total: TOTAL_MODELO, motor: 'apagado', primeraVez: true, aceleracion: 'gpu',
   }
@@ -645,7 +687,7 @@
     relojesModelo.push(setTimeout(tic, 250))
   }
   if (modeloLocal.modelo === 'bajando') bajarModelo()
-  /** "Borrar el modelo" de la bandeja (lo hace el backend): avisa que no hay modelo. */
+  /** "Borrar" del modelo local en la configuración (lo hace el backend): avisa que no hay modelo. */
   window.__borrarModelo = () => {
     relojesModelo.forEach(clearTimeout)
     Object.assign(modeloLocal, { modelo: 'falta', bajado: 0 })
@@ -855,12 +897,23 @@
       }
     }, 1500)
   }
+  // Como Rust (borrar_modelo): sin cuadro nativo (la confirmación es de la ventana); &borrarfalla falla
+  comandosChat.borrar_modelo = () => {
+    if (url.has('borrarfalla')) throw new Error('no se pudo borrar %LOCALAPPDATA%\\avis-ia (falso)')
+    window.__borrarModelo()
+    console.info('[modelo] borrar_modelo')
+    return TOTAL_MODELO
+  }
 
   const comandos = {
     ...comandosChat,
     registrar: ({ linea }) => console.debug('[widget.log]', linea),
     revisar_primeros_pasos: () => new Promise(r => setTimeout(() => r(revisionFalsa()), url.has('pplento') ? 2000 : 600)),
-    menu_primeros_pasos: ({ faltan }) => { window.__menuPasos = faltan == null || faltan === 0 ? 'Primeros pasos…' : faltan === 1 ? 'Primeros pasos (falta 1)…' : `Primeros pasos (faltan ${faltan})…`; console.info('[bandeja]', window.__menuPasos) },
+    // Como Rust (estado_mod): la lectura del mod y la última revisión guardada, solo lectura
+    estado_mod: () => new Promise(r => setTimeout(() => {
+      const rev = revisionFalsa()
+      r({ claude: rev.claude, mod: rev.mod, revisado: revisionMod?.revisado ?? null, fallo: !!revisionMod?.fallo })
+    }, url.has('pplento') ? 2000 : 400)),
     correr_paso: ({ paso }) => {
       if (corriendo) throw new Error('ya corre otro paso (falso)')
       if (!['mod', 'activar', 'gh', 'conectar', 'permiso'].includes(paso)) throw new Error('paso desconocido')
@@ -878,9 +931,55 @@
     abrir_enlace: ({ cual }) => console.info('[navegador]', cual),
     tomar_aviso_mod: () => { const a = avisoModPendiente; avisoModPendiente = null; return a },
     poner_bandeja: ({ texto }) => { document.title = texto },
-    estado_menu: () => ({ arriba: true, avisar: true, pausa: url.has('pausa'), tamano: paso, acople, flotante, chat: prefsChat }),
-    // Como Rust (leer_mascota): lo que no es una especie es el Avi; la ventana lo valida otra vez
-    mascota: () => (['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen'].includes(url.get('mascota')) ? url.get('mascota') : 'avi'),
+    // Como Rust (leer_configuracion): la mascota que no es una especie es el Avi (la ventana la valida
+    // otra vez); los interruptores, lo guardado con guardar_ajuste; el arranque, el "sistema" falso
+    leer_configuracion: () => ({
+      tamano: paso, acople, flotante, ...ajustes, arranque: arranqueFalso, version: '0.10.0', chat: prefsChat,
+    }),
+    // Como `ajuste_valido` de preferencias.rs; ?cfgfalla hace fallar el guardado (la fila vuelve y lo dice)
+    guardar_ajuste: ({ clave, valor }) => {
+      const valido = clave === 'mascota' ? ESPECIES.includes(valor) : ['arriba', 'avisar', 'pausa'].includes(clave) && typeof valor === 'boolean'
+      if (!valido) throw new Error(`ajuste inválido: ${clave}`)
+      if (url.has('cfgfalla')) throw new Error('no se pudo escribir preferencias.json (falso)')
+      ajustes[clave] = valor
+      window.__ajustes = { ...ajustes }
+      console.info('[preferencias]', JSON.stringify(ajustes))
+      if (clave === 'pausa') emitir('oficina://pausa', valor)
+      // Como Rust: la mascota guardada avisa a la ventana, que redibuja todo con ella (sin acto)
+      if (clave === 'mascota') emitir('oficina://mascota', { mascota: valor })
+      return { ok: true, valor }
+    },
+    // Claves de API (entrega 4, 9.4), como claves.rs: lista fija de proveedores, la forma se valida de
+    // nuevo y solo se guarda el final (ni el falso conserva la clave). Probar tarda 1,4 s (&clavelenta, 4 s)
+    claves_estado: () => new Promise(r => setTimeout(() => r(PROVEEDORES_FALSOS.map(p => clavesFalsas[p]
+      ? { proveedor: p, guardada: true, final: clavesFalsas[p] } : { proveedor: p, guardada: false })), 300)),
+    guardar_clave: ({ proveedor, clave }) => {
+      if (!PROVEEDORES_FALSOS.includes(proveedor)) throw new Error('proveedor desconocido')
+      const t = String(clave ?? '').trim()
+      if ([...t].length < 20 || /\s/.test(t)) throw new Error('forma')
+      if (url.has('clavefalla')) throw new Error('windows:1312')
+      clavesFalsas[proveedor] = [...t].slice(-4).join('')
+      console.info('[credenciales] guardada', proveedor)
+      return { guardada: true, final: clavesFalsas[proveedor] }
+    },
+    borrar_clave: ({ proveedor }) => {
+      if (!PROVEEDORES_FALSOS.includes(proveedor)) throw new Error('proveedor desconocido')
+      if (url.has('borrarfalla')) throw new Error('windows:5')
+      delete clavesFalsas[proveedor]
+      console.info('[credenciales] borrada', proveedor)
+      return { guardada: false }
+    },
+    probar_clave: ({ proveedor }) => new Promise((r, no) => setTimeout(() => {
+      if (!clavesFalsas[proveedor]) return no(new Error('sin clave'))
+      const resultado = url.get('probar') ?? (proveedor === 'gemini' ? 'rechazada' : 'valida')
+      r(resultado === 'otro' ? { resultado, estado: 500 } : { resultado })
+    }, url.has('clavelenta') ? 4000 : 1400)),
+    // "Arrancar con Windows": ?arranquefalla imita un sistema que no deja prenderlo (vuelve la marca real)
+    poner_arranque: ({ valor }) => {
+      if (!url.has('arranquefalla')) arranqueFalso = !!valor
+      console.info('[arranque]', arranqueFalso)
+      return arranqueFalso
+    },
     leer_sesiones: () => {
       lecturas++
       if (url.has('cargando')) return new Promise(() => {})
@@ -925,7 +1024,6 @@
       paso = direccion === 0 ? 100 : PASOS[Math.max(0, Math.min(PASOS.length - 1, k + direccion))]
       for (const f of oyentes['oficina://tamano'] ?? []) f({ payload: paso })
     },
-    fijar_arriba: () => null,
     // La tira es un elemento adentro de la ventana: Rust solo anota el modo (segundo arranque)
     modo_mini: args => {
       mini = !!args.mini
