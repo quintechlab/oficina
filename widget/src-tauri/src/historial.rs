@@ -112,7 +112,8 @@ fn mensaje(m: &Value) -> Result<Value, String> {
     Ok(Value::Object(x))
 }
 
-/// El formato v1 de 9.1, solo con sus campos. `engramId` no lo decide la ventana (queda nulo acá).
+/// El formato v1 de 9.1, solo con sus campos (más `modelo`, opcional, de #35). `engramId` no lo
+/// decide la ventana (queda nulo acá).
 pub fn normalizar(doc: &Value) -> Result<Value, String> {
     if doc["v"] != json!(1) {
         return Err(String::from("versión desconocida"));
@@ -128,7 +129,7 @@ pub fn normalizar(doc: &Value) -> Result<Value, String> {
         return Err(String::from("demasiados mensajes"));
     }
     let mensajes = mensajes.iter().map(mensaje).collect::<Result<Vec<_>, String>>()?;
-    Ok(json!({
+    let mut limpio = json!({
         "v": 1,
         "id": id,
         "titulo": texto_o_nulo(&doc["titulo"], TOPE_CORTO, "titulo")?,
@@ -140,7 +141,13 @@ pub fn normalizar(doc: &Value) -> Result<Value, String> {
         "sesionClaude": sesion,
         "engramId": Value::Null,
         "mensajes": mensajes,
-    }))
+    });
+    // El modelo de la charla (#35), opcional: solo uno de `chat::MODELOS`; si no, "Por defecto" (sin
+    // la clave, como las charlas de antes). El motor local no tiene modelo, como no tiene carpeta (S4)
+    if let Some(m) = doc["modelo"].as_str().filter(|m| motor != "local" && chat::modelo_valido(m)) {
+        limpio["modelo"] = json!(m);
+    }
+    Ok(limpio)
 }
 
 fn bloquear() -> std::sync::MutexGuard<'static, ()> {

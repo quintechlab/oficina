@@ -10,6 +10,8 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
+use crate::chat;
+
 /// Pasos del tamaño, en porcentaje del tamaño original (el de la versión 0.1): de 100 % a 200 %.
 pub const PASOS: [u32; 5] = [100, 125, 150, 175, 200];
 pub const PASO_POR_DEFECTO: u32 = 100;
@@ -90,7 +92,7 @@ fn escribir(ruta: &Path, p: Preferencias) -> Result<(), String> {
         valor.insert(String::from(clave), v);
     }
     if let Some(c) = p.chat {
-        valor.insert(String::from("chat"), json!({ "motor": c.motor, "carpeta": c.carpeta, "recientes": c.recientes }));
+        valor.insert(String::from("chat"), json!({ "motor": c.motor, "carpeta": c.carpeta, "recientes": c.recientes, "modelo": c.modelo }));
     }
     std::fs::write(ruta, Value::Object(valor).to_string()).map_err(|e| e.to_string())
 }
@@ -166,13 +168,15 @@ fn leer_valor(ruta: &Path) -> Option<Value> {
 /// Cuántas carpetas recientes recuerda el menú de la charla.
 pub const RECIENTES: usize = 5;
 
-/// El motor y la carpeta de la próxima charla nueva (D11) y las últimas carpetas elegidas.
-/// `carpeta: None` es "Solo Avis" (D9). Que la carpeta exista lo revisa quien la usa.
+/// El motor, la carpeta y el modelo de la próxima charla nueva (D11 y #35) y las últimas carpetas
+/// elegidas. `carpeta: None` es "Solo Avis" (D9); `modelo: None`, "Por defecto" (uno de
+/// `chat::MODELOS` si no). Que la carpeta exista lo revisa quien la usa.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Chat {
     pub motor: Option<String>,
     pub carpeta: Option<String>,
     pub recientes: Vec<String>,
+    pub modelo: Option<String>,
 }
 
 fn motor_valido(m: &str) -> bool {
@@ -184,6 +188,8 @@ fn chat_de_valor(v: &Value) -> Chat {
         motor: v.get("motor").and_then(Value::as_str).filter(|m| motor_valido(m)).map(String::from),
         carpeta: v.get("carpeta").and_then(Value::as_str).filter(|c| !c.is_empty()).map(String::from),
         recientes: v.get("recientes").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).filter(|c| !c.is_empty()).take(RECIENTES).map(String::from).collect()).unwrap_or_default(),
+        // Un modelo desconocido se lee como "Por defecto"
+        modelo: v.get("modelo").and_then(Value::as_str).filter(|m| chat::modelo_valido(m)).map(String::from),
     }
 }
 
@@ -197,11 +203,14 @@ pub fn con_reciente(recientes: &[String], carpeta: &str) -> Vec<String> {
     std::iter::once(carpeta.to_string()).chain(recientes.iter().filter(|r| r.as_str() != carpeta).cloned()).take(RECIENTES).collect()
 }
 
-/// Guarda el motor y la carpeta de la charla (la carpeta, también en las recientes) y conserva lo
-/// demás. Devuelve lo guardado.
-pub fn guardar_chat(ruta: &Path, motor: &str, carpeta: Option<&str>) -> Result<Chat, String> {
+/// Guarda el motor, la carpeta y el modelo de la charla (la carpeta, también en las recientes) y
+/// conserva lo demás. El modelo se guarda tal cual llega: `None` es "Por defecto". Devuelve lo guardado.
+pub fn guardar_chat(ruta: &Path, motor: &str, carpeta: Option<&str>, modelo: Option<&str>) -> Result<Chat, String> {
     if !motor_valido(motor) {
         return Err(format!("motor desconocido: {motor}"));
+    }
+    if modelo.is_some_and(|m| !chat::modelo_valido(m)) {
+        return Err(String::from("modelo desconocido"));
     }
     let todo = leer_todo(ruta);
     let antes = todo.chat.clone().unwrap_or_default();
@@ -210,6 +219,7 @@ pub fn guardar_chat(ruta: &Path, motor: &str, carpeta: Option<&str>) -> Result<C
         motor: Some(motor.to_string()),
         carpeta: carpeta.map(String::from),
         recientes: carpeta.map_or(antes.recientes.clone(), |c| con_reciente(&antes.recientes, c)),
+        modelo: modelo.map(String::from),
     };
     escribir(ruta, Preferencias { chat: Some(chat.clone()), ..todo })?;
     Ok(chat)
@@ -629,7 +639,7 @@ mod tests {
         fs::create_dir_all(r.parent().unwrap()).unwrap();
         // Basura: un motor desconocido, recientes que no son texto y de más
         fs::write(&r, r#"{"chat":{"motor":"gpt","carpeta":7,"recientes":["a",3,"b","c","d","e","f","g"]}}"#).unwrap();
-        assert_eq!(leer_chat(&r), Chat { motor: None, carpeta: None, recientes: ["a", "b", "c", "d", "e"].map(String::from).to_vec() });
+        assert_eq!(leer_chat(&r), Chat { motor: None, carpeta: None, recientes: ["a", "b", "c", "d", "e"].map(String::from).to_vec(), modelo: None });
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 
@@ -646,16 +656,16 @@ mod tests {
         let r = ruta_temporal("chat-guarda");
         fs::create_dir_all(r.parent().unwrap()).unwrap();
         fs::write(&r, r#"{"tamano":150,"mascota":"ascua"}"#).unwrap();
-        let c = guardar_chat(&r, "claude", Some("C:\\uno")).unwrap();
-        assert_eq!(c, Chat { motor: Some(String::from("claude")), carpeta: Some(String::from("C:\\uno")), recientes: vec![String::from("C:\\uno")] });
-        guardar_chat(&r, "claude", Some("C:\\dos")).unwrap();
+        let c = guardar_chat(&r, "claude", Some("C:\\uno"), None).unwrap();
+        assert_eq!(c, Chat { motor: Some(String::from("claude")), carpeta: Some(String::from("C:\\uno")), recientes: vec![String::from("C:\\uno")], modelo: None });
+        guardar_chat(&r, "claude", Some("C:\\dos"), None).unwrap();
         // "Solo Avis" (sin carpeta) no toca las recientes
-        let c = guardar_chat(&r, "claude", None).unwrap();
+        let c = guardar_chat(&r, "claude", None, None).unwrap();
         assert_eq!(c.carpeta, None);
         assert_eq!(c.recientes, ["C:\\dos", "C:\\uno"].map(String::from).to_vec());
         // El motor local guarda el motor; un motor desconocido no se guarda
-        assert_eq!(guardar_chat(&r, "local", None).unwrap().motor, Some(String::from("local")));
-        assert!(guardar_chat(&r, "otro", None).is_err());
+        assert_eq!(guardar_chat(&r, "local", None, None).unwrap().motor, Some(String::from("local")));
+        assert!(guardar_chat(&r, "otro", None, None).is_err());
         assert_eq!(leer_tamano(&r), 150);
         assert_eq!(leer_mascota(&r), "ascua");
         // Guardar otra preferencia no borra la charla
@@ -663,6 +673,38 @@ mod tests {
         guardar_acople(&r, None).unwrap();
         assert_eq!(leer_chat(&r).recientes, ["C:\\dos", "C:\\uno"].map(String::from).to_vec());
         assert_eq!(leer_chat(&r).motor, Some(String::from("local")));
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn el_modelo_de_las_charlas_nuevas_se_guarda_tal_cual_llega() {
+        // #35 (S2): uno de los cuatro alias, o ninguno ("Por defecto")
+        let r = ruta_temporal("chat-modelo");
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        fs::write(&r, r#"{"tamano":150,"otra":{"de":"una version nueva"}}"#).unwrap();
+        for m in crate::chat::MODELOS {
+            assert_eq!(guardar_chat(&r, "claude", None, Some(m)).unwrap().modelo.as_deref(), Some(m));
+            assert_eq!(leer_chat(&r).modelo.as_deref(), Some(m));
+        }
+        // Guardar sin modelo es "Por defecto", aunque antes hubiera uno
+        assert_eq!(guardar_chat(&r, "claude", Some("C:\\uno"), None).unwrap().modelo, None);
+        assert_eq!(leer_chat(&r).modelo, None);
+        // Uno desconocido no se guarda ni toca el archivo
+        guardar_chat(&r, "claude", None, Some("sonnet")).unwrap();
+        let antes = fs::read_to_string(&r).unwrap();
+        for malo in ["gpt", "Sonnet", "", "claude-opus-4"] {
+            assert_eq!(guardar_chat(&r, "claude", None, Some(malo)), Err(String::from("modelo desconocido")), "{malo:?}");
+        }
+        assert_eq!(fs::read_to_string(&r).unwrap(), antes);
+        // Las claves que esta versión no conoce siguen ahí
+        assert!(antes.contains("una version nueva"));
+        assert_eq!(leer_tamano(&r), 150);
+        // Guardado a mano con basura: "Por defecto"
+        for texto in [r#"{"chat":{"motor":"claude","modelo":"gpt"}}"#, r#"{"chat":{"motor":"claude","modelo":3}}"#, r#"{"chat":{"motor":"claude"}}"#] {
+            fs::write(&r, texto).unwrap();
+            assert_eq!(leer_chat(&r).modelo, None, "{texto}");
+            assert_eq!(leer_chat(&r).motor.as_deref(), Some("claude"));
+        }
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 

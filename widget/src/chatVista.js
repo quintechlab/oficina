@@ -14,6 +14,7 @@ import { datosEspecie } from './especies.js'
 import {
   animoChat, ocupado, markdownSeguro, tramoVivo, piezasPalabras, textoHerramientas, sugerencias, nombreCarpeta, relojEspera,
   mensajesVisibles, listaCharlas, coincideBusqueda, grupoDeFecha, horaCharla, cifrasDescarga, formatoGB, detalleAdjunto,
+  MODELOS, modeloValido, nombreModelo,
 } from './chat.js'
 
 /** Los iconos de 5.4: SVG de 16, trazo de 1,4 a 1,9 y `currentColor`. */
@@ -31,6 +32,7 @@ export const ICONOS = Object.freeze({
 const nombreDe = m => datosEspecie(m.especie).nombre
 const motorDe = m => m.chat.conversacion?.motor ?? m.chat.motor
 const carpetaDe = m => m.chat.conversacion?.carpeta ?? null
+const modeloDe = m => modeloValido(m.chat.conversacion ? m.chat.conversacion.modelo : m.chat.modelo)
 /** El código en línea de los textos fijos (`claude`), escapado. */
 const conCodigo = t => escapar(t).replace(/`([^`]+)`/g, '<code>$1</code>')
 const boton = (accion, texto, { primario = false, extra = '' } = {}) => `<button type="button" class="btn${primario ? ' pri' : ''}" data-accion="${accion}"${extra}>${texto}</button>`
@@ -67,7 +69,20 @@ export function escena(m) {
   return `<div id="chat-avi" class="voz">${aviEscena(m)}</div><b class="esc-nom">${escapar(nombreDe(m))}</b><span class="esc-est">${estadoEscena(m)}</span>`
 }
 
-// ------------------------------------------------------------------ cabecera: carpeta y motor (3.4)
+// ------------------------------------------------------------------ cabecera: carpeta, motor y modelo (3.4, #35)
+
+/**
+ * El botón del modelo (#35, S1), después del motor. Con el motor local no hay (S4); con un turno en
+ * curso queda en `aria-disabled` (sigue enfocable y dice por qué): el cambio va entre turnos.
+ */
+function botonModelo(m) {
+  if (motorDe(m) === 'local') return ''
+  const nombre = escapar(nombreModelo(modeloDe(m)))
+  const estado = ocupado(m.chat)
+    ? ' aria-disabled="true" title="Cambialo cuando termine la respuesta"'
+    : ' title="El modelo de Claude de esta charla"'
+  return `<button type="button" class="modelo" data-accion="ch-modelo-menu" aria-haspopup="menu" aria-controls="chat-menu" aria-expanded="${!!m.chat.menuModelo}" aria-label="Modelo: ${nombre}"${estado}><span>${nombre}</span>${ICONOS.flecha}</button>`
+}
 
 export function cabecera(m) {
   const local = motorDe(m) === 'local'
@@ -79,7 +94,14 @@ export function cabecera(m) {
     const si = motorDe(m) === motor
     return `<button type="button" role="radio" data-accion="ch-motor" data-motor="${motor}" aria-checked="${si}" tabindex="${si ? 0 : -1}" title="${titulo}">${texto}</button>`
   }
-  return `${carpeta}<div class="motor" role="radiogroup" aria-label="Motor">${radio('claude', 'Claude Code', 'Tu suscripción · lee archivos y PDFs')}${radio('local', 'Local', 'En esta PC · privado, sin internet')}</div>`
+  return `${carpeta}<div class="motor" role="radiogroup" aria-label="Motor">${radio('claude', 'Claude Code', 'Tu suscripción · lee archivos y PDFs')}${radio('local', 'Local', 'En esta PC · privado, sin internet')}</div>${botonModelo(m)}`
+}
+
+/** El menú del modelo (#35): las cinco opciones de `MODELOS`, con la de la charla marcada. */
+export function menuModelo(m) {
+  const actual = modeloDe(m)
+  const items = MODELOS.map(({ id, nombre, pista }) => `<button type="button" role="menuitemradio" tabindex="-1" aria-checked="${id === actual}" data-accion="ch-modelo" data-modelo="${id ?? ''}"><span><b>${escapar(nombre)}</b><small>${escapar(pista)}</small></span></button>`)
+  return `<div class="menu" role="menu" aria-label="Elegir modelo">${items.join('')}</div>`
 }
 
 /** El menú de carpeta (3.4): Solo Avis, los proyectos de la barra, las recientes y "Elegir otra carpeta…". */

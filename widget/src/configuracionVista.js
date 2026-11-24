@@ -6,7 +6,8 @@
 // Entrega 5: "Quién responde" en Modelos y el historial del chat en Datos.
 
 import { escapar } from './logica.js'
-import { PESTANAS, UBICACIONES, limitesTamano, CLAVE_VISTA_PREVIA, opcionesForma, rotuloEspecie, PROVEEDORES, textoClave, MOTORES, textoHistorial } from './configuracion.js'
+import { PESTANAS, UBICACIONES, limitesTamano, CLAVE_VISTA_PREVIA, opcionesForma, rotuloEspecie, PROVEEDORES, textoClave, MOTORES, OPCIONES_MODELO, textoHistorial } from './configuracion.js'
+import { modeloValido } from './chat.js'
 import { NOMBRES_ESPECIES, datosEspecie, especieValida } from './especies.js'
 import { avi, claudeDe } from './avis.js'
 
@@ -314,13 +315,16 @@ export function filaClave(p, t, { recien = false, errorBorrar = false, transcurr
 /**
  * La pestaña Modelos por partes (4.6), para que main.js cambie solo la que cambió: una por clave
  * (`clave-<proveedor>`: así el campo que se escribe no se toca cuando cambia otra cosa) y `local`.
- * `datos`: { claves: { <proveedor>: textoClave }, recien, modelo, armado, transcurrido, error }.
+ * `datos`: { claves: { <proveedor>: textoClave }, recien, modelo, armado, transcurrido, error, motor, modeloNuevas }.
+ * `modelo` es el modelo local (su tarjeta); `modeloNuevas`, el de Claude de las charlas nuevas (#35).
  */
 export function partesModelos(datos) {
   const partes = {}
   // "Quién responde" (4.4, D10): el motor de las charlas nuevas; sin guardar, Claude Code
   const motor = datos.motor === 'local' ? 'local' : 'claude'
   partes.charla = fila('Quién responde', 'En las charlas nuevas. Cada una puede cambiarlo.', segmentos('cfg-motor', MOTORES, motor, 'Quién responde'), { error: errorDe(datos, 'motor') })
+    // "Modelo" (#35, S2): el de Claude con que arrancan las charlas nuevas; "Por defecto", sin --model
+    + fila('Modelo', 'El de Claude en las charlas nuevas. Cada una puede cambiarlo.', segmentos('cfg-modelo', OPCIONES_MODELO, modeloValido(datos.modeloNuevas) ?? 'defecto', 'Modelo', 'ancho'), { apilada: true, error: errorDe(datos, 'modelo-claude') })
   for (const p of PROVEEDORES) {
     const t = datos.claves?.[p.id] ?? textoClave(p.id, {})
     partes[`clave-${p.id}`] = filaClave(p, t, { recien: datos.recien === p.id, errorBorrar: datos.error === `clave:${p.id}`, transcurrido: datos.transcurrido })

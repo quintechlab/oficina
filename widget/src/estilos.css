@@ -1004,6 +1004,15 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .ch-cab .motor { display: flex; padding: 3px; margin-left: auto; border-radius: var(--r-pildora); background: var(--s2); border: 1px solid var(--linea) }
 #hoja .ch-cab .motor button { position: relative; height: 26px; white-space: nowrap; padding: 0 10px; border-radius: var(--r-pildora); font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2); transition: background 250ms var(--ease), color 250ms }
 #hoja .ch-cab .motor button[aria-checked="true"] { background: var(--tinta); color: var(--crema); box-shadow: inset 0 0 0 1px var(--linea-hover) }
+/* El modelo de Claude (#35): una píldora de la altura de la carpeta, después del motor; no se achica */
+#hoja .ch-cab .modelo {
+  flex: none; display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 6px 0 10px; border-radius: var(--r-pildora);
+  background: var(--s2); border: 1px solid var(--linea); color: var(--crema); font: var(--t-mono-s); font-stretch: 75%; white-space: nowrap;
+  transition: border-color var(--d-color);
+}
+#hoja .ch-cab .modelo:hover, #hoja .ch-cab .modelo[aria-expanded="true"] { border-color: var(--linea-hover) }
+#hoja .ch-cab .modelo svg { flex: none; color: var(--crema2) }
+#hoja .ch-cab .modelo[aria-disabled="true"] { opacity: .6; cursor: default; border-color: var(--linea) }
 
 #chat-hilo {
   flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 10px;
@@ -1125,6 +1134,9 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja.baja #chat-avi .avi { --t: 56px !important }
 
 #chat-menu { position: absolute; z-index: 9; top: 52px; left: 14px }
+/* El del modelo cae debajo de su botón, contra el borde derecho de la charla */
+#chat-menu.de-modelo { left: auto; right: 14px }
+#chat-menu.de-modelo .menu { width: 220px }
 #hoja .menu { width: 262px; display: grid; gap: 1px; padding: 6px; border-radius: 14px; background: var(--s2); color: var(--crema); border: 1px solid var(--linea-hover); box-shadow: 0 24px 48px -18px #000 }
 #hoja .menu .rot { padding: 8px 8px 4px }
 #hoja .menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px; border-radius: var(--r-campo); color: var(--crema); text-align: left; font: var(--t-cuerpo-f) }
@@ -1194,7 +1206,7 @@ body:not(.colocada) #hoja { visibility: hidden }
 body.mini #hoja *, body.mini #hoja *::before, body.mini #hoja *::after,
 body.acoplada:not(.desplegada) #hoja *, body.acoplada:not(.desplegada) #hoja *::before, body.acoplada:not(.desplegada) #hoja *::after { animation-play-state: paused !important }
 @media (prefers-reduced-motion: reduce) {
-  #hoja .ic, #hoja .ch-cab .carpeta, #hoja .ch-cab .motor button, #hoja .enviar, #hoja .campo, #hoja .descarga .barra i { transition: none }
+  #hoja .ic, #hoja .ch-cab .carpeta, #hoja .ch-cab .modelo, #hoja .ch-cab .motor button, #hoja .enviar, #hoja .campo, #hoja .descarga .barra i { transition: none }
   /* Sin vuelo: el fantasma se funde en 160 ms (6.3) */
   #marca-avi { transition: opacity 160ms ease, filter 160ms ease }
   .avi-btn:active #marca-avi, #hoja .enviar:active { transform: none }

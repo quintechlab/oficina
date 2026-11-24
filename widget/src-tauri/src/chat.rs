@@ -66,10 +66,22 @@ pub enum Sesion {
     Retomar(String),
 }
 
+/// Los modelos que se pueden elegir para la charla (#35), con el alias que entiende `--model`.
+/// Sin modelo es "Por defecto" (el de Claude Code). La misma lista para el chat, las preferencias
+/// y el historial.
+pub const MODELOS: [&str; 4] = ["fable", "opus", "sonnet", "haiku"];
+
+/// ¿Es uno de `MODELOS` (texto exacto)?
+pub fn modelo_valido(m: &str) -> bool {
+    MODELOS.contains(&m)
+}
+
 pub struct Pedido<'a> {
     pub ajustes: &'a Path,
     pub mascota: &'a str,
     pub sesion: &'a Sesion,
+    /// Uno de `MODELOS`, o `None` ("Por defecto").
+    pub modelo: Option<&'a str>,
 }
 
 /// `INSTRUCCION_CHAT` con el nombre de la mascota.
@@ -105,6 +117,11 @@ pub fn argumentos_chat(p: &Pedido) -> Vec<String> {
     a.push(instruccion_chat(p.mascota));
     a.push(String::from("--max-budget-usd"));
     a.push(String::from(TOPE_USD));
+    // #35 (S3): "Por defecto" no pasa `--model`; un alias, sí (Claude Code lo resuelve al último de
+    // su familia). Reemplaza D17 ("Sin `--model`").
+    if let Some(m) = p.modelo {
+        a.extend([String::from("--model"), m.to_string()]);
+    }
     match p.sesion {
         Sesion::Nueva(id) => a.extend([String::from("--session-id"), id.clone()]),
         Sesion::Retomar(id) => a.extend([String::from("--resume"), id.clone()]),
@@ -539,6 +556,9 @@ struct Conversacion {
     firma: Option<u64>,
     /// La charla es del motor local (8): nunca lanza `claude` (regla 3), responde el modelo de esta PC.
     local: bool,
+    /// El modelo elegido (#35): uno de `MODELOS`, o `None` ("Por defecto"). A diferencia del motor y
+    /// la carpeta, cambia también con mensajes: la conversación sigue con `--resume`.
+    modelo: Option<String>,
 }
 
 /// El turno en curso del motor local (8): uno por vez, como los pedidos a llama-server (`-np 1`).
@@ -578,6 +598,8 @@ struct Proceso {
     turno: Option<Turno>,
     ultimo_uso: Instant,
     interrupciones: u64,
+    /// El modelo con que se lanzó: si la conversación cambia de modelo, el próximo uso lanza otro.
+    modelo: Option<String>,
 }
 
 impl Proceso {
@@ -682,11 +704,23 @@ impl Chat {
         self.0.carpeta.clone()
     }
 
+    /// `abrir_con` con "Por defecto" (sin modelo).
+    #[cfg(test)]
+    pub fn abrir(&self, conversacion: &str, motor: &str, carpeta: Option<PathBuf>, mascota: &str, sesion_claude: Option<String>) -> Result<Value, String> {
+        self.abrir_con(conversacion, motor, carpeta, mascota, sesion_claude, None)
+    }
+
     /// `chat_abrir` (7.8): conoce la conversación y, con el motor Claude Code, precalienta el
     /// proceso sin mandarle nada (D19). `{ proceso: "arrancando" | "listo" | "apagado", sesion, motivo? }`.
-    pub fn abrir(&self, conversacion: &str, motor: &str, carpeta: Option<PathBuf>, mascota: &str, sesion_claude: Option<String>) -> Result<Value, String> {
+    /// `modelo` (#35): uno de `MODELOS` o `None` ("Por defecto"). Cambia también en una charla con
+    /// mensajes: el proceso vivo se retira y otro retoma la misma sesión con el modelo nuevo. Si hay
+    /// un turno en curso, el cambio espera al próximo envío (nunca dos procesos en la misma sesión).
+    pub fn abrir_con(&self, conversacion: &str, motor: &str, carpeta: Option<PathBuf>, mascota: &str, sesion_claude: Option<String>, modelo: Option<String>) -> Result<Value, String> {
         if !conversacion_valida(conversacion) {
             return Err(String::from("id de conversación inválido"));
+        }
+        if modelo.as_deref().is_some_and(|m| !modelo_valido(m)) {
+            return Err(String::from("modelo desconocido"));
         }
         if sesion_claude.as_deref().is_some_and(|s| !sesion_valida(s)) {
             return Err(String::from("id de sesión de Claude Code inválido"));
@@ -710,12 +744,14 @@ impl Chat {
                 c.cwd = cwd;
                 c.mascota = mascota;
                 c.local = local;
+                c.modelo = modelo;
             }
-            Some(_) => {}
+            // Con mensajes, el modelo sí cambia (S1): sigue la misma conversación
+            Some(c) => c.modelo = modelo,
             None => {
                 let usada = sesion_claude.is_some();
                 let sesion = sesion_claude.unwrap_or_else(nuevo_uuid);
-                e.conversaciones.insert(conversacion.to_string(), Conversacion { sesion, usada, cwd, mascota, firma: None, local });
+                e.conversaciones.insert(conversacion.to_string(), Conversacion { sesion, usada, cwd, mascota, firma: None, local, modelo });
             }
         }
         let sesion = e.conversaciones[conversacion].sesion.clone();
@@ -726,7 +762,8 @@ impl Chat {
             e.retirar();
         }
         if let Some(p) = &e.proceso {
-            if !p.vivo.salio() && bloquear(&p.entrada).is_some() {
+            let mismo_modelo = p.modelo == e.conversaciones[conversacion].modelo;
+            if !p.vivo.salio() && bloquear(&p.entrada).is_some() && (mismo_modelo || p.turno_activo()) {
                 let usada = e.conversaciones[conversacion].usada;
                 return Ok(json!({ "proceso": if usada { "listo" } else { "arrancando" }, "sesion": sesion }));
             }
@@ -749,7 +786,7 @@ impl Chat {
         let c = e.conversaciones.get(conversacion).ok_or("conversación desconocida")?;
         let ajustes = escribir_ajustes(&self.0.carpeta).map_err(|e| format!("ajustes.json: {e}"))?;
         let sesion = if c.usada { Sesion::Retomar(c.sesion.clone()) } else { Sesion::Nueva(c.sesion.clone()) };
-        let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: &c.mascota, sesion: &sesion }), cwd: c.cwd.clone() };
+        let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: &c.mascota, sesion: &sesion, modelo: c.modelo.as_deref() }), cwd: c.cwd.clone() };
         let mut comando = (self.0.lanzador)(&l).map_err(|e| e.to_string())?;
         comando.current_dir(&l.cwd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
         let mut hijo = comando.spawn().map_err(|e| e.to_string())?;
@@ -770,8 +807,9 @@ impl Chat {
             .name(String::from("avis-chat"))
             .spawn(move || chat.vigilar(generacion, para_hilo, rx))
             .map_err(|e| e.to_string())?;
-        registrar(&format!("chat: claude lanzado ({})", if c.usada { "retoma" } else { "nueva" }));
-        e.proceso = Some(Proceso { generacion, conversacion: conversacion.to_string(), entrada: Arc::new(Mutex::new(Some(stdin))), vivo, turno: None, ultimo_uso: Instant::now(), interrupciones: 0 });
+        registrar(&format!("chat: claude lanzado ({}, modelo {})", if c.usada { "retoma" } else { "nueva" }, c.modelo.as_deref().unwrap_or("por defecto")));
+        let modelo = c.modelo.clone();
+        e.proceso = Some(Proceso { generacion, conversacion: conversacion.to_string(), entrada: Arc::new(Mutex::new(Some(stdin))), vivo, turno: None, ultimo_uso: Instant::now(), interrupciones: 0, modelo });
         Ok(())
     }
 
@@ -820,7 +858,9 @@ impl Chat {
         if e.proceso.as_ref().is_some_and(|p| p.conversacion == conversacion && p.turno_activo()) {
             return Err(String::from("hay una respuesta en curso"));
         }
-        let sirve = e.proceso.as_ref().is_some_and(|p| p.conversacion == conversacion && !p.vivo.salio() && bloquear(&p.entrada).is_some());
+        // Si la charla cambió de modelo durante el turno anterior (#35), el proceso vivo ya no sirve
+        let modelo = e.conversaciones.get(conversacion).and_then(|c| c.modelo.clone());
+        let sirve = e.proceso.as_ref().is_some_and(|p| p.conversacion == conversacion && !p.vivo.salio() && bloquear(&p.entrada).is_some() && p.modelo == modelo);
         if !sirve {
             if let Err(detalle) = self.lanzar(&mut e, conversacion) {
                 registrar(&format!("chat: no se pudo lanzar claude: {detalle}"));

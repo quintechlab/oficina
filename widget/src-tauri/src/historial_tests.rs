@@ -125,6 +125,58 @@ fn el_motor_local_no_tiene_carpeta() {
 }
 
 #[test]
+fn el_motor_local_no_guarda_modelo() {
+    // #35: el modelo es de Claude Code; el motor local es uno solo (S4), como la carpeta
+    let c = carpeta_temporal();
+    let mut d = charla("c-1", "x");
+    d["motor"] = json!("local");
+    d["sesionClaude"] = Value::Null;
+    d["modelo"] = json!("sonnet");
+    guardar(&c, &d).unwrap();
+    assert!(leer(&c, "c-1").unwrap().get("modelo").is_none());
+    let _ = fs::remove_dir_all(&c);
+}
+
+#[test]
+fn el_modelo_de_la_charla_se_guarda_si_es_uno_de_los_cuatro() {
+    // #35: `modelo` es opcional; sin él (o desconocido) es "Por defecto"
+    let c = carpeta_temporal();
+    for m in chat::MODELOS {
+        let mut d = charla("c-1", "x");
+        d["modelo"] = json!(m);
+        assert_eq!(guardar(&c, &d).unwrap()["modelo"], json!(m));
+        assert_eq!(leer(&c, "c-1").unwrap()["modelo"], json!(m));
+    }
+    for malo in [json!("gpt-4"), json!("Sonnet"), json!(""), json!(3), json!(["opus"]), Value::Null] {
+        let mut d = charla("c-1", "x");
+        d["modelo"] = malo.clone();
+        guardar(&c, &d).unwrap();
+        let leido = leer(&c, "c-1").unwrap();
+        assert!(leido.get("modelo").is_none(), "{malo}: {leido}");
+        let texto = fs::read_to_string(ruta(&c, "c-1").unwrap()).unwrap();
+        assert!(!texto.contains("modelo"), "{texto}");
+    }
+    // Un archivo escrito a mano con un modelo desconocido se lee igual, sin el modelo
+    let mut d = charla("c-1", "x");
+    d["engramId"] = Value::Null;
+    d["modelo"] = json!("claude-sonnet-9");
+    fs::write(ruta(&c, "c-1").unwrap(), d.to_string()).unwrap();
+    assert!(leer(&c, "c-1").unwrap().get("modelo").is_none());
+    let _ = fs::remove_dir_all(&c);
+}
+
+#[test]
+fn una_charla_de_antes_sin_modelo_se_lee_como_antes() {
+    let c = carpeta_temporal();
+    let doc = charla("c-1", "De antes");
+    fs::write(ruta(&c, "c-1").unwrap(), doc.to_string()).unwrap();
+    let mut esperado = doc.clone();
+    esperado["engramId"] = Value::Null;
+    assert_eq!(leer(&c, "c-1").unwrap(), esperado);
+    let _ = fs::remove_dir_all(&c);
+}
+
+#[test]
 fn guardar_conserva_el_engram_id_que_ya_tenia() {
     // La ventana no conoce el id de Engram: lo pone Rust (9.2) y un guardado nuevo no lo pierde
     let c = carpeta_temporal();
