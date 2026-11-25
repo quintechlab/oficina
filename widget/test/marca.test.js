@@ -415,7 +415,7 @@ test('las poses nuevas de la voz: solo las dibuja la marca, con las cejas en "er
 // ------------------------------------------------------------------ las especies nuevas (mascotas-avi-ux.md 10, P3)
 
 test('entrega 5 (P3): todas las especies juegan el repertorio del Avi, con las mismas pistas', () => {
-  for (const e of ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']) assert.equal(pesosMarca(e), PESOS_REPOSO, e)
+  for (const e of ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen', 'nimbo']) assert.equal(pesosMarca(e), PESOS_REPOSO, e)
   // Lo que no es una especie es el Avi (especieValida): el mismo repertorio
   assert.equal(pesosMarca('dragon'), PESOS_REPOSO)
   assert.equal(pesosMarca(undefined), PESOS_REPOSO)

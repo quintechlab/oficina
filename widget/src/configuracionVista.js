@@ -162,8 +162,8 @@ export function seccionPanel(datos) {
 /**
  * La pestaña Mascota por partes, para que main.js cambie solo la que cambió (4.6): `fig` (el Avi de
  * 120 del escenario, con su clave de evolución: depende solo de la especie, así cambiar la forma no
- * corta el acto), `texto` (rótulo, nombre, concepto, "Base · {evo}" y la nota), `fichas` (las siete
- * y la celda 8) y `error`. `datos`: { mascota, forma, error }.
+ * corta el acto), `texto` (rótulo, nombre, concepto, "Base · {evo}" y la nota), `fichas` (las ocho
+ * y la celda de la nota) y `error`. `datos`: { mascota, forma, error }.
  */
 export function partesMascota(datos) {
   const especie = especieValida(datos.mascota)

@@ -233,7 +233,7 @@ pub fn leer_tareas_avisado(ruta: &Path) -> Option<String> {
 // ------------------------------------------------------------------ mascota (docs/diseno/mascotas-avi-ux.md 9.1)
 
 /// Las especies de la mascota, en el orden de la dirección (`NOMBRES_ESPECIES` de especies.js).
-pub const ESPECIES: [&str; 7] = ["avi", "ascua", "escarcha", "nodo", "bruma", "morro", "lumen"];
+pub const ESPECIES: [&str; 8] = ["avi", "ascua", "escarcha", "nodo", "bruma", "morro", "lumen", "nimbo"];
 
 /// La mascota elegida para Claude. La escribe Configuración (#23); sin la clave, con basura o con un
 /// valor desconocido (texto exacto), el Avi.
@@ -681,7 +681,7 @@ mod tests {
             fs::write(&r, format!(r#"{{"tamano":125,"mascota":"{especie}"}}"#)).unwrap();
             assert_eq!(leer_mascota(&r), especie);
         }
-        assert_eq!(ESPECIES, ["avi", "ascua", "escarcha", "nodo", "bruma", "morro", "lumen"]);
+        assert_eq!(ESPECIES, ["avi", "ascua", "escarcha", "nodo", "bruma", "morro", "lumen", "nimbo"]);
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 

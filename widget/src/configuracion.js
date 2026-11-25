@@ -73,7 +73,7 @@ export const nombreMarca = nombre => nombre || 'Avis'
 export const subtituloConfiguracion = tab => (tab === 'mascota' ? 'Se guarda al instante · los nombres, con Guardar' : 'Se guarda al instante')
 
 /**
- * ¿`valor` sirve para `clave`? `mascota`, una de las siete especies (texto exacto); `arriba`,
+ * ¿`valor` sirve para `clave`? `mascota`, una de las ocho especies (texto exacto); `arriba`,
  * `avisar` y `pausa`, solo booleanos; `tareasAvisado` (el día del aviso diario de tareas,
  * tareas-ux.md 11.4), un día que existe `AAAA-MM-DD` o vacío; `habitosRecordados` (los hábitos ya
  * recordados hoy, habitos-ux.md 8.3 y 11.5), `{ dia, ids }` con solo esas dos claves, un día que existe

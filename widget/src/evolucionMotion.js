@@ -39,7 +39,7 @@ function pista(tl, el, { d, en = 0, curva = CURVA.suave, kf }) {
   tl.add(el, { keyframes, duration: d, ease: 'linear', playbackEase: curva }, en)
 }
 
-/** Los actos de cada especie (8.2 y 8.3): el Avi (Faro) acá; las seis especies nuevas, en ACTOS_NUEVOS. */
+/** Los actos de cada especie (8.2 y 8.3): el Avi (Faro) acá; las siete especies nuevas, en ACTOS_NUEVOS. */
 const ACTOS = {
   avi: {
     dur: 2300,
@@ -144,6 +144,19 @@ function animar(tl, el, kf, { d = 600, dl = 0, e, it = 1, dir } = {}) {
   tl.add(el, { keyframes: fotogramas(kf), duration: d, ease: 'linear', playbackEase: curva }, dl)
 }
 
+/**
+ * Las curvas del acto de Nimbo (#46), las de `C` del boceto de la especie nueva: su pista ya viene en
+ * fotogramas por porcentaje de anime.js (`P`), la misma forma que `pista`, y pasa tal cual con ellas.
+ */
+const CURVA_NIMBO = { inOut: curvaDe('cubic-bezier(.45,0,.55,1)'), out: curvaDe('cubic-bezier(.16,1,.3,1)'), in: curvaDe('cubic-bezier(.5,0,.75,0)'), lin: curvaDe('linear') }
+
+/** Las orejas de Nimbo (`orejas` del boceto): el mismo giro en grados, espejado en la derecha. */
+function orejasNimbo(tl, s, d, en, giros) {
+  for (const [sel, k] of [['.ala-s.ai', 1], ['.ala-s.ad', -1]]) {
+    pista(tl, q(s, sel), { d, en, curva: CURVA_NIMBO.inOut, kf: Object.fromEntries(Object.entries(giros).map(([p, r]) => [p, { rotate: r * k }])) })
+  }
+}
+
 /** Los actos de las especies nuevas: ESTRELLAS (transformación) y VUELTA (su toque propio) del boceto. */
 const ACTOS_NUEVOS = {
   ascua: {
@@ -229,10 +242,24 @@ const ACTOS_NUEVOS = {
     },
     vuelta: (tl, s) => qa(s, '.mo').forEach((m, i) => { const a = i * 30 * Math.PI / 180, R = 20 + i * 2, x = f(Math.cos(a) * R), y = f(Math.sin(a) * R); animar(tl, m, [{ opacity: 0, transform: `translate(${x}px,${y}px)` }, { opacity: 1, offset: .2 }, { opacity: 0, transform: `translate(${x}px,${y + 34}px)` }], { d: 1400, dl: 150 + i * 40, e: 'ease-in' }) }),
   },
+  nimbo: {
+    dur: 2300,
+    revela: 900,
+    // Se infla, retumba, cae el rayo sobre su coronilla y el destello tapa el cambio; después, llueve
+    transformacion(tl, s) {
+      pista(tl, q(s, '.trans'), { d: 2300, curva: CURVA_NIMBO.inOut, kf: { 0: tr(), 10: tr(0, 1, 1.06, 0.94), 28: tr(0, -3, 1.14, 1.1), 31: tr(-2, -3, 1.14, 1.1), 34: tr(2, -3, 1.14, 1.1), 37: tr(-2, -3, 1.15, 1.11), 40: tr(0, -3, 1.16, 1.12), 46: tr(0, 2, 0.92, 0.92), 58: tr(0, -4, 1.04, 1.04), 100: tr() } })
+      orejasNimbo(tl, s, 2000, 0, { 0: 0, 28: 14, 46: -8, 60: 6, 100: 0 })
+      pista(tl, q(s, '.rayo-n'), { d: 1400, en: 500, curva: CURVA_NIMBO.lin, kf: { 0: { opacity: 1 }, 20: { opacity: 0.25 }, 24: { opacity: 1 }, 28: { opacity: 0.25 }, 32: { opacity: 1 }, 100: { opacity: 1 } } })
+      pista(tl, q(s, '.descarga'), { d: 380, en: 760, curva: CURVA_NIMBO.lin, kf: { 0: { opacity: 0 }, 15: { opacity: 1 }, 60: { opacity: 1 }, 100: { opacity: 0 } } })
+      pista(tl, q(s, '.destello'), { d: 600, en: 830, curva: CURVA_NIMBO.out, kf: { 0: { opacity: 0, scale: 0.6 }, 12: { opacity: 0.85, scale: 1 }, 100: { opacity: 0, scale: 1.35 } } })
+      qa(s, '.gota').forEach((g, i) => pista(tl, g, { d: 900, en: 950 + i * 55, curva: CURVA_NIMBO.in, kf: { 0: { opacity: 0, translateY: -4 }, 20: { opacity: 0.9, translateY: 2 }, 100: { opacity: 0, translateY: 30 } } }))
+    },
+    vuelta: (tl, s) => qa(s, '.gota').forEach((g, i) => pista(tl, g, { d: 800, en: 200 + i * 40, curva: CURVA_NIMBO.in, kf: { 0: { opacity: 0, translateY: -6 }, 25: { opacity: 0.7, translateY: 0 }, 100: { opacity: 0, translateY: 22 } } })),
+  },
 }
 Object.assign(ACTOS, ACTOS_NUEVOS)
 
-/** Los actos de las siete especies (para los tests: las pistas sobre un SVG y una línea de tiempo). */
+/** Los actos de las ocho especies (para los tests: las pistas sobre un SVG y una línea de tiempo). */
 export const ACTOS_EVOLUCION = ACTOS
 /** Duración y `revela` de cada transformación (8.2). */
 export const DURACION_ACTOS = Object.fromEntries(Object.entries(ACTOS).map(([id, { dur, revela }]) => [id, { dur, revela }]))
