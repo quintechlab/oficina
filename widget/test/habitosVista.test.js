@@ -6,9 +6,9 @@ import assert from 'node:assert/strict'
 import {
   ladoFilaHabitos, cuentaMiniHabitos, indiceHabitos, filaHabito, sumador, celdas, rachaHtml, formulario, partesHoja,
   primerUsoHabitos, errorGuardarHab, errorRotaHab, errorCarpetaHab, hitoHtml, esqueletoHabitos, CARPETA_HAB,
-  globoHab, globoMuescaHab, filaAvisoHab,
+  globoHab, globoMuescaHab, filaAvisoHab, globoResumen, globoMuescaResumen, filaAvisoResumen,
 } from '../src/habitosVista.js'
-import { borradorNuevo, textosGlobo, textoHechoGlobo } from '../src/habitos.js'
+import { borradorNuevo, textosGlobo, textoHechoGlobo, resumenSemana, textosResumen } from '../src/habitos.js'
 
 const HOY = '2026-11-26'
 const dia = n => new Date(Date.UTC(2026, 10, 26 + n)).toISOString().slice(0, 10)
@@ -290,4 +290,40 @@ test('los textos del globo se escapan', () => {
   const raro = hab({ id: 'h-r', nombre: '<b>x</b>' })
   assert.doesNotMatch(globoHab(textosGlobo(REC, raro), { id: 'h-r', color: 'rojo' }), /<b><b>x/)
   assert.match(filaAvisoHab(textosGlobo(REC, raro), { id: 'h-r' }), /&lt;b&gt;x&lt;\/b&gt;/)
+})
+
+// ------------------------------------------------------------------ el globo del resumen (H3: 8.4, 8.5 y 5.4)
+
+const L16 = '2026-11-16'
+const reg16 = ns => Object.fromEntries(ns.map(n => [new Date(Date.UTC(2026, 10, 16 + n)).toISOString().slice(0, 10), 1]))
+const RES = resumenSemana([hab({ id: 'h-c', nombre: 'Caminar', registro: reg16([0, 1, 2, 4, 5]) })], L16)
+const T_RES = textosResumen(RES, 'Caminaste 5 de 7 días. Bien ahí.')
+
+test('globoResumen (8.5): el kicker, la × «Más tarde», un solo button.globo-res con la frase, las 7 barras y «Charlemos la semana →»', () => {
+  const html = globoResumen(T_RES)
+  assert.match(html, /^<div class="globo-tar globo-hab globo-sem" data-globo-hab data-res>/)
+  assert.match(html, /<span class="gh-k">Tu semana · 16\/11 al 22\/11<\/span>/)
+  assert.match(html, /<button type="button" class="globo-x" data-accion="hab-res-x" aria-label="Más tarde: lo dejo para la semana que viene" title="Más tarde">/)
+  assert.match(html, /<button type="button" class="globo-res" data-accion="hab-res"><span class="globo-t">Caminaste <b>5 de 7<\/b> días\. Bien ahí\.<\/span>/)
+  assert.match(html, /<span class="barras" aria-hidden="true">(<span><i style="--h: [\d.]+px; --i: \d"><\/i>[LMJVSD]<\/span>){7}<\/span>/)
+  assert.match(html, /<span class="globo-c">Charlemos la semana →<\/span><\/button><\/div>$/)
+  // Las barras: alto 26 × fracción, mínimo 3 (lunes a miércoles hechos; jueves no)
+  assert.match(html, /<i style="--h: 26px; --i: 0"><\/i>L/)
+  assert.match(html, /<i style="--h: 3px; --i: 3"><\/i>J/)
+})
+
+test('globoMuescaResumen y filaAvisoResumen (5.4): «Tu semana: {frase corta}» con «Ver →» o «Charlemos →» y la ×', () => {
+  const g = globoMuescaResumen(T_RES)
+  assert.equal(g.html, '<span class="mt-t">Tu semana: Caminaste 5 de 7 días</span><span class="mt-c">Ver <span aria-hidden="true">→</span></span>')
+  assert.equal(g.nombre, 'Tu semana: Caminaste 5 de 7 días. Charlemos la semana')
+  const f = filaAvisoResumen(T_RES)
+  assert.match(f, /^<div class="aviso aviso-tar aviso-hab" data-globo-hab data-res><span class="at-t">Tu semana: Caminaste 5 de 7 días<\/span>/)
+  assert.match(f, /<button type="button" class="lnk" data-accion="hab-res">Charlemos →<\/button>/)
+  assert.match(f, /<button type="button" class="tb" data-accion="hab-res-x" aria-label="Más tarde: lo dejo para la semana que viene" title="Más tarde">/)
+})
+
+test('el globo del resumen escapa lo que escribe el modelo', () => {
+  const t = textosResumen(RES, '<img src=x onerror=1> 5 de 7')
+  assert.doesNotMatch(globoResumen(t), /<img/)
+  assert.match(globoResumen(t), /&lt;img src=x onerror=/)
 })

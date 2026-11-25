@@ -177,3 +177,180 @@ fn borrar_y_listar_en_orden() {
     assert!(listar(&c.join("no-existe")).habitos.is_empty());
     fs::remove_dir_all(c).unwrap();
 }
+
+
+// ---------------------------------------------------------------- la frase del resumen (H3: 8.4 y 11.7)
+
+use crate::chat_local::{MotorLocal, UsoMotor};
+use std::io::{Read, Write};
+use std::net::TcpListener;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+fn datos_semana() -> Value {
+    json!({ "habitos": [
+        { "nombre": "Caminar", "tipo": "diario", "hechos": 5, "tocaban": 7 },
+        { "nombre": "Agua", "tipo": "cantidad", "hechos": 3, "tocaban": 7 },
+        { "nombre": "Gimnasio", "tipo": "dias", "hechos": 2, "tocaban": 3 },
+        { "nombre": "Correr", "tipo": "semana", "hechos": 3, "tocaban": 3 },
+    ] })
+}
+
+struct UsoFalso;
+impl UsoMotor for UsoFalso {
+    fn diagnostico(&self) -> Option<String> {
+        None
+    }
+}
+
+/// Un motor falso que da `puerto` y cuenta cuántas veces lo prendieron.
+fn motor_falso(puerto: u16, prendido: Arc<AtomicUsize>) -> MotorLocal {
+    Arc::new(move || {
+        prendido.fetch_add(1, Ordering::SeqCst);
+        Ok((puerto, Box::new(UsoFalso) as Box<dyn UsoMotor>))
+    })
+}
+
+/// Un llama-server falso: atiende un pedido, guarda su cuerpo y, si `lineas` trae algo, responde en SSE;
+/// si no, se queda callado (para el tiempo agotado).
+fn servidor(lineas: Vec<&'static str>) -> (u16, Arc<std::sync::Mutex<Option<Value>>>) {
+    let l = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let puerto = l.local_addr().unwrap().port();
+    let visto = Arc::new(std::sync::Mutex::new(None));
+    let v = visto.clone();
+    std::thread::spawn(move || {
+        let Ok((mut s, _)) = l.accept() else { return };
+        let mut todo = Vec::new();
+        let mut buf = [0u8; 4096];
+        let cuerpo = loop {
+            let n = s.read(&mut buf).unwrap_or(0);
+            if n == 0 {
+                return;
+            }
+            todo.extend_from_slice(&buf[..n]);
+            if let Some(fin) = todo.windows(4).position(|w| w == b"\r\n\r\n") {
+                let cabeza = String::from_utf8_lossy(&todo[..fin]).to_lowercase();
+                let largo: usize = cabeza.lines().find_map(|l| l.strip_prefix("content-length:")).and_then(|n| n.trim().parse().ok()).unwrap_or(0);
+                while todo.len() < fin + 4 + largo {
+                    let n = s.read(&mut buf).unwrap_or(0);
+                    if n == 0 {
+                        break;
+                    }
+                    todo.extend_from_slice(&buf[..n]);
+                }
+                break todo[fin + 4..].to_vec();
+            }
+        };
+        *v.lock().unwrap() = serde_json::from_slice(&cuerpo).ok();
+        if lineas.is_empty() {
+            std::thread::sleep(Duration::from_secs(5));
+            return;
+        }
+        let _ = s.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n");
+        for linea in lineas {
+            let _ = s.write_all(format!("{linea}\n\n").as_bytes());
+        }
+    });
+    (puerto, visto)
+}
+
+#[test]
+fn las_lineas_de_la_frase_salen_de_los_datos_y_lo_que_no_sirve_se_saltea() {
+    assert_eq!(
+        lineas_frase(&datos_semana()).unwrap(),
+        "- Caminar: 5 de 7 días\n- Agua: 3 de 7 días con la meta\n- Gimnasio: 2 de 3 días\n- Correr: 3 de 3 veces"
+    );
+    let raros = json!({ "habitos": [
+        { "nombre": "Leer\nmucho", "tipo": "diario", "hechos": 1, "tocaban": 2 },
+        { "nombre": "", "tipo": "diario", "hechos": 1, "tocaban": 2 },
+        { "nombre": "Otro", "tipo": "raro", "hechos": 1, "tocaban": 2 },
+        { "nombre": "Más", "tipo": "diario", "hechos": 9, "tocaban": 7 },
+        { "nombre": "Menos", "tipo": "diario", "hechos": -1, "tocaban": 7 },
+        { "nombre": "x".repeat(60), "tipo": "semana", "hechos": 1, "tocaban": 2 },
+    ] });
+    assert_eq!(lineas_frase(&raros).unwrap(), format!("- Leer mucho: 1 de 2 días\n- {}: 1 de 2 veces", "x".repeat(40)));
+    assert!(lineas_frase(&json!({ "habitos": [] })).is_err());
+    assert!(lineas_frase(&json!({})).is_err());
+}
+
+#[test]
+fn el_pedido_de_la_frase_es_uno_solo_sin_historia_con_60_tokens_y_sin_modo_de_pensar() {
+    let c = cuerpo_frase("- Caminar: 5 de 7 días");
+    assert_eq!(c["max_tokens"], 60);
+    assert_eq!(c["stream"], true);
+    assert_eq!(c["chat_template_kwargs"]["enable_thinking"], false);
+    assert!(c.get("tools").is_none());
+    let m = c["messages"].as_array().unwrap();
+    assert_eq!(m.len(), 2);
+    assert_eq!(m[0]["role"], "system");
+    assert_eq!(m[0]["content"], INSTRUCCION_FRASE);
+    assert!(INSTRUCCION_FRASE.starts_with("Escribí una o dos oraciones en español rioplatense, de hasta 160 caracteres"));
+    assert_eq!(m[1]["role"], "user");
+    assert_eq!(m[1]["content"], "- Caminar: 5 de 7 días");
+    assert_eq!(TOPE_FRASE, Duration::from_secs(45));
+}
+
+#[test]
+fn sin_modelo_la_frase_es_un_error_sin_prender_nada() {
+    let prendido = Arc::new(AtomicUsize::new(0));
+    let r = frase(&datos_semana(), &|| false, motor_falso(9, prendido.clone()), Duration::from_secs(2));
+    assert!(r.is_err());
+    assert_eq!(prendido.load(Ordering::SeqCst), 0);
+    // Sin datos, tampoco se prende
+    assert!(frase(&json!({ "habitos": [] }), &|| true, motor_falso(9, prendido.clone()), Duration::from_secs(2)).is_err());
+    assert_eq!(prendido.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn con_el_tiempo_agotado_la_frase_es_un_error() {
+    let (puerto, _) = servidor(vec![]);
+    let prendido = Arc::new(AtomicUsize::new(0));
+    let antes = Instant::now();
+    let r = frase(&datos_semana(), &|| true, motor_falso(puerto, prendido.clone()), Duration::from_millis(400));
+    assert!(r.unwrap_err().contains("tardó"));
+    assert!(antes.elapsed() < Duration::from_secs(3));
+    assert_eq!(prendido.load(Ordering::SeqCst), 1);
+    // Un motor que tarda en arrancar también cuenta en el tope
+    let lento: MotorLocal = Arc::new(|| {
+        std::thread::sleep(Duration::from_secs(2));
+        Err(String::from("no"))
+    });
+    let antes = Instant::now();
+    assert!(frase(&datos_semana(), &|| true, lento, Duration::from_millis(300)).unwrap_err().contains("tardó"));
+    assert!(antes.elapsed() < Duration::from_secs(1));
+}
+
+#[test]
+fn la_frase_es_la_respuesta_del_motor_en_una_linea_y_el_pedido_lleva_los_datos() {
+    let (puerto, visto) = servidor(vec![
+        r#"data: {"choices":[{"delta":{"role":"assistant"}}]}"#,
+        r#"data: {"choices":[{"delta":{"content":" Caminaste 5 de 7 días"}}]}"#,
+        r#"data: {"choices":[{"delta":{"content":" y el gimnasio salió completo. "}}]}"#,
+        r#"data: {"choices":[{"delta":{},"finish_reason":"stop"}]}"#,
+        "data: [DONE]",
+    ]);
+    let prendido = Arc::new(AtomicUsize::new(0));
+    let r = frase(&datos_semana(), &|| true, motor_falso(puerto, prendido), Duration::from_secs(5)).unwrap();
+    assert_eq!(r, "Caminaste 5 de 7 días y el gimnasio salió completo.");
+    let cuerpo = visto.lock().unwrap().clone().unwrap();
+    assert_eq!(cuerpo["max_tokens"], 60);
+    assert!(cuerpo["messages"][1]["content"].as_str().unwrap().contains("- Correr: 3 de 3 veces"));
+    // Un motor que no arranca: su error
+    let roto: MotorLocal = Arc::new(|| Err(String::from("el modelo no arrancó")));
+    assert_eq!(frase(&datos_semana(), &|| true, roto, Duration::from_secs(2)).unwrap_err(), "el modelo no arrancó");
+}
+
+#[test]
+fn si_el_motor_prende_despues_del_tope_no_se_manda_el_pedido() {
+    // El motor tarda más que el tope en arrancar: la frase ya venció y el pedido nunca sale
+    let l = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    l.set_nonblocking(true).unwrap();
+    let puerto = l.local_addr().unwrap().port();
+    let lento: MotorLocal = Arc::new(move || {
+        std::thread::sleep(Duration::from_millis(500));
+        Ok((puerto, Box::new(UsoFalso) as Box<dyn UsoMotor>))
+    });
+    assert!(frase(&datos_semana(), &|| true, lento, Duration::from_millis(150)).unwrap_err().contains("tardó"));
+    std::thread::sleep(Duration::from_millis(900));
+    assert!(l.accept().is_err(), "el pedido salió después del corte");
+}

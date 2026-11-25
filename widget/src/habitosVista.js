@@ -436,3 +436,34 @@ export function filaAvisoHab(t, { id, confirma = null }) {
   return `<div class="aviso aviso-tar aviso-hab" data-globo-hab ${v}><span class="at-t">${tramos(confirma ?? t.fila)}</span>${acciones}`
     + `<button type="button" class="tb" data-accion="hab-globo-x" ${atrX(t, id)}>${X}</button></div>`
 }
+
+// ------------------------------------------------------------------ el globo del resumen semanal (H3: 8.4, 8.5 y 5.4)
+
+const atrXRes = t => `aria-label="${escapar(t.x.nombre)}" title="${escapar(t.x.titulo)}"`
+
+/**
+ * El globo del resumen en la marca (8.5): `.globo-hab` con el kicker «Tu semana · {d/m} al {d/m}» y la ×
+ * («Más tarde»); el cuerpo es un solo `button.globo-res` con la frase (números en 800), las 7 barras
+ * (alto 26 × fracción, mínimo 3, con la letra del día; aria-hidden: los números ya están en la frase) y
+ * «Charlemos la semana →». `t`: `textosResumen` de habitos.js.
+ */
+export function globoResumen(t) {
+  const barras = t.barras.map((b, i) => `<span><i style="--h: ${b.alto}px; --i: ${i}"></i>${escapar(b.letra)}</span>`).join('')
+  return `<div class="globo-tar globo-hab globo-sem" data-globo-hab data-res><div class="gh-arriba"><span class="gh-k">${escapar(t.kicker)}</span>`
+    + `<button type="button" class="globo-x" data-accion="hab-res-x" ${atrXRes(t)}>${X}</button></div>`
+    + `<button type="button" class="globo-res" data-accion="hab-res"><span class="globo-t">${tramos(t.globo)}</span>`
+    + `<span class="barras" aria-hidden="true">${barras}</span><span class="globo-c">${escapar(t.charlemos)}</span></button></div>`
+}
+
+/** Lo de adentro del globo de la muesca para el resumen (5.4): «Tu semana: {frase corta}» y «Ver →»; el clic abre la charla. */
+export function globoMuescaResumen(t) {
+  const corta = t.muesca.map(s => s.t).join('')
+  return { html: `<span class="mt-t">${tramos(t.muesca)}</span><span class="mt-c">${escapar(t.ver.replace(' →', ''))} <span aria-hidden="true">→</span></span>`, nombre: `${corta}. Charlemos la semana` }
+}
+
+/** La fila de la dividida para el resumen (5.4): «Tu semana: {frase corta}», «Charlemos →» y la × («Más tarde»). */
+export function filaAvisoResumen(t) {
+  return `<div class="aviso aviso-tar aviso-hab" data-globo-hab data-res><span class="at-t">${tramos(t.fila)}</span>`
+    + `<button type="button" class="lnk" data-accion="hab-res">${escapar(t.charlemosFila)}</button>`
+    + `<button type="button" class="tb" data-accion="hab-res-x" ${atrXRes(t)}>${X}</button></div>`
+}

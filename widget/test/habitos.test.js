@@ -11,6 +11,8 @@ import {
   habitosInicial, abrirHabitos, cerrarHabitos, verHabitos, empezarNuevo, abrirHabito, cerrarHabito, ordenarHabitos,
   anuncioTilde, anuncioSuma, anuncioDiaCompleto, anuncioCorregido, anuncioCreado, anuncioBorrado, textoRachaGrande, desdeEl,
   recordatoriosDebidos, recordar, recordatorioVigente, textosGlobo, textoHechoGlobo,
+  resumenDebido, resumenSemana, altoBarra, plantillaResumen, fraseValida, fraseCorta, textosResumen, tituloSemana, mensajeSemana,
+  datosFrase, resumenGuardadoValido, fraseGuardadaValida, fraseGuardada,
 } from '../src/habitos.js'
 import { plano } from '../src/tareas.js'
 
@@ -600,4 +602,193 @@ test('textoHechoGlobo: cantidad «Listo: {v} de {meta} {unidad}.» (+ « ¡Meta 
   // Por semana: en semanas
   const correr = hab({ nombre: 'Correr', tipo: 'semana', veces: 1, registro: reg(0) })
   assert.equal(plano(textoHechoGlobo(correr, HOY)), '¡Hecho! Correr: 1 semana seguida.')
+})
+
+// ------------------------------------------------------------------ el resumen semanal (H3: 8.4, 5.4 y 11.6)
+
+// La semana resumida: del lunes 16/11 al domingo 22/11 (la anterior a la de HOY)
+const L16 = '2026-11-16'
+const d16 = n => new Date(Date.UTC(2026, 10, 16 + n)).toISOString().slice(0, 10)
+/** Un registro de la semana del 16 con `v` (1 por defecto) en cada día pedido (0 = lunes 16). */
+const reg16 = (ns, v = 1) => Object.fromEntries(ns.map(n => [d16(n), v]))
+const CAMINAR = hab({ id: 'h-caminar', nombre: 'Caminar', tipo: 'diario', registro: reg16([0, 1, 2, 4, 5]) })
+const AGUA16 = hab({ id: 'h-agua', nombre: 'Agua', tipo: 'cantidad', meta: 8, registro: { [d16(0)]: 8, [d16(1)]: 6, [d16(2)]: 8, [d16(3)]: 9 } })
+const GYM16 = hab({ id: 'h-gym', nombre: 'Gimnasio', tipo: 'dias', dias: [0, 2, 4], registro: reg16([0, 2]) })
+const CORRER = hab({ id: 'h-correr', nombre: 'Correr', tipo: 'semana', veces: 3, registro: reg16([1, 3, 5, 6]) })
+
+test('resumenDebido: domingo 17:59 no; domingo 18:00, el lunes de esta semana', () => {
+  const habitos = [CAMINAR]
+  assert.equal(resumenDebido({ hoy: '2026-11-29', horaAr: '17:59', guardado: '2026-11-16', habitos }), null)
+  assert.equal(resumenDebido({ hoy: '2026-11-29', horaAr: '18:00', guardado: '2026-11-16', habitos }), '2026-11-23')
+  assert.equal(resumenDebido({ hoy: '2026-11-29', horaAr: '23:59', guardado: '2026-11-16', habitos }), '2026-11-23')
+})
+
+test('resumenDebido: sin el resumen del domingo, el primer arranque de la semana siguiente (cualquier día) da el de la semana pasada', () => {
+  const habitos = [CAMINAR]
+  assert.equal(resumenDebido({ hoy: '2026-11-23', horaAr: '09:00', guardado: '2026-11-09', habitos }), L16)
+  assert.equal(resumenDebido({ hoy: '2026-11-26', horaAr: '12:00', guardado: null, habitos }), L16)
+  assert.equal(resumenDebido({ hoy: '2026-11-28', horaAr: '22:00', guardado: '', habitos }), L16)
+})
+
+test('resumenDebido: ya guardado, no se repite; nunca uno de dos semanas atrás', () => {
+  const habitos = [CAMINAR]
+  assert.equal(resumenDebido({ hoy: '2026-11-23', horaAr: '09:00', guardado: L16, habitos }), null)
+  // El del domingo 22 (visto el domingo a las 19) no vuelve el martes
+  assert.equal(resumenDebido({ hoy: '2026-11-24', horaAr: '09:00', guardado: L16, habitos }), null)
+  // Un miércoles de dos semanas después, el de la semana pasada (16/11 ya no: es de dos semanas atrás)
+  assert.equal(resumenDebido({ hoy: '2026-12-02', horaAr: '09:00', guardado: '2026-11-09', habitos }), '2026-11-23')
+  // Lo guardado que no es un lunes válido se toma como nada guardado
+  assert.equal(resumenDebido({ hoy: '2026-11-26', horaAr: '09:00', guardado: 'ayer', habitos }), L16)
+})
+
+test('resumenDebido: sin hábitos que tocaran esa semana, no hay resumen', () => {
+  assert.equal(resumenDebido({ hoy: '2026-11-26', horaAr: '09:00', guardado: null, habitos: [] }), null)
+  // Creado el domingo de esa semana: no existía antes del domingo
+  assert.equal(resumenDebido({ hoy: '2026-11-26', horaAr: '09:00', guardado: null, habitos: [hab({ inicio: '2026-11-22' })] }), null)
+  // Creado después: tampoco
+  assert.equal(resumenDebido({ hoy: '2026-11-26', horaAr: '09:00', guardado: null, habitos: [hab({ inicio: '2026-11-24' })] }), null)
+  // Algunos días (lunes) creado el viernes: no le tocó ningún día de esa semana
+  assert.equal(resumenDebido({ hoy: '2026-11-26', horaAr: '09:00', guardado: null, habitos: [hab({ tipo: 'dias', dias: [0], inicio: '2026-11-20' })] }), null)
+  // Creado el sábado, sí (le tocaron el sábado y el domingo)
+  assert.equal(resumenDebido({ hoy: '2026-11-26', horaAr: '09:00', guardado: null, habitos: [hab({ inicio: '2026-11-21' })] }), L16)
+})
+
+test('resumenSemana: los números por hábito (cantidad: días con la meta; por semana: veces sobre veces)', () => {
+  const r = resumenSemana([CAMINAR, AGUA16, GYM16, CORRER], L16)
+  assert.equal(r.lunes, L16)
+  assert.deepEqual(r.habitos.map(({ id, nombre, tipo, hechos, tocaban }) => ({ id, nombre, tipo, hechos, tocaban })), [
+    { id: 'h-caminar', nombre: 'Caminar', tipo: 'diario', hechos: 5, tocaban: 7 },
+    { id: 'h-agua', nombre: 'Agua', tipo: 'cantidad', hechos: 3, tocaban: 7 },
+    { id: 'h-gym', nombre: 'Gimnasio', tipo: 'dias', hechos: 2, tocaban: 3 },
+    // 4 veces sobre 3: con el tope de `veces`, como pctSemana
+    { id: 'h-correr', nombre: 'Correr', tipo: 'semana', hechos: 3, tocaban: 3 },
+  ])
+})
+
+test('resumenSemana: un hábito creado el jueves cuenta desde el jueves; los que no tocaron no van', () => {
+  const nuevo = hab({ id: 'h-leer', nombre: 'Leer', inicio: '2026-11-19', registro: reg16([3, 4]) })
+  const despues = hab({ id: 'h-tarde', nombre: 'Tarde', inicio: '2026-11-25' })
+  const r = resumenSemana([nuevo, despues], L16)
+  assert.deepEqual(r.habitos.map(h => [h.id, h.hechos, h.tocaban]), [['h-leer', 2, 4]])
+})
+
+test('resumenSemana: las 7 fracciones de lo que tocaba que se hizo, de lunes a domingo', () => {
+  // Lunes: los dos hechos (2/2); martes: a (1/1); miércoles: g tocaba y a no (0/2); jueves a domingo: 0/1.
+  // Por semana suma solo el día que se hizo (1/1)
+  const a = hab({ id: 'h-a', registro: reg16([0, 1]) })
+  const g = hab({ id: 'h-g', tipo: 'dias', dias: [0, 2], registro: reg16([0]) })
+  assert.deepEqual(resumenSemana([a, g], L16).dias, [1, 1, 0, 0, 0, 0, 0])
+  const s = hab({ id: 'h-s', tipo: 'semana', veces: 2, registro: reg16([1]) })
+  assert.deepEqual(resumenSemana([s], L16).dias, [0, 1, 0, 0, 0, 0, 0])
+  assert.deepEqual(resumenSemana([a, s], L16).dias, [1, 1, 0, 0, 0, 0, 0])
+  // Cantidad: con la meta
+  assert.deepEqual(resumenSemana([AGUA16], L16).dias, [1, 0, 1, 1, 0, 0, 0])
+  // Mitad: un día con uno de dos
+  assert.deepEqual(resumenSemana([a, hab({ id: 'h-b', registro: {} })], L16).dias, [0.5, 0.5, 0, 0, 0, 0, 0])
+  // Las barras: alto 26 × fracción, mínimo 3
+  assert.equal(altoBarra(1), 26)
+  assert.equal(altoBarra(0.5), 13)
+  assert.equal(altoBarra(0), 3)
+  assert.equal(altoBarra(0.05), 3)
+})
+
+test('plantillaResumen: hasta 3 hábitos ordenados por cumplimiento, con las formas de cantidad y por semana', () => {
+  const r = resumenSemana([CAMINAR, AGUA16, GYM16, CORRER], L16)
+  // Correr 3/3 (1), Caminar 5/7 (.71), Gimnasio 2/3 (.67); Agua 3/7 (.43) queda afuera
+  assert.equal(plantillaResumen(r), 'Esta semana: Correr 3 de 3 veces · Caminar 5 de 7 días · Gimnasio 2 de 3 días')
+  assert.equal(plantillaResumen(resumenSemana([AGUA16], L16)), 'Esta semana: Agua 3 de 7 días con la meta')
+})
+
+test('fraseValida: una línea, de 1 a 160 caracteres, y cada número tiene que estar en los datos', () => {
+  const r = resumenSemana([CAMINAR, AGUA16, GYM16, CORRER], L16)
+  assert.equal(fraseValida('Caminaste 5 de 7 días y el gimnasio salió completo.', r), true)
+  assert.equal(fraseValida('  Correr: 3 de 3 veces. Muy bien.  ', r), true)
+  assert.equal(fraseValida('Sin números también vale.', r), true)
+  // Un número que no está en los datos
+  assert.equal(fraseValida('Cumpliste el 80 % de lo que tocaba.', r), false)
+  assert.equal(fraseValida('Caminaste 6 de 7 días.', r), false)
+  // Más de una línea, vacía o larga
+  assert.equal(fraseValida('Caminaste 5 de 7 días.\nBien.', r), false)
+  assert.equal(fraseValida('   ', r), false)
+  assert.equal(fraseValida('a'.repeat(160), r), true)
+  assert.equal(fraseValida('a'.repeat(161), r), false)
+  assert.equal(fraseValida(null, r), false)
+  assert.equal(fraseValida(42, r), false)
+})
+
+test('fraseValida: los números de los nombres de los hábitos también son datos («Tomar 8 vasos»)', () => {
+  const tomar = hab({ id: 'h-t', nombre: 'Tomar 8 vasos', tipo: 'cantidad', meta: 8, registro: { [d16(0)]: 8, [d16(1)]: 8 } })
+  const r = resumenSemana([tomar], L16)
+  assert.equal(fraseValida('Tomar 8 vasos salió 2 de 7 días.', r), true)
+  assert.equal(fraseValida('Tomar 9 vasos salió 2 de 7 días.', r), false)
+})
+
+test('fraseCorta (5.4): la primera parte hasta 34 caracteres; si no entra, «{nombre} {k} de {t}» del mejor', () => {
+  const r = resumenSemana([CAMINAR, AGUA16, GYM16, CORRER], L16)
+  assert.equal(fraseCorta('Caminaste 5 de 7 días. El agua quedó corta.', r), 'Caminaste 5 de 7 días')
+  assert.equal(fraseCorta('Caminaste 5 de 7 días, y el gimnasio salió completo.', r), 'Caminaste 5 de 7 días')
+  assert.equal(fraseCorta('Esta semana salió redonda en casi todo lo que te propusiste.', r), 'Correr 3 de 3')
+  // La plantilla: siempre la del mejor (su primera parte repite «semana»)
+  assert.equal(fraseCorta(plantillaResumen(r), r, { plantilla: true }), 'Correr 3 de 3')
+})
+
+test('textosResumen (5.4): el kicker, la frase con los números en negrita, la muesca, la fila y la ×', () => {
+  const r = resumenSemana([CAMINAR, AGUA16, GYM16, CORRER], L16)
+  const t = textosResumen(r, 'Caminaste 5 de 7 días. El agua quedó corta.')
+  assert.equal(t.kicker, 'Tu semana · 16/11 al 22/11')
+  assert.equal(plano(t.globo), 'Caminaste 5 de 7 días. El agua quedó corta.')
+  assert.deepEqual(t.globo.filter(s => s.fuerte).map(s => s.t), ['5 de 7'])
+  assert.equal(plano(t.muesca), 'Tu semana: Caminaste 5 de 7 días')
+  assert.equal(plano(t.fila), 'Tu semana: Caminaste 5 de 7 días')
+  assert.equal(t.ver, 'Ver →')
+  assert.equal(t.charlemos, 'Charlemos la semana →')
+  assert.equal(t.charlemosFila, 'Charlemos →')
+  assert.deepEqual(t.x, { nombre: 'Más tarde: lo dejo para la semana que viene', titulo: 'Más tarde' })
+  assert.equal(t.texto, 'Tu semana · 16/11 al 22/11. Caminaste 5 de 7 días. El agua quedó corta.')
+  assert.deepEqual(t.barras.map(b => b.letra), ['L', 'M', 'M', 'J', 'V', 'S', 'D'])
+  assert.deepEqual(t.barras.map(b => b.alto), r.dias.map(altoBarra))
+})
+
+test('la charla del resumen (8.4): título «Tu semana · {d/m} al {d/m}», la frase y la lista con los números', () => {
+  const r = resumenSemana([CAMINAR, AGUA16, CORRER], L16)
+  assert.equal(tituloSemana(L16), 'Tu semana · 16/11 al 22/11')
+  assert.equal(mensajeSemana(r, 'Caminaste 5 de 7 días.'),
+    'Caminaste 5 de 7 días.\n\n- Caminar: 5 de 7 días\n- Agua: 3 de 7 días con la meta\n- Correr: 3 de 3 veces')
+  // Lo que viaja a habitos_frase: solo nombre, tipo y números
+  assert.deepEqual(datosFrase(r), { habitos: [
+    { nombre: 'Caminar', tipo: 'diario', hechos: 5, tocaban: 7 },
+    { nombre: 'Agua', tipo: 'cantidad', hechos: 3, tocaban: 7 },
+    { nombre: 'Correr', tipo: 'semana', hechos: 3, tocaban: 3 },
+  ] })
+})
+
+test('resumenGuardadoValido (habitosResumen, 11.5): un día que existe y es lunes, o vacío; como preferencias.rs', () => {
+  for (const bueno of ['2026-11-23', '2024-01-01', '']) assert.equal(resumenGuardadoValido(bueno), true, bueno)
+  for (const malo of ['2026-11-24', '2026-11-29', '2026-02-30', '23/11/2026', '2026-11-23T00:00', null, 20261123, {}, true]) {
+    assert.equal(resumenGuardadoValido(malo), false, String(malo))
+  }
+})
+
+test('fraseGuardadaValida (habitosFrase, 8.4): { lunes, frase } con un lunes que existe y una frase de una línea de 0 a 160; como preferencias.rs', () => {
+  for (const bueno of [{ lunes: '2026-11-23', frase: 'Bien.' }, { lunes: '2026-11-23', frase: '' }, { lunes: '2024-01-01', frase: 'a'.repeat(160) }]) {
+    assert.equal(fraseGuardadaValida(bueno), true, JSON.stringify(bueno))
+  }
+  for (const malo of [
+    { lunes: '2026-11-24', frase: 'Bien.' }, { lunes: '', frase: 'Bien.' }, { lunes: '2026-02-30', frase: '' }, { lunes: '2026-11-23', frase: 'a\nb' },
+    { lunes: '2026-11-23', frase: 'a\rb' }, { lunes: '2026-11-23', frase: 'a'.repeat(161) }, { lunes: '2026-11-23', frase: 5 }, { lunes: '2026-11-23' },
+    { frase: '' }, { lunes: '2026-11-23', frase: '', otra: 1 }, '2026-11-23', null, true, [],
+  ]) {
+    assert.equal(fraseGuardadaValida(malo), false, JSON.stringify(malo))
+  }
+})
+
+test('fraseGuardada (8.4, una vez por semana entre arranques): la frase guardada de ese lunes, sin volver a pedirla; otra semana, null', () => {
+  // Reinicio con el globo sin ver: la misma frase, cero pedidos al motor
+  assert.equal(fraseGuardada({ lunes: L16, frase: 'Caminaste 5 de 7 días.' }, L16), 'Caminaste 5 de 7 días.')
+  // El pedido había fallado: "" (va la plantilla), y tampoco se vuelve a pedir
+  assert.equal(fraseGuardada({ lunes: L16, frase: '' }, L16), '')
+  // Semana nueva: se pide de nuevo
+  assert.equal(fraseGuardada({ lunes: L16, frase: 'Bien.' }, '2026-11-23'), null)
+  assert.equal(fraseGuardada(null, L16), null)
+  assert.equal(fraseGuardada({ lunes: L16, frase: 'a\nb' }, L16), null)
 })

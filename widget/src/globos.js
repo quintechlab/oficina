@@ -3,7 +3,7 @@
 // aviso diario de Tareas › resumen semanal) y, a igual prioridad, el que llegó primero. El de abajo
 // nunca se pierde: espera en la cola y aparece cuando el de arriba se va. Puro, sin DOM: main.js arma
 // la cola (`encolar`, `quitar`) y dibuja `actual(...)` con la vista de cada tipo (`pintarGlobos`).
-// El resumen semanal (H3) tiene su lugar en la prioridad, pero todavía nadie lo encola.
+// El resumen semanal (H3) entra con `conResumen`: uno solo, el de la semana más nueva.
 
 /** La prioridad de cada tipo (8.1): menos es antes. La pregunta de Claude no es un globo: tapa a todos. */
 export const PRIORIDAD = Object.freeze({ rec: 1, tareas: 2, resumen: 3 })
@@ -13,6 +13,9 @@ const OCULTO_CON = Object.freeze({ tareas: 'tareas', resumen: 'habitos' })
 
 /** La clave de un recordatorio: uno por hábito y por día (el de mañana es otro). */
 export const claveRec = (id, dia) => `rec:${id}:${dia}`
+
+/** La clave de un resumen semanal: uno por semana (`lunes`, "AAAA-MM-DD"). */
+export const claveResumen = lunes => `res:${lunes}`
 
 const porPrioridad = (a, b) => a.prioridad - b.prioridad || a.orden - b.orden
 
@@ -27,6 +30,17 @@ export function encolar(cola, aviso) {
   if (!Number.isFinite(prioridad)) return cola
   const orden = aviso.orden ?? cola.reduce((m, a) => Math.max(m, a.orden + 1), 0)
   return [...cola, { ...aviso, prioridad, orden }].sort(porPrioridad)
+}
+
+/**
+ * Encola un resumen semanal (`{ tipo: 'resumen', clave, lunes, ... }`, habitos-ux.md 8.4): hay uno solo
+ * en la cola, el de la semana más nueva (nunca uno más viejo). Si ya está ese o uno más nuevo, la misma
+ * cola; si había uno más viejo, sale. Es el último de la prioridad: espera a los demás (8.1).
+ */
+export function conResumen(cola, aviso) {
+  const otros = cola.filter(a => a.tipo === 'resumen')
+  if (otros.some(a => a.lunes >= aviso.lunes)) return cola
+  return encolar(otros.reduce((c, a) => quitar(c, a.clave), cola), aviso)
 }
 
 /** Saca un aviso por su clave; si no está, la misma cola. */

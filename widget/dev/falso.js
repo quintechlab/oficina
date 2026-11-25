@@ -106,6 +106,19 @@
 //   ?habitos=carpeta       habitos_leer falla: «No se pudo abrir la carpeta de hábitos.» con «Volver a leer» (5.2)
 //   ?habitos=agua|caminar|gimnasio|correr|leer  ese hábito abierto (4.10), desde Hoy
 //   &habitoslento          habitos_leer tarda 1,2 s (las filas fantasma de 7.1)
+// Resumen semanal de Hábitos (#41, entrega H3, habitos-ux.md 8.4): sin ?resumen, preferencias.json ya dice que se
+//   vio el de esta semana (habitosResumen) y no sale. Con ?resumen, nunca se vio: sale el de la semana pasada
+//   (o el de esta, un domingo desde las 18 de Argentina), con los cinco hábitos falsos. Sin la pregunta de catalogo.
+//   ?resumen=frase      habitos_frase responde en 1,2 s una frase que pasa fraseValida (y la charla, con &modelo=listo
+//                       puesto solo, responde con el modelo falso)
+//   ?resumen=plantilla  habitos_frase se pasa de los 45 s (falso, 0,3 s): la plantilla «Esta semana: …»
+//   ?resumen=sinmodelo  sin el modelo de esta PC: la plantilla, y «Charlemos la semana →» abre la charla con su «Descargar»
+//   ?resumen=invalida   la frase trae un número que no está en los datos: la plantilla
+//   ?resumen=guardada   la frase de la semana pasada ya se pidió en un arranque anterior (habitosFrase): sale esa,
+//                       sin pedirle nada al modelo (window.__frases queda vacío)
+//   Lo pedido se guarda en habitosFrase ({ lunes, frase }; "" si falló): window.__ajustes.habitosFrase
+//   Con ?acople=arriba|… el globo cuelga de la muesca («Tu semana: …» · «Ver →»); con ?dividida=pregunta, en la fila.
+//   Lo guardado queda en window.__ajustes.habitosResumen; cada pedido de frase, en window.__frases
 //   Lo guardado queda en window.__habitos (un Map por id); cada guardado se anota en window.__guardadosHabitos.
 //   Las cuentas son las de las listas falsas (2 para hoy y 2 vencidas, con ?tareas=… las de cada caso)
 //   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
@@ -217,7 +230,9 @@
   const globoTar = url.get('globo')
   // Desde H2 (habitos-ux.md 8.1, D-m4) una pregunta pendiente tapa el globo en la marca, la dividida y la
   // muesca: con &globo o &rec, sin pregunta de catalogo salvo que el caso la pida (?estado, ?muesca, &tapa, ?pregunta)
-  if ((globoTar || url.has('rec')) && !url.has('estado') && !url.has('muesca') && !url.has('tapa') && !url.has('pregunta')) url.set('estado', 'reposo')
+  if ((globoTar || url.has('rec') || url.has('resumen')) && !url.has('estado') && !url.has('muesca') && !url.has('tapa') && !url.has('pregunta')) url.set('estado', 'reposo')
+  // ?resumen=frase: el modelo de esta PC está, así la charla que abre el resumen responde con el modelo falso
+  if (['frase', 'plantilla', 'invalida'].includes(url.get('resumen')) && !url.has('modelo')) url.set('modelo', 'listo')
   if (globoTar === 'muesca' && !url.has('acople')) url.set('acople', 'arriba')
   if (globoTar === 'dividida' && !url.has('dividida')) url.set('dividida', 'pregunta')
   const ahora = Date.now()
@@ -702,6 +717,13 @@
   for (const h of HABITOS_FALSOS) if (recFalsos.includes(h.id)) h.aviso = minDelDia >= atraso ? horaArF(ahora - atraso * 60000) : '00:00'
   let recordadosHab = { dia: diaAr(0), ids: HABITOS_FALSOS.map(h => h.id).filter(id => url.has('recordado') || !recFalsos.includes(id)) }
   window.__notificaciones = []
+  // El resumen semanal (H3): sin ?resumen ya se vio el de esta semana (el lunes de hoy en Argentina)
+  let resumenVisto = url.has('resumen') ? null : diaAr(-hoySem)
+  // La frase ya pedida (habitosFrase, 8.4): con ?resumen=guardada, la de la semana pasada
+  let fraseSemana = url.get('resumen') === 'guardada'
+    ? { lunes: diaAr(-hoySem - 7), frase: 'Leer 20 minutos salió bien: lo mejor de la semana.' }
+    : null
+  window.__frases = []
   const habitosFalsos = new Map((modoHabitos === 'vacio' ? [] : HABITOS_FALSOS).map(h => [h.id, h]))
   const rotasHabitos = modoHabitos === 'roto' ? [{ archivo: 'h-mf3k2a9x1b.json', motivo: 'no es JSON: EOF while parsing a value at line 9 column 0' }] : []
   window.__habitos = habitosFalsos
@@ -729,6 +751,20 @@
       return { ok: true }
     },
     habitos_abrir_carpeta: () => console.info('[explorador] <config>\\habitos'),
+    // Como habitos.rs (11.7): la frase del modelo local, o un error (la ventana usa la plantilla)
+    habitos_frase: ({ datos }) => new Promise((r, no) => {
+      const modo = url.get('resumen')
+      window.__frases.push(datos)
+      if (modo === 'sinmodelo') { no('falta descargar el modelo de esta PC'); return }
+      if (modo === 'plantilla') { setTimeout(() => no('la frase tardó más de 45 s (falso)'), 300); return }
+      const lista = datos?.habitos ?? []
+      const m = lista.reduce((a, h) => (!a || h.hechos / h.tocaban > a.hechos / a.tocaban ? h : a), null)
+      if (!m) { no('no hay hábitos para resumir'); return }
+      const frase = modo === 'invalida'
+        ? 'Cumpliste el 87 % de lo que tocaba: una semana redonda.'
+        : `${m.nombre}: ${m.hechos} de ${m.tocaban}, lo mejor de la semana. Lo demás quedó un poco atrás.`
+      setTimeout(() => r({ frase }), 1200)
+    }),
   }
   // ?habitos=…: abre la hoja como el usuario (el clic en la fila «Hábitos») y va a la vista de cada caso
   if (modoHabitos !== null) {
@@ -1201,7 +1237,7 @@
     // otra vez); los interruptores, lo guardado con guardar_ajuste; el arranque, el "sistema" falso
     leer_configuracion: () => ({
       tamano: paso, acople, flotante, ...ajustes, arranque: arranqueFalso, version: '0.10.0', chat: prefsChat, tareasAvisado: avisadoTar,
-      habitosRecordados: recordadosHab,
+      habitosRecordados: recordadosHab, habitosResumen: resumenVisto, habitosFrase: fraseSemana,
     }),
     // Como `ajuste_valido` de preferencias.rs; ?cfgfalla hace fallar el guardado (la fila vuelve y lo dice)
     guardar_ajuste: ({ clave, valor }) => {
@@ -1210,12 +1246,30 @@
       // habitosRecordados (habitos-ux.md 11.5): { dia, ids } con solo esas claves, hasta 100 ids de hábito
       const recordadosOk = v => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 2 && typeof v.dia === 'string' && dia(v.dia) && v.dia !== ''
         && Array.isArray(v.ids) && v.ids.length <= 100 && v.ids.every(id => idHabito(id))
+      const lunesOk = (v, vacio) => typeof v === 'string' && (v === '' ? vacio : dia(v) && new Date(`${v}T12:00:00Z`).getUTCDay() === 1)
       const valido = clave === 'mascota' ? ESPECIES.includes(valor)
         : clave === 'tareasAvisado' ? typeof valor === 'string' && dia(valor)
           : clave === 'habitosRecordados' ? recordadosOk(valor)
+            // habitosResumen (8.4): un lunes que existe, o vacío (como preferencias.rs)
+            : clave === 'habitosResumen' ? lunesOk(valor, true)
+              // habitosFrase (8.4): { lunes, frase } con un lunes y una frase de una línea de 0 a 160
+              : clave === 'habitosFrase' ? !!valor && typeof valor === 'object' && !Array.isArray(valor) && Object.keys(valor).length === 2
+                && lunesOk(valor.lunes, false) && typeof valor.frase === 'string' && !/[\r\n]/.test(valor.frase) && [...valor.frase].length <= 160
             : ['arriba', 'avisar', 'pausa'].includes(clave) && typeof valor === 'boolean'
       if (!valido) throw new Error(`ajuste inválido: ${clave}`)
       if (url.has('cfgfalla')) throw new Error('no se pudo escribir preferencias.json (falso)')
+      if (clave === 'habitosFrase') {
+        fraseSemana = structuredClone(valor)
+        window.__ajustes = { ...ajustes, habitosFrase: fraseSemana }
+        console.info('[preferencias] habitosFrase', JSON.stringify(valor))
+        return { ok: true, valor }
+      }
+      if (clave === 'habitosResumen') {
+        resumenVisto = valor || null
+        window.__ajustes = { ...ajustes, habitosResumen: resumenVisto }
+        console.info('[preferencias] habitosResumen', valor)
+        return { ok: true, valor }
+      }
       if (clave === 'habitosRecordados') {
         recordadosHab = structuredClone(valor)
         window.__ajustes = { ...ajustes, habitosRecordados: recordadosHab }

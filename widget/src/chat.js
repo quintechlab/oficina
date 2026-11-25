@@ -532,6 +532,21 @@ export function transicionChat(c, ev, ctx = {}) {
       const chat = { ...cambiarConversacion(c, nueva), borrador: c.borrador, adjuntos: c.adjuntos }
       return { chat, efectos: [efectoAbrir(nueva), { tipo: 'foco', a: 'campo' }] }
     }
+    case 'semana': {
+      // El clic en el resumen semanal de Hábitos (habitos-ux.md 8.4): una charla nueva del motor local,
+      // sea cual sea la preferencia (que no cambia, decisión de Quintana del 24/11), que empieza con un
+      // mensaje de la mascota (la frase y los números) y su título. Se guarda ya en la PC (no espera a un
+      // turno). Sin el modelo, la hoja muestra la descarga de siempre (4.1), que solo baja con el clic
+      const texto = String(ev.texto ?? '').trim()
+      if (!texto) return NADA(c)
+      const ahora = ctx.ahoraMs
+      const nueva = {
+        ...conversacionNueva(ctx.id, 'local', null, ahora), titulo: String(ev.titulo ?? '').trim() || null,
+        mensajes: [{ rol: 'mascota', texto, cuando: ahora, estado: 'ok', herramientas: [], turno: 0, avis: false, ms: null }],
+      }
+      const chat = { ...cambiarConversacion({ ...c, abierta: true }, nueva), borrador: c.borrador, adjuntos: c.adjuntos }
+      return { chat, efectos: [efectoAbrir(nueva), { tipo: 'guardar', conversacion: nueva }, { tipo: 'foco', a: 'campo' }] }
+    }
     case 'retomar': {
       if (conv && conv.id === ev.id) return { chat: { ...c, cajon: false, menuCharla: null }, efectos: [{ tipo: 'foco', a: 'campo' }] }
       let otra = c.charlas.find(x => x.id === ev.id && Array.isArray(x.mensajes)) ?? null

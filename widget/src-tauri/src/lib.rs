@@ -1040,6 +1040,30 @@ fn habitos_abrir_carpeta(app: AppHandle) -> Result<(), String> {
     std::process::Command::new("explorer").arg(&carpeta).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
+/// La frase del resumen semanal de hábitos (habitos-ux.md 8.4 y 11.7): `{ frase }` o un error (la ventana
+/// usa la plantilla). Solo con el modelo de esta PC instalado (si no, error sin prender nada: nunca se
+/// descarga nada); el motor se prende como para una charla (`motor_charla`, que avisa `preparando`) y se
+/// apaga solo a los 10 min. Una respuesta, 60 tokens y 45 s; nada se guarda.
+#[tauri::command]
+async fn habitos_frase(app: AppHandle, datos: serde_json::Value) -> Result<serde_json::Value, String> {
+    let motor: chat_local::MotorLocal = std::sync::Arc::new(move || {
+        let avisar = |v: serde_json::Value| {
+            let _ = app.emit(modelo::EVENTO, v);
+        };
+        modelo::IA.motor_charla(&avisar).map(|(puerto, uso)| (puerto, Box::new(uso) as Box<dyn chat_local::UsoMotor>))
+    });
+    let r = tauri::async_runtime::spawn_blocking(move || habitos::frase(&datos, &|| estado_local() == "instalado", motor, habitos::TOPE_FRASE))
+        .await
+        .map_err(|e| e.to_string())?;
+    match r {
+        Ok(frase) => Ok(serde_json::json!({ "frase": frase })),
+        Err(e) => {
+            registrar(format!("hábitos: sin la frase del resumen: {e}"));
+            Err(e)
+        }
+    }
+}
+
 /// El motor, la carpeta y el modelo de la charla (chat-avis-ux.md 3.4 y #35): quedan para la próxima
 /// charla nueva y la carpeta va primera en las recientes. `modelo`: uno de `chat::MODELOS` o `null`
 /// ("Por defecto"), guardado tal cual. Devuelve `{ motor, carpeta, recientes, modelo }` como el `chat`
@@ -1071,7 +1095,7 @@ async fn elegir_carpeta(app: AppHandle) -> Result<Option<String>, String> {
 
 /// Todo lo que la ventana necesita al arrancar y para la configuración (configuracion-ux.md 9.2):
 /// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version, chat, tareasAvisado,
-/// habitosRecordados }`.
+/// habitosRecordados, habitosResumen, habitosFrase }`.
 /// `arranque` sale del sistema, no del archivo. Sin carpeta de configuración, los valores de fábrica.
 #[tauri::command]
 fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
@@ -1092,6 +1116,10 @@ fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::
         "tareasAvisado": ruta.as_deref().and_then(preferencias::leer_tareas_avisado),
         // Los hábitos ya recordados hoy (habitos-ux.md 8.3): `{ dia, ids }`, o null
         "habitosRecordados": ruta.as_deref().and_then(preferencias::leer_habitos_recordados),
+        // El lunes de la semana del último resumen semanal visto (habitos-ux.md 8.4), o null
+        "habitosResumen": ruta.as_deref().and_then(preferencias::leer_habitos_resumen),
+        // La frase de esa semana (8.4): `{ lunes, frase }`, o null; así no se le pide de nuevo al modelo
+        "habitosFrase": ruta.as_deref().and_then(preferencias::leer_habitos_frase),
     })
 }
 
@@ -1893,6 +1921,7 @@ pub fn run() {
             habitos_guardar,
             habitos_borrar,
             habitos_abrir_carpeta,
+            habitos_frase,
             guardar_chat,
             elegir_carpeta,
             borrar_modelo,

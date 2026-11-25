@@ -6,9 +6,10 @@
 // "AAAA-MM-DD" (días de Argentina), lunes = 0 … domingo = 6 en `dias`. Sin DOM: lo dibuja habitosVista.js,
 // lo mueve habitosMotion.js y lo conecta main.js (que guarda con `habitos_guardar`).
 // Entrega H1: los datos y la hoja. Entrega H2: el recordatorio (cuándo se debe, cuándo se va y sus
-// textos); la cola de globos es globos.js. El resumen semanal (H3) no está.
+// textos); la cola de globos es globos.js. Entrega H3: el resumen semanal (cuándo toca, los números de la
+// semana, la plantilla, la validación de la frase del modelo y los textos de su globo y su charla).
 
-import { sumarDias, diaSemana, lunesDe, hoyArgentina, diaArgentina, MS_DIA, DESFASE_AR } from './fechas.js'
+import { sumarDias, diaSemana, lunesDe, hoyArgentina, diaArgentina, fechaValida, MS_DIA, DESFASE_AR } from './fechas.js'
 import { COLORES, colorDe, colorSiguiente, fechaCorta, claveNombre } from './tareas.js'
 
 export const TIPOS = ['diario', 'cantidad', 'dias', 'semana']
@@ -585,6 +586,199 @@ export function textoHechoGlobo(h, dia) {
   }
   const n = racha(h, dia)
   return [{ t: '¡Hecho! ' }, { t: h.nombre, fuerte: true }, { t: `: ${n} ${textoRachaGrande(h, n)}.` }]
+}
+
+// ------------------------------------------------------------------ el resumen semanal (H3: 8.4, 5.4 y 11.6)
+
+/** El domingo desde esta hora de Argentina sale el resumen de esa semana (8.4). */
+export const HORA_RESUMEN = '18:00'
+/** La frase como mucho (8.4) y la frase corta de la muesca y la dividida (5.4). */
+export const MAX_FRASE = 160
+export const MAX_FRASE_CORTA = 34
+/** Cuántos hábitos lleva la plantilla como mucho (8.4). */
+const MAX_PLANTILLA = 3
+
+/** El día de inicio de un hábito para el resumen: `inicio`, o el día de `creado`; sin nada, desde siempre. */
+const inicioResumen = h => (typeof h.inicio === 'string' ? h.inicio : Number.isFinite(h.creado) ? hoyArgentina(h.creado) : '0000-01-01')
+
+/**
+ * ¿Hay de qué hablar? (8.4) Un hábito cuenta si existía antes del domingo de esa semana y le tocaba algún
+ * día de ella (desde su inicio): por semana, siempre; algunos días, solo los suyos.
+ */
+function entraEnResumen(h, lunes) {
+  const domingo = sumarDias(lunes, 6)
+  const inicio = inicioResumen(h)
+  if (inicio >= domingo) return false
+  if (h.tipo === 'semana') return true
+  for (let d = inicio > lunes ? inicio : lunes; d <= domingo; d = sumarDias(d, 1)) if (toca(h, d)) return true
+  return false
+}
+
+/** ¿`v` sirve como `habitosResumen` (11.5)? Un día que existe y es lunes, o vacío; como `ajuste_valido` de preferencias.rs. */
+export function resumenGuardadoValido(v) {
+  return v === '' || (fechaValida(v) && diaSemana(v) === 0)
+}
+
+/**
+ * ¿`v` sirve como `habitosFrase` (8.4)? `{ lunes, frase }` con solo esas claves, un lunes que existe y una
+ * frase de una línea de 0 a 160 caracteres ("" si el pedido falló: va la plantilla); como preferencias.rs.
+ */
+export function fraseGuardadaValida(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v) || Object.keys(v).length !== 2) return false
+  return !!v.lunes && resumenGuardadoValido(v.lunes) && typeof v.frase === 'string' && !/[\r\n]/.test(v.frase) && [...v.frase].length <= MAX_FRASE
+}
+
+/**
+ * La frase ya pedida para la semana del `lunes` (`habitosFrase` de preferencias.json, 8.4): así el modelo
+ * se usa como mucho una vez por semana, también entre arranques. "" si aquel pedido falló (va la
+ * plantilla); null si no hay una de esa semana (o no sirve) y hay que pedirla.
+ */
+export function fraseGuardada(guardada, lunes) {
+  return fraseGuardadaValida(guardada) && guardada.lunes === lunes ? guardada.frase : null
+}
+
+/**
+ * ¿Toca un resumen? (8.4, 11.6) El lunes de la semana a resumir, o null. El domingo desde las 18:00 de
+ * Argentina, el de esa semana; si no, el de la semana pasada (el primer arranque de la semana siguiente,
+ * cualquier día). Nunca uno más viejo, nunca uno ya visto (`guardado`: el `habitosResumen` de
+ * preferencias.json; lo que no es un lunes válido cuenta como nada) y solo si hay de qué hablar.
+ */
+export function resumenDebido({ hoy, horaAr, guardado, habitos }) {
+  const esteLunes = lunesDe(hoy)
+  const lunes = diaSemana(hoy) === 6 && horaAr >= HORA_RESUMEN ? esteLunes : sumarDias(esteLunes, -7)
+  const visto = resumenGuardadoValido(guardado) && guardado ? guardado : ''
+  if (visto >= lunes) return null
+  return (habitos ?? []).some(h => entraEnResumen(h, lunes)) ? lunes : null
+}
+
+/**
+ * Los números de la semana del `lunes` (8.4, 11.6), siempre de los datos: por hábito `{ id, nombre, tipo,
+ * color, hechos, tocaban }` (cantidad: días con la meta; por semana: veces, con el tope de `veces`, sobre
+ * `veces`; los demás: días hechos sobre los que tocaban desde su inicio) y por día (`dias`, lunes a
+ * domingo) la fracción de lo que tocaba que se hizo. Un hábito por semana no toca un día en particular:
+ * suma solo el día que se hizo. Un día sin nada que tocara es 0. Van los hábitos de `entraEnResumen`.
+ */
+export function resumenSemana(habitos, lunes) {
+  const si = Array(7).fill(0), total = Array(7).fill(0)
+  const lista = []
+  for (const h of habitos ?? []) {
+    if (!entraEnResumen(h, lunes)) continue
+    const inicio = inicioResumen(h)
+    let hechos = 0, tocaban = 0
+    for (let i = 0; i < 7; i++) {
+      const d = sumarDias(lunes, i)
+      if (d < inicio) continue
+      const ok = hecho(h, d)
+      if (h.tipo === 'semana') {
+        if (ok) { hechos++; si[i]++; total[i]++ }
+        continue
+      }
+      if (!toca(h, d)) continue
+      tocaban++
+      total[i]++
+      if (ok) { hechos++; si[i]++ }
+    }
+    if (h.tipo === 'semana') {
+      tocaban = h.veces ?? 1
+      hechos = Math.min(hechos, tocaban)
+    }
+    lista.push({ id: h.id, nombre: String(h.nombre ?? ''), tipo: h.tipo, color: h.color, hechos, tocaban })
+  }
+  return { lunes, habitos: lista, dias: si.map((n, i) => (total[i] ? n / total[i] : 0)) }
+}
+
+/** El alto de una barra del resumen (8.4): 26 × fracción, mínimo 3 (en px). */
+export const altoBarra = f => Math.max(3, Math.round(26 * (Number(f) || 0) * 10) / 10)
+
+/** «{nombre} {k} de {t} días» (cantidad: «… días con la meta»; por semana: «… veces»), la forma de 8.4. */
+const cuentaResumen = h => `${h.nombre} ${h.hechos} de ${h.tocaban} ${h.tipo === 'cantidad' ? 'días con la meta' : h.tipo === 'semana' ? 'veces' : 'días'}`
+
+/** Los hábitos del resumen del mejor cumplimiento al peor (a igual, el orden de la lista). */
+const porCumplimiento = r => r.habitos.map((h, i) => ({ h, i })).sort((a, b) => b.h.hechos / b.h.tocaban - a.h.hechos / a.h.tocaban || a.i - b.i).map(x => x.h)
+
+/**
+ * La plantilla (8.4: sin modelo, si tarda o si la frase no pasa `fraseValida`): «Esta semana: {nombre}
+ * {hechos} de {tocaban} días · …», con hasta 3 hábitos ordenados por cumplimiento.
+ */
+export function plantillaResumen(r) {
+  return `Esta semana: ${porCumplimiento(r).slice(0, MAX_PLANTILLA).map(cuentaResumen).join(' · ')}`
+}
+
+/**
+ * ¿La frase del modelo sirve? (8.4, D-h15) Una sola línea, de 1 a 160 caracteres, y todo número que
+ * diga tiene que estar en los datos (lo hecho y lo que tocaba de cada hábito, o un número de su nombre).
+ * Si no, va la plantilla.
+ */
+export function fraseValida(frase, r) {
+  if (typeof frase !== 'string') return false
+  const f = frase.trim()
+  if (!f || /[\r\n]/.test(f) || [...f].length > MAX_FRASE) return false
+  // Los números de los nombres también son datos («Tomar 8 vasos»)
+  const datos = new Set(r.habitos.flatMap(h => [h.hechos, h.tocaban, ...(String(h.nombre).match(/\d+/g) ?? [])]).map(n => String(Number(n))))
+  return (f.match(/\d+/g) ?? []).every(n => datos.has(String(Number(n))))
+}
+
+/**
+ * La frase corta de la muesca y la dividida (5.4): la primera parte de la frase (hasta el primer punto,
+ * coma, punto y coma o «·»), tal cual (puede empezar con el nombre de un hábito), si entra en 34 caracteres.
+ * Si no entra, o es la plantilla (su primera parte repite «semana»), «{nombre} {k} de {t}» del
+ * hábito con mejor cumplimiento.
+ */
+export function fraseCorta(frase, r, { plantilla = false } = {}) {
+  const parte = String(frase ?? '').trim().split(/[.,;·]\s|[.;·]$/)[0].trim()
+  if (!plantilla && parte && [...parte].length <= MAX_FRASE_CORTA) {
+    return parte
+  }
+  const mejor = porCumplimiento(r)[0]
+  return mejor ? `${mejor.nombre} ${mejor.hechos} de ${mejor.tocaban}` : parte
+}
+
+/** La frase en tramos, con los números en negrita (8.5: «5 de 7» en 800). */
+function conNumeros(frase) {
+  const tramos = []
+  let desde = 0
+  for (const m of frase.matchAll(/\d+(?: de \d+)?/g)) {
+    if (m.index > desde) tramos.push({ t: frase.slice(desde, m.index) })
+    tramos.push({ t: m[0], fuerte: true })
+    desde = m.index + m[0].length
+  }
+  if (desde < frase.length) tramos.push({ t: frase.slice(desde) })
+  return tramos
+}
+
+/** «Tu semana · 16/11 al 22/11»: el kicker del globo (5.4) y el título de la charla (8.4). */
+export const tituloSemana = lunes => `Tu semana · ${rangoSemana(lunes)}`
+
+/**
+ * Los textos del globo del resumen (5.4 y 8.5), en tramos como `textosGlobo`: `kicker`, `globo` (la frase
+ * con los números en negrita), `muesca` y `fila` («Tu semana: {frase corta}»), `ver`, `charlemos` y
+ * `charlemosFila`, `x` (el nombre y el `title` de la ×), `barras` (`{ letra, alto }` de lunes a domingo)
+ * y `texto` (el globo llano, para el anuncio). `plantilla`: la frase es la plantilla (8.4).
+ */
+export function textosResumen(r, frase, { plantilla = false } = {}) {
+  const f = String(frase ?? '').trim()
+  const corta = `Tu semana: ${fraseCorta(f, r, { plantilla })}`
+  const kicker = tituloSemana(r.lunes)
+  return {
+    kicker, globo: conNumeros(f), muesca: [{ t: corta }], fila: [{ t: corta }],
+    ver: 'Ver →', charlemos: 'Charlemos la semana →', charlemosFila: 'Charlemos →',
+    x: { nombre: 'Más tarde: lo dejo para la semana que viene', titulo: 'Más tarde' },
+    barras: r.dias.map((x, i) => ({ letra: LETRAS_DIAS[i], alto: altoBarra(x) })),
+    texto: `${kicker}. ${f}`,
+  }
+}
+
+/**
+ * El primer mensaje de la charla que abre el resumen (8.4, `rol: "mascota"`): la frase y una lista con
+ * los números de cada hábito (Markdown simple, el de la hoja).
+ */
+export function mensajeSemana(r, frase) {
+  return `${String(frase ?? '').trim()}\n\n${r.habitos.map(h => `- ${h.nombre.replace(/[\r\n]+/g, ' ')}: ${cuentaResumen({ ...h, nombre: '' }).trim()}`).join('\n')}`
+}
+
+/** Lo que viaja a `habitos_frase` (11.7): por hábito, solo el nombre, el tipo y los números. */
+export function datosFrase(r) {
+  return { habitos: r.habitos.map(({ nombre, tipo, hechos, tocaban }) => ({ nombre, tipo, hechos, tocaban })) }
 }
 
 // ------------------------------------------------------------------ la hoja (3.4, 3.5)

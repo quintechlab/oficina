@@ -7,6 +7,7 @@
 import { NOMBRES_ESPECIES, datosEspecie, especieValida } from './especies.js'
 import { cifrasDescarga, formatoGB, MODELOS } from './chat.js'
 import { DESFASE_AR, diaArgentina, fechaValida } from './fechas.js'
+import { resumenGuardadoValido, fraseGuardadaValida } from './habitos.js'
 
 /** Orden fijo de las pestañas (4.4). */
 export const PESTANAS = [
@@ -46,7 +47,8 @@ export const INTERRUPTORES = { arriba: true, avisar: true, pausa: false }
  * `avisar` y `pausa`, solo booleanos; `tareasAvisado` (el día del aviso diario de tareas,
  * tareas-ux.md 11.4), un día que existe `AAAA-MM-DD` o vacío; `habitosRecordados` (los hábitos ya
  * recordados hoy, habitos-ux.md 8.3 y 11.5), `{ dia, ids }` con solo esas dos claves, un día que existe
- * y hasta 100 ids de hábito; cualquier otra clave, no. Las mismas reglas que `ajuste_valido` de
+ * y hasta 100 ids de hábito; `habitosResumen` (8.4), un lunes que existe o vacío; `habitosFrase` (8.4),
+ * `{ lunes, frase }` (`fraseGuardadaValida` de habitos.js); cualquier otra clave, no. Las mismas reglas que `ajuste_valido` de
  * preferencias.rs. `motor` llega con el chat (D6).
  */
 export function validarAjuste(clave, valor) {
@@ -54,6 +56,9 @@ export function validarAjuste(clave, valor) {
   if (Object.hasOwn(INTERRUPTORES, clave ?? '')) return typeof valor === 'boolean'
   if (clave === 'tareasAvisado') return valor === '' || fechaValida(valor)
   if (clave === 'habitosRecordados') return recordadosValidos(valor)
+  // El resumen semanal de Hábitos (habitos-ux.md 8.4): el lunes visto y la frase de esa semana
+  if (clave === 'habitosResumen') return resumenGuardadoValido(valor)
+  if (clave === 'habitosFrase') return fraseGuardadaValida(valor)
   return false
 }
 

@@ -14,12 +14,19 @@
 //! El registro de más de 2 000 días se recorta (quedan los más nuevos) y `mejor` no baja: 11.1 dice
 //! también que más de 2 000 entradas se rechaza; se siguió el recorte, que es lo que piden sus casos
 //! de prueba (11.6).
+//!
+//! La frase del resumen semanal (8.4 y 11.7, entrega H3): `frase` le pide una respuesta al modelo local
+//! por el mismo camino de la charla (`chat_local::pedir`, 127.0.0.1 y sin proxy), solo con el modelo ya
+//! instalado, con 60 tokens y 45 s; no guarda nada.
 
 use serde_json::{json, Map, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, PoisonError};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc, Mutex, PoisonError};
+use std::time::Duration;
 
+use crate::chat_local::{self, Avance, FinLectura, MotorLocal};
 use crate::tareas::{desconocidas, fecha, id_con, ms, COLORES};
 
 /// Los tipos de hábito (S2).
@@ -228,6 +235,112 @@ pub fn listar(carpeta: &Path) -> Lectura {
     });
     l.rotas.sort_by(|a, b| a["archivo"].as_str().cmp(&b["archivo"].as_str()));
     l
+}
+
+// ------------------------------------------------------------------ la frase del resumen semanal (habitos-ux.md 8.4 y 11.7)
+
+/// La instrucción fija de 8.4: el modelo local escribe la frase con estos datos y nada más.
+pub const INSTRUCCION_FRASE: &str = "Escribí una o dos oraciones en español rioplatense, de hasta 160 caracteres, que resuman esta semana de hábitos. \
+Usá solo estos datos. No inventes números ni des consejos médicos. Empezá por lo que salió mejor.";
+/// El tope de la frase (8.4, D-h15): 60 tokens y 45 s en total, contando el arranque del motor.
+pub const TOKENS_FRASE: u32 = 60;
+pub const TOPE_FRASE: Duration = Duration::from_secs(45);
+/// Cuántos hábitos van en el pedido como mucho (la ventana manda los de la semana; más no hace falta).
+const TOPE_HABITOS_FRASE: usize = 30;
+
+/// Una línea por hábito con sus números (8.4), de lo que manda la ventana (`datosFrase` de habitos.js:
+/// `{ habitos: [{ nombre, tipo, hechos, tocaban }] }`): cantidad «días con la meta», por semana «veces»,
+/// los demás «días». Lo que no tiene esa forma se saltea (un nombre vacío, un tipo que no existe, números
+/// fuera de la semana); el nombre va en una sola línea y con el tope de 40. Sin ninguno, error.
+pub fn lineas_frase(datos: &Value) -> Result<String, String> {
+    let lista = datos["habitos"].as_array().map(Vec::as_slice).unwrap_or_default();
+    let lineas: Vec<String> = lista
+        .iter()
+        .filter_map(|h| {
+            let nombre: String = h["nombre"].as_str()?.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(TOPE_NOMBRE).collect();
+            let tipo = h["tipo"].as_str().filter(|t| TIPOS.contains(t))?;
+            let hechos = h["hechos"].as_u64()?;
+            let tocaban = h["tocaban"].as_u64()?;
+            if nombre.is_empty() || tocaban == 0 || tocaban > 7 || hechos > tocaban {
+                return None;
+            }
+            let unidad = match tipo {
+                "cantidad" => "días con la meta",
+                "semana" => "veces",
+                _ => "días",
+            };
+            Some(format!("- {nombre}: {hechos} de {tocaban} {unidad}"))
+        })
+        .take(TOPE_HABITOS_FRASE)
+        .collect();
+    if lineas.is_empty() {
+        return Err(String::from("no hay hábitos para resumir"));
+    }
+    Ok(lineas.join("\n"))
+}
+
+/// El pedido de la frase (11.7): una sola respuesta, sin historia ni bloque `<avis>`, por el mismo
+/// `/v1/chat/completions` de la charla (`chat_local::pedir`), con 60 tokens y sin modo de pensar.
+pub fn cuerpo_frase(lineas: &str) -> Value {
+    json!({
+        "messages": [{ "role": "system", "content": INSTRUCCION_FRASE }, { "role": "user", "content": lineas }],
+        "stream": true,
+        "max_tokens": TOKENS_FRASE,
+        "temperature": 0.7,
+        "top_p": 0.8,
+        "top_k": 20,
+        "chat_template_kwargs": { "enable_thinking": false },
+    })
+}
+
+/// `habitos_frase` (8.4 y 11.7): la frase del modelo local, en una línea, o un error (la ventana usa la
+/// plantilla). Sin datos o sin el modelo instalado (`instalado`), error sin prender nada: nunca se
+/// descarga nada. Con el modelo, el motor se prende como para una charla (`motor`: `motor_charla` en la
+/// app, uno falso en los tests) y se apaga solo, como siempre. Todo, arranque incluido, dentro de `tope`
+/// (45 s): si no llega, error y el pedido se corta. No guarda nada (ni historial ni Engram); la validación
+/// de los números es de la ventana (`fraseValida`).
+pub fn frase(datos: &Value, instalado: &dyn Fn() -> bool, motor: MotorLocal, tope: Duration) -> Result<String, String> {
+    let lineas = lineas_frase(datos)?;
+    if !instalado() {
+        return Err(String::from("falta descargar el modelo de esta PC"));
+    }
+    let cuerpo = cuerpo_frase(&lineas);
+    let frenar = Arc::new(AtomicBool::new(false));
+    let (tx, rx) = mpsc::channel();
+    let corte = frenar.clone();
+    std::thread::spawn(move || {
+        let r = (|| {
+            let (puerto, _uso) = motor()?;
+            // El motor prendió después del tope: la frase ya venció y no se manda nada
+            if corte.load(Ordering::SeqCst) {
+                return Err(String::from("la frase ya venció"));
+            }
+            let mut texto = String::new();
+            let fin = chat_local::pedir(puerto, &cuerpo, &corte, &mut |a| {
+                if let Avance::Texto(t) = a {
+                    texto.push_str(&t);
+                }
+            })?;
+            match fin {
+                FinLectura::Hecho { .. } => Ok(texto),
+                FinLectura::Error(e) => Err(e),
+                FinLectura::Frenado | FinLectura::Cortado => Err(String::from("el motor cortó la frase")),
+            }
+        })();
+        let _ = tx.send(r);
+    });
+    let texto = match rx.recv_timeout(tope) {
+        Ok(r) => r?,
+        Err(_) => {
+            frenar.store(true, Ordering::SeqCst);
+            return Err(format!("la frase tardó más de {} s", tope.as_secs_f32()));
+        }
+    };
+    let texto = texto.trim();
+    if texto.is_empty() {
+        return Err(String::from("el motor no escribió nada"));
+    }
+    Ok(texto.to_string())
 }
 
 #[cfg(not(test))]

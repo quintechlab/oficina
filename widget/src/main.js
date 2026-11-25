@@ -76,7 +76,7 @@ import {
   nuevaMudanza, soltarMudanzas, olvidarMudanzas, fechaDeOpcion, abrirDetalle, cerrarDetalle, diferirGuardado, nombreVista,
   MAX_SUBTAREAS, AVISO_INICIAL, evaluarAviso, verAviso, soltarAviso, textoGlobo, horaGlobo, anuncioGlobo, plano,
 } from './tareas.js'
-import { encolar, quitar, actual as globoActual, claveRec } from './globos.js'
+import { encolar, quitar, actual as globoActual, claveRec, claveResumen, conResumen } from './globos.js'
 import {
   ladoFilaTareas, esqueletoTareas, CARPETA, miniTareas, indiceTareas, cabeceraPanel, campoNueva, cuerpoLista,
   primerUso, errorGuardar, errorRota, errorCarpeta, atrasTarea, esqueletoDetalle, partesDetalle, globoMarca, globoMuesca, filaAviso,
@@ -89,10 +89,11 @@ import {
   corregir as corregirHabito, editar as editarHabito, conMejor, hitoNuevo, textoHito, AVISO_POR_DEFECTO,
   anuncioTilde, anuncioSuma, anuncioDiaCompleto, anuncioCorregido, anuncioCreado, anuncioBorrado,
   recordatoriosDebidos, recordar, recordatorioVigente, textosGlobo, textoHechoGlobo,
+  resumenDebido, resumenSemana, plantillaResumen, fraseValida, textosResumen, tituloSemana, mensajeSemana, datosFrase, fraseGuardada,
 } from './habitos.js'
 import {
   ladoFilaHabitos, esqueletoHabitos, CARPETA_HAB, partesHoja, primerUsoHabitos, errorCarpetaHab, fraseHtml, hitoHtml,
-  globoHab, globoMuescaHab, filaAvisoHab,
+  globoHab, globoMuescaHab, filaAvisoHab, globoResumen, globoMuescaResumen, filaAvisoResumen,
 } from './habitosVista.js'
 import * as movimientoHabitos from './habitosMotion.js'
 import { MODULOS, irModulo as planModulo, alEscModulo, cuentaModulo, nombreModulo, avisoPregunta, moduloAlExpandir, cuentasModulosMini, desplazarTira } from './modulos.js'
@@ -219,6 +220,14 @@ const st = {
   confirmaGlobo: null,
   /** Los hábitos ya recordados hoy (`habitosRecordados` de preferencias.json, habitos-ux.md 8.3): `{ dia, ids }` o null. */
   habRecordados: null,
+  /**
+   * El resumen semanal (habitos-ux.md 8.4): el lunes de la semana del último que se vio (`habitosResumen`
+   * de preferencias.json, o null) y el lunes del que se está preparando (la frase del modelo), o null.
+   */
+  habResumen: null,
+  resumenPreparando: null,
+  /** La frase ya pedida de una semana (`habitosFrase` de preferencias.json, 8.4): `{ lunes, frase }` o null. */
+  habFrase: null,
   mini: false,
   /** La ventana está escondida en la bandeja o minimizada: los Avis se pausan (6.5). */
   fuera: false,
@@ -2016,8 +2025,10 @@ async function leerEquipo() {
 }
 
 async function ciclo() {
-  // Los recordatorios de los hábitos se revisan acá, nunca con un temporizador por hábito (habitos-ux.md 8.3)
+  // Los recordatorios de los hábitos se revisan acá, nunca con un temporizador por hábito (habitos-ux.md 8.3);
+  // el resumen semanal también (8.4)
   revisarRecordatorios()
+  revisarResumen()
   await leer()
   ponerFuera(await fueraDeVista())
   // Si el área de trabajo o el monitor cambiaron, la ventana vuelve a ser el área (9.7)
@@ -2360,11 +2371,12 @@ document.addEventListener('compositionend', () => { st.componiendo = false })
 document.addEventListener('keydown', e => {
   // Las teclas de la hoja de la charla (chat-avis-ux.md 3.5): van antes que el Esc de la pregunta y el de la muesca
   if (teclaChat(e)) return
-  // Esc con el foco en el globo de un recordatorio: es su × («Ahora no», habitos-ux.md 9.1)
+  // Esc con el foco en el globo de un recordatorio o del resumen: es su × («Ahora no» o «Más tarde», habitos-ux.md 9.1)
   const globoHabEl = e.key === 'Escape' && e.target.closest?.('[data-globo-hab]')
   if (globoHabEl) {
     e.preventDefault()
-    descartarRecordatorio(globoHabEl.dataset.valor)
+    if (globoHabEl.hasAttribute('data-res')) descartarResumen()
+    else descartarRecordatorio(globoHabEl.dataset.valor)
     return
   }
   // Esc con el foco en el globo del aviso diario y la hoja de Tareas cerrada: es la × (tareas-ux.md 9.1)
@@ -4583,6 +4595,14 @@ function ordenarCola() {
  * botón de la muesca (uno solo para los dos: `#muesca-globo`). Sin datos (un hábito que ya no está), null.
  */
 function vistaGlobo(aviso) {
+  if (aviso.tipo === 'resumen') {
+    // El resumen (8.4 y 8.5): sus números quedaron fijos al encolarlo; el clic (en los tres lugares) abre la charla
+    const t = textosResumen(aviso.resumen, aviso.frase, { plantilla: aviso.plantilla })
+    return {
+      firma: JSON.stringify([t.kicker, t.globo, t.muesca, t.barras]), accion: 'hab-res', valor: null, texto: t,
+      marca: globoResumen(t), fila: filaAvisoResumen(t), muesca: globoMuescaResumen(t),
+    }
+  }
   if (aviso.tipo === 'tareas') {
     const t = textoGlobo(cuentas(st.tareas.listas, hoyTareas()), horaGlobo(Date.now()))
     return t && { firma: JSON.stringify(t), marca: globoMarca(t), fila: filaAviso(t), muesca: globoMuesca(t), accion: 'tar-globo', valor: null, texto: t }
@@ -4670,6 +4690,11 @@ function verGlobo(aviso, v) {
   } else if (!st.anunciados.has(aviso.clave)) {
     st.anunciados.add(aviso.clave)
     anunciar(anuncioGlobo(nombre, v.texto))
+  }
+  // El resumen (8.4): `habitosResumen` = su lunes la primera vez que se ve; así no se repite
+  if (aviso.tipo === 'resumen' && !(st.habResumen >= aviso.lunes) && validarAjuste('habitosResumen', aviso.lunes)) {
+    st.habResumen = aviso.lunes
+    invocar('guardar_ajuste', { clave: 'habitosResumen', valor: aviso.lunes }).catch(e => registrar(`hábitos: no se guardó el resumen visto: ${e}`))
   }
 }
 
@@ -4802,6 +4827,85 @@ async function verDesdeGlobo(id) {
   if (st.habitos.abierta && st.habitos.ver !== 'hoy') verHabitosEnHoja('hoy')
   await irModulo('habitos', { ver: 'hoy' })
   verAvis()
+}
+
+// ---- el resumen semanal (habitos-ux.md 8.4, entrega H3)
+
+/**
+ * El ciclo de 1,5 s revisa si toca un resumen (`resumenDebido`: el domingo desde las 18 de Argentina, o la
+ * semana pasada en el primer arranque de la siguiente; nunca uno ya visto ni uno más viejo). Los números
+ * salen de los datos (`resumenSemana`); la frase la pide `fraseResumen`. Mientras se escribe, el globo
+ * espera (es el último de la cola): entra a la cola recién con la frase. El que ya está en la cola (o uno
+ * más nuevo) no se vuelve a preparar, y la frase se pide como mucho una vez por semana (`habitosFrase`).
+ * Nada se abre solo.
+ */
+function revisarResumen(ahora = Date.now()) {
+  if (!st.habitos.leido || st.resumenPreparando) return
+  const lunes = resumenDebido({ hoy: hoyArgentina(ahora), horaAr: horaGlobo(ahora), guardado: st.habResumen ?? '', habitos: st.habitos.lista })
+  if (!lunes || st.globos.some(a => a.tipo === 'resumen' && a.lunes >= lunes)) return
+  st.resumenPreparando = lunes
+  const resumen = resumenSemana(st.habitos.lista, lunes)
+  fraseResumen(resumen).then(({ frase, plantilla }) => {
+    st.resumenPreparando = null
+    if (st.habResumen >= lunes) return
+    st.globos = conResumen(st.globos, { tipo: 'resumen', clave: claveResumen(lunes), lunes, resumen, frase, plantilla })
+    verAvis()
+  })
+}
+
+/**
+ * La frase del resumen (8.4), como mucho una vez por semana también entre arranques: si `habitosFrase`
+ * ya tiene la de ese lunes (`fraseGuardada`), esa, sin pedirle nada al modelo ("" es la plantilla). Si
+ * no, y solo con el modelo instalado (`estado_modelo`, que solo lee; sin modelo no hubo pedido y no se
+ * guarda nada), `habitos_frase` (Rust vuelve a mirar el modelo sin prender nada; nunca descarga). La
+ * respuesta vale si pasa `fraseValida`; si no, si tarda más de 45 s o falla, "". Apenas vuelve el
+ * pedido, bien o mal, se guarda `{ lunes, frase }` en `habitosFrase`. Sin frase, la plantilla.
+ */
+async function fraseResumen(resumen) {
+  const conFrase = f => (f && fraseValida(f, resumen) ? { frase: f, plantilla: false } : { frase: plantillaResumen(resumen), plantilla: true })
+  const ya = fraseGuardada(st.habFrase, resumen.lunes)
+  if (ya !== null || !tauri?.core) return conFrase(ya)
+  const modelo = await invocar('estado_modelo').catch(() => null)
+  if (modelo?.modelo !== 'listo') return conFrase('')
+  let frase = ''
+  try {
+    const r = await invocar('habitos_frase', { datos: datosFrase(resumen) })
+    if (fraseValida(r?.frase, resumen)) frase = r.frase.trim()
+    else registrar('hábitos: la frase del resumen no pasó la validación; va la plantilla')
+  } catch {
+    // Tiempo agotado o error del motor (Rust ya lo anotó): la plantilla
+  }
+  st.habFrase = { lunes: resumen.lunes, frase }
+  if (validarAjuste('habitosFrase', st.habFrase)) {
+    invocar('guardar_ajuste', { clave: 'habitosFrase', valor: st.habFrase }).catch(e => registrar(`hábitos: no se guardó la frase de la semana: ${e}`))
+  }
+  return conFrase(frase)
+}
+
+/**
+ * «Charlemos la semana →» (el globo de la marca, «Charlemos →» de la dividida o el globo de la muesca, 8.4):
+ * el resumen se va y se abre la hoja de la charla con una charla nueva del motor local, sea cual sea la
+ * preferencia (que no cambia), con la frase y los números como primer mensaje de la mascota. Plegada, el
+ * panel se abre primero; en la dividida, que no tiene marca (D4), sale de ella. Sin el modelo, la hoja
+ * muestra su «Descargar», que solo baja con el clic.
+ */
+async function charlaDesdeResumen() {
+  const a = st.globos.find(x => x.tipo === 'resumen')
+  if (!a) return
+  st.globos = quitar(st.globos, a.clave)
+  if (st.dividida.clave) await cerrarConversacion({ descartar: true })
+  if (st.acople && !st.muesca.abierta) {
+    await abrirPanelAlModulo()
+    evento({ tipo: 'clic' })
+  }
+  verAvis()
+  despacharChat({ tipo: 'semana', titulo: tituloSemana(a.lunes), texto: mensajeSemana(a.resumen, a.frase) })
+}
+
+/** La × del resumen, o Esc en su globo (9.1): «Más tarde», no vuelve hasta la semana siguiente (ya quedó en `habitosResumen` al verse). */
+function descartarResumen() {
+  const a = st.globos.find(x => x.tipo === 'resumen')
+  if (a) sacarGlobo(a.clave)
 }
 
 // ---- leer y guardar (11.3)
@@ -6068,6 +6172,9 @@ async function accionHabitos(a, b) {
     case 'hab-globo-hacer': if (!justoArrastro) hacerDesdeGlobo(b.dataset.valor); break
     case 'hab-globo-ver': if (!justoArrastro) await verDesdeGlobo(b.dataset.valor); break
     case 'hab-globo-x': if (!justoArrastro) descartarRecordatorio(b.dataset.valor); break
+    // El resumen semanal (8.4): el clic abre la charla; la × lo deja para la semana que viene
+    case 'hab-res': if (!justoArrastro) await charlaDesdeResumen(); break
+    case 'hab-res-x': if (!justoArrastro) descartarResumen(); break
     case 'hab-ver': verHabitosEnHoja(b.dataset.valor); break
     case 'hab-nuevo': empezarNuevoHabito(); break
     case 'hab-cancelar': cancelarNuevoHabito(); break
@@ -6426,6 +6533,10 @@ function efectoChat(e) {
       invocar('chat_leer', { id: e.id })
         .then(doc => despacharChat(e.para === 'recordar' ? { tipo: 'recordar', conversacion: doc } : { tipo: 'retomar', id: e.id, conversacion: doc }))
         .catch(err => registrar(`chat leer: ${err}`))
+      break
+    case 'guardar':
+      // Una charla que nace con mensajes (la del resumen semanal, habitos-ux.md 8.4): al archivo ya, sin Engram
+      guardarCharla(e.conversacion, false)
       break
     case 'borrar':
       // El archivo y su copia en Engram (solo la de avis); la de Claude Code queda (D29)
@@ -6803,10 +6914,11 @@ document.addEventListener('contextmenu', e => {
 /** Pinta la marca: su ánimo real y la descripción del Avi-botón. Con la hoja abierta, su motor está quieto (3.2). */
 function pintarMarca(ahora = Date.now()) {
   // Con un globo a la vista (el aviso de tareas o un recordatorio), el Avi de la marca saluda y no juega;
-  // mientras el globo confirma «Hecho», está feliz (habitos-ux.md 8.2)
+  // con el resumen semanal, cuenta; mientras el globo confirma «Hecho», está feliz (habitos-ux.md 8.2)
   const conGlobo = st.lugarGlobo === 'marca'
   const feliz = conGlobo && st.confirmaGlobo?.clave === st.claveGlobo
-  const animo = feliz ? 'feliz' : conGlobo ? 'saluda' : animoMarca(st.proyectos, ahora)
+  const resumen = conGlobo && st.globos.some(a => a.clave === st.claveGlobo && a.tipo === 'resumen')
+  const animo = feliz ? 'feliz' : resumen ? 'contando' : conGlobo ? 'saluda' : animoMarca(st.proyectos, ahora)
   marca.animo(animo, !conGlobo && reposoPermitido(st.proyectos, ahora))
   texto('#marca-animo', animoTexto(animo))
 }
@@ -6844,6 +6956,10 @@ async function iniciar() {
       st.avisadoTar = typeof m.tareasAvisado === 'string' ? m.tareasAvisado : null
       // Los hábitos ya recordados hoy (habitos-ux.md 8.3): un reinicio el mismo día no los repite
       st.habRecordados = validarAjuste('habitosRecordados', m.habitosRecordados) ? m.habitosRecordados : null
+      // El lunes del último resumen semanal visto (habitos-ux.md 8.4): no se repite ni vuelve uno más viejo
+      st.habResumen = validarAjuste('habitosResumen', m.habitosResumen) && m.habitosResumen ? m.habitosResumen : null
+      // La frase ya pedida de esa semana: entre arranques no se le vuelve a pedir al modelo
+      st.habFrase = validarAjuste('habitosFrase', m.habitosFrase) ? m.habitosFrase : null
       // Dónde quedó el tablero flotante la última vez (fracciones del área, 9.7)
       if (m.flotante && typeof m.flotante === 'object') st.fraccion = { x: Number(m.flotante.x), y: Number(m.flotante.y) }
       // El motor, la carpeta y el modelo (#35) de la próxima charla, y las recientes (chat-avis-ux.md 3.4, D11)

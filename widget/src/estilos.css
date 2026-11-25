@@ -2569,3 +2569,23 @@ body.pausa .globo-tar .globo-x { transition: none }
   .globo-hab .globo-x, .globo-hab .g-hacer { transition: none }
 }
 body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: none }
+
+/* ------------------------------------------------------------------ el resumen semanal (habitos-ux.md 8.4 y 8.5, entrega H3)
+   Sobre `.globo-hab`: arriba el kicker (600 9px/1 var(--m), .12em, mayúsculas, #5c554a) y la × «Más tarde»;
+   abajo un solo button.globo-res con la frase (números en 800), las 7 barras (--tinta sobre el crema, alto
+   26 × fracción, mínimo 3, con la letra del día debajo) y «Charlemos la semana →». Las barras crecen desde
+   abajo, escalonadas 45 ms desde 260 (600 ms --ease); con movimiento reducido o en pausa, aparecen enteras */
+.globo-sem .gh-k { flex: 1; min-width: 0; padding-top: 7px; font: 600 9px/1.4 var(--m); letter-spacing: .12em; text-transform: uppercase; color: #5c554a }
+.globo-sem .globo-res {
+  display: grid; gap: 8px; width: 100%; margin: 0; padding: 0 6px 2px 0; border: 0; border-radius: 8px; background: none;
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.globo-sem .globo-res .globo-t { display: block; padding-top: 0 }
+.globo-sem .globo-res:hover .globo-c { text-decoration: underline; text-underline-offset: 3px }
+.globo-sem .barras { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; align-items: end }
+.globo-sem .barras > span { display: grid; grid-template-rows: 26px auto; gap: 3px; justify-items: center; align-items: end; font: 600 8.5px/1 var(--m); color: #5c554a }
+.globo-sem .barras i { display: block; width: 100%; height: var(--h); border-radius: 3px; background: var(--tinta); transform-origin: bottom }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .globo-sem .barras i { animation: barra-sube .6s var(--ease) both; animation-delay: calc(var(--i) * 45ms + 260ms) }
+}
+@keyframes barra-sube { from { transform: scaleY(0) } }

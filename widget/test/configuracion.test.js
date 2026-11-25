@@ -847,3 +847,18 @@ test('marcoBajo: menos de 520 px CSS de tablero compacta el encabezado de la hoj
   assert.equal(marcoBajo(520), false)
   assert.equal(marcoBajo(640), false)
 })
+
+test('validarAjuste: habitosResumen (un lunes o vacío) y habitosFrase ({ lunes, frase }), como preferencias.rs (habitos-ux.md 8.4)', () => {
+  for (const bueno of ['2026-11-23', '']) assert.equal(validarAjuste('habitosResumen', bueno), true, bueno)
+  for (const malo of ['2026-11-24', '2026-02-30', null, 20261123]) assert.equal(validarAjuste('habitosResumen', malo), false, String(malo))
+  assert.equal(validarAjuste('habitosFrase', { lunes: '2026-11-23', frase: 'Bien.' }), true)
+  assert.equal(validarAjuste('habitosFrase', { lunes: '2026-11-23', frase: '' }), true)
+  assert.equal(validarAjuste('habitosFrase', { lunes: '2026-11-24', frase: '' }), false)
+  assert.equal(validarAjuste('habitosFrase', { lunes: '2026-11-23', frase: 'a\nb' }), false)
+  // Las claves de antes siguen igual
+  assert.equal(validarAjuste('tareasAvisado', '2026-11-24'), true)
+  assert.equal(validarAjuste('habitosRecordados', { dia: '2026-11-26', ids: ['h-agua'] }), true)
+  assert.equal(validarAjuste('habitosRecordados', '2026-11-23'), false)
+  assert.equal(validarAjuste('mascota', 'lumen'), true)
+  assert.equal(validarAjuste('otra', '2026-11-23'), false)
+})

@@ -3,7 +3,7 @@
 // de siempre (marca, dividida o muesca). Puros: se prueban en node, por la interfaz pública.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { encolar, quitar, actual, lugarGlobo, claveRec, PRIORIDAD } from '../src/globos.js'
+import { encolar, quitar, actual, lugarGlobo, claveRec, PRIORIDAD, claveResumen, conResumen } from '../src/globos.js'
 import { lugarAviso } from '../src/tareas.js'
 
 const rec = (id, extra = {}) => ({ tipo: 'rec', clave: claveRec(id, '2026-11-26'), id, dia: '2026-11-26', hora: '16:00', ...extra })
@@ -138,4 +138,23 @@ test('lugarGlobo: marca, dividida o muesca, o null si espera (sin cuentas ni hoj
   for (const espera of [{ mini: true }, { fuera: true }, { chat: true }, { arrastrando: true }, { barra: false }]) {
     assert.equal(lugarGlobo(f(espera)), null, JSON.stringify(espera))
   }
+})
+
+// ------------------------------------------------------------------ el resumen semanal en la cola (H3: 8.1 y 8.4)
+
+test('conResumen: un solo resumen en la cola, el de la semana más nueva (nunca uno más viejo); el resto queda', () => {
+  assert.equal(claveResumen('2026-11-16'), 'res:2026-11-16')
+  const viejo = { tipo: 'resumen', clave: claveResumen('2026-11-16'), lunes: '2026-11-16' }
+  const nuevo = { tipo: 'resumen', clave: claveResumen('2026-11-23'), lunes: '2026-11-23' }
+  let c = encolar(encolar([], TAR), rec('h-agua'))
+  c = conResumen(c, viejo)
+  assert.deepEqual(c.map(a => a.clave), [claveRec('h-agua', '2026-11-26'), 'tareas', 'res:2026-11-16'])
+  c = conResumen(c, nuevo)
+  assert.deepEqual(c.map(a => a.clave), [claveRec('h-agua', '2026-11-26'), 'tareas', 'res:2026-11-23'])
+  // Uno más viejo que el que está no entra; el mismo, tampoco se repite
+  assert.equal(conResumen(c, viejo), c)
+  assert.equal(conResumen(c, nuevo), c)
+  // Es el último de la cola: espera a los demás (8.1)
+  assert.equal(actual(c, f()).aviso.tipo, 'rec')
+  assert.equal(actual(quitar(quitar(c, claveRec('h-agua', '2026-11-26')), 'tareas'), f()).aviso.clave, 'res:2026-11-23')
 })
