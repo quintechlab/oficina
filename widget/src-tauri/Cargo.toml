@@ -25,6 +25,9 @@ chrono = { version = "0.4", default-features = false, features = ["std", "clock"
 # Sin gzip: los archivos se bajan tal cual, byte a byte, para poder retomarlos y verificarlos
 ureq = { version = "3.5", default-features = false, features = ["rustls"] }
 sha2 = "0.10"
+# El token del servidor de la charla (#43, chat-herramientas-ux.md 11.1): el generador del sistema. La
+# misma versión que ya estaba en Cargo.lock (0.3.4, de otras dependencias): no baja nada nuevo
+getrandom = "0.3"
 
 # Claves de API (#23, configuracion-ux.md 9.4): CredWriteW/CredReadW/CredDeleteW del Administrador de
 # credenciales de Windows. La misma versión que ya trae Tauri (0.61.2 en Cargo.lock): solo suma features

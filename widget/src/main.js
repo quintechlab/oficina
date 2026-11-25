@@ -46,10 +46,13 @@ import * as movimientoPasos from './primerosPasosMotion.js'
 import {
   chatInicial, transicionChat, ocupado, datosAvis, relojEspera, tramoVivo, markdownSeguro, sugerencias, nombreCarpeta,
   carpetasDeProyectos, ladoHoja, rectHoja, hojaBaja, anuncioAdjuntos, SALUDA_MS, FELIZ_MS, ADELANTO_PLIEGUE_MS, aArchivo, guardadosPendientes, GUARDAR_CADA_MS,
-  sobreHoja, nombreArchivo, puedeVencer, modeloValido, nombreModelo,
+  sobreHoja, nombreArchivo, puedeVencer, modeloValido, nombreModelo, scrollHilo,
 } from './chat.js'
-import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, menuModelo, cajon, listaHistorial, capaSoltar, htmlPalabras, clipAdjuntar } from './chatVista.js'
+import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, menuModelo, cajon, listaHistorial, capaSoltar, htmlPalabras, clipAdjuntar, recibosDe } from './chatVista.js'
 import * as movimientoChat from './chatMotion.js'
+import { diferenciaRecibos, armarRecibos, ESCRIBEN, anuncioDeshacer, anuncioRecibo, encabezadoRecibo, pieDeshacer } from './recibos.js'
+import { lineaPuedeHtml, globoPuedeHtml, filaCambioHtml, pieCambiosHtml, reciboHtml } from './recibosVista.js'
+import * as movimientoRecibos from './recibosMotion.js'
 import {
   conversaciones, conversacionesNuevas, mensajesNuevos, convsVisibles, debeAbrirseSola, ladoIzquierdo, primeroDe, pausaVuelta, nombreLado, textoSub,
   geometriaDividida, cuentaVuelta, rastroConversa, anuncioEmpieza, anuncioTermina, esperaRespuesta, RECIEN_SOLA_MS, CONTESTO_MS, ESPERA_VUELTA_MS,
@@ -71,7 +74,7 @@ import * as movimientoConfig from './configuracionMotion.js'
 import {
   tareasInicial, abrirTareas, cerrarTareas, cambiarVista, alEscTareas, esAtajoTareas, cuentas, nombreFilaTareas, subtituloTareas,
   validarNombreLista, textoErrorLista, validarTitulo, nuevaLista, nuevoId, renombrarLista, agregarTarea, tildarTarea, listaParaHoy,
-  mezclarLectura, anuncioAgregada, anuncioBorradaLista, tiempoTilde, focoTrasTildar, hoyArgentina,
+  mezclarLectura, rebasarLista, anuncioAgregada, anuncioBorradaLista, tiempoTilde, focoTrasTildar, hoyArgentina,
   buscarTarea, editarTarea, agregarSubtarea, tildarSubtarea, editarSubtarea, borrarTarea, moverTarea, listaParaGuardar,
   nuevaMudanza, soltarMudanzas, olvidarMudanzas, fechaDeOpcion, abrirDetalle, cerrarDetalle, diferirGuardado, nombreVista,
   MAX_SUBTAREAS, AVISO_INICIAL, evaluarAviso, verAviso, soltarAviso, textoGlobo, horaGlobo, anuncioGlobo, plano,
@@ -4888,6 +4891,7 @@ function leerTareas() {
       const r = await invocar('tareas_leer')
       const listas = Array.isArray(r?.listas) ? r.listas : []
       const rotas = Array.isArray(r?.rotas) ? r.rotas.filter(x => typeof x?.archivo === 'string') : []
+      for (const l of listas) anotarBaseTareas(l, r?.huellas?.[l.id])
       st.tareas = { ...st.tareas, listas: mezclarLectura(listas, st.tareas.listas, listasSinGuardar()), rotas, leido: true, errorLeer: null }
       evaluarAvisoTareas()
     } catch (err) {
@@ -4901,6 +4905,62 @@ function leerTareas() {
     }
   })()
   return leyendoTareas
+}
+
+/**
+ * Por lista, lo último que se leyó o guardó en el disco y su huella (#43, chat-herramientas-ux.md 11.5):
+ * `tareas_guardar` no pisa un cambio de la charla, y con esto se vuelve a aplicar lo de la ventana.
+ */
+const basesTareas = new Map()
+function anotarBaseTareas(lista, huella) {
+  if (typeof lista?.id === 'string' && typeof huella === 'string') basesTareas.set(lista.id, { lista, huella })
+}
+
+/**
+ * Relee las listas y pone la `id` al día con lo del disco sin perder lo de la pantalla (`rebasarLista`).
+ * Devuelve si pudo.
+ */
+async function rebasarTareas(id) {
+  let r
+  try { r = await invocar('tareas_leer') } catch (err) { registrar(`tareas: no se pudo releer ${id}: ${err}`); return false }
+  const disco = (Array.isArray(r?.listas) ? r.listas : []).find(l => l.id === id)
+  const pantalla = st.tareas.listas.find(l => l.id === id)
+  if (!disco || !pantalla) return false
+  st.tareas = { ...st.tareas, listas: st.tareas.listas.map(l => (l.id === id ? rebasarLista(basesTareas.get(id)?.lista, pantalla, disco) : l)) }
+  anotarBaseTareas(disco, r?.huellas?.[id])
+  pintar()
+  return true
+}
+
+/**
+ * `oficina://tareas` (#43, 11.6): la charla cambió una lista. Se relee enseguida (8); si se está
+ * guardando, ese guardado choca con la huella y se pone al día solo.
+ */
+function alCambiarTareasFuera(p) {
+  const id = p?.lista
+  if (typeof id !== 'string' || !st.tareas.leido || guardadosTareas.get(id)?.enCurso) return
+  const tarea = typeof p.tarea === 'string' ? p.tarea : null
+  // Con la hoja abierta, la fila nueva o cambiada lleva el destello de «recién agregada» (chat-herramientas-ux.md 8)
+  const habia = !!tarea && !!buscarTarea(st.tareas.listas, tarea)
+  const alDia = ok => { if (ok) tareaCambiadaFuera(tarea, { nueva: !habia }) }
+  if (st.tareas.listas.some(l => l.id === id)) rebasarTareas(id).then(alDia)
+  else leerTareas()?.then(() => alDia(true))
+}
+
+/**
+ * Una tarea que cambió por la charla, ya releída (8): en la lista, su fila destella (y una nueva baja y
+ * aparece); abierta en el detalle, sus campos sin foco se ponen al día y el que tiene foco conserva lo
+ * que se está escribiendo.
+ */
+function tareaCambiadaFuera(id, { nueva }) {
+  if (!id || !st.tareas.abierta) return
+  if (st.tareas.det !== id) { destellarTarea(id, { entra: nueva }); return }
+  const t = buscarTarea(st.tareas.listas, id)?.tarea
+  if (!t) return
+  for (const [campo, valor] of [['titulo', t.titulo], ['notas', t.notas ?? '']]) {
+    const el = $(`#tar textarea[data-campo="${campo}"]`)
+    if (el && el !== document.activeElement && el.value !== valor) el.value = valor
+  }
 }
 
 /** Por lista: el guardado en curso (`promesa`) y si hay que guardarla otra vez al terminar. */
@@ -4935,14 +4995,21 @@ function guardarListaTareas(id) {
   if (g.enCurso) { g.otraVez = true; return g.promesa }
   g.enCurso = true
   g.promesa = (async () => {
+    // 11.5: si la charla cambió el archivo, se relee y se vuelve a aplicar lo de la ventana una vez
+    let rebasada = false
     do {
       g.otraVez = false
       const lista = listaParaGuardar(st.tareas.listas, id, mudanzasTareas)
       if (!lista) { fallidasTareas.delete(id); break }
       const n = ++g.n
       let r
-      try { r = await invocar('tareas_guardar', { lista }) } catch (err) { r = { ok: false, error: String(err?.message ?? err) } }
+      try { r = await invocar('tareas_guardar', { lista, huella: basesTareas.get(id)?.huella ?? null }) } catch (err) { r = { ok: false, error: String(err?.message ?? err) } }
+      if (!r?.ok && r?.error === 'cambio' && !rebasada) {
+        rebasada = true
+        if (await rebasarTareas(id)) { g.otraVez = true; continue }
+      }
       if (r?.ok) {
+        anotarBaseTareas(r.lista, r.huella)
         fallidasTareas.delete(id)
         const s = soltarMudanzas(mudanzasTareas, id, n)
         mudanzasTareas = s.mudanzas
@@ -6194,7 +6261,15 @@ let colaGuardar = Promise.resolve()
  * La respuesta en curso ya dibujada (6.2): de qué turno y qué texto. Lo que llega después entra con
  * `.w`; lo ya puesto no se toca. `quieto`: lo próximo se agrega sin animar (la hoja vuelve a verse).
  */
-const vivo = { turno: null, texto: '', quieto: false }
+const vivo = {
+  turno: null, texto: '', quieto: false,
+  // Los recibos (#43, chat-herramientas-ux.md 3.4 y 10): `sellados`, los cambios ya vistos (se dibujan
+  // quietos); `llegados`, los que llegaron en esta ejecución (por evento o «Reintentar»: solo esos hacen
+  // su acto); `recibos`, el HTML de los recibos puestos por mensaje (índice → HTML), y `mensaje`, el
+  // mensaje en curso como se dibujó (para agregar sin reescribir, 11.11). `deshacer`: el estado de
+  // «Deshacer» de esta ejecución por id (`curso` o `fallo`, 4.4).
+  sellados: new Set(), llegados: new Set(), recibos: new Map(), mensaje: null, deshacer: new Map(),
+}
 /** El acto de abrir (su promesa: el foco va al campo cuando la mascota aterriza) y si se está cerrando. */
 let actoHoja = null
 let hojaCerrando = false
@@ -6217,7 +6292,11 @@ function modeloVista(ahora = Date.now()) {
   const c = st.chat
   const reciente = (c.estado === 'listo' && c.listoMs != null && ahora - c.listoMs < FELIZ_MS)
     || (c.estado === 'vacio' && st.chatSaludo != null && ahora - st.chatSaludo < SALUDA_MS)
-  return { chat: c, especie: st.mascota, ahoraMs: ahora, reciente, hablando: false, puedeAdjuntar: true, proyectos: carpetasDeProyectos(st.proyectos) }
+  return {
+    chat: c, especie: st.mascota, ahoraMs: ahora, reciente, hablando: false, puedeAdjuntar: true, proyectos: carpetasDeProyectos(st.proyectos),
+    // Los recibos (#43): los nombres y colores de las listas en pantalla, el día y el estado de «Deshacer»
+    recibos: { listas: st.tareas.listas, hoy: hoyArgentina(ahora), ui: vivo.deshacer },
+  }
 }
 
 /** El centro de la capa de soltar del último archivo soltado (px de la ventana): de ahí nacen sus chips (6.2). */
@@ -6519,6 +6598,7 @@ function enfocarEnHoja(a, id = null) {
   if (!hojaSeVe()) return
   const destino = {
     campo: campoChat, carpeta: $('#chat-cab .carpeta'), modelo: $('#chat-cab .modelo'), hist: $('#hoja .arriba [data-accion="ch-hist"]'), buscar: $('#chat-buscar'),
+    puede: $('#ch-puede'),
     borrar: $('#chat-hist-lista .h-borrar'),
     charla: id ? [...$$('#chat-hist-lista [data-accion="ch-retomar"]')].find(x => x.dataset.id === id) : null,
   }[a]
@@ -6607,24 +6687,31 @@ function pintarHilo(m) {
   const animar = hayMovimiento() && !vivo.quieto
   vivo.quieto = false
   let html, firma
+  // La firma no lleva los recibos (#43, 11.11): se ponen y se agregan aparte (`pintarRecibos`), así un
+  // cambio que llega no rehace el hilo
   if (c.estado === 'escribiendo') {
     // La firma sin el texto que llega (un espacio en su lugar): cambia solo si cambia lo demás, y
     // solo entonces se arma el hilo entero, con lo ya visto quieto
     const conv = c.conversacion
     const mensajes = conv.mensajes.map((x, k) => (k === conv.mensajes.length - 1 ? { ...x, texto: ' ' } : x))
-    firma = hiloVista({ ...m, mostrado: null, chat: { ...c, conversacion: { ...conv, mensajes } } })
+    firma = hiloVista({ ...m, sinRecibos: true, mostrado: null, chat: { ...c, conversacion: { ...conv, mensajes } } })
     html = st.firmas['#chat-hilo'] === firma ? '' : hiloVista({ ...m, mostrado: vivo.turno === c.turno ? vivo.texto : '', animar })
   } else {
     html = hiloVista(m)
-    firma = html.replace(/data-reloj>[^<]*</, 'data-reloj><')
+    firma = hiloVista({ ...m, sinRecibos: true }).replace(/data-reloj>[^<]*</, 'data-reloj><')
   }
   const llega = c.estado === 'escribiendo' ? c.conversacion.mensajes.at(-1).texto : ''
   if (poner('#chat-hilo', html, firma)) {
     vivo.turno = c.turno
     vivo.texto = llega
-    if (seguir) el.scrollTop = el.scrollHeight
+    pintarRecibos(el, m, { completo: true, animar })
+    // Una bienvenida abre arriba (el saludo primero); con mensajes, abajo si estaba al fondo (`scrollHilo`)
+    const lugar = scrollHilo(c, seguir)
+    if (lugar === 'arriba') el.scrollTop = 0
+    else if (lugar === 'abajo') el.scrollTop = el.scrollHeight
     return
   }
+  pintarRecibos(el, m, { completo: false, animar })
   if (c.estado === 'escribiendo') {
     const txt = el.querySelector('.m-m.vivo .txt')
     const abiertoEl = txt?.querySelector('.abierto')
@@ -6652,7 +6739,277 @@ function pintarHilo(m) {
     const relojEl = el.querySelector('[data-reloj]')
     if (reloj != null && relojEl && relojEl.textContent !== reloj) relojEl.textContent = reloj
   }
-  if (seguir) el.scrollTop = el.scrollHeight
+  // Sin redibujar, una bienvenida queda donde la dejó el usuario
+  if (scrollHilo(c, seguir) === 'abajo') el.scrollTop = el.scrollHeight
+}
+
+/**
+ * Los recibos de cada mensaje (#43, chat-herramientas-ux.md 3.2 y 11.11), aparte del hilo: `completo`,
+ * el hilo se acaba de poner entero (solo se anotan y se animan los nuevos). Si no, cada `.recibos` que
+ * cambió se pone al día por su cuenta: en el mensaje en curso, si lo único nuevo son cambios
+ * (`diferenciaRecibos`), se agregan (el recibo después de su texto, la fila con `insertAdjacentHTML` y
+ * solo el texto del encabezado y el pie); si cambió otra cosa (Deshacer), se reemplaza ese `.recibos`
+ * y el foco vuelve al mismo control. Lo demás del hilo nunca se toca.
+ */
+function pintarRecibos(el, m, { completo, animar }) {
+  const c = m.chat
+  const mensajes = c.conversacion?.mensajes ?? []
+  const ultimo = mensajes.length - 1
+  const v = { listas: m.recibos.listas, hoy: m.recibos.hoy, ui: m.recibos.ui }
+  if (completo) vivo.recibos.clear()
+  for (let k = 0; k < mensajes.length; k++) {
+    const msg = mensajes[k]
+    if (msg.rol !== 'mascota') continue
+    const enCurso = k === ultimo && msg.turno === c.turno && ocupado(c)
+    const nuevo = recibosDe(m, msg, k, enCurso)
+    if (completo) { if (nuevo) vivo.recibos.set(k, nuevo); continue }
+    if (nuevo === (vivo.recibos.get(k) ?? '')) continue
+    const caja = el.querySelector(`.recibos[data-i="${k}"]`)
+    if (!caja) {
+      // Solo el mensaje en curso suma su primer recibo sin redibujar: después de su texto o de la espera
+      // (un mensaje anterior que no se ve, D32, no tiene dónde: queda anotado)
+      const ancla = enCurso ? [...el.querySelectorAll('.m-m.vivo, .espera')].at(-1) : null
+      if (nuevo && ancla) ancla.insertAdjacentHTML('afterend', nuevo)
+      else if (nuevo && enCurso) { st.firmas['#chat-hilo'] = null; programarHoja(); continue }
+    } else if (!nuevo) {
+      caja.remove()
+    } else {
+      const dif = enCurso && vivo.mensaje ? diferenciaRecibos(vivo.mensaje, msg) : null
+      if (!(dif?.nuevos.length && agregarCambios(caja, msg, k, dif.nuevos, v))) reemplazarRecibos(caja, nuevo)
+    }
+    if (nuevo) vivo.recibos.set(k, nuevo)
+    else vivo.recibos.delete(k)
+  }
+  const enCursoMsg = ocupado(c) ? mensajes[ultimo] : null
+  vivo.mensaje = enCursoMsg?.rol === 'mascota' ? enCursoMsg : null
+  animarRecibos(el, c, animar)
+}
+
+/**
+ * Agrega a un `.recibos` puesto los cambios que llegaron (11.11). Una fila nueva del recibo de cambios
+ * entra con `insertAdjacentHTML` (antes del pie); el encabezado cambia solo su texto («Anoté en Tareas» →
+ * «2 cambios», 7) y el pie aparece con la segunda fila. Un error o «para borrar», al final. Devuelve si pudo.
+ */
+function agregarCambios(caja, msg, k, nuevos, v) {
+  const deCambios = armarRecibos(msg).find(r => r.tipo === 'cambios')?.cambios ?? []
+  for (const cambio of nuevos) {
+    const escribe = ESCRIBEN.includes(cambio.herramienta)
+    if (escribe && cambio.estado !== 'error') {
+      const sec = caja.querySelector('section[data-rec="cambios"]')
+      const hasta = deCambios.slice(0, deCambios.findIndex(x => x.id === cambio.id) + 1)
+      if (!sec) { caja.insertAdjacentHTML('beforeend', reciboHtml({ tipo: 'cambios', cambios: hasta }, k, v)); continue }
+      const solo = hasta.length > 1
+      const pie = sec.querySelector('.rec-pie')
+      const fila = filaCambioHtml(cambio, v, { solo })
+      if (pie) pie.insertAdjacentHTML('beforebegin', fila)
+      else sec.insertAdjacentHTML('beforeend', fila)
+      // Con dos o más, el «Deshacer» de cada fila es solo el ícono (4.3)
+      for (const b of sec.querySelectorAll('.rf .deshacer:not(.solo)')) {
+        b.classList.add('solo')
+        b.title = 'Deshacer'
+        b.innerHTML = b.querySelector('svg')?.outerHTML ?? ''
+      }
+      ponerTextosRecibo(sec, hasta, k)
+    } else if (escribe || cambio.estado === 'mostrar') {
+      caja.insertAdjacentHTML('beforeend', reciboHtml(escribe ? { tipo: 'error', cambio } : { tipo: 'mostrar', cambio }, k, v))
+    }
+  }
+  return true
+}
+
+/**
+ * El encabezado y el pie del recibo de cambios al sumarse una fila (7, 11.11): cambia solo su texto, así
+ * el foco en «Ver en Tareas →» o en «Deshacer los {n}» se queda. El pie aparece con la segunda fila.
+ */
+function ponerTextosRecibo(sec, cambios, k) {
+  const titulo = encabezadoRecibo(cambios)
+  const t = sec.querySelector('.rec-h .rec-t')
+  if (t && t.textContent !== titulo) t.textContent = titulo
+  sec.setAttribute('aria-label', titulo)
+  const ultimo = cambios.at(-1)
+  const lnk = sec.querySelector('.rec-h .lnk')
+  if (lnk) { lnk.dataset.lista = ultimo?.lista ?? ''; lnk.dataset.tarea = ultimo?.tarea ?? '' }
+  const pie = sec.querySelector('.rec-pie')
+  if (!pie) {
+    const html = pieCambiosHtml(cambios, k)
+    if (html) sec.insertAdjacentHTML('beforeend', html)
+    return
+  }
+  const p = pieDeshacer(cambios)
+  const boton = pie.querySelector('[data-accion="ch-deshacer-todos"]')
+  if (p.boton && boton) {
+    // Solo el texto del botón (después de su ícono)
+    const nodo = [...boton.childNodes].find(n => n.nodeType === Node.TEXT_NODE)
+    if (nodo) nodo.textContent = p.boton
+    else boton.append(p.boton)
+  } else {
+    const html = pieCambiosHtml(cambios, k)
+    const lugar = document.createElement('div')
+    lugar.innerHTML = html
+    pie.replaceChildren(...(lugar.firstElementChild?.childNodes ?? []))
+  }
+}
+
+/**
+ * Reemplaza un `.recibos` entero (Deshacer, Reintentar) y devuelve el foco al mismo control (`data-accion`,
+ * `data-cambio` y `data-estado`); si ese control ya no está y el foco estaba en el pie, al pie (9.3).
+ */
+function reemplazarRecibos(caja, html) {
+  const activo = caja.contains(document.activeElement) ? document.activeElement : null
+  const clave = activo && `${activo.dataset.accion ?? ''}|${activo.dataset.cambio ?? ''}|${activo.dataset.estado ?? ''}`
+  const enPie = activo?.closest('.rec-pie')?.dataset.pie ?? null
+  const lugar = document.createElement('div')
+  lugar.innerHTML = html
+  const nueva = lugar.firstElementChild
+  caja.replaceWith(nueva)
+  if (!clave) return
+  const igual = [...nueva.querySelectorAll('[data-accion], [data-estado]')].find(x => `${x.dataset.accion ?? ''}|${x.dataset.cambio ?? ''}|${x.dataset.estado ?? ''}` === clave)
+  ;(igual ?? (enPie != null ? nueva.querySelector(`.rec-pie[data-pie="${CSS.escape(enPie)}"]`) : null))?.focus({ preventScroll: true })
+}
+
+/**
+ * El acto de los recibos (10), una vez por cambio (`vivo.sellados`): solo los que llegaron en esta
+ * ejecución (`vivo.llegados`) y se ven con movimiento; lo demás (una charla retomada, lo que llegó con la
+ * hoja plegada, un redibujo) queda quieto. «No llegó» hace su acto en el turno que acaba de terminar.
+ */
+function animarRecibos(el, c, animar) {
+  for (const sec of el.querySelectorAll('.recibos section.rec')) {
+    const filas = [...sec.querySelectorAll('.rf[data-cambio]')]
+    let ids = sec.dataset.cambio ? [sec.dataset.cambio] : filas.map(f => f.dataset.cambio)
+    if (sec.dataset.rec === 'nollego') {
+      const k = Number(sec.closest('.recibos')?.dataset.i)
+      const msg = c.conversacion?.mensajes[k]
+      const clave = `nollego:${c.conversacion?.id}:${k}`
+      if (msg?.turno > 0 && msg.turno === c.turno) vivo.llegados.add(clave)
+      ids = [clave]
+    }
+    const frescos = ids.filter(id => vivo.llegados.has(id) && !vivo.sellados.has(id))
+    for (const id of ids) vivo.sellados.add(id)
+    if (!frescos.length || !animar) continue
+    if (frescos.length === ids.length) movimientoRecibos.llega(sec)
+    else movimientoRecibos.sumaFilas(filas.filter(f => frescos.includes(f.dataset.cambio)))
+  }
+}
+
+/** Busca un cambio por id en la charla de ahora: `{ cambio, k }` (k, el índice de su mensaje). */
+function buscarCambio(id) {
+  const mensajes = st.chat.conversacion?.mensajes ?? []
+  for (let k = 0; k < mensajes.length; k++) {
+    const cambio = (mensajes[k].cambios ?? []).find(x => x.id === id)
+    if (cambio) return { cambio, k }
+  }
+  return null
+}
+
+/** Anuncia en la región de la hoja (5.3). */
+const anunciarRecibo = texto => anunciarChat(texto)
+
+/**
+ * «Deshacer» de una fila (4.4, 11.7): `chat_deshacer` con el cambio guardado; mientras, `aria-busy` y
+ * el ícono que gira. Deshecho: la raya tacha la fila, el foco queda en «Deshecho» y se anuncia; cambió
+ * después: «Cambió después»; si falla, el botón queda con «No se pudo deshacer. Probá de nuevo.».
+ * Devuelve el estado (para «Deshacer los {n}»).
+ */
+async function deshacerCambio(id, { foco = true } = {}) {
+  const hallado = buscarCambio(id)
+  if (!hallado || hallado.cambio.estado !== 'hecho' || vivo.deshacer.get(id) === 'curso') return null
+  const conv = st.chat.conversacion
+  vivo.deshacer.set(id, 'curso')
+  pintarHoja()
+  let r
+  try {
+    r = await invocar('chat_deshacer', { conversacion: conv.id, cambio: hallado.cambio })
+  } catch (err) {
+    registrar(`chat deshacer: ${err}`)
+    r = { estado: 'error' }
+  }
+  if (r?.estado === 'deshecho' || r?.estado === 'cambio-despues') {
+    vivo.deshacer.delete(id)
+    despacharChat({ tipo: 'cambio-estado', id, estado: r.estado })
+    const fila = $(`#chat-hilo .rf[data-cambio="${CSS.escape(id)}"]`)
+    if (r.estado === 'deshecho') movimientoRecibos.deshacer(fila)
+    if (foco) fila?.querySelector('[data-estado]')?.focus({ preventScroll: true })
+    if (foco) anunciarRecibo(anuncioDeshacer([[hallado.cambio, r.estado]]))
+    return r.estado
+  }
+  vivo.deshacer.set(id, 'fallo')
+  pintarHoja()
+  if (foco) anunciarRecibo(anuncioDeshacer([[hallado.cambio, 'error']]))
+  return 'error'
+}
+
+/**
+ * «Deshacer los {n}» (4.4): de la última a la primera, un `chat_deshacer` por vez; el foco queda en el pie
+ * (en «Deshechos {k} de {n}», o en el pie mismo, que lo puede tomar: 9.3) y se anuncia una vez.
+ */
+async function deshacerTodos(k) {
+  const msg = st.chat.conversacion?.mensajes[k]
+  const cambios = (armarRecibos(msg ?? {}).find(r => r.tipo === 'cambios')?.cambios ?? []).filter(x => x.estado === 'hecho')
+  const resultados = []
+  for (const cambio of [...cambios].reverse()) {
+    const estado = await deshacerCambio(cambio.id, { foco: false })
+    if (estado) resultados.push([cambio, estado])
+  }
+  const pie = $(`#chat-hilo .recibos[data-i="${k}"] .rec-pie`)
+  ;(pie?.querySelector('[data-estado], button') ?? pie)?.focus({ preventScroll: true })
+  anunciarRecibo(anuncioDeshacer(resultados))
+}
+
+/** «Reintentar» de un recibo de error (11.9): el cambio nuevo ocupa su lugar y el foco va a su fila. */
+async function reintentarCambio(id) {
+  const hallado = buscarCambio(id)
+  if (!hallado || hallado.cambio.estado !== 'error' || !hallado.cambio.reintentable) return
+  let nuevo
+  try {
+    nuevo = await invocar('chat_reintentar', { conversacion: st.chat.conversacion.id, cambio: hallado.cambio })
+  } catch (err) {
+    registrar(`chat reintentar: ${err}`)
+    return
+  }
+  if (typeof nuevo?.id !== 'string') return
+  vivo.llegados.add(nuevo.id)
+  despacharChat({ tipo: 'cambio-reemplazo', id, cambio: nuevo })
+  const fila = $(`#chat-hilo [data-cambio="${CSS.escape(nuevo.id)}"]`)
+  if (fila) { fila.tabIndex = -1; fila.focus({ preventScroll: true }) }
+  // Como el anuncio de fin (5.3): «Anotada: {título}, {fecha}», o «No se anotó: {título}. {motivo}»
+  anunciarRecibo(anuncioRecibo([nuevo], hoyArgentina(Date.now())))
+}
+
+/**
+ * «Ver en Tareas →», «Abrir Tareas» e «Ir a la tarea →» (4.2, 4.6, 9.3): abre Tareas en la lista del
+ * cambio (con el destello de su fila) o en Hoy; `abrir`, además abre la tarea con el foco en «Borrar tarea».
+ */
+async function verEnTareas({ lista = null, tarea = null, abrir = false } = {}) {
+  const ver = lista && st.tareas.listas.some(l => l.id === lista) ? lista : 'hoy'
+  if (st.modulo === 'tareas') {
+    st.tareas = cambiarVista(st.tareas, ver)
+    pintar()
+    $('#titulo').focus()
+  } else {
+    await irModulo('tareas', { ver })
+  }
+  if (!tarea) return
+  if (abrir && buscarTarea(st.tareas.listas, tarea)) {
+    st.tareas = abrirDetalle(st.tareas, tarea)
+    pintar()
+    $('#tar [data-accion="tar-borrar-tarea"]')?.focus({ preventScroll: true })
+    return
+  }
+  destellarTarea(tarea)
+}
+
+/**
+ * La fila de una tarea lleva el destello de «recién agregada» una vez (tareas-ux.md 10, `.recien`) sin
+ * redibujar la lista; `entra`: además baja y aparece (una fila que llegó por la charla, 8).
+ */
+function destellarTarea(id, { entra = false } = {}) {
+  const fila = id && st.tareas.abierta ? $(`#tar .fila[data-id="${CSS.escape(id)}"]`) : null
+  if (!fila) return
+  fila.classList.remove('recien')
+  void fila.offsetWidth
+  fila.classList.add('recien')
+  fila.addEventListener('animationend', () => fila.classList.remove('recien'), { once: true })
+  if (entra) movimientoTareas.entraFila(fila)
 }
 
 /**
@@ -6699,6 +7056,7 @@ function pintarHoja() {
   texto('#chat-nom', nombre)
   poner('#chat-est', estadoEscena(m))
   ponerConFoco('#chat-cab', cabecera(m))
+  pintarPuede(m)
   pintarHilo(m)
   const comp = composer(m)
   poner('#chat-adjuntos', comp.adjuntos)
@@ -6714,6 +7072,20 @@ function pintarHoja() {
   else st.firmas['#chat-menu'] = null
   pintarCajon(m)
   poner('#chat-soltar', capaSoltar(m))
+}
+
+/**
+ * La línea «Puede tocar» y su globo (#43, 4.1), fija entre la cabecera y el hilo. Su lugar
+ * (`#ch-puede-lugar`) se crea la primera vez, antes de `#chat-hilo`; el globo baja al abrirse (10).
+ */
+let puedeAbierto = false
+function pintarPuede(m) {
+  if (!$('#ch-puede-lugar')) $('#chat-hilo').insertAdjacentHTML('beforebegin', '<div id="ch-puede-lugar" class="puede-lugar"></div>')
+  const motor = m.chat.conversacion?.motor ?? m.chat.motor
+  const abierto = !!m.chat.puede
+  ponerConFoco('#ch-puede-lugar', lineaPuedeHtml({ motor, abierto }) + globoPuedeHtml({ motor, abierto, mascota: nombreMascota() }))
+  if (abierto && !puedeAbierto) movimientoRecibos.globo($('#ch-puede-lugar .puede-globo'))
+  puedeAbierto = abierto
 }
 
 /** El cajón: su armazón al abrirlo (el buscador no se redibuja mientras se escribe) y la lista. */
@@ -6792,6 +7164,20 @@ async function accionChat(a, b) {
     case 'ch-borrar': despacharChat({ tipo: 'borrar-charla' }); break
     case 'ch-copiar': await copiarDeHoja(b, c.conversacion?.mensajes[Number(b.dataset.i)]?.texto ?? ''); break
     case 'ch-copiar-codigo': await copiarDeHoja(b, b.closest('pre')?.querySelector('code')?.textContent ?? ''); break
+    // La charla con herramientas (#43, chat-herramientas-ux.md 4): la línea «Puede tocar» y los recibos
+    case 'ch-puede': despacharChat({ tipo: 'puede' }); break
+    case 'ch-puede-nueva':
+      // Con Local: una charla nueva con Claude Code (el motor de una charla con mensajes no cambia, D-c17)
+      despacharChat({ tipo: 'puede' })
+      elegirMotor('claude')
+      campoChat.focus()
+      break
+    case 'ch-deshacer': if (b.getAttribute('aria-disabled') !== 'true') await deshacerCambio(b.dataset.cambio); break
+    case 'ch-deshacer-todos': await deshacerTodos(Number(b.dataset.i)); break
+    case 'ch-reintentar-cambio': await reintentarCambio(b.dataset.cambio); break
+    case 'ch-ver-tareas': await verEnTareas({ lista: b.dataset.lista || null, tarea: b.dataset.tarea || null }); break
+    case 'ch-abrir-tareas': await verEnTareas(); break
+    case 'ch-ir-tarea': if (b.getAttribute('aria-disabled') !== 'true') await verEnTareas({ lista: b.dataset.lista || null, tarea: b.dataset.tarea || null, abrir: true }); break
   }
 }
 
@@ -6868,6 +7254,8 @@ document.addEventListener('input', e => {
 // Un clic afuera del menú de carpeta lo cierra (3.5); lo mismo el menú de una charla del cajón
 document.addEventListener('pointerdown', e => {
   if (st.chat.menu && !e.target.closest?.('#chat-menu, #chat-cab .carpeta')) despacharChat({ tipo: 'menu' })
+  // El globo de «Puede tocar» también (#43, 4.1)
+  if (st.chat.puede && !e.target.closest?.('#ch-puede-lugar')) despacharChat({ tipo: 'puede' })
   if (st.chat.menuModelo && !e.target.closest?.('#chat-menu, #chat-cab .modelo')) despacharChat({ tipo: 'menu-modelo' })
   if (st.chat.menuCharla && !e.target.closest?.('#chat-hist-lista .h-menu')) despacharChat({ tipo: 'menu-charla', id: st.chat.menuCharla.id })
 })
@@ -6990,7 +7378,12 @@ async function iniciar() {
     tomarAvisoMod()
     // La charla (chat-avis-ux.md 7.5): cada evento lleva su conversación y su turno; transicionChat
     // descarta los de otra conversación o de un turno viejo
-    escuchar('oficina://chat', ev => despacharChat({ tipo: 'backend', payload: ev.payload }))
+    escuchar('oficina://chat', ev => {
+      // Un cambio, una lectura o «para borrar» que llegó ahora hace su acto al verse (#43, 10)
+      if (['cambio', 'lectura', 'mostrar'].includes(ev.payload?.tipo) && typeof ev.payload.cambio?.id === 'string') vivo.llegados.add(ev.payload.cambio.id)
+      despacharChat({ tipo: 'backend', payload: ev.payload })
+    })
+    escuchar('oficina://tareas', ev => alCambiarTareasFuera(ev.payload))
     // El modelo de esta PC (3.6): la descarga y el borrado desde la configuración
     escuchar('oficina://modelo', ev => alEventoModelo(ev.payload))
     // Los archivos que se sueltan (10): Tauri los toma antes que el HTML (`dragDropEnabled`)

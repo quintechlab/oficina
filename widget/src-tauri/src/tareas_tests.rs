@@ -200,3 +200,106 @@ fn una_tarea_minima_toma_los_valores_por_defecto() {
     }));
     fs::remove_dir_all(c).unwrap();
 }
+
+// ---------------------------------------------------------------- #43: huella (11.5) y modificar (11.4)
+
+#[test]
+fn listar_da_la_huella_de_los_bytes_de_cada_lista() {
+    let c = carpeta_temporal();
+    guardar(&c, &lista("l-casa", "Casa", 0)).unwrap();
+    let l = listar(&c);
+    let esperada = huella(&fs::read(c.join("l-casa.json")).unwrap());
+    assert_eq!(l.huellas.get("l-casa"), Some(&esperada));
+    assert_eq!(esperada.len(), 64);
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn guardar_con_la_huella_de_lo_leido_guarda_y_da_la_nueva() {
+    let c = carpeta_temporal();
+    guardar(&c, &lista("l-casa", "Casa", 0)).unwrap();
+    let h = listar(&c).huellas["l-casa"].clone();
+    let mut d = lista("l-casa", "Casa", 0);
+    d["tareas"][0]["hecha"] = json!(true);
+    let (g, nueva) = guardar_si(&c, &d, Some(&h)).unwrap();
+    assert_eq!(g["tareas"][0]["hecha"], true);
+    assert_eq!(nueva, huella(&fs::read(c.join("l-casa.json")).unwrap()));
+    assert_ne!(nueva, h);
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn guardar_con_una_huella_vieja_no_escribe_y_avisa_cambio() {
+    let c = carpeta_temporal();
+    guardar(&c, &lista("l-casa", "Casa", 0)).unwrap();
+    let vieja = listar(&c).huellas["l-casa"].clone();
+    // Otro escritor (la charla) cambió el archivo después de leerlo la ventana
+    let mut otra = lista("l-casa", "Casa", 0);
+    otra["tareas"][0]["titulo"] = json!("Cambiada por la charla");
+    guardar(&c, &otra).unwrap();
+    let en_disco = fs::read(c.join("l-casa.json")).unwrap();
+    let mut d = lista("l-casa", "Casa", 0);
+    d["tareas"][0]["hecha"] = json!(true);
+    assert_eq!(guardar_si(&c, &d, Some(&vieja)).unwrap_err(), "cambio");
+    assert_eq!(fs::read(c.join("l-casa.json")).unwrap(), en_disco);
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn guardar_sin_huella_guarda_como_antes() {
+    // Lo de antes (11.5): sin huella, `tareas_guardar` pisa como siempre, y da lo mismo que `guardar`
+    let c = carpeta_temporal();
+    guardar(&c, &lista("l-casa", "Casa", 0)).unwrap();
+    let mut d = lista("l-casa", "Casa", 0);
+    d["nombre"] = json!("Hogar");
+    let (g, h) = guardar_si(&c, &d, None).unwrap();
+    assert_eq!(g, guardar(&c, &d).unwrap());
+    assert_eq!(g["nombre"], "Hogar");
+    assert_eq!(h, huella(&fs::read(c.join("l-casa.json")).unwrap()));
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn modificar_cambia_con_el_candado_y_conserva_lo_desconocido() {
+    let c = carpeta_temporal();
+    let mut futura = lista("l-casa", "Casa", 0);
+    futura["icono"] = json!("casita");
+    futura["tareas"][0]["repetir"] = json!("semana");
+    fs::write(c.join("l-casa.json"), serde_json::to_vec(&futura).unwrap()).unwrap();
+    let (n, g) = modificar(&c, "l-casa", |doc| {
+        doc["tareas"][0]["hecha"] = json!(true);
+        Ok(doc["tareas"].as_array().map(Vec::len).unwrap_or(0))
+    })
+    .unwrap();
+    assert_eq!(n, 1);
+    assert_eq!(g["tareas"][0]["hecha"], true);
+    assert_eq!(g["icono"], "casita");
+    assert_eq!(g["tareas"][0]["repetir"], "semana");
+    let en_disco: Value = serde_json::from_slice(&fs::read(c.join("l-casa.json")).unwrap()).unwrap();
+    assert_eq!(en_disco, g);
+    assert!(sin_temporales(&c));
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn modificar_una_lista_rota_o_que_no_existe_no_toca_nada() {
+    let c = carpeta_temporal();
+    fs::write(c.join("l-rota.json"), "{ roto").unwrap();
+    assert!(matches!(modificar(&c, "l-rota", |_| Ok(())), Err(Falla::Rota)));
+    assert_eq!(fs::read(c.join("l-rota.json")).unwrap(), b"{ roto");
+    assert!(matches!(modificar(&c, "l-nada", |_| Ok(())), Err(Falla::NoExiste)));
+    assert!(!c.join("l-nada.json").exists());
+    assert!(matches!(modificar(&c, "l-../x", |_| Ok(())), Err(Falla::NoExiste)));
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn modificar_con_un_error_propio_o_un_resultado_invalido_no_escribe() {
+    let c = carpeta_temporal();
+    guardar(&c, &lista("l-casa", "Casa", 0)).unwrap();
+    let antes = fs::read(c.join("l-casa.json")).unwrap();
+    assert!(matches!(modificar(&c, "l-casa", |_| Err::<(), _>(String::from("no"))), Err(Falla::Regla(m)) if m == "no"));
+    assert!(matches!(modificar(&c, "l-casa", |doc| { doc["tareas"][0]["fecha"] = json!("mañana"); Ok(()) }), Err(Falla::Regla(_))));
+    assert_eq!(fs::read(c.join("l-casa.json")).unwrap(), antes);
+    fs::remove_dir_all(c).unwrap();
+}
