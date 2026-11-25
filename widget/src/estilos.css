@@ -52,7 +52,7 @@
   --e-8: 16px; --e-9: 18px; --e-10: 20px; --e-11: 28px;
   /* Tamaño del tablero (9.2): ancho y alto fijos, iguales en todos los proyectos; lo que no entra se
      ve con scroll adentro de cada columna. Crece con el zoom y se topa al 90 % del área */
-  --ancho-lado: 188px; --ancho-principal: 460px; --alto-tablero: 640px;
+  --ancho-lado: 208px; --ancho-principal: 500px; --alto-tablero: 680px;
   /* El menú de módulos (modulos-ux.md 6): alto de cada fila y de la píldora que viaja */
   --alto-modulo: 40px;
   /* Primeros pasos (bienvenida-ux.md 5): el escenario tiene alto fijo, como el tablero */
@@ -66,7 +66,7 @@
   --celeste-osc: #0B1524; --celeste-velo: rgba(127, 179, 255, .14); --celeste-velo-f: rgba(127, 179, 255, .18);
   --celeste-borde-t: rgba(127, 179, 255, .22); --celeste-borde-s: rgba(127, 179, 255, .30);
   --celeste-borde: rgba(127, 179, 255, .40); --celeste-borde-f: rgba(127, 179, 255, .45);
-  --ancho-riel: 56px; --ancho-principal-d: 592px; --mitad: 272px; --costura: 26px; --alto-esc-d: 218px;
+  --ancho-riel: 56px; --ancho-principal-d: 652px; --mitad: 272px; --costura: 26px; --alto-esc-d: 218px;
   --d-cruza: 1680ms; --d-anillo: 1230ms; --d-cose: 500ms; --d-riel: 450ms; --espera-vuelta: 60s;
   /* Configuración (configuracion-ux.md 6): el escenario de la mascota */
   --alto-escena-cfg: 176px;
@@ -143,7 +143,8 @@ h1, h2, h3 { font: inherit }
 /* Scroll discreto: fino, sin pista y la barra visible solo con el mouse encima */
 .desplaza, .lado, .principal { scrollbar-width: thin; scrollbar-color: transparent transparent }
 .desplaza:hover, .lado:hover, .principal:hover { scrollbar-color: var(--linea-hover) transparent }
-/* El ancho lo dan la barra (188) y la columna principal (460); el alto, el del tablero */
+/* El ancho lo dan la barra (208) y la columna principal (500); el alto, el del tablero (pedido del
+   usuario del 25/11: más lugar para los módulos y para las mascotas evolucionadas, antes 188 + 460 × 640) */
 #contenido { flex: 1; min-height: 0; display: flex; gap: var(--e-8); width: max-content }
 
 /* ------------------------------------------------------------------ barra lateral (4.2) */
@@ -156,8 +157,10 @@ h1, h2, h3 { font: inherit }
 .lado :focus-visible { outline-offset: -2px }
 /* Marca "Escenario" (docs/diseno/marca-avi-ux.md 5.1): columna centrada con el Avi de 112 sobre su luz
    ámbar (un degradado, sin filtro), "Avis" y el estado en píldora. Sigue siendo la zona de arrastre */
-.marca { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 6px 4px 4px; cursor: grab; user-select: none }
-.marca::before { content: ""; position: absolute; left: 50%; top: 8px; width: 150px; height: 120px; transform: translateX(-50%); background: radial-gradient(50% 50% at 50% 62%, rgba(242, 182, 50, .13), transparent 70%); pointer-events: none }
+/* 26 px arriba: las formas evolucionadas (antenas, crestas) salen de la caja de 112 y la barra, que
+   desplaza, las recortaba en su borde (25/11) */
+.marca { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 26px 4px 4px; cursor: grab; user-select: none }
+.marca::before { content: ""; position: absolute; left: 50%; top: 28px; width: 150px; height: 120px; transform: translateX(-50%); background: radial-gradient(50% 50% at 50% 62%, rgba(242, 182, 50, .13), transparent 70%); pointer-events: none }
 /* Tauri arrastra solo si el clic cae en el elemento marcado: los hijos dejan pasar el clic */
 .marca > *, .cab-t > * { pointer-events: none }
 #marca-avi { position: relative; display: block; width: 112px; height: 112px; flex: none }
@@ -1398,7 +1401,7 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .enviar:active { transform: no
 
 /* Las dos mitades y la costura (5.5 y 5.6): 272 + 26 + 272 */
 #marco.dividida .split { display: block; position: relative }
-.split-g { display: grid; grid-template-columns: var(--mitad) var(--costura) var(--mitad) }
+.split-g { display: grid; grid-template-columns: var(--mitad) var(--costura) var(--mitad); justify-content: center }
 .mitad { position: relative; min-width: 0 }
 .mh { height: 66px; padding: 0 2px }
 .mh-p { display: flex; align-items: center; gap: 8px; min-width: 0; font: 800 17px/1.1 var(--f); letter-spacing: -.02em }
