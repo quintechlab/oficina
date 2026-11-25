@@ -247,7 +247,7 @@ test('globoMarca (8.3): dos botones hermanos, el texto de 5.4 con los números e
   assert.match(globoMarca(textoGlobo({ hoy: 1, vencidas: 0 }, '14:00')), /¡Buenas tardes! Tenés <b>1 tarea para hoy<\/b>\./)
 })
 
-test('globoMuesca (8.5): el contenido del botón #muesca-tareas, «Ver →» y el nombre con el texto entero', () => {
+test('globoMuesca (8.5): el contenido del botón #muesca-globo, «Ver →» y el nombre con el texto entero', () => {
   const t = textoGlobo({ hoy: 2, vencidas: 2 }, '21:00')
   const g = globoMuesca(t)
   assert.equal(g.html, '<span class="mt-t">2 para hoy · <b class="r">2 vencidas</b></span><span class="mt-c">Ver <span aria-hidden="true">→</span></span>')

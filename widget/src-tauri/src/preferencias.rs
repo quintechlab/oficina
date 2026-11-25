@@ -125,15 +125,29 @@ pub fn leer_interruptores(ruta: &Path) -> Interruptores {
 /// Las claves que escribe `guardar_ajuste` (el tamaño y el acople tienen sus comandos propios). Las
 /// mismas que `validarAjuste` de configuracion.js; `motor` llega con el chat. `tareasAvisado` es el
 /// día del aviso diario de tareas (tareas-ux.md 11.4) y se guarda adentro de `"tareas"`.
-const AJUSTES: [&str; 5] = ["mascota", "arriba", "avisar", "pausa", "tareasAvisado"];
+/// `habitosRecordados` son los hábitos ya recordados hoy (habitos-ux.md 8.3 y 11.5), `habitosResumen` el
+/// lunes de la semana del último resumen semanal que se vio y `habitosFrase` la frase de esa semana
+/// (`{ lunes, frase }`, 8.4: se pide como mucho una vez por semana), las tres tal cual.
+const AJUSTES: [&str; 8] = ["mascota", "arriba", "avisar", "pausa", "tareasAvisado", "habitosRecordados", "habitosResumen", "habitosFrase"];
+
+/// La frase de la semana como mucho (habitos-ux.md 8.4, `MAX_FRASE` de habitos.js).
+const MAX_FRASE: usize = 160;
+
+/// Cuántos hábitos recordados se guardan como mucho (habitos-ux.md 11.5; `MAX_RECORDADOS` de habitos.js).
+const MAX_RECORDADOS: usize = 100;
 
 /// ¿`valor` sirve para `clave`? La mascota, una de `ESPECIES` (texto exacto); los interruptores,
-/// solo booleanos; el aviso de tareas, un día que existe `AAAA-MM-DD` o vacío. Cualquier otra clave, no.
+/// solo booleanos; el aviso de tareas, un día que existe `AAAA-MM-DD` o vacío; los hábitos recordados,
+/// `{ dia, ids }` (`recordados_validos`); el resumen de hábitos, un lunes que existe o vacío. Cualquier
+/// otra clave, no.
 pub fn ajuste_valido(clave: &str, valor: &Value) -> bool {
     match clave {
         "mascota" => valor.as_str().is_some_and(|m| ESPECIES.contains(&m)),
         "arriba" | "avisar" | "pausa" => valor.is_boolean(),
         "tareasAvisado" => valor.as_str().is_some_and(|d| d.is_empty() || dia_valido(d)),
+        "habitosRecordados" => recordados_validos(valor),
+        "habitosResumen" => valor.as_str().is_some_and(|d| d.is_empty() || lunes_valido(d)),
+        "habitosFrase" => frase_semana_valida(valor),
         _ => false,
     }
 }
@@ -144,6 +158,33 @@ fn dia_valido(d: &str) -> bool {
     b.len() == 10
         && b.iter().enumerate().all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() })
         && chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok()
+}
+
+/// ¿Un día que existe y es lunes? (el de `habitosResumen`, habitos-ux.md 8.4: la semana va de lunes a domingo)
+fn lunes_valido(d: &str) -> bool {
+    dia_valido(d) && chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok_and(|f| chrono::Datelike::weekday(&f) == chrono::Weekday::Mon)
+}
+
+/// La frase de la semana (habitos-ux.md 8.4): un objeto con solo `lunes` (un lunes que existe) y `frase`
+/// (una línea de 0 a 160 caracteres; "" si el pedido falló y va la plantilla). Así, entre arranques, el
+/// modelo se usa como mucho una vez por semana.
+fn frase_semana_valida(valor: &Value) -> bool {
+    let Some(o) = valor.as_object() else { return false };
+    let lunes = o.get("lunes").and_then(Value::as_str).is_some_and(lunes_valido);
+    let frase = o.get("frase").and_then(Value::as_str).is_some_and(|f| !f.contains(['\n', '\r']) && f.chars().count() <= MAX_FRASE);
+    o.len() == 2 && lunes && frase
+}
+
+/// Los hábitos recordados (habitos-ux.md 11.5): un objeto con solo `dia` (un día que existe) e `ids`
+/// (hasta 100 ids de hábito válidos, `habitos::id_valido`). Así un reinicio el mismo día no repite el
+/// recordatorio (8.3).
+fn recordados_validos(valor: &Value) -> bool {
+    let Some(o) = valor.as_object() else { return false };
+    let dia = o.get("dia").and_then(Value::as_str).is_some_and(dia_valido);
+    let ids = o.get("ids").and_then(Value::as_array).is_some_and(|ids| {
+        ids.len() <= MAX_RECORDADOS && ids.iter().all(|id| id.as_str().is_some_and(crate::habitos::id_valido))
+    });
+    o.len() == 2 && dia && ids
 }
 
 /// Guarda un ajuste de la configuración y conserva lo demás. Uno inválido no toca el archivo. El aviso
@@ -164,6 +205,25 @@ pub fn guardar_ajuste(ruta: &Path, clave: &str, valor: &Value) -> Result<(), Str
         (clave, valor.clone())
     };
     escribir(ruta, Preferencias { ajustes: vec![ajuste], ..leer_todo(ruta) })
+}
+
+/// Los hábitos ya recordados (`habitosRecordados`, habitos-ux.md 8.3), o `None` si no hay o no sirven
+/// (lo escrito a mano que no pasa `recordados_validos` se lee como nada recordado).
+pub fn leer_habitos_recordados(ruta: &Path) -> Option<Value> {
+    leer_valor(ruta).and_then(|v| v.get("habitosRecordados").cloned()).filter(recordados_validos)
+}
+
+/// El lunes de la semana del último resumen semanal visto (`habitosResumen`, habitos-ux.md 8.4), o `None`
+/// si no hay, está vacío o no es un lunes que existe (lo escrito a mano que no sirve se lee como nunca visto).
+pub fn leer_habitos_resumen(ruta: &Path) -> Option<String> {
+    leer_valor(ruta)
+        .and_then(|v| v.get("habitosResumen")?.as_str().map(String::from))
+        .filter(|d| lunes_valido(d))
+}
+
+/// La frase guardada de la semana (`habitosFrase`, habitos-ux.md 8.4), o `None` si no hay o no sirve.
+pub fn leer_habitos_frase(ruta: &Path) -> Option<Value> {
+    leer_valor(ruta).and_then(|v| v.get("habitosFrase").cloned()).filter(frase_semana_valida)
 }
 
 /// El día del último aviso diario de tareas (`tareas.avisado`, 11.4). Sin archivo, sin la clave,
@@ -863,6 +923,149 @@ mod tests {
         assert_eq!(leer_tareas_avisado(&r), None);
         guardar_ajuste(&r, "tareasAvisado", &json!("2026-11-25")).unwrap();
         assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-25"));
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn los_habitos_recordados_aceptan_un_dia_y_ids_de_habito_hasta_100() {
+        // habitos-ux.md 8.3 y 11.5: `{ dia, ids }`, el día de Argentina y los hábitos ya recordados ese día
+        let cien: Vec<String> = (0..100).map(|i| format!("h-{i}")).collect();
+        for bueno in [json!({ "dia": "2026-11-26", "ids": [] }), json!({ "dia": "2026-11-26", "ids": ["h-agua", "h-mf3k-2a"] }), json!({ "dia": "2024-02-29", "ids": cien })] {
+            assert!(ajuste_valido("habitosRecordados", &bueno), "{bueno}");
+        }
+        let ciento_uno: Vec<String> = (0..101).map(|i| format!("h-{i}")).collect();
+        for malo in [
+            json!({ "dia": "2026-02-30", "ids": [] }), json!({ "dia": "", "ids": [] }), json!({ "ids": [] }), json!({ "dia": "2026-11-26" }),
+            json!({ "dia": "2026-11-26", "ids": ["l-trabajo"] }), json!({ "dia": "2026-11-26", "ids": ["h-../x"] }), json!({ "dia": "2026-11-26", "ids": ["h-A"] }),
+            json!({ "dia": "2026-11-26", "ids": [3] }), json!({ "dia": "2026-11-26", "ids": "h-agua" }), json!({ "dia": "2026-11-26", "ids": ciento_uno }),
+            json!({ "dia": "2026-11-26", "ids": [], "otra": 1 }), json!("2026-11-26"), Value::Null, json!(true), json!([]),
+        ] {
+            assert!(!ajuste_valido("habitosRecordados", &malo), "{malo}");
+        }
+    }
+
+    #[test]
+    fn los_habitos_recordados_se_guardan_sin_borrar_lo_demas_y_se_leen_validados() {
+        let r = ruta_temporal("habitos-recordados");
+        assert_eq!(leer_habitos_recordados(&r), None);
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        fs::write(&r, r#"{"tareas":{"avisado":"2026-11-26"},"futura":[1],"mascota":"ascua"}"#).unwrap();
+        let valor = json!({ "dia": "2026-11-26", "ids": ["h-agua", "h-caminar"] });
+        guardar_ajuste(&r, "habitosRecordados", &valor).unwrap();
+        let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+        assert_eq!(guardado["habitosRecordados"], valor);
+        // Lo demás del archivo sigue: el aviso de tareas, la mascota y una clave que esta versión no conoce
+        assert_eq!(guardado["tareas"], json!({ "avisado": "2026-11-26" }));
+        assert_eq!(guardado["futura"], json!([1]));
+        assert_eq!(leer_mascota(&r), "ascua");
+        assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-26"));
+        assert_eq!(leer_habitos_recordados(&r), Some(valor.clone()));
+        // Uno inválido no toca el archivo
+        assert!(guardar_ajuste(&r, "habitosRecordados", &json!({ "dia": "ayer", "ids": [] })).is_err());
+        assert_eq!(leer_habitos_recordados(&r), Some(valor));
+        // Guardar otro ajuste no lo borra
+        guardar_ajuste(&r, "tareasAvisado", &json!("2026-11-27")).unwrap();
+        assert!(leer_habitos_recordados(&r).is_some());
+        // Lo escrito a mano que no sirve se lee como nada recordado
+        fs::write(&r, r#"{"habitosRecordados":{"dia":"2026-11-26","ids":["../x"]}}"#).unwrap();
+        assert_eq!(leer_habitos_recordados(&r), None);
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn el_resumen_de_habitos_acepta_un_lunes_que_existe_o_vacio() {
+        // habitos-ux.md 8.4 y 11.5: el lunes de la semana resumida, "AAAA-MM-DD", o vacío
+        for bueno in ["2026-11-23", "2024-01-01", ""] {
+            assert!(ajuste_valido("habitosResumen", &json!(bueno)), "{bueno}");
+        }
+        for malo in [
+            json!("2026-11-24"), json!("2026-11-29"), json!("2026-02-30"), json!("2026-11-23T00:00"), json!("23/11/2026"),
+            json!(20261123), json!(true), Value::Null, json!({}), json!(["2026-11-23"]),
+        ] {
+            assert!(!ajuste_valido("habitosResumen", &malo), "{malo}");
+        }
+        // Las otras claves siguen igual: el aviso de tareas acepta cualquier día, no solo lunes
+        assert!(ajuste_valido("tareasAvisado", &json!("2026-11-24")));
+        assert!(!ajuste_valido("habitosRecordados", &json!("2026-11-23")));
+    }
+
+    #[test]
+    fn el_resumen_de_habitos_se_guarda_sin_borrar_lo_demas_y_se_lee_validado() {
+        let r = ruta_temporal("habitos-resumen");
+        assert_eq!(leer_habitos_resumen(&r), None);
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        let recordados = json!({ "dia": "2026-11-26", "ids": ["h-agua"] });
+        fs::write(&r, r#"{"tareas":{"avisado":"2026-11-26"},"futura":[1],"mascota":"ascua"}"#).unwrap();
+        guardar_ajuste(&r, "habitosRecordados", &recordados).unwrap();
+        guardar_ajuste(&r, "habitosResumen", &json!("2026-11-23")).unwrap();
+        let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+        assert_eq!(guardado["habitosResumen"], "2026-11-23");
+        // Lo demás del archivo sigue
+        assert_eq!(guardado["tareas"], json!({ "avisado": "2026-11-26" }));
+        assert_eq!(guardado["futura"], json!([1]));
+        assert_eq!(leer_mascota(&r), "ascua");
+        assert_eq!(leer_habitos_recordados(&r), Some(recordados));
+        assert_eq!(leer_habitos_resumen(&r).as_deref(), Some("2026-11-23"));
+        // Uno inválido no toca el archivo
+        let antes = fs::read_to_string(&r).unwrap();
+        assert!(guardar_ajuste(&r, "habitosResumen", &json!("2026-11-24")).is_err());
+        assert_eq!(fs::read_to_string(&r).unwrap(), antes);
+        // Guardar otro ajuste no lo borra
+        guardar_ajuste(&r, "tareasAvisado", &json!("2026-11-27")).unwrap();
+        assert_eq!(leer_habitos_resumen(&r).as_deref(), Some("2026-11-23"));
+        // Vacío: nunca visto
+        guardar_ajuste(&r, "habitosResumen", &json!("")).unwrap();
+        assert_eq!(leer_habitos_resumen(&r), None);
+        // Lo escrito a mano que no es un lunes se lee como nada visto
+        fs::write(&r, r#"{"habitosResumen":"2026-11-24"}"#).unwrap();
+        assert_eq!(leer_habitos_resumen(&r), None);
+        fs::write(&r, r#"{"habitosResumen":5}"#).unwrap();
+        assert_eq!(leer_habitos_resumen(&r), None);
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn la_frase_de_la_semana_acepta_un_lunes_y_una_frase_de_una_linea_hasta_160() {
+        // habitos-ux.md 8.4: `{ lunes, frase }`; frase "" si el pedido falló (va la plantilla)
+        let larga = "a".repeat(160);
+        for bueno in [json!({ "lunes": "2026-11-23", "frase": "Bien." }), json!({ "lunes": "2026-11-23", "frase": "" }), json!({ "lunes": "2024-01-01", "frase": larga })] {
+            assert!(ajuste_valido("habitosFrase", &bueno), "{bueno}");
+        }
+        let mas_larga = "a".repeat(161);
+        for malo in [
+            json!({ "lunes": "2026-11-24", "frase": "Bien." }), json!({ "lunes": "", "frase": "" }), json!({ "lunes": "2026-02-30", "frase": "" }),
+            json!({ "lunes": "2026-11-23", "frase": "a\nb" }), json!({ "lunes": "2026-11-23", "frase": "a\rb" }), json!({ "lunes": "2026-11-23", "frase": mas_larga }),
+            json!({ "lunes": "2026-11-23", "frase": 5 }), json!({ "lunes": "2026-11-23" }), json!({ "frase": "" }),
+            json!({ "lunes": "2026-11-23", "frase": "", "otra": 1 }), json!("2026-11-23"), Value::Null, json!([]),
+        ] {
+            assert!(!ajuste_valido("habitosFrase", &malo), "{malo}");
+        }
+    }
+
+    #[test]
+    fn la_frase_de_la_semana_se_guarda_sin_borrar_lo_demas_y_se_lee_validada() {
+        let r = ruta_temporal("habitos-frase");
+        assert_eq!(leer_habitos_frase(&r), None);
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        fs::write(&r, r#"{"tareas":{"avisado":"2026-11-26"},"habitosResumen":"2026-11-16","futura":[1]}"#).unwrap();
+        let valor = json!({ "lunes": "2026-11-23", "frase": "Caminaste 5 de 7 días." });
+        guardar_ajuste(&r, "habitosFrase", &valor).unwrap();
+        let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+        assert_eq!(guardado["habitosFrase"], valor);
+        assert_eq!(guardado["futura"], json!([1]));
+        assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-26"));
+        assert_eq!(leer_habitos_resumen(&r).as_deref(), Some("2026-11-16"));
+        assert_eq!(leer_habitos_frase(&r), Some(valor.clone()));
+        // Uno inválido no toca el archivo
+        let antes = fs::read_to_string(&r).unwrap();
+        assert!(guardar_ajuste(&r, "habitosFrase", &json!({ "lunes": "2026-11-24", "frase": "" })).is_err());
+        assert_eq!(fs::read_to_string(&r).unwrap(), antes);
+        // Guardar otro ajuste no la borra
+        guardar_ajuste(&r, "habitosResumen", &json!("2026-11-23")).unwrap();
+        assert_eq!(leer_habitos_frase(&r), Some(valor));
+        // Lo escrito a mano que no sirve se lee como nada guardado
+        fs::write(&r, r#"{"habitosFrase":{"lunes":"2026-11-23","frase":"a\nb"}}"#).unwrap();
+        assert_eq!(leer_habitos_frase(&r), None);
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 

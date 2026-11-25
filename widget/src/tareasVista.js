@@ -13,7 +13,8 @@ import {
   vacioVista, nombreVista, opcionFecha, textoSubtareas, creadaEl,
 } from './tareas.js'
 
-const ICONO = {
+/** Los íconos de la hoja; Hábitos reusa los comunes (`mas`, `visto`). */
+export const ICONO = {
   hoy: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="10" rx="2.5"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/><circle cx="8" cy="10" r="1.2" fill="currentColor" stroke="none"/></svg>',
   venc: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8.5" r="5.5"/><path d="M8 5.5v3.2M8 11v.1"/></svg>',
   mas: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>',
@@ -59,10 +60,11 @@ export function miniTareas(especie, feliz) {
 /** Una cuenta del índice: el número a la vista y su texto para el lector (12). En 0, nada. */
 const cuenta = (n, tono = '') => (n ? `<span class="ct${tono ? ` ${tono}` : ''}" aria-hidden="true">${n}</span><span class="oculto">, ${n} ${n === 1 ? 'pendiente' : 'pendientes'}</span>` : '')
 
-function botonIndice({ valor, k, actual, icono, nombre, c, ct = '', clase = '', titulo = null }) {
+/** Un botón del índice (4.2); `accion`: la de su hoja (Hábitos reusa el mismo botón con `hab-ver`). */
+export function botonIndice({ valor, k, actual, icono, nombre, c, ct = '', clase = '', titulo = null, accion = 'tar-ver' }) {
   const cur = actual ? ' aria-current="page"' : ''
   const t = titulo ? ` title="${escapar(titulo)}"` : ''
-  return `<button type="button" class="ix-b${clase}" data-accion="tar-ver" data-valor="${escapar(valor)}" data-k="${escapar(k)}"${cur} style="--c:${c}"${t}>`
+  return `<button type="button" class="ix-b${clase}" data-accion="${accion}" data-valor="${escapar(valor)}" data-k="${escapar(k)}"${cur} style="--c:${c}"${t}>`
     + `<span class="ix-ic${icono ? '' : ' punto'}">${icono}</span><span class="n">${escapar(nombre)}</span>${ct}</button>`
 }
 
@@ -103,7 +105,7 @@ export function indiceTareas({ ver, listas, cuentas: c, rotas = [], renombrando 
  * "Borrar …" (`.lnk.peligro`) y, armado, la pregunta (`.armado`) con la línea que se vacía en 3 s;
  * `transcurrido` (ms) la retoma donde iba si se redibuja. El mismo `data-k`: el foco sigue en el botón.
  */
-function confirmable(accion, valor, k, texto, pregunta, armado, transcurrido = 0) {
+export function confirmable(accion, valor, k, texto, pregunta, armado, transcurrido = 0) {
   if (armado) {
     return `<button type="button" class="armado" data-accion="${accion}" data-valor="${escapar(valor)}" data-k="${k}" aria-live="polite" style="--ya:-${Math.max(0, Math.round(transcurrido))}ms">${escapar(pregunta)}</button>`
   }
@@ -267,8 +269,9 @@ export function partesDetalle({ lista, tarea, listas, hoy, editandoSub = null, a
 
 // ------------------------------------------------------------------ errores (7.4 y 7.6)
 
-const err = (titulo, linea, botones) => `<div class="err" role="alert"><i class="pt t-error" aria-hidden="true"></i><div><b>${titulo}</b>${linea}</div><div class="acc">${botones}</div></div>`
-const boton = (accion, k, texto) => `<button type="button" class="lnk" data-accion="${accion}" data-k="${k}">${texto}</button>`
+/** La tarjeta de error de 7.4 y 7.6 (también la de Hábitos): el título, la línea y sus botones. */
+export const err = (titulo, linea, botones) => `<div class="err" role="alert"><i class="pt t-error" aria-hidden="true"></i><div><b>${titulo}</b>${linea}</div><div class="acc">${botones}</div></div>`
+export const boton = (accion, k, texto) => `<button type="button" class="lnk" data-accion="${accion}" data-k="${k}">${texto}</button>`
 
 /** No se guardó el último cambio (7.4): lo de la pantalla queda y reintenta solo. */
 export function errorGuardar() {
@@ -288,11 +291,12 @@ export function errorCarpeta(detalle) {
 
 // ------------------------------------------------------------------ el aviso diario (8 y 5.4)
 
-const X = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
+/** La × de los globos (también la del recordatorio de Hábitos, habitosVista.js). */
+export const X = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
 const MAS_TARDE = 'aria-label="Más tarde: avisame mañana" title="Más tarde"'
 
-/** Los tramos de `textoGlobo` en HTML: lo fuerte en `<b>`, las vencidas con la clase `r` (en rojo). */
-const tramos = segs => segs.map(s => (s.fuerte || s.venc ? `<b${s.venc ? ' class="r"' : ''}>${escapar(s.t)}</b>` : escapar(s.t))).join('')
+/** Los tramos de `textoGlobo` en HTML: lo fuerte en `<b>`, las vencidas con la clase `r` (en rojo). También los del recordatorio. */
+export const tramos = segs => segs.map(s => (s.fuerte || s.venc ? `<b${s.venc ? ' class="r"' : ''}>${escapar(s.t)}</b>` : escapar(s.t))).join('')
 
 /**
  * El globo de la marca (8.3; `.globo-tar`, porque `.globo` ya es el del SVG del Avi): hermano del
@@ -305,7 +309,7 @@ export function globoMarca(t) {
 }
 
 /**
- * Lo de adentro de `#muesca-tareas` (8.5), un botón hermano de `#muesca`: "{h} para hoy · {v} vencidas"
+ * Lo de adentro de `#muesca-globo` (8.5), un botón hermano de `#muesca`: "{h} para hoy · {v} vencidas"
  * y "Ver →"; `nombre`, el del botón (el texto entero del globo, que la muesca abrevia).
  */
 export function globoMuesca(t) {

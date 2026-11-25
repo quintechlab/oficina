@@ -37,7 +37,7 @@ static ESCRITURA: Mutex<()> = Mutex::new(());
 
 /// Un id de 11.1 (`^[a-z0-9-]{1,40}$`) que empieza con su prefijo (`l-`, `t-`, `s-`): nunca `..`, una
 /// barra, un punto ni un nombre reservado de Windows (`con`, `nul`… no tienen prefijo).
-fn id_con(prefijo: &str, id: &str) -> bool {
+pub(crate) fn id_con(prefijo: &str, id: &str) -> bool {
     id.len() <= TOPE_ID
         && id.len() > prefijo.len()
         && id.starts_with(prefijo)
@@ -75,7 +75,7 @@ fn booleano(v: &Value, nombre: &str) -> Result<bool, String> {
 }
 
 /// Un instante en ms, o `null`.
-fn ms(v: &Value, nombre: &str) -> Result<Value, String> {
+pub(crate) fn ms(v: &Value, nombre: &str) -> Result<Value, String> {
     match v {
         Value::Null => Ok(Value::Null),
         _ => v.as_u64().map(Value::from).ok_or_else(|| format!("{nombre} no es un número")),
@@ -83,7 +83,7 @@ fn ms(v: &Value, nombre: &str) -> Result<Value, String> {
 }
 
 /// `AAAA-MM-DD` de un día que existe, o `null`.
-fn fecha(v: &Value) -> Result<Value, String> {
+pub(crate) fn fecha(v: &Value) -> Result<Value, String> {
     match v {
         Value::Null => Ok(Value::Null),
         Value::String(s) if s.len() == 10 && chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok() => Ok(v.clone()),
@@ -161,7 +161,7 @@ pub fn normalizar(doc: &Value) -> Result<Value, String> {
 }
 
 /// Las claves de `de` que no son del formato.
-fn desconocidas(de: &Value, conocidas: &[&str]) -> Map<String, Value> {
+pub(crate) fn desconocidas(de: &Value, conocidas: &[&str]) -> Map<String, Value> {
     de.as_object()
         .map(|o| o.iter().filter(|(k, _)| !conocidas.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect())
         .unwrap_or_default()

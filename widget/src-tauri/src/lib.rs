@@ -7,6 +7,7 @@ mod claves;
 mod diagnostico;
 mod engram;
 mod equipo;
+mod habitos;
 mod historial;
 mod preferencias;
 mod modelo;
@@ -979,6 +980,90 @@ fn tareas_abrir_carpeta(app: AppHandle) -> Result<(), String> {
     std::process::Command::new("explorer").arg(&carpeta).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
+// ------------------------------------------------------------------ hábitos (#41)
+
+/// `<config>/habitos`: un archivo por hábito (`habitos.rs`).
+fn carpeta_habitos(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path().app_config_dir().map(|c| c.join("habitos")).map_err(|e| e.to_string())
+}
+
+/// Todos los hábitos, en orden, y los archivos rotos (habitos-ux.md 11.5): `{ habitos, rotas: [{ archivo, motivo }] }`.
+/// Una carpeta que existe y no se puede leer es un error, no "sin hábitos".
+#[tauri::command]
+async fn habitos_leer(app: AppHandle) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_habitos(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Err(e) = std::fs::read_dir(&carpeta) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                registrar(format!("hábitos: no se pudo leer la carpeta: {e}"));
+                return Err(String::from("No se pudo abrir la carpeta de hábitos."));
+            }
+        }
+        let l = habitos::listar(&carpeta);
+        Ok(serde_json::json!({ "habitos": l.habitos, "rotas": l.rotas }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Guarda un hábito entero (formato v1; lo que no sirve se rechaza sin tocar el archivo):
+/// `{ ok: true, habito }` con lo guardado, o `{ ok: false, error }` (la ventana lo anota).
+#[tauri::command]
+async fn habitos_guardar(app: AppHandle, habito: serde_json::Value) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_habitos(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || habitos::guardar(&carpeta, &habito)).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok(habito) => serde_json::json!({ "ok": true, "habito": habito }),
+        Err(error) => serde_json::json!({ "ok": false, "error": error }),
+    })
+}
+
+/// Borra un hábito (solo con el segundo clic de "¿Borrar? Sí"); nunca un archivo roto. `{ ok, error? }`.
+#[tauri::command]
+async fn habitos_borrar(app: AppHandle, id: String) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_habitos(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || habitos::borrar(&carpeta, &id)).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok(()) => serde_json::json!({ "ok": true }),
+        Err(error) => {
+            registrar(format!("hábitos: no se pudo borrar: {error}"));
+            serde_json::json!({ "ok": false, "error": error })
+        }
+    })
+}
+
+/// Abre `<config>/habitos/` en el Explorador (la ruta es siempre la de Avis).
+#[tauri::command]
+fn habitos_abrir_carpeta(app: AppHandle) -> Result<(), String> {
+    let carpeta = carpeta_habitos(&app)?;
+    std::fs::create_dir_all(&carpeta).map_err(|e| e.to_string())?;
+    std::process::Command::new("explorer").arg(&carpeta).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// La frase del resumen semanal de hábitos (habitos-ux.md 8.4 y 11.7): `{ frase }` o un error (la ventana
+/// usa la plantilla). Solo con el modelo de esta PC instalado (si no, error sin prender nada: nunca se
+/// descarga nada); el motor se prende como para una charla (`motor_charla`, que avisa `preparando`) y se
+/// apaga solo a los 10 min. Una respuesta, 60 tokens y 45 s; nada se guarda.
+#[tauri::command]
+async fn habitos_frase(app: AppHandle, datos: serde_json::Value) -> Result<serde_json::Value, String> {
+    let motor: chat_local::MotorLocal = std::sync::Arc::new(move || {
+        let avisar = |v: serde_json::Value| {
+            let _ = app.emit(modelo::EVENTO, v);
+        };
+        modelo::IA.motor_charla(&avisar).map(|(puerto, uso)| (puerto, Box::new(uso) as Box<dyn chat_local::UsoMotor>))
+    });
+    let r = tauri::async_runtime::spawn_blocking(move || habitos::frase(&datos, &|| estado_local() == "instalado", motor, habitos::TOPE_FRASE))
+        .await
+        .map_err(|e| e.to_string())?;
+    match r {
+        Ok(frase) => Ok(serde_json::json!({ "frase": frase })),
+        Err(e) => {
+            registrar(format!("hábitos: sin la frase del resumen: {e}"));
+            Err(e)
+        }
+    }
+}
+
 /// El motor, la carpeta y el modelo de la charla (chat-avis-ux.md 3.4 y #35): quedan para la próxima
 /// charla nueva y la carpeta va primera en las recientes. `modelo`: uno de `chat::MODELOS` o `null`
 /// ("Por defecto"), guardado tal cual. Devuelve `{ motor, carpeta, recientes, modelo }` como el `chat`
@@ -1009,7 +1094,8 @@ async fn elegir_carpeta(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 /// Todo lo que la ventana necesita al arrancar y para la configuración (configuracion-ux.md 9.2):
-/// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version, chat, tareasAvisado }`.
+/// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version, chat, tareasAvisado,
+/// habitosRecordados, habitosResumen, habitosFrase }`.
 /// `arranque` sale del sistema, no del archivo. Sin carpeta de configuración, los valores de fábrica.
 #[tauri::command]
 fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
@@ -1028,6 +1114,12 @@ fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::
         "chat": valor_chat(ruta.as_deref().map(preferencias::leer_chat).unwrap_or_default()),
         // El día del último aviso diario de tareas (tareas-ux.md 11.4), o null
         "tareasAvisado": ruta.as_deref().and_then(preferencias::leer_tareas_avisado),
+        // Los hábitos ya recordados hoy (habitos-ux.md 8.3): `{ dia, ids }`, o null
+        "habitosRecordados": ruta.as_deref().and_then(preferencias::leer_habitos_recordados),
+        // El lunes de la semana del último resumen semanal visto (habitos-ux.md 8.4), o null
+        "habitosResumen": ruta.as_deref().and_then(preferencias::leer_habitos_resumen),
+        // La frase de esa semana (8.4): `{ lunes, frase }`, o null; así no se le pide de nuevo al modelo
+        "habitosFrase": ruta.as_deref().and_then(preferencias::leer_habitos_frase),
     })
 }
 
@@ -1044,9 +1136,10 @@ fn valor_chat(c: preferencias::Chat) -> serde_json::Value {
 }
 
 /// Guarda un ajuste de la configuración (`mascota`, `arriba`, `avisar` o `pausa`; configuracion-ux.md
-/// 9.2; y `tareasAvisado`, el día del aviso diario de tareas, tareas-ux.md 11.4) y aplica su
+/// 9.2; `tareasAvisado`, el día del aviso diario de tareas, tareas-ux.md 11.4; y `habitosRecordados`,
+/// los hábitos ya recordados hoy, habitos-ux.md 8.3) y aplica su
 /// efecto: "Siempre arriba" a la ventana, la pausa a la marca de la bandeja y a la ventana
-/// (`oficina://pausa`), la mascota a la ventana (`oficina://mascota`); el aviso, ninguno. Si no se
+/// (`oficina://pausa`), la mascota a la ventana (`oficina://mascota`); el aviso y los recordados, ninguno. Si no se
 /// pudo guardar, no aplica nada y la ventana vuelve el control a su valor de antes.
 #[tauri::command]
 fn guardar_ajuste(app: AppHandle, estado: State<'_, Estado>, clave: String, valor: serde_json::Value) -> Result<serde_json::Value, String> {
@@ -1331,7 +1424,8 @@ fn registrar(linea: String) {
     }
 }
 
-/// Notificación de Windows con una pregunta nueva.
+/// Notificación de Windows: una pregunta nueva o el recordatorio de un hábito (habitos-ux.md 8.3 y 5.5,
+/// título y cuerpo, sin botones). Falta medir con el `.msi` el clic, cuál se tocó, imagen y botones (11.9).
 #[tauri::command]
 fn avisar(app: AppHandle, titulo: String, cuerpo: String) -> Result<(), String> {
     app.notification().builder().title(titulo).body(cuerpo).show().map_err(|e| e.to_string())
@@ -1823,6 +1917,11 @@ pub fn run() {
             tareas_guardar,
             tareas_borrar_lista,
             tareas_abrir_carpeta,
+            habitos_leer,
+            habitos_guardar,
+            habitos_borrar,
+            habitos_abrir_carpeta,
+            habitos_frase,
             guardar_chat,
             elegir_carpeta,
             borrar_modelo,

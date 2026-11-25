@@ -214,7 +214,7 @@ export const SEPARA_GLOBO = 8
 export const MARGEN_GLOBO = 8
 
 /**
- * Dónde cuelga el globo de tareas (`#muesca-tareas`, tareas-ux.md 8.5), en px CSS de la ventana:
+ * Dónde cuelga el globo de la muesca (`#muesca-globo`: el aviso de tareas o un recordatorio, tareas-ux.md 8.5), en px CSS de la ventana:
  * 8 px debajo de la muesca de arriba, arriba de la de abajo, a la derecha de la de la izquierda o a la
  * izquierda de la de la derecha, centrado en ella y adentro de la ventana. `muesca`: su caja local
  * (`d.local.muesca`); `tam`: el globo medido; `ventana`: `{ ancho, alto }` local. `cola`: dónde va la

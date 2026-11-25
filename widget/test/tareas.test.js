@@ -181,9 +181,13 @@ test('5 · lugarAviso (8.2): marca, dividida o muesca; espera en la tira, la ban
   assert.equal(lugarAviso(a, f({ acoplada: true, abierta: true })), 'marca')
   assert.equal(lugarAviso(a, f({ dividida: true })), 'dividida')
   assert.equal(lugarAviso(a, f({ acoplada: true, abierta: false })), 'muesca')
-  // La pregunta pendiente tapa el de la muesca (vuelve cuando se va); con el panel abierto, no
+  // La pregunta pendiente tapa el globo en los tres lugares (vuelve cuando se va). Antes solo tapaba el
+  // de la muesca; desde H2 tapa también el de la marca y el de la dividida: es la decisión D-m4 de
+  // modulos-ux.md, cerrada con D-h5 de habitos-ux.md (pregunta › recordatorio › tareas › resumen)
   assert.equal(lugarAviso(a, f({ acoplada: true, abierta: false, pregunta: true })), null)
-  assert.equal(lugarAviso(a, f({ pregunta: true })), 'marca')
+  assert.equal(lugarAviso(a, f({ pregunta: true })), null)
+  assert.equal(lugarAviso(a, f({ acoplada: true, abierta: true, pregunta: true })), null)
+  assert.equal(lugarAviso(a, f({ dividida: true, pregunta: true })), null)
   // Espera: tira, bandeja o escondida, la charla abierta, arrastrando, sin barra (vacío o primeros pasos)
   for (const espera of [{ mini: true }, { fuera: true }, { chat: true }, { arrastrando: true }, { barra: false }]) {
     assert.equal(lugarAviso(a, f(espera)), null, JSON.stringify(espera))

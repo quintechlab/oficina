@@ -81,6 +81,23 @@ test('validarAjuste: tareasAvisado acepta un día que existe o vacío, como pref
   assert.equal(validarAjuste('pausa', '2026-11-24'), false)
 })
 
+test('validarAjuste: habitosRecordados acepta { dia, ids } con ids de hábito, hasta 100, como preferencias.rs (habitos-ux.md 11.5)', () => {
+  const cien = Array.from({ length: 100 }, (_, i) => `h-${i}`)
+  for (const bueno of [{ dia: '2026-11-26', ids: [] }, { dia: '2026-11-26', ids: ['h-agua', 'h-mf3k-2a'] }, { dia: '2024-02-29', ids: cien }]) {
+    assert.equal(validarAjuste('habitosRecordados', bueno), true, JSON.stringify(bueno))
+  }
+  for (const malo of [
+    { dia: '2026-02-30', ids: [] }, { dia: '', ids: [] }, { ids: [] }, { dia: '2026-11-26' }, { dia: '2026-11-26', ids: ['l-trabajo'] },
+    { dia: '2026-11-26', ids: ['h-../x'] }, { dia: '2026-11-26', ids: ['h-A'] }, { dia: '2026-11-26', ids: [3] }, { dia: '2026-11-26', ids: 'h-agua' },
+    { dia: '2026-11-26', ids: [...cien, 'h-100'] }, { dia: '2026-11-26', ids: [], otra: 1 }, '2026-11-26', null, true, [],
+  ]) {
+    assert.equal(validarAjuste('habitosRecordados', malo), false, JSON.stringify(malo))
+  }
+  // Las otras claves siguen igual: el aviso de tareas no acepta la forma de los recordados
+  assert.equal(validarAjuste('tareasAvisado', { dia: '2026-11-26', ids: [] }), false)
+  assert.equal(validarAjuste('tareasAvisado', '2026-11-26'), true)
+})
+
 test('validarAjuste: una clave desconocida se rechaza', () => {
   assert.equal(validarAjuste('tamano', 125), false)
   assert.equal(validarAjuste('clave', 'sk-falsa'), false)
@@ -829,4 +846,19 @@ test('marcoBajo: menos de 520 px CSS de tablero compacta el encabezado de la hoj
   assert.equal(marcoBajo(519), true)
   assert.equal(marcoBajo(520), false)
   assert.equal(marcoBajo(640), false)
+})
+
+test('validarAjuste: habitosResumen (un lunes o vacío) y habitosFrase ({ lunes, frase }), como preferencias.rs (habitos-ux.md 8.4)', () => {
+  for (const bueno of ['2026-11-23', '']) assert.equal(validarAjuste('habitosResumen', bueno), true, bueno)
+  for (const malo of ['2026-11-24', '2026-02-30', null, 20261123]) assert.equal(validarAjuste('habitosResumen', malo), false, String(malo))
+  assert.equal(validarAjuste('habitosFrase', { lunes: '2026-11-23', frase: 'Bien.' }), true)
+  assert.equal(validarAjuste('habitosFrase', { lunes: '2026-11-23', frase: '' }), true)
+  assert.equal(validarAjuste('habitosFrase', { lunes: '2026-11-24', frase: '' }), false)
+  assert.equal(validarAjuste('habitosFrase', { lunes: '2026-11-23', frase: 'a\nb' }), false)
+  // Las claves de antes siguen igual
+  assert.equal(validarAjuste('tareasAvisado', '2026-11-24'), true)
+  assert.equal(validarAjuste('habitosRecordados', { dia: '2026-11-26', ids: ['h-agua'] }), true)
+  assert.equal(validarAjuste('habitosRecordados', '2026-11-23'), false)
+  assert.equal(validarAjuste('mascota', 'lumen'), true)
+  assert.equal(validarAjuste('otra', '2026-11-23'), false)
 })
