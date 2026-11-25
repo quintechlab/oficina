@@ -3,14 +3,14 @@
 // "Hechas", los vacíos, el primer uso y los errores. Solo HTML, como configuracionVista.js: los datos
 // llegan armados desde main.js y nada de acá toca el DOM. main.js redibuja por partes (`data-parte`)
 // y nunca pisa un campo mientras se escribe en él.
-// Entrega 1: la tarea abierta (4.7) es de la entrega 2, así que el cuerpo de la fila todavía no es un botón.
+// Entrega 2: el cuerpo de la fila abre la tarea, que entra en el lugar de la lista (4.7, `partesDetalle`).
 
 import { escapar } from './logica.js'
 import { avi, claudeDe } from './avis.js'
 import { especieValida } from './especies.js'
 import {
   vista, colorDe, pendientesDe, etiquetaFecha, fechaCorta, avanceHoy, cifrasLista, textoBorrarLista, textoCampoNueva,
-  vacioVista, nombreVista,
+  vacioVista, nombreVista, opcionFecha, textoSubtareas, creadaEl,
 } from './tareas.js'
 
 const ICONO = {
@@ -155,14 +155,14 @@ export function filaTarea({ lista, tarea }, { conLista = false, hoy, recien = nu
   const meta = [
     f ? `<span class="tag t-${f.tono}"><span class="oculto">, ${escapar(f.largo)}</span><span aria-hidden="true">${escapar(f.corto)}</span></span>` : '',
     conLista ? `<span class="de-l" style="--c:${color(lista.color)}"><i class="pt" aria-hidden="true"></i>${escapar(lista.nombre)}</span>` : '',
-    subs.length ? `<span class="subc" style="--p:${pct(h, subs.length)}"><i aria-hidden="true"></i>${h}/${subs.length}<span class="oculto"> subtareas hechas</span></span>` : '',
+    subs.length ? `<span class="subc" style="--p:${pct(h, subs.length)}"><i aria-hidden="true"></i><span aria-hidden="true">${h}/${subs.length}</span><span class="oculto">, ${h} de ${subs.length} subtareas hechas</span></span>` : '',
     tarea.notas ? `${ICONO.nota}<span class="oculto">, con notas</span>` : '',
   ].join('')
   const clases = ['fila', tarea.hecha ? 'hecha' : '', tarea.importante ? 'imp' : '', recien === tarea.id ? 'recien' : ''].filter(Boolean).join(' ')
   const id = escapar(tarea.id)
   return `<li class="${clases}" data-id="${id}" style="--c:${color(lista.color)}">`
     + `<button type="button" class="ck" role="checkbox" aria-checked="${!!tarea.hecha}" aria-label="Hecha: ${escapar(tarea.titulo)}" data-accion="tar-tildar" data-lista="${escapar(lista.id)}" data-valor="${id}" data-k="ck-${id}">${ICONO.visto}</button>`
-    + `<div class="f-cuerpo"><span class="tit">${escapar(tarea.titulo)}</span>${tarea.importante ? '<span class="oculto">, importante</span>' : ''}${meta ? `<span class="meta">${meta}</span>` : ''}</div>`
+    + `<button type="button" class="f-cuerpo" data-accion="tar-abrir-tarea" data-valor="${id}" data-k="ab-${id}"><span class="tit">${escapar(tarea.titulo)}</span>${tarea.importante ? '<span class="oculto">, importante</span>' : ''}${meta ? `<span class="meta">${meta}</span>` : ''}</button>`
     + `${tarea.importante ? '<span class="imp-b" aria-hidden="true">!</span>' : '<span></span>'}</li>`
 }
 
@@ -197,6 +197,72 @@ export function primerUso(especie, errorLista = null) {
     + `<label class="campo">${ICONO.mas}<input data-campo="lista" data-k="primer-in" maxlength="40" placeholder="Otro nombre…" aria-label="Nombre de la lista nueva"><kbd>Enter</kbd></label>`
     + (errorLista ? `<p class="ix-err" role="alert">${escapar(errorLista)}</p>` : '')
     + '</div>'
+}
+
+// ------------------------------------------------------------------ la tarea abierta (4.7, entrega 2)
+
+/** «‹ {vista}» (4.7): vuelve a la lista; ocupa el lugar del encabezado del panel. */
+export function atrasTarea(nombre) {
+  return `<button type="button" class="lnk atras" data-accion="tar-cerrar-tarea" data-k="atras">‹ ${escapar(nombre)}</button>`
+}
+
+/**
+ * Lo fijo de la tarea abierta (3.3): el `h2` oculto con el título (main.js lo sigue mientras se escribe)
+ * y el detalle por partes, cada una redibujada solo si cambió (título y notas nunca se pisan).
+ */
+export function esqueletoDetalle(titulo) {
+  return `<h2 class="oculto" id="tar-pane-h">${escapar(titulo)}</h2><div class="det">`
+    + '<div class="det-tit" data-parte="det-tit"></div><div class="det-g" data-parte="det-g"></div>'
+    + '<div class="det-subs" data-parte="det-sub"></div><div class="det-notas" data-parte="det-notas"></div>'
+    + '<div class="det-pie" data-parte="det-pie"></div></div>'
+}
+
+/**
+ * Segmentos (`radiogroup` con foco itinerante, como los de la configuración): la elegida es la única
+ * en el orden de tabulación; sin ninguna elegida (otra fecha), la primera.
+ */
+function segmentos(accion, opciones, actual, etiqueta, clase) {
+  const alguna = opciones.some(([v]) => v === actual)
+  const botones = opciones.map(([v, t], i) => {
+    const sel = v === actual
+    return `<button type="button" role="radio" aria-checked="${sel}" tabindex="${sel || (!alguna && i === 0) ? 0 : -1}" data-accion="${accion}" data-valor="${v}" data-k="${accion.slice(4)}-${v}">${t}</button>`
+  }).join('')
+  return `<div class="seg ${clase}" role="radiogroup" aria-label="${etiqueta}">${botones}</div>`
+}
+
+/**
+ * Las partes de la tarea abierta (4.7): `tit` (el tilde «Hecha» y el título editable), `datos` (Vence,
+ * Prioridad y Lista), `subs` (las subtareas: la que se edita es un campo, `editandoSub`), `notas` y
+ * `pie` («Creada el {d/m}» y «Borrar tarea», que confirma en el mismo botón: `armado`, `transcurrido`).
+ * Los campos llevan `data-campo` (main.js no los pisa al redibujar); la fecha y la lista, `data-cambio`.
+ */
+export function partesDetalle({ lista, tarea, listas, hoy, editandoSub = null, armado = false, transcurrido = 0 }) {
+  const id = escapar(tarea.id)
+  const f = etiquetaFecha(tarea.fecha, hoy)
+  const tit = `<button type="button" class="ck" role="checkbox" aria-checked="${!!tarea.hecha}" aria-label="Hecha" data-accion="tar-tildar-det" data-valor="${id}" data-k="ckd-${id}">${ICONO.visto}</button>`
+    + `<textarea class="tit-in${tarea.hecha ? ' hecha' : ''}" rows="1" maxlength="200" aria-label="Título de la tarea" data-campo="titulo" data-k="tit-${id}">${escapar(tarea.titulo)}</textarea>`
+  const opcionesLista = [...listas].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+    .map(l => `<option value="${escapar(l.id)}"${l.id === lista.id ? ' selected' : ''}>${escapar(l.nombre)}</option>`).join('')
+  const datos = '<span class="det-l">Vence</span><div class="det-f">'
+    + segmentos('tar-fecha', [['hoy', 'Hoy'], ['manana', 'Mañana'], ['sin', 'Sin fecha']], opcionFecha(tarea.fecha, hoy), 'Vence', 'ch')
+    + `<input type="date" class="fecha-in" value="${escapar(tarea.fecha ?? '')}" aria-label="Elegir otra fecha" data-cambio="tar-fecha-in" data-k="fecha-in">`
+    + (f ? `<span class="vence t-${f.tono}">${escapar(f.largo)}</span>` : '')
+    + '</div><span class="det-l">Prioridad</span><div class="det-f">'
+    + segmentos('tar-prio', [['normal', 'Normal'], ['imp', '! Importante']], tarea.importante ? 'imp' : 'normal', 'Prioridad', 'prio')
+    + `</div><span class="det-l">Lista</span><div class="det-f"><select class="sel" aria-label="Lista" data-cambio="tar-lista" data-k="lista-sel">${opcionesLista}</select></div>`
+  const items = (tarea.subtareas ?? []).map(s => {
+    const sid = escapar(s.id)
+    const texto = s.id === editandoSub
+      ? `<input class="sub-in" data-campo="sub-ed" data-valor="${sid}" data-k="sub-ed-${sid}" maxlength="200" value="${escapar(s.titulo)}" aria-label="Texto de la subtarea (vacío, se borra)">`
+      : `<button type="button" class="sub-t" data-accion="tar-editar-sub" data-valor="${sid}" data-k="st-${sid}" aria-label="Editar «${escapar(s.titulo)}»">${escapar(s.titulo)}</button>`
+    return `<li${s.hecha ? ' class="hecha"' : ''} data-id="${sid}"><button type="button" class="ck chico" role="checkbox" aria-checked="${!!s.hecha}" aria-label="Subtarea hecha: ${escapar(s.titulo)}" data-accion="tar-tildar-sub" data-valor="${sid}" data-k="cks-${sid}">${ICONO.visto}</button>${texto}</li>`
+  }).join('')
+  const subs = `<h3 class="sub">${escapar(textoSubtareas(tarea.subtareas))}</h3>${items ? `<ul class="subs">${items}</ul>` : ''}`
+    + `<label class="campo chico">${ICONO.mas}<input data-campo="subtarea" data-k="sub-in" maxlength="200" placeholder="Agregar una subtarea" aria-label="Agregar una subtarea"><kbd>Enter</kbd></label>`
+  const notas = `<h3 class="sub">Notas</h3><textarea class="notas" rows="3" maxlength="4000" placeholder="Algo para acordarte…" aria-label="Notas" data-campo="notas" data-k="notas">${escapar(tarea.notas ?? '')}</textarea>`
+  const pie = `<span class="cifras">${escapar(creadaEl(tarea.creada ?? 0))}</span>`
+    + confirmable('tar-borrar-tarea', tarea.id, 'borrar-tarea', 'Borrar tarea', '¿Borrar? Sí', armado, transcurrido)
+  return { tit, datos, subs, notas, pie }
 }
 
 // ------------------------------------------------------------------ errores (7.4 y 7.6)

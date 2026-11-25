@@ -946,17 +946,14 @@ async fn tareas_leer(app: AppHandle) -> Result<serde_json::Value, String> {
 }
 
 /// Guarda una lista entera (formato v1; lo que no sirve se rechaza sin tocar el archivo):
-/// `{ ok: true, lista }` con lo guardado, o `{ ok: false, error }`.
+/// `{ ok: true, lista }` con lo guardado, o `{ ok: false, error }` (lo anota la ventana, 7.4: una sola línea en widget.log).
 #[tauri::command]
 async fn tareas_guardar(app: AppHandle, lista: serde_json::Value) -> Result<serde_json::Value, String> {
     let carpeta = carpeta_tareas(&app)?;
     let r = tauri::async_runtime::spawn_blocking(move || tareas::guardar(&carpeta, &lista)).await.map_err(|e| e.to_string())?;
     Ok(match r {
         Ok(lista) => serde_json::json!({ "ok": true, "lista": lista }),
-        Err(error) => {
-            registrar(format!("tareas: no se pudo guardar: {error}"));
-            serde_json::json!({ "ok": false, "error": error })
-        }
+        Err(error) => serde_json::json!({ "ok": false, "error": error }),
     })
 }
 

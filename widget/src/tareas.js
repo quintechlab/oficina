@@ -7,7 +7,7 @@
 // Sin DOM: lo dibuja tareasVista.js, lo mueve tareasMotion.js y lo conecta main.js (que guarda con
 // `tareas_guardar`). Confirmar en el mismo botón es `clicBorrar` de configuracion.js, sobre `armado`.
 
-import { hoyArgentina, diasEntre, sumarDias } from './fechas.js'
+import { hoyArgentina, diasEntre, sumarDias, fechaValida } from './fechas.js'
 
 export { hoyArgentina, diasEntre }
 
@@ -179,9 +179,12 @@ export function textoErrorLista(r) {
   return r?.motivo === 'duplicada' ? `Ya hay una lista «${r.existente}».` : null
 }
 
-/** Un título (8): sin los espacios de los bordes y recortado a 200; vacío, el `anterior` (o null). */
+/**
+ * Un título (8): sin los espacios de los bordes y recortado a 200; vacío, el `anterior` (o null). Es de
+ * una línea: un salto pegado queda como un espacio.
+ */
 export function validarTitulo(texto, anterior = null) {
-  const t = String(texto ?? '').trim()
+  const t = String(texto ?? '').replace(/\s*[\r\n]+\s*/g, ' ').trim()
   if (!t) return anterior
   return [...t].slice(0, MAX_TITULO).join('')
 }
@@ -235,6 +238,165 @@ export function tildarTarea(lista, id, hecha, ahora) {
   return { ...lista, tareas: lista.tareas.map(x => (x.id === id ? { ...x, hecha: !!hecha, hechaEn: hecha ? ahora : null } : x)) }
 }
 
+// ---- la tarea abierta (4.7, entrega 2): mismas formas que `tildarTarea` (la lista, el id → una lista nueva)
+
+const conTarea = (lista, id, f) => ({ ...lista, tareas: lista.tareas.map(x => (x.id === id ? f(x) : x)) })
+const recortar = (s, max) => [...String(s ?? '')].slice(0, max).join('')
+
+/** La tarea de un id y su lista, en cualquier lista (los ids no se repiten entre listas), o null. */
+export function buscarTarea(listas, id) {
+  for (const lista of listas) {
+    const tarea = lista.tareas.find(x => x.id === id)
+    if (tarea) return { lista, tarea }
+  }
+  return null
+}
+
+/**
+ * Cambia los datos de una tarea (4.7): `titulo` (con `validarTitulo`: vacío deja el anterior), `notas`
+ * (hasta 4000), `fecha` ("AAAA-MM-DD" válida, si no null) e `importante`. Solo lo que viene en `cambios`.
+ */
+export function editarTarea(lista, id, cambios) {
+  return conTarea(lista, id, x => {
+    const n = { ...x }
+    if ('titulo' in cambios) n.titulo = validarTitulo(cambios.titulo, x.titulo)
+    if ('notas' in cambios) n.notas = recortar(cambios.notas, MAX_NOTAS)
+    if ('fecha' in cambios) n.fecha = fechaValida(cambios.fecha) ? cambios.fecha : null
+    if ('importante' in cambios) n.importante = !!cambios.importante
+    return n
+  })
+}
+
+/** Una subtarea nueva al final (4.7), o null si el texto queda vacío o ya hay 50 (11.1). */
+export function agregarSubtarea(lista, id, texto, subId) {
+  const t = validarTitulo(texto)
+  const tarea = lista.tareas.find(x => x.id === id)
+  if (!t || !tarea || (tarea.subtareas ?? []).length >= MAX_SUBTAREAS) return null
+  return conTarea(lista, id, x => ({ ...x, subtareas: [...(x.subtareas ?? []), { id: subId, titulo: t, hecha: false }] }))
+}
+
+export function tildarSubtarea(lista, id, subId, hecha) {
+  return conTarea(lista, id, x => ({ ...x, subtareas: (x.subtareas ?? []).map(s => (s.id === subId ? { ...s, hecha: !!hecha } : s)) }))
+}
+
+/** El texto de una subtarea; vaciarlo la borra (D-n2: no hay botón ×). */
+export function editarSubtarea(lista, id, subId, texto) {
+  const t = validarTitulo(texto)
+  return conTarea(lista, id, x => ({
+    ...x,
+    subtareas: t ? (x.subtareas ?? []).map(s => (s.id === subId ? { ...s, titulo: t } : s)) : (x.subtareas ?? []).filter(s => s.id !== subId),
+  }))
+}
+
+/** «Subtareas · {h} de {n}» (5.1); sin subtareas, «Subtareas». */
+export function textoSubtareas(subs) {
+  const n = (subs ?? []).length
+  return n ? `Subtareas · ${subs.filter(s => s.hecha).length} de ${n}` : 'Subtareas'
+}
+
+export function borrarTarea(lista, id) {
+  return { ...lista, tareas: lista.tareas.filter(x => x.id !== id) }
+}
+
+/**
+ * Mueve una tarea a otra lista (4.7, "Lista"): sale de la suya y entra al final de la de destino, igual
+ * que estaba. Devuelve `{ listas, origen, destino }` (una sola copia), o null si no hay nada que mover.
+ */
+export function moverTarea(listas, id, destinoId) {
+  const hallada = buscarTarea(listas, id)
+  if (!hallada || hallada.lista.id === destinoId || !listas.some(l => l.id === destinoId)) return null
+  const origen = hallada.lista.id
+  return {
+    origen, destino: destinoId,
+    listas: listas.map(l => (l.id === origen ? borrarTarea(l, id) : l.id === destinoId ? { ...l, tareas: [...l.tareas, hallada.tarea] } : l)),
+  }
+}
+
+// Mover guarda dos archivos (11.3): primero el de destino, después el de origen. Mientras el destino no
+// confirmó un guardado que empezó después de mover, la tarea sigue también en el archivo de origen: si
+// algo falla queda duplicada, nunca perdida. Una mudanza es `{ tarea, origen, destino, desde }`, con
+// `desde` = el número del último guardado del destino que había empezado al mover.
+
+export function nuevaMudanza(mudanzas, m) {
+  return [...mudanzas, { tarea: m.tarea, origen: m.origen, destino: m.destino, desde: m.desde ?? 0 }]
+}
+
+/**
+ * Lo que se manda a `tareas_guardar` para una lista: la de la pantalla más las tareas que salieron de
+ * ella y su destino todavía no confirmó (la versión de pantalla, esté donde esté). null si no existe.
+ */
+export function listaParaGuardar(listas, id, mudanzas) {
+  const lista = listas.find(l => l.id === id)
+  if (!lista) return null
+  const extra = []
+  for (const m of mudanzas) {
+    if (m.origen !== id || lista.tareas.some(x => x.id === m.tarea) || extra.some(x => x.id === m.tarea)) continue
+    const hallada = buscarTarea(listas, m.tarea)
+    if (hallada) extra.push(hallada.tarea)
+  }
+  return extra.length ? { ...lista, tareas: [...lista.tareas, ...extra] } : lista
+}
+
+/**
+ * El guardado `n` del `destino` salió bien: suelta las mudanzas hacia él que empezaron antes de ese
+ * guardado. `origenes`: las listas que ahora hay que guardar (sin la tarea).
+ */
+export function soltarMudanzas(mudanzas, destino, n) {
+  const sueltas = mudanzas.filter(m => m.destino === destino && n > m.desde)
+  return { mudanzas: mudanzas.filter(m => !sueltas.includes(m)), origenes: [...new Set(sueltas.map(m => m.origen))] }
+}
+
+/** Una tarea borrada: sus mudanzas se olvidan y sus orígenes se vuelven a guardar (sin ella). */
+export function olvidarMudanzas(mudanzas, tareaId) {
+  const sueltas = mudanzas.filter(m => m.tarea === tareaId)
+  return { mudanzas: mudanzas.filter(m => m.tarea !== tareaId), origenes: [...new Set(sueltas.map(m => m.origen))] }
+}
+
+/** "Vence" (4.7): la opción elegida de Hoy · Mañana · Sin fecha; otra fecha, ninguna (null). */
+export function opcionFecha(fecha, hoy) {
+  if (!fecha) return 'sin'
+  if (fecha === hoy) return 'hoy'
+  return fecha === sumarDias(hoy, 1) ? 'manana' : null
+}
+
+export function fechaDeOpcion(opcion, hoy) {
+  return opcion === 'hoy' ? hoy : opcion === 'manana' ? sumarDias(hoy, 1) : null
+}
+
+/** El pie de la tarea abierta (5.1): «Creada el {d/m}», en el día de Argentina. */
+export function creadaEl(ms) {
+  const p = partes(hoyArgentina(ms))
+  return `Creada el ${p.dia}/${p.mes}`
+}
+
+/** Título y notas se guardan 600 ms después de dejar de escribir y al salir del campo (11.3). */
+export const ESPERA_GUARDAR_MS = 600
+
+/**
+ * El guardado diferido de título y notas, sobre el guardado de siempre (`guardar(idLista)`, el de
+ * main.js con su reintento de 7.4): `programar` lo deja para 600 ms después del último cambio; `ya` lo
+ * hace al instante si había algo pendiente (al salir del campo, Enter o cerrar la tarea); `todos`, lo
+ * pendiente de cada lista.
+ */
+export function diferirGuardado(guardar, ms = ESPERA_GUARDAR_MS) {
+  const relojes = new Map()
+  const ya = id => {
+    if (!relojes.has(id)) return
+    globalThis.clearTimeout(relojes.get(id))
+    relojes.delete(id)
+    guardar(id)
+  }
+  return {
+    programar(id) {
+      globalThis.clearTimeout(relojes.get(id))
+      relojes.set(id, globalThis.setTimeout(() => ya(id), ms))
+    },
+    ya,
+    todos: () => [...relojes.keys()].forEach(ya),
+    pendiente: id => relojes.has(id),
+  }
+}
+
 /**
  * Lo leído de `tareas_leer` en lugar de lo que hay en pantalla, salvo las listas que no se pudieron
  * guardar (`sinGuardar`): esas siguen como están en pantalla (7.4: lo que está en pantalla no se deshace).
@@ -256,7 +418,7 @@ export function mezclarLectura(leidas, enPantalla, sinGuardar) {
  */
 export function tareasInicial() {
   return {
-    abierta: false, ver: 'hoy', det: null, armado: null, renombrando: null, creando: false, errorLista: null,
+    abierta: false, ver: 'hoy', det: null, editandoSub: null, armado: null, renombrando: null, creando: false, errorLista: null,
     hechas: false, feliz: false, listas: [], rotas: [], leido: false, cargando: false, fantasmas: false,
     errorGuardar: false, errorLeer: null,
   }
@@ -264,31 +426,43 @@ export function tareasInicial() {
 
 /** Abre en la última vista de esta ejecución (la primera vez, Hoy), o en `ver` (el globo abre en Hoy). */
 export function abrirTareas(t, ver) {
-  return { ...t, abierta: true, ver: ver ?? t.ver, det: null, armado: null, hechas: false }
+  return { ...t, abierta: true, ver: ver ?? t.ver, det: null, editandoSub: null, armado: null, hechas: false }
 }
 
 /** Cierra: descarta lo que se escribía en el índice, desarma y cierra la tarea; la vista queda. */
 export function cerrarTareas(t) {
-  return { ...t, abierta: false, det: null, armado: null, renombrando: null, creando: false, errorLista: null, hechas: false }
+  return { ...t, abierta: false, det: null, editandoSub: null, armado: null, renombrando: null, creando: false, errorLista: null, hechas: false }
 }
 
 /** Cambia de vista: "Hechas" vuelve a plegarse (3.4), se desarma y se cierra lo abierto. */
 export function cambiarVista(t, ver) {
-  return { ...t, ver, det: null, armado: null, renombrando: null, creando: false, errorLista: null, hechas: false }
+  return { ...t, ver, det: null, editandoSub: null, armado: null, renombrando: null, creando: false, errorLista: null, hechas: false }
+}
+
+/** Abre una tarea en el lugar de la lista (4.7, B): la vista y "Hechas" quedan para volver. */
+export function abrirDetalle(t, id) {
+  return { ...t, det: id, editandoSub: null, armado: null, renombrando: null, creando: false, errorLista: null }
+}
+
+/** Cierra la tarea ("‹ {vista}" o Esc): la lista vuelve como estaba. */
+export function cerrarDetalle(t) {
+  return { ...t, det: null, editandoSub: null, armado: null }
 }
 
 /**
  * Esc con la hoja abierta (9.1), una capa por vez: 1) un campo de una línea con algo escrito (nueva
  * tarea, nueva subtarea; `foco`: `{ campo, texto }`) se vacía; 2) renombrar o crear una lista se
- * cancela; 3) un "¿Borrar…? Sí" se desarma; 4) la tarea abierta se cierra; 5) la hoja se cierra.
+ * cancela, y también el texto de una subtarea que se edita (vuelve el de antes); 3) un "¿Borrar…? Sí"
+ * se desarma; 4) la tarea abierta se cierra (título y notas ya se guardan solos); 5) la hoja se cierra.
  * Cerrada, no es de la hoja (`accion` null): el Esc siguiente es del panel acoplado.
  */
 export function alEscTareas(t, foco) {
   if (!t.abierta) return { tareas: t, accion: null }
   if ((foco?.campo === 'nueva' || foco?.campo === 'subtarea') && foco.texto) return { tareas: t, accion: 'vaciar' }
   if (t.renombrando || t.creando) return { tareas: { ...t, renombrando: null, creando: false, errorLista: null }, accion: 'cancelar-lista' }
+  if (t.editandoSub) return { tareas: { ...t, editandoSub: null }, accion: 'cancelar-sub' }
   if (t.armado) return { tareas: { ...t, armado: null }, accion: 'desarmar' }
-  if (t.det) return { tareas: { ...t, det: null }, accion: 'cerrar-tarea' }
+  if (t.det) return { tareas: cerrarDetalle(t), accion: 'cerrar-tarea' }
   return { tareas: cerrarTareas(t), accion: 'cerrar' }
 }
 

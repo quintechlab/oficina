@@ -60,8 +60,13 @@
 //   ?tareas=vacia      Ideas (vacía) y Casa con una tarea para mañana: "Listo por hoy." · "Mañana: 1 tarea."
 //   ?tareas=roto       un archivo que no se pudo leer (7.6): su fila en el índice y su error con "Abrir la carpeta"
 //   ?tareas=guardarfalla  tareas_guardar falla siempre: el primer cambio muestra "No se guardó el último cambio." (7.4)
+//   ?tareas=tarea      la tarea abierta (4.7): "Revisar el PR #36" de Trabajo, con fecha de hoy, importante,
+//                      tres subtareas (una hecha) y notas; "‹ Hoy" vuelve
+//   ?tareas=moverfalla la misma tarea abierta, pero guardar Casa falla siempre: moverla a Casa muestra el error
+//                      de 7.4 y Trabajo no se guarda (la tarea sigue en su archivo: duplicada, nunca perdida)
 //   &tareaslento       tareas_leer tarda 1,2 s (las filas fantasma de 7.1)
-//   Lo guardado queda en window.__tareas (un Map por id de lista).
+//   Lo guardado queda en window.__tareas (un Map por id de lista). Cada guardado se anota en
+//   window.__guardadasTareas ([id, n.º de tareas], en orden): mover guarda primero el destino y después el origen.
 //   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
 //                 docs/diseno/mascotas-avi-ux.md 9.1), con su forma evolucionada, sus bucles y sus actos;
 //                 los subagentes, sus variantes (7.3; con el Avi, el elenco por nombre)
@@ -568,6 +573,7 @@
   )
   const rotasTareas = modoTareas === 'roto' ? [{ archivo: 'l-mf3k2a9x1b.json', motivo: 'no es JSON: EOF while parsing a value at line 14 column 0' }] : []
   window.__tareas = listasTareas
+  window.__guardadasTareas = []
   const comandosTareas = {
     // Como tareas.rs: las listas por orden y los archivos rotos (&tareaslento tarda 1,2 s: las filas fantasma)
     tareas_leer: () => new Promise(r => setTimeout(() => r({
@@ -577,6 +583,8 @@
     tareas_guardar: ({ lista }) => {
       if (!/^l-[a-z0-9-]{1,38}$/.test(lista?.id ?? '')) return { ok: false, error: 'id de lista inválido' }
       if (modoTareas === 'guardarfalla') return { ok: false, error: 'acceso denegado (falso)' }
+      if (modoTareas === 'moverfalla' && lista.id === 'l-casa') return { ok: false, error: 'acceso denegado (falso)' }
+      window.__guardadasTareas.push([lista.id, lista.tareas.length])
       listasTareas.set(lista.id, structuredClone(lista))
       console.info('[tareas] guardada', lista.id, lista.tareas.length)
       return { ok: true, lista }
@@ -595,6 +603,8 @@
       document.querySelector('#tar-fila')?.click()
       const ver = { vencidas: 'ix-vencidas', lista: 'ix-l-trabajo', roto: 'ix-rota:l-mf3k2a9x1b.json' }[modoTareas]
       if (ver) setTimeout(() => document.querySelector(`#tar [data-k="${ver}"]`)?.click(), 400)
+      // La tarea abierta: el clic en el cuerpo de su fila, en Hoy
+      if (modoTareas === 'tarea' || modoTareas === 'moverfalla') setTimeout(() => document.querySelector('#tar [data-k="ab-t-falsa1"]')?.click(), 400)
     }, 900)
   }
 

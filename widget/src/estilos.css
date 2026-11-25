@@ -1888,7 +1888,12 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 /* La hoja en el marco */
 #tar:empty, #tar-aviso:empty { display: none }
 #marco:not(.con-tar) #tar-volver { display: none }
-#marco.con-tar #tar-volver { display: inline-flex; margin-right: var(--e-2) }
+/* "‹ Tablero" va primero en los controles (3.3), centrado con los botones de 32 y con las medidas del
+   boceto (relleno 10/8, 12 px): así la bajada "martes 24/11 · 2 para hoy · 2 vencidas" entra en una línea
+   al 100 %. Si una bajada más larga no entra, se corta con "…" (las cuentas siguen a la vista en el índice) */
+#marco.con-tar #tar-volver { display: inline-flex; margin-right: 0; padding: 0 10px 0 8px; font-size: 12px }
+#marco.con-tar .controles { align-items: center }
+#marco.con-tar #subtitulo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #marco.con-tar #vacio-avi, #marco.con-tar #otro, #marco.con-tar #pestanas, #marco.con-tar .split, #marco.con-tar .ficha-u,
 #marco.con-tar #w-globo, #marco.con-tar #pp, #marco.con-tar .conteos, #marco.con-tar .sesiones { display: none }
 #marco.con-tar .principal { overflow: hidden }
@@ -2039,6 +2044,80 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 #tar .err > .pt { margin-top: 5px }
 #tar .err .acc { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--e-1) var(--e-2); margin-left: calc(-1 * var(--e-3)) }
 
+/* La tarea abierta (4.7): entra en el lugar de la lista, con "‹ {vista}" arriba. El cuerpo de la fila
+   ahora es un botón (la abre) */
+#tar .f-cuerpo { border: 0; background: none; color: inherit; text-align: left; cursor: pointer; border-radius: var(--e-4) }
+#tar .f-cuerpo:focus-visible { outline-offset: -2px }
+#tar .atras { justify-self: start; margin: 0 0 var(--e-2) calc(-1 * var(--e-3)) }
+#tar .det { --c: var(--ambar); display: grid; gap: var(--e-5); padding-top: var(--e-1) }
+#tar .det-tit { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center }
+#tar .tit-in {
+  display: block; width: 100%; min-height: 36px; padding: var(--e-2) var(--e-3); resize: none; field-sizing: content; overflow: hidden;
+  border: 0; border-radius: var(--e-4); background: none; outline: none; color: var(--crema); font: 800 16px/1.25 var(--f); letter-spacing: -.015em;
+  transition: background var(--d-color) ease, color .3s ease
+}
+#tar .tit-in:hover { background: var(--s2) }
+/* El foco del título es su anillo interior (sin el contorno de 2, 12) */
+#tar .tit-in:focus, #tar .tit-in:focus-visible { outline: none; background: var(--s2); box-shadow: 0 0 0 1.5px var(--ambar) inset }
+#tar .tit-in.hecha { color: var(--tenue); text-decoration: line-through; text-decoration-thickness: 1.5px }
+#tar .det-g {
+  display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: var(--e-4) var(--e-5); align-items: center;
+  padding: var(--e-5) 0; border-top: 1px solid var(--linea); border-bottom: 1px solid var(--linea)
+}
+#tar .det-l { font: var(--t-rotulo); letter-spacing: .1em; text-transform: uppercase; color: var(--tenue) }
+#tar .det-f { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-3); min-width: 0 }
+/* Segmentos (radiogroup, foco itinerante): opciones de 28; Importante elegida, en ámbar */
+#tar .seg { display: inline-flex; gap: var(--e-1); padding: 2px; border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s2) }
+#tar .seg > button {
+  min-height: 28px; padding: 0 var(--e-5); border: 0; border-radius: var(--r-pildora); background: none; color: var(--crema2);
+  font: 700 11px/1 var(--f); white-space: nowrap; cursor: pointer;
+  transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease
+}
+#tar .seg > button:hover { color: var(--crema) }
+#tar .seg > button:active { transform: scale(.97) }
+#tar .seg > button[aria-checked="true"] { background: var(--crema); color: var(--tinta) }
+#tar .seg.prio > button[data-valor="imp"][aria-checked="true"] { background: var(--ambar); color: var(--negro) }
+/* Sobre crema el foco es tinta; sobre ámbar, crema (12) */
+#tar .seg > button[aria-checked="true"]:focus-visible { outline-color: var(--tinta) }
+#tar .seg.prio > button[data-valor="imp"][aria-checked="true"]:focus-visible { outline-color: var(--crema) }
+#tar .fecha-in, #tar .sel {
+  min-height: 30px; padding: 0 var(--e-4); border: 1px solid var(--linea); border-radius: var(--r-campo); background: var(--s1);
+  color: var(--crema2); font: var(--t-mono-s); color-scheme: dark; cursor: pointer
+}
+#tar .sel { max-width: 100%; font: 700 12px/1 var(--f) }
+#tar .fecha-in:focus-visible, #tar .sel:focus-visible { outline: 0; border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
+#tar .vence { display: inline-flex; align-items: center; gap: 5px; font: var(--t-mono-s); color: var(--c, var(--tenue)) }
+#tar .vence.t-nada { --c: var(--tenue) }
+#tar .vence.t-error::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor }
+#tar .det .sub { margin: var(--e-1) 0 0; font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+#tar .det-subs, #tar .det-notas { display: grid; gap: var(--e-3) }
+#tar .subs { list-style: none; display: grid; margin: 0; padding: 0 }
+#tar .subs li { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center }
+#tar .ck.chico { width: 32px; height: 30px; border-radius: var(--e-4) }
+#tar .ck.chico::before { width: 15px; height: 15px; border-radius: 5px }
+#tar .ck.chico svg { width: 10px; height: 10px }
+#tar .subs li:hover > .ck.chico::before { border-color: var(--ambar) }
+#tar .sub-t {
+  min-height: 30px; padding: 0 var(--e-3); border: 0; border-radius: var(--e-3); background: none; color: var(--crema);
+  font: var(--t-cuerpo); text-align: left; overflow-wrap: anywhere; cursor: text; transition: background var(--d-color) ease
+}
+#tar .sub-t:hover { background: var(--s2) }
+#tar .subs li.hecha .sub-t { color: var(--tenue); text-decoration: line-through }
+#tar .sub-in {
+  width: 100%; min-height: 30px; padding: 0 var(--e-3); border: 1px solid var(--ambar); border-radius: var(--e-3); background: var(--s1);
+  color: var(--crema); font: var(--t-cuerpo); outline: none; box-shadow: 0 0 0 3px rgba(242, 182, 50, .14)
+}
+#tar .campo.chico { min-height: 32px; margin-left: 32px }
+#tar .notas {
+  display: block; width: 100%; min-height: 64px; padding: var(--e-4) var(--e-5); resize: vertical; border: 1px solid var(--linea);
+  border-radius: var(--r-campo); background: var(--s1); color: var(--crema); font: var(--t-cuerpo); outline: none;
+  transition: border-color var(--d-color) ease, box-shadow var(--d-color) ease
+}
+#tar .notas::placeholder { color: var(--tenue) }
+#tar .notas:focus { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
+#tar .det-pie { display: flex; justify-content: space-between; align-items: center; gap: var(--e-4); padding-top: var(--e-1) }
+#tar .det-pie .lnk { margin-right: calc(-1 * var(--e-3)) }
+
 /* Movimiento (10): el círculo se hunde y rebota, el visto se dibuja, la raya tacha, la fila nueva
    destella, el chip late y el visto de la fila de la barra se redibuja. Con movimiento reducido o pausa,
    al instante */
@@ -2046,7 +2125,11 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 @keyframes tarRecien { 0% { background: color-mix(in srgb, var(--ambar) 14%, transparent) } 100% { background: transparent } }
 @keyframes tarLate { 40% { transform: scale(1.25) } }
 @keyframes tarRetilde { 0% { stroke-dashoffset: 9 } 100% { stroke-dashoffset: 0 } }
+@keyframes tarVisto { 0% { stroke-dashoffset: 14 } 100% { stroke-dashoffset: 0 } }
 @media (prefers-reduced-motion: no-preference) {
+  /* La tarea abierta y sus subtareas se redibujan al tildar: el rebote y el visto van por animación */
+  body:not(.pausa) #tar .det-tit.tildando > .ck::before, body:not(.pausa) #tar .subs li.tildando > .ck::before { animation: tarHunde .42s var(--rebote) }
+  body:not(.pausa) #tar .det-tit.tildando > .ck svg, body:not(.pausa) #tar .subs li.tildando > .ck svg { animation: tarVisto .26s var(--ease) .08s both }
   body:not(.pausa) #tar .ck svg { transition: stroke-dashoffset .26s var(--ease) .08s }
   body:not(.pausa) #tar .tit { transition: background-size .34s var(--ease) .12s, color .3s ease .12s }
   body:not(.pausa) #tar .fila.tildando .ck::before { animation: tarHunde .42s var(--rebote) }
@@ -2058,6 +2141,7 @@ body.pausa #cfg .esp:hover .avi { transform: none }
   body:not(.pausa) .pj.tar:not([aria-current]):hover .tilde-p { animation: tarRetilde .6s var(--ease) }
 }
 @media (prefers-reduced-motion: reduce) {
-  #tar .ix-b, #tar .fila, #tar .fila::before, #tar .ck::before, #tar .fc { transition: none }
+  #tar .ix-b, #tar .fila, #tar .fila::before, #tar .ck::before, #tar .fc, #tar .tit-in, #tar .seg > button, #tar .sub-t, #tar .notas { transition: none }
 }
-body.pausa #tar .ix-b, body.pausa #tar .fila, body.pausa #tar .fila::before, body.pausa #tar .ck::before, body.pausa #tar .fc { transition: none }
+body.pausa #tar .ix-b, body.pausa #tar .fila, body.pausa #tar .fila::before, body.pausa #tar .ck::before, body.pausa #tar .fc,
+body.pausa #tar .tit-in, body.pausa #tar .seg > button, body.pausa #tar .sub-t, body.pausa #tar .notas { transition: none }

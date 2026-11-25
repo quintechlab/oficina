@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   ladoFilaTareas, indiceTareas, cabeceraPanel, campoNueva, cuerpoLista, primerUso, errorGuardar, errorRota,
-  errorCarpeta, avisoPreguntaTareas, esqueletoTareas, CARPETA, miniTareas,
+  errorCarpeta, avisoPreguntaTareas, esqueletoTareas, CARPETA, miniTareas, atrasTarea, esqueletoDetalle, partesDetalle,
 } from '../src/tareasVista.js'
 
 const HOY = '2026-11-24'
@@ -91,7 +91,9 @@ test('filas: el tilde es un checkbox con "Hecha: {título}", la fecha corta con 
   assert.match(html, /class="ck" role="checkbox" aria-checked="false" aria-label="Hecha: Revisar el PR #36" data-accion="tar-tildar" data-lista="l-trabajo" data-valor="t-pr" data-k="ck-t-pr"/)
   assert.match(html, /<span class="tag t-aviso"><span class="oculto">, Vence hoy<\/span><span aria-hidden="true">hoy<\/span><\/span>/)
   assert.match(html, /<span class="de-l" style="--c:var\(--celeste\)"><i class="pt" aria-hidden="true"><\/i>Trabajo<\/span>/)
-  assert.match(html, /<span class="subc" style="--p:33.3%"><i aria-hidden="true"><\/i>1\/3<span class="oculto"> subtareas hechas<\/span><\/span>/)
+  assert.match(html, /<span class="subc" style="--p:33.3%"><i aria-hidden="true"><\/i><span aria-hidden="true">1\/3<\/span><span class="oculto">, 1 de 3 subtareas hechas<\/span><\/span>/)
+  // El cuerpo abre la tarea (4.5, entrega 2): un botón con el título y lo demás en su nombre
+  assert.match(html, /<button type="button" class="f-cuerpo" data-accion="tar-abrir-tarea" data-valor="t-pr" data-k="ab-t-pr"><span class="tit">Revisar el PR #36<\/span><span class="oculto">, importante<\/span>/)
   assert.match(html, /<span class="oculto">, con notas<\/span>/)
   assert.match(html, /<span class="oculto">, importante<\/span>/)
   assert.match(html, /<span class="imp-b" aria-hidden="true">!<\/span>/)
@@ -150,4 +152,83 @@ test('la línea de la pregunta pendiente con la hoja abierta (3.1), y la mascota
   assert.match(avisoPreguntaTareas(1), /<button type="button" class="aviso cfg-aviso" data-accion="tar-pregunta"><span>Claude te hace una pregunta<\/span><span class="ir">Ver →<\/span><\/button>/)
   assert.match(miniTareas('avi', false), /class="avi"/)
   assert.notEqual(miniTareas('avi', true), miniTareas('avi', false))
+})
+
+// ------------------------------------------------------------------ entrega 2: la tarea abierta (4.7)
+
+test('la tarea abierta: «‹ {vista}» para volver, el h2 oculto con el título y las partes del detalle', () => {
+  assert.equal(atrasTarea('Hoy'), '<button type="button" class="lnk atras" data-accion="tar-cerrar-tarea" data-k="atras">‹ Hoy</button>')
+  assert.match(atrasTarea('A <b>'), /‹ A &lt;b&gt;/)
+  const esq = esqueletoDetalle('Pagar <luz>')
+  assert.match(esq, /^<h2 class="oculto" id="tar-pane-h">Pagar &lt;luz&gt;<\/h2><div class="det">/)
+  for (const parte of ['det-tit', 'det-g', 'det-sub', 'det-notas', 'det-pie']) assert.match(esq, new RegExp(`data-parte="${parte}"`))
+})
+
+test('detalle: el tilde «Hecha» y el título editable (textarea de una línea, hasta 200); tildada, tachado', () => {
+  const [lista] = LISTAS
+  const p = partesDetalle({ lista, tarea: lista.tareas[0], listas: LISTAS, hoy: HOY })
+  assert.match(p.tit, /<button type="button" class="ck" role="checkbox" aria-checked="false" aria-label="Hecha" data-accion="tar-tildar-det" data-valor="t-pr" data-k="ckd-t-pr">/)
+  assert.match(p.tit, /<textarea class="tit-in" rows="1" maxlength="200" aria-label="Título de la tarea" data-campo="titulo" data-k="tit-t-pr">Revisar el PR #36<\/textarea>/)
+  const hecha = partesDetalle({ lista, tarea: lista.tareas[2], listas: LISTAS, hoy: HOY })
+  assert.match(hecha.tit, /aria-checked="true"/)
+  assert.match(hecha.tit, /class="tit-in hecha"/)
+})
+
+test('detalle: Vence (Hoy · Mañana · Sin fecha, el selector nativo y el rótulo largo), Prioridad y Lista', () => {
+  const [lista] = LISTAS
+  const p = partesDetalle({ lista, tarea: lista.tareas[0], listas: LISTAS, hoy: HOY })
+  assert.match(p.datos, /<span class="det-l">Vence<\/span>/)
+  assert.match(p.datos, /<div class="seg ch" role="radiogroup" aria-label="Vence">/)
+  assert.match(p.datos, /role="radio" aria-checked="true" tabindex="0" data-accion="tar-fecha" data-valor="hoy" data-k="fecha-hoy">Hoy</)
+  assert.match(p.datos, /role="radio" aria-checked="false" tabindex="-1" data-accion="tar-fecha" data-valor="manana" data-k="fecha-manana">Mañana</)
+  assert.match(p.datos, />Sin fecha</)
+  assert.match(p.datos, /<input type="date" class="fecha-in" value="2026-11-24" aria-label="Elegir otra fecha" data-cambio="tar-fecha-in" data-k="fecha-in">/)
+  assert.match(p.datos, /<span class="vence t-aviso">Vence hoy<\/span>/)
+  assert.match(p.datos, /<div class="seg prio" role="radiogroup" aria-label="Prioridad">/)
+  assert.match(p.datos, /aria-checked="true" tabindex="0" data-accion="tar-prio" data-valor="imp" data-k="prio-imp">! Importante</)
+  assert.match(p.datos, /aria-checked="false" tabindex="-1" data-accion="tar-prio" data-valor="normal" data-k="prio-normal">Normal</)
+  assert.match(p.datos, /<select class="sel" aria-label="Lista" data-cambio="tar-lista" data-k="lista-sel"><option value="l-trabajo" selected>Trabajo<\/option><option value="l-casa">Casa<\/option><\/select>/)
+  // Otra fecha: ninguna opción elegida y la primera queda en el orden de tabulación; sin fecha, sin rótulo
+  const otra = partesDetalle({ lista, tarea: { ...lista.tareas[0], fecha: '2026-11-28' }, listas: LISTAS, hoy: HOY })
+  assert.match(otra.datos, /aria-checked="false" tabindex="0" data-accion="tar-fecha" data-valor="hoy"/)
+  assert.match(otra.datos, /<span class="vence t-nada">Vence el sáb 28\/11<\/span>/)
+  const sin = partesDetalle({ lista, tarea: { ...lista.tareas[0], fecha: null }, listas: LISTAS, hoy: HOY })
+  assert.match(sin.datos, /aria-checked="true" tabindex="0" data-accion="tar-fecha" data-valor="sin"/)
+  assert.match(sin.datos, /value=""/)
+  assert.doesNotMatch(sin.datos, /class="vence/)
+})
+
+test('detalle: subtareas con su cuenta, tilde cuadrado y texto que se edita con un clic; el campo «Agregar una subtarea»', () => {
+  const [lista] = LISTAS
+  const p = partesDetalle({ lista, tarea: lista.tareas[0], listas: LISTAS, hoy: HOY })
+  assert.match(p.subs, /^<h3 class="sub">Subtareas · 1 de 3<\/h3><ul class="subs">/)
+  assert.match(p.subs, /<li class="hecha" data-id="s-1"><button type="button" class="ck chico" role="checkbox" aria-checked="true" aria-label="Subtarea hecha: a" data-accion="tar-tildar-sub" data-valor="s-1" data-k="cks-s-1">/)
+  assert.match(p.subs, /<button type="button" class="sub-t" data-accion="tar-editar-sub" data-valor="s-2" data-k="st-s-2" aria-label="Editar «b»">b<\/button>/)
+  assert.match(p.subs, /<label class="campo chico">.*<input data-campo="subtarea" data-k="sub-in" maxlength="200" placeholder="Agregar una subtarea" aria-label="Agregar una subtarea"><kbd>Enter<\/kbd><\/label>$/)
+  // La que se edita es un campo con su texto (vaciarlo la borra, D-n2)
+  const ed = partesDetalle({ lista, tarea: lista.tareas[0], listas: LISTAS, hoy: HOY, editandoSub: 's-2' })
+  assert.match(ed.subs, /<input class="sub-in" data-campo="sub-ed" data-valor="s-2" data-k="sub-ed-s-2" maxlength="200" value="b" aria-label="Texto de la subtarea \(vacío, se borra\)">/)
+  assert.doesNotMatch(ed.subs, /data-k="st-s-2"/)
+  // Sin subtareas: el rótulo solo y el campo
+  const sin = partesDetalle({ lista, tarea: lista.tareas[1], listas: LISTAS, hoy: HOY })
+  assert.match(sin.subs, /^<h3 class="sub">Subtareas<\/h3><label class="campo chico">/)
+})
+
+test('detalle: notas (3 líneas, hasta 4000) y el pie con «Creada el {d/m}» y «Borrar tarea», que confirma en el mismo botón', () => {
+  const [lista] = LISTAS
+  const tarea = { ...lista.tareas[0], notas: 'Ojo <con> esto', creada: Date.parse('2026-11-22T15:00:00Z') }
+  const p = partesDetalle({ lista, tarea, listas: LISTAS, hoy: HOY })
+  assert.equal(p.notas, '<h3 class="sub">Notas</h3><textarea class="notas" rows="3" maxlength="4000" placeholder="Algo para acordarte…" aria-label="Notas" data-campo="notas" data-k="notas">Ojo &lt;con&gt; esto</textarea>')
+  assert.equal(p.pie, '<span class="cifras">Creada el 22/11</span><button type="button" class="lnk peligro" data-accion="tar-borrar-tarea" data-valor="t-pr" data-k="borrar-tarea">Borrar tarea</button>')
+  const armado = partesDetalle({ lista, tarea, listas: LISTAS, hoy: HOY, armado: true, transcurrido: 500 })
+  assert.match(armado.pie, /<button type="button" class="armado" data-accion="tar-borrar-tarea" data-valor="t-pr" data-k="borrar-tarea" aria-live="polite" style="--ya:-500ms">¿Borrar\? Sí<\/button>/)
+})
+
+test('el panel por partes sigue igual con la tarea abierta: el esqueleto de la carpeta no cambia y el detalle usa los mismos data-campo que el redibujo respeta', () => {
+  for (const parte of ['idx', 'pane-h', 'err', 'nuevo', 'lista']) assert.match(CARPETA, new RegExp(`data-parte="${parte}"`))
+  const [lista] = LISTAS
+  const p = partesDetalle({ lista, tarea: lista.tareas[0], listas: LISTAS, hoy: HOY, editandoSub: 's-1' })
+  // Los campos que se escriben llevan data-campo (no se pisan); la fecha y la lista no (se redibujan con su valor)
+  for (const campo of ['titulo', 'notas', 'subtarea', 'sub-ed']) assert.match(Object.values(p).join(''), new RegExp(`data-campo="${campo}"`))
+  assert.doesNotMatch(p.datos, /data-campo/)
 })

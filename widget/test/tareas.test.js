@@ -11,6 +11,9 @@ import {
   tildarTarea, listaParaHoy, nuevoId, tareasInicial, abrirTareas, cerrarTareas, cambiarVista, MAX_NOMBRE_LISTA, MAX_TITULO,
   fechaCorta, subtituloTareas, nombreFilaTareas, chipFilaTareas, cifrasLista, avanceHoy, textoCampoNueva, vacioVista,
   anuncioAgregada, anuncioBorradaLista, tiempoTilde, focoTrasTildar, mezclarLectura, colorDe,
+  buscarTarea, editarTarea, agregarSubtarea, tildarSubtarea, editarSubtarea, borrarTarea, moverTarea, listaParaGuardar,
+  nuevaMudanza, soltarMudanzas, olvidarMudanzas, opcionFecha, fechaDeOpcion, creadaEl, abrirDetalle, cerrarDetalle,
+  diferirGuardado, ESPERA_GUARDAR_MS, MAX_NOTAS, MAX_SUBTAREAS, textoSubtareas,
 } from '../src/tareas.js'
 import { clicBorrar, armadoVigente, desarmarVencido, MS_CONFIRMAR } from '../src/configuracion.js'
 import { diaArgentina, DESFASE_AR } from '../src/fechas.js'
@@ -364,4 +367,199 @@ test('focoTrasTildar (9.4): el tilde de la fila siguiente; si no hay, la anterio
   assert.equal(focoTrasTildar(['a', 'b', 'c'], 'b'), 'ck-c')
   assert.equal(focoTrasTildar(['a', 'b', 'c'], 'c'), 'ck-b')
   assert.equal(focoTrasTildar(['a'], 'a'), 'nueva')
+})
+
+// ------------------------------------------------------------------ entrega 2: la tarea abierta (4.7)
+
+test('8 · validarTitulo: un salto de línea pegado queda como un espacio (el título es de una línea)', () => {
+  assert.equal(validarTitulo('Pagar\nla luz'), 'Pagar la luz')
+  assert.equal(validarTitulo(' \n ', 'Antes'), 'Antes')
+})
+
+test('buscarTarea: la lista y la tarea de un id, en cualquier lista; uno que no existe, null', () => {
+  const listas = [L('l-a', 0, [t('t-1')]), L('l-b', 1, [t('t-2')])]
+  const r = buscarTarea(listas, 't-2')
+  assert.equal(r.lista.id, 'l-b')
+  assert.equal(r.tarea.id, 't-2')
+  assert.equal(buscarTarea(listas, 't-9'), null)
+})
+
+test('editarTarea: título (vacío mantiene el anterior, 201 recorta), notas (hasta 4000), fecha (solo AAAA-MM-DD o null) e importante; la de antes queda igual', () => {
+  const lista = L('l-a', 0, [t('t-1', { titulo: 'Antes' }), t('t-2')])
+  let r = editarTarea(lista, 't-1', { titulo: '  ' })
+  assert.equal(r.tareas[0].titulo, 'Antes')
+  r = editarTarea(lista, 't-1', { titulo: 'x'.repeat(201) })
+  assert.equal(r.tareas[0].titulo, 'x'.repeat(200))
+  r = editarTarea(lista, 't-1', { notas: 'n'.repeat(MAX_NOTAS + 5) })
+  assert.equal(r.tareas[0].notas.length, MAX_NOTAS)
+  r = editarTarea(lista, 't-1', { fecha: '2026-11-26', importante: true })
+  assert.deepEqual([r.tareas[0].fecha, r.tareas[0].importante], ['2026-11-26', true])
+  assert.equal(editarTarea(lista, 't-1', { fecha: '26/11' }).tareas[0].fecha, null)
+  assert.equal(editarTarea(lista, 't-1', { fecha: null }).tareas[0].fecha, null)
+  assert.equal(lista.tareas[0].titulo, 'Antes')
+  assert.equal(r.tareas[1], lista.tareas[1])
+})
+
+test('subtareas: agregar (vacío no, hasta 50), tildar y editar; vaciar su texto la borra (D-n2)', () => {
+  const lista = L('l-a', 0, [t('t-1')])
+  assert.equal(agregarSubtarea(lista, 't-1', '   ', 's-1'), null)
+  let r = agregarSubtarea(lista, 't-1', '  Probar con Haiku  ', 's-1')
+  assert.deepEqual(r.tareas[0].subtareas, [{ id: 's-1', titulo: 'Probar con Haiku', hecha: false }])
+  r = tildarSubtarea(r, 't-1', 's-1', true)
+  assert.equal(r.tareas[0].subtareas[0].hecha, true)
+  r = editarSubtarea(r, 't-1', 's-1', 'Probar con Sonnet')
+  assert.deepEqual(r.tareas[0].subtareas[0], { id: 's-1', titulo: 'Probar con Sonnet', hecha: true })
+  assert.deepEqual(editarSubtarea(r, 't-1', 's-1', '  ').tareas[0].subtareas, [])
+  const llena = L('l-a', 0, [t('t-1', { subtareas: Array.from({ length: MAX_SUBTAREAS }, (_, i) => ({ id: `s-${i}`, titulo: 'x', hecha: false })) })])
+  assert.equal(agregarSubtarea(llena, 't-1', 'una más', 's-z'), null)
+  assert.deepEqual(lista.tareas[0].subtareas, [])
+})
+
+test('textoSubtareas: «Subtareas · {h} de {n}»; sin subtareas, solo «Subtareas»', () => {
+  assert.equal(textoSubtareas([{ hecha: true }, { hecha: false }, { hecha: false }]), 'Subtareas · 1 de 3')
+  assert.equal(textoSubtareas([]), 'Subtareas')
+})
+
+test('borrarTarea: la saca de su lista; las demás quedan', () => {
+  const lista = L('l-a', 0, [t('t-1'), t('t-2')])
+  assert.deepEqual(borrarTarea(lista, 't-1').tareas.map(x => x.id), ['t-2'])
+  assert.equal(lista.tareas.length, 2)
+})
+
+test('moverTarea: deja una sola copia, al final de la lista de destino, igual que estaba; a la misma lista o a una que no existe, null', () => {
+  const listas = [L('l-a', 0, [t('t-1', { notas: 'n', importante: true }), t('t-2')]), L('l-b', 1, [t('t-3')])]
+  const r = moverTarea(listas, 't-1', 'l-b')
+  assert.equal(r.origen, 'l-a')
+  assert.equal(r.destino, 'l-b')
+  const copias = r.listas.flatMap(l => l.tareas).filter(x => x.id === 't-1')
+  assert.equal(copias.length, 1)
+  assert.deepEqual(r.listas[1].tareas.map(x => x.id), ['t-3', 't-1'])
+  assert.deepEqual(copias[0], listas[0].tareas[0])
+  assert.equal(moverTarea(listas, 't-1', 'l-a'), null)
+  assert.equal(moverTarea(listas, 't-1', 'l-x'), null)
+  assert.equal(moverTarea(listas, 't-9', 'l-b'), null)
+  assert.equal(listas[0].tareas.length, 2)
+})
+
+test('mover (11.3): la de origen se guarda con la tarea hasta que un guardado de destino posterior al cambio salió bien; nunca queda en ningún archivo', () => {
+  const antes = [L('l-a', 0, [t('t-1'), t('t-2')]), L('l-b', 1, [])]
+  const { listas, origen, destino } = moverTarea(antes, 't-1', 'l-b')
+  // El destino iba por su guardado 3 cuando se movió
+  let m = nuevaMudanza([], { tarea: 't-1', origen, destino, desde: 3 })
+  // Mientras tanto, guardar el origen lleva la tarea (duplicada, nunca perdida)
+  assert.deepEqual(listaParaGuardar(listas, 'l-a', m).tareas.map(x => x.id), ['t-2', 't-1'])
+  // El destino se guarda como está en pantalla (ya la tiene)
+  assert.deepEqual(listaParaGuardar(listas, 'l-b', m).tareas.map(x => x.id), ['t-1'])
+  // El guardado 3 (empezó antes de mover) no la suelta; el 4 sí, y pide guardar el origen
+  let r = soltarMudanzas(m, 'l-b', 3)
+  assert.equal(r.mudanzas.length, 1)
+  assert.deepEqual(r.origenes, [])
+  r = soltarMudanzas(m, 'l-b', 4)
+  assert.deepEqual(r.mudanzas, [])
+  assert.deepEqual(r.origenes, ['l-a'])
+  m = r.mudanzas
+  assert.deepEqual(listaParaGuardar(listas, 'l-a', m).tareas.map(x => x.id), ['t-2'])
+  // Un guardado de otra lista no suelta nada
+  m = nuevaMudanza([], { tarea: 't-1', origen, destino, desde: 0 })
+  assert.equal(soltarMudanzas(m, 'l-a', 9).mudanzas.length, 1)
+})
+
+test('mover y volver (A → B → A) no se traba ni duplica en pantalla: cada lista se guarda con lo que tiene', () => {
+  const ida = moverTarea([L('l-a', 0, [t('t-1')]), L('l-b', 1, [])], 't-1', 'l-b')
+  let m = nuevaMudanza([], { tarea: 't-1', origen: 'l-a', destino: 'l-b', desde: 0 })
+  const vuelta = moverTarea(ida.listas, 't-1', 'l-a')
+  m = nuevaMudanza(m, { tarea: 't-1', origen: 'l-b', destino: 'l-a', desde: 0 })
+  assert.deepEqual(listaParaGuardar(vuelta.listas, 'l-a', m).tareas.map(x => x.id), ['t-1'])
+  assert.deepEqual(listaParaGuardar(vuelta.listas, 'l-b', m).tareas.map(x => x.id), ['t-1'])
+  m = soltarMudanzas(m, 'l-a', 1).mudanzas
+  assert.deepEqual(listaParaGuardar(vuelta.listas, 'l-b', m).tareas.map(x => x.id), [])
+})
+
+test('olvidarMudanzas: borrar la tarea movida suelta sus mudanzas y pide guardar sus orígenes', () => {
+  const m = nuevaMudanza(nuevaMudanza([], { tarea: 't-1', origen: 'l-a', destino: 'l-b', desde: 0 }), { tarea: 't-2', origen: 'l-c', destino: 'l-b', desde: 0 })
+  const r = olvidarMudanzas(m, 't-1')
+  assert.deepEqual(r.mudanzas.map(x => x.tarea), ['t-2'])
+  assert.deepEqual(r.origenes, ['l-a'])
+})
+
+test('Vence (4.7): Hoy, Mañana y Sin fecha; otra fecha no elige ninguna', () => {
+  assert.equal(opcionFecha(HOY, HOY), 'hoy')
+  assert.equal(opcionFecha('2026-11-25', HOY), 'manana')
+  assert.equal(opcionFecha(null, HOY), 'sin')
+  assert.equal(opcionFecha('2026-11-30', HOY), null)
+  assert.equal(fechaDeOpcion('hoy', HOY), HOY)
+  assert.equal(fechaDeOpcion('manana', '2026-11-30'), '2026-12-01')
+  assert.equal(fechaDeOpcion('sin', HOY), null)
+})
+
+test('creadaEl: «Creada el {d/m}» en el día de Argentina', () => {
+  // 01:00 UTC del 25 es el 24 a las 22:00 en Argentina
+  assert.equal(creadaEl(Date.parse('2026-11-25T01:00:00Z')), 'Creada el 24/11')
+  assert.equal(creadaEl(Date.parse('2026-12-03T15:00:00Z')), 'Creada el 3/12')
+})
+
+test('abrir y cerrar la tarea: desarma y deja de editar una subtarea; la vista y "Hechas" quedan', () => {
+  const s = { ...tareasInicial(), abierta: true, ver: 'l-a', hechas: true, armado: { id: 'lista:l-a', hasta: 1 } }
+  const a = abrirDetalle(s, 't-1')
+  assert.deepEqual([a.det, a.armado, a.ver, a.hechas], ['t-1', null, 'l-a', true])
+  const c = cerrarDetalle({ ...a, editandoSub: 's-1', armado: { id: 'tarea:t-1', hasta: 1 } })
+  assert.deepEqual([c.det, c.armado, c.editandoSub, c.ver, c.hechas], [null, null, null, 'l-a', true])
+  // Cambiar de vista y cerrar la hoja también dejan de editar
+  assert.equal(cambiarVista({ ...a, editandoSub: 's-1' }, 'hoy').editandoSub, null)
+  assert.equal(cerrarTareas({ ...a, editandoSub: 's-1' }).editandoSub, null)
+})
+
+test('9 · alEscTareas: el texto de una subtarea que se edita se cancela (capa 2), antes del borrado armado y de cerrar la tarea', () => {
+  const base = { ...tareasInicial(), abierta: true, det: 't-1', editandoSub: 's-1', armado: { id: 'tarea:t-1', hasta: 9 } }
+  let r = alEscTareas(base, { campo: 'sub-ed', texto: 'algo' })
+  assert.equal(r.accion, 'cancelar-sub')
+  assert.equal(r.tareas.editandoSub, null)
+  r = alEscTareas(r.tareas, null)
+  assert.equal(r.accion, 'desarmar')
+  r = alEscTareas(r.tareas, { campo: 'titulo', texto: 'Algo' })
+  assert.equal(r.accion, 'cerrar-tarea')
+  // La subtarea nueva con texto es la capa 1, como la tarea nueva
+  assert.equal(alEscTareas(base, { campo: 'subtarea', texto: 'x' }).accion, 'vaciar')
+})
+
+test('12 · confirmar borrar una tarea: el mismo mecanismo que la lista (arma 3 s, el segundo clic ejecuta una vez)', () => {
+  const s0 = { ...tareasInicial(), abierta: true, det: 't-1' }
+  let r = clicBorrar(s0, 'tarea:t-1', 1000)
+  assert.equal(r.ejecutar, false)
+  assert.equal(armadoVigente(r.config, 'tarea:t-1', 1000 + MS_CONFIRMAR - 1), true)
+  r = clicBorrar(r.config, 'tarea:t-1', 2000)
+  assert.equal(r.ejecutar, true)
+  assert.equal(desarmarVencido(clicBorrar(s0, 'tarea:t-1', 0).config, MS_CONFIRMAR + 1).armado, null)
+})
+
+test('diferirGuardado: título y notas se guardan 600 ms después de dejar de escribir (una vez) y al salir del campo, al instante', ctx => {
+  ctx.mock.timers.enable({ apis: ['setTimeout'] })
+  const guardadas = []
+  const d = diferirGuardado(id => guardadas.push(id))
+  assert.equal(ESPERA_GUARDAR_MS, 600)
+  d.programar('l-a')
+  ctx.mock.timers.tick(400)
+  d.programar('l-a')
+  ctx.mock.timers.tick(599)
+  assert.deepEqual(guardadas, [])
+  ctx.mock.timers.tick(1)
+  assert.deepEqual(guardadas, ['l-a'])
+  // Al salir del campo: al instante, y el pendiente no se repite
+  d.programar('l-b')
+  d.ya('l-b')
+  assert.deepEqual(guardadas, ['l-a', 'l-b'])
+  ctx.mock.timers.tick(1000)
+  assert.deepEqual(guardadas, ['l-a', 'l-b'])
+  // Sin nada pendiente, salir no guarda; `todos` guarda lo pendiente de cada lista
+  d.ya('l-c')
+  d.programar('l-c')
+  d.programar('l-d')
+  d.todos()
+  assert.deepEqual(guardadas, ['l-a', 'l-b', 'l-c', 'l-d'])
+})
+
+test('guardar sin mudanzas (entrega 1 igual): se manda la lista de la pantalla tal cual; una que no existe, null', () => {
+  const listas = [L('l-a', 0, [t('t-1')]), L('l-b', 1, [])]
+  assert.equal(listaParaGuardar(listas, 'l-a', []), listas[0])
+  assert.equal(listaParaGuardar(listas, 'l-x', []), null)
 })

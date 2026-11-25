@@ -1,5 +1,5 @@
 // Movimiento de Tareas (#39, docs/diseno/tareas-ux.md 10) con anime.js v4: abrir la hoja, cambiar de
-// vista, las chispas y el salto de la mascota al tildar, el pliegue de la fila tildada, la fila que se
+// vista, abrir una tarea, las chispas y el salto de la mascota al tildar, el pliegue de la fila tildada, la fila que se
 // agrega y "Hechas" que se despliega. El círculo, el visto, el tachado, el destello, el hover, el chip
 // que late y la confirmación son CSS (estilos.css, bajo #tar). Solo `transform` y `opacity`, salvo el
 // alto de la fila que se pliega. Con movimiento reducido: sin desplazamientos, escalas ni chispas, un
@@ -43,6 +43,16 @@ export function cambioVista(pane) {
   const piezas = lista(pane?.querySelectorAll('.pane-h, [data-parte="err"] > *, [data-parte="nuevo"] > *, [data-parte="lista"] > *'))
   if (quieto(piezas)) return
   animate(piezas, { opacity: [0, 1], translateX: [8, 0], duration: 280, delay: stagger(26), ease: 'outQuart' })
+}
+
+/**
+ * Abrir una tarea (10): "‹ {vista}", el error si lo hay y los hijos del detalle entran 18 px desde la
+ * derecha, escalonados 40 ms. Cerrarla es el acto de cambiar de vista (`cambioVista`).
+ */
+export function abrirTarea(pane) {
+  const piezas = lista(pane?.querySelectorAll('[data-parte="pane-h"] > *, [data-parte="err"] > *, .det > *'))
+  if (quieto(piezas)) return
+  animate(piezas, { opacity: [0, 1], translateX: [18, 0], duration: 320, delay: stagger(40), ease: 'outQuart' })
 }
 
 /**
