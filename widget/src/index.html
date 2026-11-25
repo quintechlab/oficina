@@ -51,6 +51,11 @@
               <span class="mod-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path class="arco" d="M13.2 8.6A5.2 5.2 0 1 1 11.6 4.2"/><path d="M12.2 1.8v2.8H9.4"/><circle cx="8" cy="8.3" r="1.5" fill="currentColor" stroke="none"/></svg></span>
               <span class="mod-n">Hábitos</span><span class="mod-ct hab-ct" id="hab-fila-ct"><kbd aria-hidden="true">Ctrl H</kbd></span>
             </button>
+            <!-- Proyectos (#44, docs/diseno/proyectos-ux.md 4.1): la pista "Ctrl P" o el número de proyectos, con el punto rojo si alguno perdió su carpeta (#pro-fila-ct, proyectosVista.js) -->
+            <button type="button" class="mod pro" id="pro-fila" data-accion="mod" data-mod="proyectos" aria-keyshortcuts="Control+P" title="Proyectos (Ctrl P)" aria-label="Proyectos">
+              <span class="mod-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2.5 5.2V12a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5A1.5 1.5 0 0 0 12 5H8L6.6 3.2H4A1.5 1.5 0 0 0 2.5 4.7z"/></svg></span>
+              <span class="mod-n">Proyectos</span><span class="mod-ct pro-ct" id="pro-fila-ct"><kbd aria-hidden="true">Ctrl P</kbd></span>
+            </button>
           </nav>
           <!-- Configuración (docs/diseno/configuracion-ux.md 4.1, modulos-ux.md 3.3): sola y aparte, pegada al pie de lo que se
                ve: en una pantalla baja la barra desplaza y la fila no se pierde (16, D-g). La píldora no baja hasta acá: abierta, pone su fondo -->
@@ -106,6 +111,8 @@
           <div id="tar"></div>
           <!-- Hábitos (docs/diseno/habitos-ux.md 3.2): hermana de #cfg y #tar, una hoja por vez en la columna -->
           <div id="hab"></div>
+          <!-- Proyectos (docs/diseno/proyectos-ux.md 3.2): hermana de #cfg, #tar y #hab, una hoja por vez en la columna -->
+          <div id="pro"></div>
           <!-- La tira de repos (modulos-ux.md 4.4, #42 M2): un chip por proyecto, solo en Sesiones (tablero.js, tiraRepos).
                Se llama «Repos»: «Proyectos» es un módulo nuevo (#44) -->
           <nav class="repos" id="repos" aria-label="Repos"></nav>

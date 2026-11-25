@@ -106,6 +106,21 @@
 //   ?habitos=carpeta       habitos_leer falla: «No se pudo abrir la carpeta de hábitos.» con «Volver a leer» (5.2)
 //   ?habitos=agua|caminar|gimnasio|correr|leer  ese hábito abierto (4.10), desde Hoy
 //   &habitoslento          habitos_leer tarda 1,2 s (las filas fantasma de 7.1)
+// Proyectos (#44, docs/diseno/proyectos-ux.md, entrega P1): la fila «Proyectos» del menú, Ctrl P o ?proyectos=… abren la hoja.
+//   Sin ?proyectos, los tres del boceto (Presupuestos 2027 creado por Avis con 3 archivos, Lecturas de la PC y Mudanza
+//   con la carpeta perdida: la fila del menú muestra «3» y el punto rojo). Con ?proyectos, la hoja se abre sola a los 0,9 s:
+//   ?proyectos=lista     Presupuestos 2027 elegido (la ficha: lápiz, botón de charla apagado hasta P2, instrucciones, carpeta)
+//   ?proyectos=vacio     sin proyectos: el primer uso («Tus proyectos van acá», «Crear mi primer proyecto»)
+//   ?proyectos=nuevo     el formulario nuevo («+ Nuevo»), con «Que Avis cree una» elegido
+//   ?proyectos=recien    un solo proyecto, sin charlas ni archivos: «Listo, ya existe.» y la zona de soltar encendida
+//   ?proyectos=perdida   Mudanza elegido: la carpeta perdida (7.4) con «Elegir otra» y «Crear una nueva»
+//   ?proyectos=borrar    «Borrar proyecto» armado («¿Borrar? Sí», 3 s) con la línea de qué queda
+//   ?proyectos=roto      un archivo que no se pudo leer (7.6): la línea arriba del índice con «Abrir la carpeta»
+//   ?proyectos=editar    el formulario de Presupuestos 2027 («Editar proyecto», el Color y «Cambiar…»)
+//   ?proyectos=carpeta   proyectos_leer falla: «No se pudo abrir la carpeta de proyectos.» con «Reintentar»
+//   ?proyectos=guardarfalla  crear y guardar fallan: «No se pudo guardar el proyecto. Probá de nuevo.» con «Reintentar»
+//   &proyectoslento      proyectos_leer tarda 1,2 s (las filas esqueleto de 7.1)
+//   «Una de esta PC» imita el diálogo de Windows (D:\Proyectos\{nombre}); lo guardado queda en window.__proyectos.
 // Resumen semanal de Hábitos (#41, entrega H3, habitos-ux.md 8.4): sin ?resumen, preferencias.json ya dice que se
 //   vio el de esta semana (habitosResumen) y no sale. Con ?resumen, nunca se vio: sale el de la semana pasada
 //   (o el de esta, un domingo desde las 18 de Argentina), con los cinco hábitos falsos. Sin la pregunta de catalogo.
@@ -800,6 +815,90 @@
     }, 900)
   }
 
+  // ---- Proyectos (#44, docs/diseno/proyectos-ux.md 11.3, entrega P1): los del boceto, en memoria, como
+  // proyectos.rs los devuelve (con el estado de su carpeta). La ventana nunca manda una ruta: el diálogo de
+  // Windows y la carpeta de Documentos los imita este archivo (`elegir` devuelve D:\Proyectos\{nombre})
+  const modoProyectos = url.get('proyectos')
+  const carpetaF = (tipo, ruta, archivos = 0, estado = 'ok') => ({ nombre: ruta.split('\\').pop(), ruta, tipo, estado, archivos })
+  const DOCS = 'C:\\Users\\quintana\\OneDrive\\Documentos\\Avis'
+  const proF = (id, nombre, color, orden, instrucciones, carpeta) => ({ v: 1, id, nombre, color, orden, creado: ahora - (10 - orden) * 86400000, instrucciones, carpeta })
+  const PROYECTOS_FALSOS = [
+    proF('p-presu', 'Presupuestos 2027', 'ambar', 0,
+      'Armo presupuestos para clientes de Quintech. Respondé en pesos, con el IVA aparte, y tomá los precios de «tarifas-2027.xlsx» de la carpeta. Directo y sin vueltas.',
+      carpetaF('avis', `${DOCS}\\Presupuestos 2027`, modoProyectos === 'recien' ? 0 : 3)),
+    proF('p-lect', 'Lecturas', 'celeste', 1,
+      'Resumí cada capítulo en 5 puntos y armá 3 preguntas para repasar. Si cito una página, buscala en el PDF de la carpeta.',
+      carpetaF('pc', 'D:\\Libros\\Lecturas 2026', 12)),
+    proF('p-mud', 'Mudanza', 'verde', 2, '', carpetaF('pc', 'E:\\Mudanza', 0, 'perdida')),
+  ]
+  const proyectosFalsos = new Map((modoProyectos === 'vacio' ? [] : modoProyectos === 'recien' ? PROYECTOS_FALSOS.slice(0, 1) : PROYECTOS_FALSOS).map(p => [p.id, p]))
+  const rotasProyectos = modoProyectos === 'roto' ? [{ archivo: 'p-mf3k2a9x1b.json', motivo: 'no es JSON: EOF while parsing a value at line 4 column 0' }] : []
+  window.__proyectos = proyectosFalsos
+  const idProyecto = id => /^p-[a-z0-9-]{1,38}$/.test(id ?? '')
+  const claveP = s => String(s ?? '').trim().normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+  const repetidoP = (nombre, id) => [...proyectosFalsos.values()].some(p => p.id !== id && claveP(p.nombre) === claveP(nombre))
+  /** Como `carpeta_pedida` de lib.rs: el diálogo (elegir) o la carpeta en Documentos (avis). */
+  const carpetaPedida = (modo, nombre) => (modo === 'elegir'
+    ? carpetaF('pc', `D:\\Proyectos\\${nombre}`, 4)
+    : carpetaF('avis', `${DOCS}\\${nombre.replace(/[<>:"/\\|?*]/g, '').trim() || 'Proyecto'}`, 0))
+  const comandosProyectos = {
+    // Como proyectos.rs: por orden y creado, con los rotos (&proyectoslento tarda 1,2 s: las filas esqueleto)
+    proyectos_leer: () => new Promise((r, no) => setTimeout(() => {
+      if (modoProyectos === 'carpeta') { no('No se pudo abrir la carpeta de proyectos.'); return }
+      r({ proyectos: [...proyectosFalsos.values()].sort((a, b) => a.orden - b.orden || a.creado - b.creado).map(p => structuredClone(p)), rotas: rotasProyectos })
+    }, url.has('proyectoslento') ? 1200 : 120)),
+    proyecto_crear: ({ datos }) => new Promise(r => setTimeout(() => {
+      if (!idProyecto(datos?.id)) { r({ error: 'id de proyecto inválido', motivo: null }); return }
+      if (repetidoP(datos.nombre, datos.id)) { r({ error: 'repetido', motivo: 'repetido' }); return }
+      if (modoProyectos === 'guardarfalla') { r({ error: 'acceso denegado (falso)', motivo: null }); return }
+      const orden = Math.max(-1, ...[...proyectosFalsos.values()].map(p => p.orden)) + 1
+      const p = { v: 1, id: datos.id, nombre: datos.nombre.trim(), color: datos.color, orden, creado: Date.now(), instrucciones: datos.instrucciones, carpeta: carpetaPedida(datos.carpeta, datos.nombre.trim()) }
+      proyectosFalsos.set(p.id, p)
+      console.info('[proyectos] creado', p.id, p.carpeta.ruta)
+      r({ proyecto: structuredClone(p) })
+    }, 300)),
+    // La carpeta del documento se ignora (11.1): queda la del archivo
+    proyectos_guardar: ({ proyecto }) => {
+      const antes = proyectosFalsos.get(proyecto?.id)
+      if (!antes) return { error: 'el proyecto no existe', motivo: null }
+      if (repetidoP(proyecto.nombre, proyecto.id)) return { error: 'repetido', motivo: 'repetido' }
+      if (modoProyectos === 'guardarfalla') return { error: 'acceso denegado (falso)', motivo: null }
+      const p = { ...antes, nombre: proyecto.nombre, color: proyecto.color, instrucciones: proyecto.instrucciones, carpeta: antes.carpeta }
+      proyectosFalsos.set(p.id, p)
+      console.info('[proyectos] guardado', p.id)
+      return { proyecto: structuredClone(p) }
+    },
+    proyecto_cambiar_carpeta: ({ id, modo }) => {
+      const antes = proyectosFalsos.get(id)
+      if (!antes) return { error: 'el proyecto no existe', motivo: null }
+      const p = { ...antes, carpeta: carpetaPedida(modo, antes.nombre) }
+      proyectosFalsos.set(id, p)
+      console.info('[proyectos] carpeta', id, p.carpeta.ruta)
+      return { proyecto: structuredClone(p) }
+    },
+    proyecto_borrar: ({ id }) => {
+      if (!idProyecto(id)) return { error: 'id de proyecto inválido' }
+      proyectosFalsos.delete(id)
+      console.info('[proyectos] borrado', id, '(la carpeta queda)')
+      return { charlas: 0, fallidas: 0 }
+    },
+    proyecto_abrir_carpeta: ({ id }) => console.info('[explorador]', proyectosFalsos.get(id)?.carpeta?.ruta),
+    proyectos_abrir_carpeta: () => console.info('[explorador] <config>\\proyectos'),
+  }
+  // ?proyectos=…: abre la hoja como el usuario (el clic en la fila «Proyectos») y va a cada caso
+  if (modoProyectos !== null) {
+    setTimeout(() => {
+      document.querySelector('#pro-fila')?.click()
+      const clic = k => document.querySelector(`#pro [data-k="${CSS.escape(k)}"]`)?.click()
+      setTimeout(() => {
+        if (modoProyectos === 'nuevo') clic('ix-nuevo')
+        else if (modoProyectos === 'perdida') clic('ix-p-mud')
+        else if (modoProyectos === 'borrar') clic('borrar')
+        else if (modoProyectos === 'editar') clic('editar')
+      }, 400)
+    }, 900)
+  }
+
   // ?modulo=…: abre el módulo como el usuario, con el clic en su fila del menú (modulos-ux.md 4.1)
   const modulo = url.get('modulo')
   if (modulo && modulo !== 'sesiones') setTimeout(() => document.querySelector(`.mod[data-mod="${CSS.escape(modulo)}"]`)?.click(), 900)
@@ -1396,6 +1495,7 @@
     ...comandosChat,
     ...comandosTareas,
     ...comandosHabitos,
+    ...comandosProyectos,
     registrar: ({ linea }) => console.debug('[widget.log]', linea),
     revisar_primeros_pasos: () => new Promise(r => setTimeout(() => r(revisionFalsa()), url.has('pplento') ? 2000 : 600)),
     // Como Rust (estado_mod): la lectura del mod y la última revisión guardada, solo lectura
