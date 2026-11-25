@@ -239,8 +239,8 @@ pub fn leer(carpeta: &Path, id: &str) -> Result<Value, String> {
     Ok(d)
 }
 
-/// Borra el archivo del proyecto (P1: todavía sin sus charlas, que llegan con P2). **Nunca la carpeta**
-/// ni sus archivos. Lo que ya no existe no es un error; un archivo roto no se borra.
+/// Borra el archivo del proyecto (sin sus charlas: eso es `borrar_con_charlas`). **Nunca la carpeta** ni
+/// sus archivos. Lo que ya no existe no es un error; un archivo roto no se borra.
 pub fn borrar(carpeta: &Path, id: &str) -> Result<(), String> {
     let r = ruta(carpeta, id).ok_or("id de proyecto inválido")?;
     let _candado = bloquear();
@@ -249,6 +249,22 @@ pub fn borrar(carpeta: &Path, id: &str) -> Result<(), String> {
     }
     leer_crudo(&r, id).map_err(|e| format!("el archivo del proyecto está roto ({e}): no se borra"))?;
     fs::remove_file(&r).map_err(|e| e.to_string())
+}
+
+/// `proyecto_borrar` (11.3, D-p2): primero cada charla del proyecto (`historial::borrar_de_proyecto`, en
+/// `carpeta_chat`), después el archivo del proyecto, y solo si todas se borraron (5.2: «el proyecto queda
+/// hasta que se borren todas»). **Nunca la carpeta.** Un proyecto roto no se borra ni toca sus charlas.
+/// Devuelve lo que pasó con las charlas (sus ids de Engram, para borrar las copias).
+pub fn borrar_con_charlas(carpeta: &Path, carpeta_chat: &Path, id: &str) -> Result<crate::historial::BorradoTodo, String> {
+    let r = ruta(carpeta, id).ok_or("id de proyecto inválido")?;
+    if r.exists() {
+        leer_crudo(&r, id).map_err(|e| format!("el archivo del proyecto está roto ({e}): no se borra"))?;
+    }
+    let charlas = crate::historial::borrar_de_proyecto(carpeta_chat, id);
+    if charlas.fallidas == 0 {
+        borrar(carpeta, id)?;
+    }
+    Ok(charlas)
 }
 
 /// Lo que lee `proyectos_leer`: los proyectos que sirven, en orden, y los archivos rotos (`{ archivo, motivo }`).

@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::chat::{frase_usuario, nombre_mascota, MAX_TEXTO};
+use crate::chat::{frase_usuario, nombre_mascota, texto_proyecto, MAX_TEXTO};
 
 /// La instrucción de 4.3 sin herramientas, con "si no sabés algo de las sesiones, decilo" (8) y lo
 /// que el resumen aprendió de los datos (#11: "abierta_hace" no es cuánto espera).
@@ -28,6 +28,8 @@ No podés tocar tareas ni hábitos: si te lo piden, decí que con el modelo loca
 pub const SIN_SESIONES: &str = "No hay sesiones abiertas en Avis.";
 /// La entrada como mucho (D22), con el contexto de 4096 de `modelo::argumentos` y `MAX_TOKENS` de salida.
 pub const TOPE_TOKENS: usize = 3000;
+/// Las instrucciones de un proyecto como mucho (#44, proyectos-ux.md 11.4): más que esto se corta y se anota.
+pub const TOPE_INSTRUCCIONES: usize = 1500;
 /// La respuesta como mucho (8).
 pub const MAX_TOKENS: u32 = 700;
 /// La estimación de D22. Medido con `/tokenize` de llama-server (24/11): 3,76 en el bloque `<avis>`,
@@ -69,11 +71,44 @@ pub fn costo(texto: &str) -> usize {
 /// El mensaje de sistema (8): la instrucción con la mascota (y el usuario, si hay: #37) y el bloque
 /// `<avis>` (el texto de `modelo::datos_como_texto`, sin las claves prohibidas y con el tope de 6000
 /// caracteres).
+#[cfg(test)]
 pub fn sistema_local(mascota: &str, usuario: Option<&str>, avis: &str) -> String {
+    sistema_local_con(mascota, usuario, avis, None)
+}
+
+/// `sistema_local` con el proyecto de la charla (#44, 11.4): `(nombre, instrucciones)`. El bloque
+/// `<proyecto>` (el de Claude Code sin la frase de la carpeta: el modelo local no la ve) va antes de
+/// `<avis>`. Es parte del sistema: `recorte_local` recorta la historia, nunca las instrucciones.
+pub fn sistema_local_con(mascota: &str, usuario: Option<&str>, avis: &str, proyecto: Option<(&str, &str)>) -> String {
     let avis = if avis.trim().is_empty() { SIN_SESIONES } else { avis.trim_end() };
     let instruccion = INSTRUCCION_CHAT_LOCAL.replace("{Mascota}", &nombre_mascota(mascota));
-    format!("{instruccion}{}\n\n<avis>\n{avis}\n</avis>", frase_usuario(usuario))
+    let bloque = match proyecto {
+        Some((nombre, instrucciones)) => format!("\n\n{}", texto_proyecto(nombre, &instrucciones_locales(instrucciones), false).trim_end()),
+        None => String::new(),
+    };
+    format!("{instruccion}{}{bloque}\n\n<avis>\n{avis}\n</avis>", frase_usuario(usuario))
 }
+
+/// Las instrucciones de un proyecto para el motor local (11.4): si solas pasan de `TOPE_INSTRUCCIONES`
+/// tokens (`costo`), se cortan ahí y se anota. Con el tope de 4000 caracteres del proyecto no pasa.
+pub fn instrucciones_locales(instrucciones: &str) -> String {
+    if costo(instrucciones) <= TOPE_INSTRUCCIONES {
+        return instrucciones.to_string();
+    }
+    let caracteres = ((TOPE_INSTRUCCIONES - TOKENS_POR_MENSAJE) as f64 * CARACTERES_POR_TOKEN).floor() as usize;
+    registrar_corte();
+    instrucciones.chars().take(caracteres).collect()
+}
+
+#[cfg(not(test))]
+fn registrar_corte() {
+    if let Some(ruta) = crate::diagnostico::ruta_log() {
+        let _ = crate::diagnostico::agregar_linea(&ruta, "chat local: las instrucciones del proyecto se cortaron en 1500 tokens", chrono::Utc::now(), crate::diagnostico::TOPE_BYTES);
+    }
+}
+
+#[cfg(test)]
+fn registrar_corte() {}
 
 /// La historia que manda la ventana (`[{ rol: "usuario" | "mascota", texto }]`): lo que no tiene esa
 /// forma o viene vacío se saltea; los últimos 200 mensajes, cada uno con el tope de `MAX_TEXTO`.

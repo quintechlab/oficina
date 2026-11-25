@@ -324,7 +324,7 @@ Formato v1:
 ### 11.4 La charla: cómo viajan las instrucciones y la carpeta
 - **`chat_abrir`** suma `proyecto: Option<String>`. Con un proyecto, **el parámetro `carpeta` se ignora**: Rust lee el proyecto, toma su carpeta si `is_dir` (si no, `carpeta_trabajo`, 8.4) y sus instrucciones, y devuelve además `proyecto: { id, nombre, color, carpeta: { nombre, estado } }`. Un `proyecto` con id inválido o que no existe → error «el proyecto no existe».
 - **`Conversacion`** (chat.rs) suma `proyecto: Option<String>` y `instrucciones: Option<String>` (con su firma). `sirve` compara también la firma de las instrucciones: si cambiaron (se editaron con la charla abierta), el proceso se relanza en el próximo `enviar` con `--resume`, como con el modelo (#35).
-- **`INSTRUCCION_CHAT` sigue siendo una sola línea y no cambia.** Las instrucciones del proyecto (varias líneas, hasta 4 000) **no** van en `--append-system-prompt`. Van por uno de dos caminos, según la medición M-P1 de 11.8:
+- **`INSTRUCCION_CHAT` sigue siendo una sola línea y no cambia.** Las instrucciones del proyecto (varias líneas, hasta 4 000) **no** van en `--append-system-prompt`. Van por uno de dos caminos, según la medición M-P1 de 11.8 (**medido el 25/11: gana A**; sin instrucciones no se escribe el archivo y la charla es como siempre, en la carpeta del proyecto):
   - **A (si M-P1 pasa):** `--append-system-prompt-file <config>/chat/sistema/<conversacion>.txt`, junto al `--append-system-prompt` de siempre. Rust escribe el archivo (atómico) antes de lanzar y lo borra al cerrar la conversación. Contenido exacto:
     ```text
     <proyecto nombre="{nombre}">
@@ -378,6 +378,14 @@ Formato v1:
 - **M-P3:** `--resume` con un `cwd` distinto del de la sesión: ¿falla, empieza otra o la encuentra? Define el texto de 8.4.
 - **M-P4:** Ctrl P en WebView2: si `preventDefault` en `keydown` evita el diálogo de imprimir.
 - **M-P5:** el diálogo de carpeta de `tauri-plugin-dialog` desde Rust con la ventana acoplada y siempre arriba: que quede adelante.
+
+**Medido el 25/11/2026 (E0 de P2)** con Claude Code 2.1.332 y `--model haiku`, desde una carpeta temporal fuera del repositorio, con los argumentos de `argumentos_chat` sin el servidor de Avis (`--restricted`, `--strict-mcp-config`, `--settings`, `--tools Read,Glob,Grep`…) y un mensaje por stdin en `stream-json`. Líneas reales en `widget/src-tauri/src/fixtures/chat/proyecto-*.jsonl`.
+
+- **M-P1 pasa → camino A.** `--append-system-prompt-file <archivo>` junto con `--append-system-prompt` en `-p`: un archivo de 48 líneas y 4051 caracteres con tildes (el bloque de 11.4 con «La palabra clave del proyecto es MANDARINA»); el `init` sale limpio (herramientas `Glob, Grep, Read`, sin MCP) y la respuesta usa el archivo («La palabra clave del proyecto es **MANDARINA**»). Comparado con el camino B (el mismo bloque al principio del mensaje), con las instrucciones «Respondé en inglés.»: **A respondió en inglés y B en español** (gana `Respondés en español rioplatense` de `INSTRUCCION_CHAT`). Por eso A, también para la prueba de aceptación de 14/P2.
+- **M-P2:** sin el bloque, el primer turno lee 6 125 tokens (sin el servidor de Avis; con él, ~7 550); con el bloque de 4051 caracteres, 7 828: **+1 703 tokens** (~2,4 caracteres por token por las tildes y el relleno). Va en la caché como el resto del sistema.
+- **M-P3: `--resume` desde otra carpeta encuentra la sesión y sigue** (mismo `session_id`; el `init` trae la carpeta nueva y Glob y Read miran la nueva). No es una sesión perdida: el texto «La carpeta del proyecto cambió: Claude sigue sin lo que charlaron antes.» de 8.4 queda solo para cuando Claude Code de verdad no la tiene (`sesion_perdida`, raro).
+- **Hallazgo: Claude Code guarda el sistema de la primera vez** (`--system-prompt-snapshot`, prendido por defecto: «every later request and resume sends the record as-is, even when a later launch passes different text»). Medido: una charla empezada con «Respondé en inglés.», retomada con `--resume` y el archivo cambiado a «Respondé en francés.», siguió en inglés. Consecuencia: **editar las instrucciones cambia las charlas nuevas y las del modelo local, pero no una charla de Claude Code que ya tiene mensajes** (Avis relanza igual el proceso con el archivo nuevo, como pide 11.4). Con `--system-prompt-snapshot off` la respuesta salió en español (Haiku, una sola vuelta: no concluye). Queda para decidir; pasa lo mismo con el nombre del usuario de #37.
+- **M-P4 y M-P5 siguen sin medir:** necesitan la aplicación instalada (Ctrl P en WebView2 y el diálogo con la ventana acoplada).
 
 ## 12. Accesibilidad
 
