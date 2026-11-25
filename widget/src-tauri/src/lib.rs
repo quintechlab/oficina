@@ -1,5 +1,6 @@
 mod adjuntos;
 mod arranque;
+mod atomico;
 mod chat;
 mod chat_local;
 mod claves;
@@ -15,6 +16,7 @@ mod ordenes;
 mod primeros_pasos;
 mod respuestas;
 mod sesiones;
+mod tareas;
 
 use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::{Mutex, PoisonError};
@@ -917,6 +919,66 @@ async fn chat_borrar_todo() -> Result<serde_json::Value, String> {
     .map_err(|e| e.to_string())?
 }
 
+// ------------------------------------------------------------------ tareas (#39)
+
+/// `<config>/tareas`: un archivo por lista (`tareas.rs`).
+fn carpeta_tareas(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path().app_config_dir().map(|c| c.join("tareas")).map_err(|e| e.to_string())
+}
+
+/// Todas las listas, en orden, y los archivos rotos (S6, tareas-ux.md 11.3): `{ listas, rotas: [{ archivo, motivo }] }`.
+#[tauri::command]
+async fn tareas_leer(app: AppHandle) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_tareas(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        // Una carpeta que existe y no se puede leer es "Carpeta ilegible" (7.5), no el primer uso
+        if let Err(e) = std::fs::read_dir(&carpeta) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                registrar(format!("tareas: no se pudo leer la carpeta: {e}"));
+                return Err(e.to_string());
+            }
+        }
+        let l = tareas::listar(&carpeta);
+        Ok(serde_json::json!({ "listas": l.listas, "rotas": l.rotas }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Guarda una lista entera (formato v1; lo que no sirve se rechaza sin tocar el archivo):
+/// `{ ok: true, lista }` con lo guardado, o `{ ok: false, error }` (lo anota la ventana, 7.4: una sola línea en widget.log).
+#[tauri::command]
+async fn tareas_guardar(app: AppHandle, lista: serde_json::Value) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_tareas(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || tareas::guardar(&carpeta, &lista)).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok(lista) => serde_json::json!({ "ok": true, "lista": lista }),
+        Err(error) => serde_json::json!({ "ok": false, "error": error }),
+    })
+}
+
+/// Borra una lista con sus tareas (solo con el segundo clic de "¿Borrar? Sí"); nunca un archivo roto. `{ ok, error? }`.
+#[tauri::command]
+async fn tareas_borrar_lista(app: AppHandle, id: String) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_tareas(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || tareas::borrar(&carpeta, &id)).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok(()) => serde_json::json!({ "ok": true }),
+        Err(error) => {
+            registrar(format!("tareas: no se pudo borrar: {error}"));
+            serde_json::json!({ "ok": false, "error": error })
+        }
+    })
+}
+
+/// Abre `<config>/tareas/` en el Explorador (la ruta es siempre la de Avis, nunca una de la ventana).
+#[tauri::command]
+fn tareas_abrir_carpeta(app: AppHandle) -> Result<(), String> {
+    let carpeta = carpeta_tareas(&app)?;
+    std::fs::create_dir_all(&carpeta).map_err(|e| e.to_string())?;
+    std::process::Command::new("explorer").arg(&carpeta).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 /// El motor, la carpeta y el modelo de la charla (chat-avis-ux.md 3.4 y #35): quedan para la próxima
 /// charla nueva y la carpeta va primera en las recientes. `modelo`: uno de `chat::MODELOS` o `null`
 /// ("Por defecto"), guardado tal cual. Devuelve `{ motor, carpeta, recientes, modelo }` como el `chat`
@@ -947,8 +1009,8 @@ async fn elegir_carpeta(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 /// Todo lo que la ventana necesita al arrancar y para la configuración (configuracion-ux.md 9.2):
-/// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version, chat }`. `arranque` sale
-/// del sistema, no del archivo. Sin carpeta de configuración, los valores de fábrica.
+/// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version, chat, tareasAvisado }`.
+/// `arranque` sale del sistema, no del archivo. Sin carpeta de configuración, los valores de fábrica.
 #[tauri::command]
 fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
     let ruta = ruta_preferencias(&app);
@@ -964,6 +1026,8 @@ fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::
         "arranque": arranque::marca_real(app.autolaunch().is_enabled()),
         "version": app.package_info().version.to_string(),
         "chat": valor_chat(ruta.as_deref().map(preferencias::leer_chat).unwrap_or_default()),
+        // El día del último aviso diario de tareas (tareas-ux.md 11.4), o null
+        "tareasAvisado": ruta.as_deref().and_then(preferencias::leer_tareas_avisado),
     })
 }
 
@@ -980,9 +1044,10 @@ fn valor_chat(c: preferencias::Chat) -> serde_json::Value {
 }
 
 /// Guarda un ajuste de la configuración (`mascota`, `arriba`, `avisar` o `pausa`; configuracion-ux.md
-/// 9.2) y aplica su efecto: "Siempre arriba" a la ventana, la pausa a la marca de la bandeja y a la
-/// ventana (`oficina://pausa`), la mascota a la ventana (`oficina://mascota`). Si no se pudo guardar,
-/// no aplica nada y la ventana vuelve el control a su valor de antes.
+/// 9.2; y `tareasAvisado`, el día del aviso diario de tareas, tareas-ux.md 11.4) y aplica su
+/// efecto: "Siempre arriba" a la ventana, la pausa a la marca de la bandeja y a la ventana
+/// (`oficina://pausa`), la mascota a la ventana (`oficina://mascota`); el aviso, ninguno. Si no se
+/// pudo guardar, no aplica nada y la ventana vuelve el control a su valor de antes.
 #[tauri::command]
 fn guardar_ajuste(app: AppHandle, estado: State<'_, Estado>, clave: String, valor: serde_json::Value) -> Result<serde_json::Value, String> {
     // Un error vuelve a la ventana, que lo anota en widget.log y muestra "No se pudo guardar"
@@ -1754,6 +1819,10 @@ pub fn run() {
             chat_borrar,
             chat_contar,
             chat_borrar_todo,
+            tareas_leer,
+            tareas_guardar,
+            tareas_borrar_lista,
+            tareas_abrir_carpeta,
             guardar_chat,
             elegir_carpeta,
             borrar_modelo,

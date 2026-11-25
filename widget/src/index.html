@@ -39,6 +39,12 @@
           <!-- Configuración (docs/diseno/configuracion-ux.md 4.1): la fila al pie, encima de "Equipo"; abierta, aria-current="page".
                Fuera de la sección de Equipo y pegada al pie de lo que se ve: con zoom alto la barra desplaza y la fila no se pierde (16, D-g) -->
           <div class="lado-cfg">
+            <!-- Tareas (docs/diseno/tareas-ux.md 4.1): arriba de Configuración, con la cuenta de hoy + vencidas o la pista
+                 "Ctrl T" (#tar-fila-ct, tareasVista.js); abierta, aria-current="page" -->
+            <button type="button" class="pj tar" id="tar-fila" data-accion="tar-abrir" aria-keyshortcuts="Control+T" aria-label="Tareas">
+              <span class="pj-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="3.2"/><path class="tilde-p" d="M5.3 8.2l1.9 1.9 3.6-4"/></svg></span>
+              <span class="pj-n">Tareas</span><span class="tar-ct" id="tar-fila-ct"><kbd aria-hidden="true">Ctrl T</kbd></span>
+            </button>
             <button type="button" class="pj engr" id="cfg-fila" data-accion="cfg-abrir" aria-keyshortcuts="Control+Comma">
               <span class="pj-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M13.14 6.72L14.93 7.01L14.93 8.99L13.14 9.28L12.54 10.73L13.60 12.20L12.20 13.60L10.73 12.54L9.28 13.14L8.99 14.93L7.01 14.93L6.72 13.14L5.27 12.54L3.80 13.60L2.40 12.20L3.46 10.73L2.86 9.28L1.07 8.99L1.07 7.01L2.86 6.72L3.46 5.27L2.40 3.80L3.80 2.40L5.27 3.46L6.72 2.86L7.01 1.07L8.99 1.07L9.28 2.86L10.73 3.46L12.20 2.40L13.60 3.80L12.54 5.27Z"/><circle cx="8" cy="8" r="2.1"/></svg></span>
               <span class="pj-n">Configuración</span><kbd aria-hidden="true">Ctrl ,</kbd>
@@ -57,6 +63,8 @@
             <div class="cab-t" data-arrastre title="Arrastrá para mover o acoplar a un borde">
               <!-- La mascota de 40 junto al título, con la configuración abierta fuera de Mascota (configuracion-ux.md 6.1) -->
               <span class="cfg-mini" id="cfg-mini" aria-hidden="true"></span>
+              <!-- La mascota de 40 junto al título con la hoja de Tareas abierta (tareas-ux.md 4.10): festeja cada tilde -->
+              <span class="tar-mini" id="tar-mini" aria-hidden="true"></span>
               <h1 id="titulo" tabindex="-1"></h1>
               <p id="subtitulo"></p>
             </div>
@@ -66,6 +74,8 @@
             <!-- Salida de la configuración (configuracion-ux.md 4.1): solo con la hoja abierta -->
             <button type="button" class="volver" id="cfg-volver" data-accion="cfg-cerrar" aria-keyshortcuts="Escape" title="Volver al tablero (Esc)">‹ Tablero</button>
             <div class="controles">
+              <!-- Salida de Tareas (tareas-ux.md 3.1 y 3.3): solo con la hoja abierta, primera de los controles -->
+              <button type="button" class="volver" id="tar-volver" data-accion="tar-cerrar" aria-keyshortcuts="Escape" title="Volver al tablero (Esc)">‹ Tablero</button>
               <button type="button" class="tb" data-accion="pin" aria-pressed="true" aria-label="Siempre arriba" title="Siempre arriba">
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2h5M6.5 2v4.2L4.5 8.5h7L9.5 6.2V2M8 8.5V14"/></svg>
               </button>
@@ -82,7 +92,11 @@
           <div id="vacio-avi" class="vacio-avi" hidden></div>
           <!-- Configuración (docs/diseno/configuracion-ux.md 4.2): la hoja reemplaza a lo de abajo mientras está abierta -->
           <div id="cfg"></div>
+          <!-- Tareas (docs/diseno/tareas-ux.md 3.2): hermana de #cfg, una hoja por vez en la columna -->
+          <div id="tar"></div>
           <div id="otro"></div>
+          <!-- El aviso diario de tareas en la pantalla dividida (tareas-ux.md 8.4): la fila arriba de las sesiones -->
+          <div id="aviso-tar"></div>
           <!-- Pantalla dividida: pestañas (2 o más conversaciones), las dos mitades con su puente y la ficha "Último" -->
           <div id="pestanas"></div>
           <section class="split" id="split" aria-labelledby="h-split">
@@ -144,6 +158,9 @@
   <!-- Muesca acoplada (sección 7): el único control mientras está cerrada. El panel es #marco -->
   <!-- Muesca A "Asoma" (docs/diseno/muesca-avi-ux.md): main.js escribe su armazón una vez (contenidoMuesca) -->
   <button type="button" id="muesca" aria-expanded="false" aria-controls="marco" aria-label="Avis. Abrir"></button>
+  <!-- El aviso diario de tareas con la muesca plegada (tareas-ux.md 8.5): un botón hermano (#muesca ya es un botón);
+       main.js lo ubica del lado de adentro (lugarGloboMuesca) y suma su rectángulo a la zona interactiva -->
+  <button type="button" id="muesca-tareas" data-accion="tar-globo" hidden></button>
   <div id="luz" aria-hidden="true"></div>
   <!-- Píldora al arrastrar la muesca lejos de los bordes, y aviso del imán al arrastrar el tablero (7.3) -->
   <div id="pildora" aria-hidden="true"></div>

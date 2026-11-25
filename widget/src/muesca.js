@@ -201,6 +201,43 @@ export function relativo(r, ventana, z = 1) {
   return { x: (r.x - ventana.x) / z, y: (r.y - ventana.y) / z, ancho: r.ancho / z, alto: r.alto / z }
 }
 
+/** La vuelta de `relativo`: un rectángulo en px CSS de la ventana, en px de pantalla. */
+export function absoluto(r, ventana, z = 1) {
+  return { x: ventana.x + r.x * z, y: ventana.y + r.y * z, ancho: r.ancho * z, alto: r.alto * z }
+}
+
+// ------------------------------------------------------------------ globo del aviso de tareas (tareas-ux.md 8.5)
+
+/** Lo que cuelga el globo de la muesca, del lado de adentro de la pantalla. */
+export const SEPARA_GLOBO = 8
+/** Lo mínimo entre el globo y el borde de la ventana cuando la muesca está contra una esquina. */
+export const MARGEN_GLOBO = 8
+
+/**
+ * Dónde cuelga el globo de tareas (`#muesca-tareas`, tareas-ux.md 8.5), en px CSS de la ventana:
+ * 8 px debajo de la muesca de arriba, arriba de la de abajo, a la derecha de la de la izquierda o a la
+ * izquierda de la de la derecha, centrado en ella y adentro de la ventana. `muesca`: su caja local
+ * (`d.local.muesca`); `tam`: el globo medido; `ventana`: `{ ancho, alto }` local. `cola`: dónde va la
+ * cola, desde el borde izquierdo del globo (arriba y abajo) o desde el de arriba (a los costados), para
+ * que apunte al centro de la muesca aunque el globo se corra.
+ */
+export function lugarGloboMuesca(borde, muesca, tam, ventana) {
+  const cx = muesca.x + muesca.ancho / 2
+  const cy = muesca.y + muesca.alto / 2
+  const tope = (v, largo, total) => Math.max(MARGEN_GLOBO, Math.min(v, total - largo - MARGEN_GLOBO))
+  let x, y, cola
+  if (esHorizontal(borde)) {
+    x = tope(cx - tam.ancho / 2, tam.ancho, ventana.ancho)
+    y = borde === 'arriba' ? muesca.y + muesca.alto + SEPARA_GLOBO : muesca.y - SEPARA_GLOBO - tam.alto
+    cola = Math.max(0, Math.min(tam.ancho, cx - x))
+  } else {
+    y = tope(cy - tam.alto / 2, tam.alto, ventana.alto)
+    x = borde === 'izquierda' ? muesca.x + muesca.ancho + SEPARA_GLOBO : muesca.x - SEPARA_GLOBO - tam.ancho
+    cola = Math.max(0, Math.min(tam.alto, cy - y))
+  }
+  return { x, y, ancho: tam.ancho, alto: tam.alto, cola }
+}
+
 // ------------------------------------------------------------------ ventana fija y zona interactiva (9.6)
 
 /**
@@ -261,9 +298,11 @@ function unir(a, b) {
  * Lo que toma el mouse en la ventana del área (9.6 y 9.7), en px de pantalla; el resto deja pasar
  * los clics a lo que hay debajo. Acoplada y cerrada: la muesca más `MARGEN_ZONA`; abierta: el
  * tablero. Flotando, el tablero; en la tira, la tira. Arrastrando (la muesca, la píldora, el tablero
- * o la tira), toda la ventana (`toda`), para no perder el puntero a mitad de camino.
+ * o la tira), toda la ventana (`toda`), para no perder el puntero a mitad de camino. Cerrada y con el
+ * globo del aviso de tareas a la vista (`globo`, px de pantalla; tareas-ux.md 8.5), la unión de los dos:
+ * si no, el clic en el globo pasaría a la app de abajo.
  */
-export function zonaInteractiva(d, { abierta, arrastrando = false, hoja = null }, z = 1) {
+export function zonaInteractiva(d, { abierta, arrastrando = false, hoja = null, globo = null }, z = 1) {
   if (arrastrando) return { ...d.ventana, toda: true }
   if (d.modo === 'tira') return { ...d.tira, toda: false }
   // La hoja de la charla al costado (chat-avis-ux.md 3.1): la unión del tablero y la hoja, con el
@@ -271,7 +310,7 @@ export function zonaInteractiva(d, { abierta, arrastrando = false, hoja = null }
   if (d.modo === 'flotante') return { ...unir(d.tablero, hoja), toda: false }
   if (abierta) return { ...unir(d.p.tablero, hoja), toda: false }
   const c = d.m.caja, g = MARGEN_ZONA * z
-  return { x: c.x - g, y: c.y - g, ancho: c.ancho + 2 * g, alto: c.alto + 2 * g, toda: false }
+  return { ...unir({ x: c.x - g, y: c.y - g, ancho: c.ancho + 2 * g, alto: c.alto + 2 * g }, globo), toda: false }
 }
 
 /**

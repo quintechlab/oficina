@@ -10,7 +10,6 @@
 use serde_json::{json, Map, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use crate::chat;
@@ -30,7 +29,6 @@ const TOPE_HERRAMIENTAS: usize = 500;
 
 /// Una escritura por vez en todo el proceso: dos guardados a la vez no se pisan el `rename`.
 static ESCRITURA: Mutex<()> = Mutex::new(());
-static TEMPORALES: AtomicU64 = AtomicU64::new(0);
 
 /// Un id de charla de Avis: `c-…` y lo que acepta `conversacion_valida` (sin rutas).
 pub fn id_valido(id: &str) -> bool {
@@ -154,17 +152,10 @@ fn bloquear() -> std::sync::MutexGuard<'static, ()> {
     ESCRITURA.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Escribe `<id>.json` con un temporal propio y `rename` (con el candado tomado).
+/// Escribe `<id>.json` con un temporal propio y `rename` (con el candado tomado; `atomico.rs`).
 fn escribir(carpeta: &Path, id: &str, doc: &Value) -> Result<(), String> {
     let destino = ruta(carpeta, id).ok_or("id de charla inválido")?;
-    fs::create_dir_all(carpeta).map_err(|e| e.to_string())?;
-    let n = TEMPORALES.fetch_add(1, Ordering::Relaxed);
-    let temporal = carpeta.join(format!("{id}.json.{}-{n}.tmp", std::process::id()));
-    let resultado = fs::write(&temporal, serde_json::to_vec(doc).map_err(|e| e.to_string())?).and_then(|()| fs::rename(&temporal, &destino));
-    if resultado.is_err() {
-        let _ = fs::remove_file(&temporal);
-    }
-    resultado.map_err(|e| e.to_string())
+    crate::atomico::escribir(&destino, &serde_json::to_vec(doc).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
 }
 
 fn leer_archivo(carpeta: &Path, id: &str) -> Result<Value, String> {

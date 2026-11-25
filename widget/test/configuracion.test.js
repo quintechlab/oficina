@@ -71,6 +71,16 @@ test('validarAjuste: arriba, avisar y pausa solo booleanos', () => {
   }
 })
 
+test('validarAjuste: tareasAvisado acepta un día que existe o vacío, como preferencias.rs (tareas-ux.md 11.4)', () => {
+  for (const bueno of ['2026-11-24', '2024-02-29', '']) assert.equal(validarAjuste('tareasAvisado', bueno), true, bueno)
+  for (const malo of ['2026-02-30', '2025-02-29', '2026-13-01', '2026-11-24T10:00', '2026-11-24 10:00', '2026-1-05', '+026-11-24', '24/11/2026', 20261124, true, null, undefined, {}]) {
+    assert.equal(validarAjuste('tareasAvisado', malo), false, String(malo))
+  }
+  // Las otras claves siguen como estaban
+  assert.equal(validarAjuste('mascota', '2026-11-24'), false)
+  assert.equal(validarAjuste('pausa', '2026-11-24'), false)
+})
+
 test('validarAjuste: una clave desconocida se rechaza', () => {
   assert.equal(validarAjuste('tamano', 125), false)
   assert.equal(validarAjuste('clave', 'sk-falsa'), false)
