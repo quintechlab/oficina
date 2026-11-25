@@ -7,7 +7,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  PESTANAS, IDS_PESTANAS, pestanaSiguiente, validarAjuste, cambiosNombres, nombreMarca, UBICACIONES, ubicacionDe, bordeDeUbicacion,
+  PESTANAS, IDS_PESTANAS, pestanaSiguiente, validarAjuste, cambiosNombres, nombreMarca, subtituloConfiguracion, UBICACIONES, ubicacionDe, bordeDeUbicacion,
   limitesTamano, configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion,
   pestanaValida, valorInterruptor, FORMAS_VISTA, opcionesForma, elegirForma, rotuloEspecie, anuncioEspecie, anuncioForma,
   modoVistaPrevia, CLAVE_VISTA_PREVIA, horaArgentina, textoMod, textoModelo, puntoPestana, clicBorrar, armadoVigente,
@@ -102,6 +102,11 @@ test('cambiosNombres: solo lo que cambió, sin espacios de los bordes; null si a
     [{ clave: 'nombreMascota', valor: '' }, { clave: 'nombreUsuario', valor: 'Nico' }])
   assert.equal(cambiosNombres(guardados, { nombreMascota: 'x'.repeat(41), nombreUsuario: 'Nico' }), null)
   assert.equal(cambiosNombres(guardados, { nombreMascota: 'Pancho', nombreUsuario: 'a\nb' }), null)
+})
+
+test('subtituloConfiguracion: en Mascota avisa que los nombres van con Guardar (#37)', () => {
+  assert.equal(subtituloConfiguracion('mascota'), 'Se guarda al instante · los nombres, con Guardar')
+  for (const tab of ['panel', 'modelos', 'datos', 'instalacion']) assert.equal(subtituloConfiguracion(tab), 'Se guarda al instante', tab)
 })
 
 test('nombreMarca: el nombre de la mascota bajo la marca; sin nombre, Avis (#37)', () => {

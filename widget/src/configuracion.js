@@ -67,6 +67,9 @@ export function cambiosNombres(guardados, escritos) {
 /** El título bajo la marca (#37): el nombre que le puso el usuario a la mascota; sin nombre, "Avis". */
 export const nombreMarca = nombre => nombre || 'Avis'
 
+/** El subtítulo de la configuración: todo se guarda al instante, salvo los nombres de Mascota (#37, con "Guardar"). */
+export const subtituloConfiguracion = tab => (tab === 'mascota' ? 'Se guarda al instante · los nombres, con Guardar' : 'Se guarda al instante')
+
 /**
  * ¿`valor` sirve para `clave`? `mascota`, una de las siete especies (texto exacto); `arriba`,
  * `avisar` y `pausa`, solo booleanos; los nombres (#37), `nombreValido`; cualquier otra clave, no.

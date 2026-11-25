@@ -59,7 +59,7 @@ import {
   configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion, pestanaSiguiente, validarAjuste,
   valorInterruptor, INTERRUPTORES, ubicacionDe, bordeDeUbicacion, IDS_PESTANAS, elegirForma, anuncioEspecie, anuncioForma,
   textoMod, textoModelo, modeloDesdeChat, descargaDesdeConfig, puntoPestana, filasEnEstaPC, clicBorrar, armadoVigente, desarmarVencido, MS_CONFIRMAR,
-  MOTORES, modeloDeValor, textoHistorial, nombreValido, cambiosNombres, nombreMarca,
+  MOTORES, modeloDeValor, textoHistorial, nombreValido, cambiosNombres, nombreMarca, subtituloConfiguracion,
   PROVEEDORES, finalDe, formaClave, textoClave, clavesDesdeLectura, resultadoPrueba, anuncioPrueba, anuncioGuardada,
   ANUNCIO_CLAVE_BORRADA, empezarClave, retieneConfig, detalleErrorClave, marcoBajo,
 } from './configuracion.js'
@@ -764,7 +764,7 @@ function pintarMuesca(ahora, faltan) {
   }
   texto('#muesca .cuenta', e.sesiones ? String(e.sesiones) : '')
   texto('#muesca .excl', e.globo || '!')
-  poner('#pildora', contenidoPildora(e, st.mascota, st.formas), `${e.animo}|${e.pregunta}|${e.chip}`)
+  poner('#pildora', contenidoPildora(e, st.mascota, st.formas, st.nombreMascota), `${e.animo}|${e.pregunta}|${e.chip}|${st.nombreMascota}`)
   // Primeros pasos: sin golpe ni luz; solo el nombre suma lo que falta (bienvenida-ux.md 3.5)
   const nombre = nombreMuesca(e.nombre, faltan)
   if (boton.getAttribute('aria-label') !== nombre) boton.setAttribute('aria-label', nombre)
@@ -3244,7 +3244,7 @@ function pintarHojaConfiguracion() {
   if (poner('#proyectos', barraProyectos(st.proyectos, -1)) && enfocado) $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
   texto('#titulo', 'Configuración')
   $('#titulo').title = ''
-  texto('#subtitulo', 'Se guarda al instante')
+  texto('#subtitulo', subtituloConfiguracion(st.config.tab))
   pintarConfiguracion()
 }
 

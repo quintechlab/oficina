@@ -683,3 +683,11 @@ test('estiloMuesca: las manos del alféizar y la luz de cara, del color de la ma
     assert.deepEqual(estiloMuesca(e), { '--mano-muesca': datosEspecie(e).mano, '--c-muesca': datosEspecie(e).c }, e)
   }
 })
+
+test('contenidoPildora: el título es el nombre de la mascota (#37), escapado; sin nombre, Avis', () => {
+  const e = estadoMuesca([], Date.parse('2026-11-24T12:00:00Z'))
+  assert.match(contenidoPildora(e, 'avi', new Set(), 'Pancho'), /<b>Pancho<\/b>/)
+  assert.match(contenidoPildora(e, 'avi', new Set(), '<i>'), /<b>&lt;i&gt;<\/b>/)
+  assert.match(contenidoPildora(e, 'avi', new Set(), ''), /<b>Avis<\/b>/)
+  assert.match(contenidoPildora(e), /<b>Avis<\/b>/)
+})
