@@ -6,7 +6,7 @@
 // Entrega 5: "Quién responde" en Modelos y el historial del chat en Datos.
 
 import { escapar } from './logica.js'
-import { PESTANAS, UBICACIONES, CLAVE_VISTA_PREVIA, opcionesForma, rotuloEspecie, PROVEEDORES, textoClave, MOTORES, OPCIONES_MODELO, textoHistorial } from './configuracion.js'
+import { PESTANAS, UBICACIONES, CLAVE_VISTA_PREVIA, opcionesForma, rotuloEspecie, PROVEEDORES, textoClave, MOTORES, OPCIONES_MODELO, textoHistorial, MAX_NOMBRE } from './configuracion.js'
 import { modeloValido } from './chat.js'
 import { NOMBRES_ESPECIES, datosEspecie, especieValida } from './especies.js'
 import { avi, claudeDe } from './avis.js'
@@ -177,7 +177,25 @@ export function partesMascota(datos) {
     fichas: NOMBRES_ESPECIES.map((e, i) => fichaEspecie(e, e === especie, i)).join('')
       + '<p class="esp-nota">Se ve en la marca, la muesca y cada sesión. Sus subagentes son de su especie.</p>',
     error: errorDe(datos, 'mascota'),
+    nombres: '<h3 class="sub">Nombres</h3>'
+      + fila('Su nombre', `Cómo se llama en la marca y en la charla. Vacío: ${escapar(d.nombre)}.`, campoNombre('cfg-nom-mascota', 'nombreMascota', datos.nombreMascota, d.nombre),
+        { para: 'cfg-nom-mascota' })
+      + fila('Tu nombre', 'Cómo te llama en la charla. Vacío: no te nombra.', campoNombre('cfg-nom-usuario', 'nombreUsuario', datos.nombreUsuario, 'Tu nombre'),
+        { para: 'cfg-nom-usuario' })
+      + '<div class="nom-acc"><button type="button" class="btn" id="cfg-nom-guardar" data-accion="cfg-nom-guardar" data-k="nom-guardar" aria-disabled="true">Guardar</button>'
+      + `${datos.nombresOk ? '<span class="nom-ok" role="status">Guardado</span>' : ''}</div>`
+      + errorDe(datos, 'nombres'),
   }
+}
+
+/**
+ * Un campo de nombre (#37): los dos se guardan juntos con "Guardar" o con Enter (main.js). El valor
+ * es el guardado; mientras se escribe, el texto vive en el `<input>` (main.js lo conserva si la
+ * parte se redibuja con el foco adentro).
+ */
+function campoNombre(id, clave, valor, pista) {
+  return `<div class="campo nom"><input id="${id}" class="cfg-nom" type="text" maxlength="${MAX_NOMBRE}" autocomplete="off" spellcheck="false"`
+    + ` placeholder="${escapar(pista)}" value="${escapar(typeof valor === 'string' ? valor : '')}" data-k="${id}" data-valor="${clave}" aria-describedby="${id}-d"></div>`
 }
 
 /** Una ficha de especie (`radio`): el Avi de 54 en la base, nombre y forma; la elegida con ✓. */
@@ -198,6 +216,7 @@ export function seccionMascota(datos) {
   return `<div class="esc-m"><div class="esc-fig" data-parte="fig">${p.fig}</div><div class="esc-t" data-parte="texto">${p.texto}</div></div>`
     + `<div class="especies" role="radiogroup" aria-label="Mascota de Claude" data-parte="fichas">${p.fichas}</div>`
     + `<div class="esp-error" data-parte="error">${p.error}</div>`
+    + `<div class="nombres" data-parte="nombres">${p.nombres}</div>`
 }
 
 // ------------------------------------------------------------------ Modelos e Instalación (entrega 3: 7.2 y 7.3)

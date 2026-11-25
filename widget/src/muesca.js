@@ -402,9 +402,12 @@ export function estiloMuesca(mascota = 'avi') {
   return { '--mano-muesca': d.mano, '--c-muesca': d.c }
 }
 
-/** La píldora flotante al arrastrar la muesca (7.3): el Avi, el título y el chip, como la tira mini. */
-export function contenidoPildora(e, mascota = 'avi', formas = new Set()) {
-  return `<span class="asoma">${avi(claudeDe(mascota), e.animo, 44, { claveEvo: CLAVE_MARCA, evolucionada: formas.has(CLAVE_MARCA) })}</span><b>Avis</b>`
+/**
+ * La píldora flotante al arrastrar la muesca (7.3): el Avi, el título y el chip, como la tira mini.
+ * El título es el de la marca (#37): el nombre que le puso el usuario a la mascota, o "Avis".
+ */
+export function contenidoPildora(e, mascota = 'avi', formas = new Set(), titulo = '') {
+  return `<span class="asoma">${avi(claudeDe(mascota), e.animo, 44, { claveEvo: CLAVE_MARCA, evolucionada: formas.has(CLAVE_MARCA) })}</span><b>${escapar(titulo || 'Avis')}</b>`
     + `<span class="chip${e.pregunta ? ' chip-preg' : ''}">${escapar(e.chip)}</span>`
 }
 

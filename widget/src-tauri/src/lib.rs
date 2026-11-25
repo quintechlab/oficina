@@ -714,11 +714,14 @@ fn estado_local() -> &'static str {
 /// Al abrir la hoja o cambiar de conversación: con Claude Code, precalienta el proceso sin mandarle
 /// nada (D19). `{ proceso, sesion, motivo?, engram, local }`. `sesionClaude`: la de una charla que
 /// ya tuvo mensajes (se retoma con `--resume`). `modelo` (#35): `fable`, `opus`, `sonnet`, `haiku` o
-/// `null` ("Por defecto", sin `--model`); cambiarlo sigue la misma conversación.
+/// `null` ("Por defecto", sin `--model`); cambiarlo sigue la misma conversación. `usuario` (#37): el
+/// nombre del usuario, que toma el próximo proceso y el próximo turno local.
 #[tauri::command]
-async fn chat_abrir(conversacion: String, motor: String, carpeta: Option<String>, mascota: Option<String>, sesion_claude: Option<String>, modelo: Option<String>) -> Result<serde_json::Value, String> {
+async fn chat_abrir(conversacion: String, motor: String, carpeta: Option<String>, mascota: Option<String>, usuario: Option<String>, sesion_claude: Option<String>, modelo: Option<String>) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let mut r = el_chat()?.abrir_con(&conversacion, &motor, carpeta.map(std::path::PathBuf::from), mascota.as_deref().unwrap_or(""), sesion_claude, modelo)?;
+        let chat = el_chat()?;
+        chat.poner_usuario(usuario.as_deref().unwrap_or(""));
+        let mut r = chat.abrir_con(&conversacion, &motor, carpeta.map(std::path::PathBuf::from), mascota.as_deref().unwrap_or(""), sesion_claude, modelo)?;
         // Si hay Engram (9.2): /health con 1 s, como mucho cada 5 min
         r["engram"] = serde_json::json!(if engram::ENGRAM.get().is_some_and(engram::Engram::hay) { "si" } else { "no" });
         r["local"] = serde_json::json!(estado_local());
@@ -1138,8 +1141,11 @@ async fn elegir_carpeta(app: AppHandle) -> Result<Option<String>, String> {
 fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
     let ruta = ruta_preferencias(&app);
     let interruptores = ruta.as_deref().map(preferencias::leer_interruptores).unwrap_or_default();
+    let nombres = ruta.as_deref().map(preferencias::leer_nombres).unwrap_or_default();
     serde_json::json!({
         "mascota": ruta.as_deref().map(preferencias::leer_mascota).unwrap_or_else(|| String::from(preferencias::ESPECIES[0])),
+        "nombreMascota": nombres.mascota,
+        "nombreUsuario": nombres.usuario,
         "acople": preferencias::valor_de_acople(*estado.acople.lock().unwrap()),
         "flotante": ruta.as_deref().and_then(preferencias::leer_flotante).map(|f| serde_json::json!({ "x": f.x, "y": f.y })),
         "arriba": interruptores.arriba,

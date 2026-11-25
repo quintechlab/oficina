@@ -31,7 +31,10 @@ export const ICONOS = Object.freeze({
   lupa: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m10.5 10.5 3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
 })
 
-const nombreDe = m => datosEspecie(m.especie).nombre
+/** El nombre de la mascota: el que le pusieron (#37, `m.nombre`) o el de su especie. */
+const nombreDe = m => m.nombre || datosEspecie(m.especie).nombre
+/** "¡Hola!" o, con el nombre del usuario (#37 S3), "¡Hola, Nico!". */
+const hola = m => (m.usuario ? `¡Hola, ${escapar(m.usuario)}!` : '¡Hola!')
 const motorDe = m => m.chat.conversacion?.motor ?? m.chat.motor
 const carpetaDe = m => m.chat.conversacion?.carpeta ?? null
 const modeloDe = m => modeloValido(m.chat.conversacion ? m.chat.conversacion.modelo : m.chat.modelo)
@@ -162,10 +165,10 @@ function bienvenida(m) {
   // Sin saber todavía (antes de chat_abrir), la bienvenida: mandar igual llega a Rust, que dice si falta
   if (motor === 'local' && ['falta', 'bajando', 'roto'].includes(m.chat.local)) return descargaLocal(m)
   const saludo = motor === 'local'
-    ? '¡Hola! Te respondo con el modelo de esta PC: privado y sin internet. Sé lo que pasa en tus sesiones de Avis.'
+    ? `${hola(m)} Te respondo con el modelo de esta PC: privado y sin internet. Sé lo que pasa en tus sesiones de Avis.`
     : carpeta
-      ? `¡Hola! Estoy en <b>${escapar(nombreCarpeta(carpeta))}</b> con Claude Code. Preguntame por tus sesiones, pedime documentación o pasame un archivo.`
-      : '¡Hola! Preguntame por tus sesiones de Avis o pasame un archivo.'
+      ? `${hola(m)} Estoy en <b>${escapar(nombreCarpeta(carpeta))}</b> con Claude Code. Preguntame por tus sesiones, pedime documentación o pasame un archivo.`
+      : `${hola(m)} Preguntame por tus sesiones de Avis o pasame un archivo.`
   const sug = sugerencias(motor, carpeta ? nombreCarpeta(carpeta) : null)
     .map((s, i) => ({ ...s, i }))
     .filter(s => !s.adjuntar || m.puedeAdjuntar)

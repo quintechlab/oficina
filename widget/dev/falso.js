@@ -37,6 +37,7 @@
 //   &cfgfalla     guardar_ajuste falla: el interruptor (o la especie) vuelve y dice "No se pudo guardar. Probá de nuevo."
 //   ?cfg=mascota  la pestaña Mascota: elegir una especie cambia toda la ventana; "Base · {evo}" corre el acto
 //                 (con ?pausa o movimiento reducido, al instante)
+//   &nombre=Pancho&usuario=Nico  los nombres guardados (#37): campos de la pestaña Mascota, la charla y su saludo
 //   ?cfg=instalacion&mod=al-dia|actualizado|apagado|instalando|fallo|sin-claude|sin-instalar  la tarjeta
 //                 "Mod de Claude Code" (7.3): estado_mod falso, con la última revisión y el aviso de una vez;
 //                 instalando no termina nunca (para mirarlo). "Prender" corre el paso activar falso
@@ -600,7 +601,11 @@
   window.__acople = acople
   /** preferencias.json falso (configuracion-ux.md 9.1): los interruptores; guardar_ajuste los cambia. */
   const ESPECIES = ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']
-  const ajustes = { arriba: true, avisar: true, pausa: url.has('pausa'), mascota: ESPECIES.includes(url.get('mascota')) ? url.get('mascota') : 'avi' }
+  const ajustes = {
+    arriba: true, avisar: true, pausa: url.has('pausa'), mascota: ESPECIES.includes(url.get('mascota')) ? url.get('mascota') : 'avi',
+    // Los nombres (#37): ?nombre=Pancho&usuario=Nico
+    nombreMascota: url.get('nombre') ?? '', nombreUsuario: url.get('usuario') ?? '',
+  }
   // tareas.avisado (11.4): con &globo, ayer (el primer arranque del día); sin él, hoy (ya se avisó)
   const diaArFalso = n => new Date(Date.now() - 3 * 3600000 + n * 86400000).toISOString().slice(0, 10)
   let avisadoTar = url.has('globo') ? diaArFalso(-1) : diaArFalso(0)
@@ -1423,6 +1428,8 @@
     }),
     // Como `ajuste_valido` de preferencias.rs; ?cfgfalla hace fallar el guardado (la fila vuelve y lo dice)
     guardar_ajuste: ({ clave, valor }) => {
+      // Los nombres (#37): hasta 40 caracteres sin control
+      const nombre = v => typeof v === 'string' && [...v.trim()].length <= 40 && !/\p{Cc}/u.test(v)
       // tareasAvisado: un día "AAAA-MM-DD" que existe, o vacío (11.4); Rust lo guarda en "tareas": { "avisado" }
       const dia = v => v === '' || (/^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v)
       // habitosRecordados (habitos-ux.md 11.5): { dia, ids } con solo esas claves, hasta 100 ids de hábito
@@ -1430,6 +1437,7 @@
         && Array.isArray(v.ids) && v.ids.length <= 100 && v.ids.every(id => idHabito(id))
       const lunesOk = (v, vacio) => typeof v === 'string' && (v === '' ? vacio : dia(v) && new Date(`${v}T12:00:00Z`).getUTCDay() === 1)
       const valido = clave === 'mascota' ? ESPECIES.includes(valor)
+        : ['nombreMascota', 'nombreUsuario'].includes(clave) ? nombre(valor)
         : clave === 'tareasAvisado' ? typeof valor === 'string' && dia(valor)
           : clave === 'habitosRecordados' ? recordadosOk(valor)
             // habitosResumen (8.4): un lunes que existe, o vacío (como preferencias.rs)

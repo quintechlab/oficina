@@ -91,13 +91,14 @@ pub fn leer_interruptores(ruta: &Path) -> Interruptores {
     Interruptores { arriba: leer("arriba", f.arriba), avisar: leer("avisar", f.avisar), pausa: leer("pausa", f.pausa) }
 }
 
-/// Las claves que escribe `guardar_ajuste` (el acople tiene su comando propio; `tamano`, ninguno: #47). Las
+/// Las claves que escribe `guardar_ajuste` (el acople tiene su comando propio; `tamano`, ninguno: #47). Los nombres (#37) son
+/// `nombreMascota` y `nombreUsuario`. Las
 /// mismas que `validarAjuste` de configuracion.js; `motor` llega con el chat. `tareasAvisado` es el
 /// día del aviso diario de tareas (tareas-ux.md 11.4) y se guarda adentro de `"tareas"`.
 /// `habitosRecordados` son los hábitos ya recordados hoy (habitos-ux.md 8.3 y 11.5), `habitosResumen` el
 /// lunes de la semana del último resumen semanal que se vio y `habitosFrase` la frase de esa semana
 /// (`{ lunes, frase }`, 8.4: se pide como mucho una vez por semana), las tres tal cual.
-const AJUSTES: [&str; 8] = ["mascota", "arriba", "avisar", "pausa", "tareasAvisado", "habitosRecordados", "habitosResumen", "habitosFrase"];
+const AJUSTES: [&str; 10] = ["mascota", "arriba", "avisar", "pausa", "nombreMascota", "nombreUsuario", "tareasAvisado", "habitosRecordados", "habitosResumen", "habitosFrase"];
 
 /// La frase de la semana como mucho (habitos-ux.md 8.4, `MAX_FRASE` de habitos.js).
 const MAX_FRASE: usize = 160;
@@ -107,8 +108,8 @@ const MAX_RECORDADOS: usize = 100;
 
 /// ¿`valor` sirve para `clave`? La mascota, una de `ESPECIES` (texto exacto); los interruptores,
 /// solo booleanos; el aviso de tareas, un día que existe `AAAA-MM-DD` o vacío; los hábitos recordados,
-/// `{ dia, ids }` (`recordados_validos`); el resumen de hábitos, un lunes que existe o vacío. Cualquier
-/// otra clave, no.
+/// `{ dia, ids }` (`recordados_validos`); el resumen de hábitos, un lunes que existe o vacío; los nombres (#37),
+/// texto que sirva para `nombre_valido`. Cualquier otra clave, no.
 pub fn ajuste_valido(clave: &str, valor: &Value) -> bool {
     match clave {
         "mascota" => valor.as_str().is_some_and(|m| ESPECIES.contains(&m)),
@@ -117,6 +118,7 @@ pub fn ajuste_valido(clave: &str, valor: &Value) -> bool {
         "habitosRecordados" => recordados_validos(valor),
         "habitosResumen" => valor.as_str().is_some_and(|d| d.is_empty() || lunes_valido(d)),
         "habitosFrase" => frase_semana_valida(valor),
+        "nombreMascota" | "nombreUsuario" => valor.as_str().is_some_and(nombre_valido),
         _ => false,
     }
 }
@@ -154,6 +156,31 @@ fn recordados_validos(valor: &Value) -> bool {
         ids.len() <= MAX_RECORDADOS && ids.iter().all(|id| id.as_str().is_some_and(crate::habitos::id_valido))
     });
     o.len() == 2 && dia && ids
+}
+
+/// Un nombre de la configuración (#37 S4): hasta 40 caracteres sin contar los espacios de los
+/// bordes y sin caracteres de control. Vacío sirve: es "el de siempre".
+pub fn nombre_valido(n: &str) -> bool {
+    n.trim().chars().count() <= 40 && !n.chars().any(char::is_control)
+}
+
+/// Los nombres de la configuración (#37), sin espacios de más; vacío si no hay o no sirve.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Nombres {
+    pub mascota: String,
+    pub usuario: String,
+}
+
+pub fn leer_nombres(ruta: &Path) -> Nombres {
+    let v = leer_valor(ruta);
+    let leer = |clave: &str| {
+        v.as_ref()
+            .and_then(|v| v.get(clave)?.as_str())
+            .filter(|n| nombre_valido(n))
+            .map(|n| n.trim().to_string())
+            .unwrap_or_default()
+    };
+    Nombres { mascota: leer("nombreMascota"), usuario: leer("nombreUsuario") }
 }
 
 /// Guarda un ajuste de la configuración y conserva lo demás. Uno inválido no toca el archivo. El aviso
@@ -823,6 +850,19 @@ mod tests {
     }
 
     #[test]
+    fn los_nombres_aceptan_texto_corto_sin_caracteres_de_control() {
+        // #37 S4: hasta 40 caracteres; vacío es "el de siempre"
+        for clave in ["nombreMascota", "nombreUsuario"] {
+            for bueno in [json!("Pancho"), json!(""), json!("María José"), json!("x".repeat(40)), json!("  Nico  ")] {
+                assert!(ajuste_valido(clave, &bueno), "{clave} {bueno}");
+            }
+            for malo in [json!("x".repeat(41)), json!("a\nb"), json!("a\tb"), json!(3), Value::Null, json!(true), json!(["Nico"])] {
+                assert!(!ajuste_valido(clave, &malo), "{clave} {malo}");
+            }
+        }
+    }
+
+    #[test]
     fn el_aviso_de_tareas_se_guarda_en_tareas_avisado_sin_borrar_lo_demas() {
         let r = ruta_temporal("tareas-avisado");
         assert_eq!(leer_tareas_avisado(&r), None);
@@ -1002,6 +1042,29 @@ mod tests {
         // Lo escrito a mano que no sirve se lee como nada guardado
         fs::write(&r, r#"{"habitosFrase":{"lunes":"2026-11-23","frase":"a\nb"}}"#).unwrap();
         assert_eq!(leer_habitos_frase(&r), None);
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn los_nombres_se_guardan_y_se_leen_sin_espacios_de_mas() {
+        let r = ruta_temporal("nombres");
+        assert_eq!(leer_nombres(&r), Nombres::default());
+        guardar_ajuste(&r, "nombreMascota", &json!(" Pancho ")).unwrap();
+        guardar_ajuste(&r, "nombreUsuario", &json!("Nico")).unwrap();
+        // Cambiar de especie no toca el nombre (S2)
+        guardar_ajuste(&r, "mascota", &json!("ascua")).unwrap();
+        assert_eq!(leer_nombres(&r), Nombres { mascota: String::from("Pancho"), usuario: String::from("Nico") });
+        assert_eq!(leer_mascota(&r), "ascua");
+        // Vacío vuelve al de siempre (S1)
+        guardar_ajuste(&r, "nombreMascota", &json!("")).unwrap();
+        assert_eq!(leer_nombres(&r), Nombres { mascota: String::new(), usuario: String::from("Nico") });
+        // Uno inválido no toca el archivo
+        let antes = fs::read_to_string(&r).unwrap();
+        assert!(guardar_ajuste(&r, "nombreUsuario", &json!("a\nb")).is_err());
+        assert_eq!(fs::read_to_string(&r).unwrap(), antes);
+        // Basura escrita a mano: se lee como vacío
+        fs::write(&r, r#"{"nombreMascota":"a\nb","nombreUsuario":7}"#).unwrap();
+        assert_eq!(leer_nombres(&r), Nombres::default());
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 

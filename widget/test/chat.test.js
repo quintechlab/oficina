@@ -624,6 +624,19 @@ test('vista vacía con Claude Code: el saludo con la carpeta, las sugerencias y 
   assert.match(falta, /Usar Claude Code/)
 })
 
+test('vista con nombres propios: la mascota se llama como la nombraron y saluda al usuario (#37 S2, S3)', () => {
+  const h = hilo(MODELO({ nombre: 'Pancho', usuario: 'Nico' }))
+  assert.match(h, /¡Hola, Nico! Estoy en <b>catalogo<\/b> con Claude Code\./)
+  assert.match(escena(MODELO({ nombre: 'Pancho' })), /<b class="esc-nom">Pancho<\/b>/)
+  const local = transicionChat(abierta(), { tipo: 'motor', motor: 'local' }, CTX).chat
+  assert.match(hilo(MODELO({ chat: { ...local, local: 'instalado' }, usuario: 'Nico' })), /¡Hola, Nico! Te respondo con el modelo de esta PC/)
+  // Sin nombres: la especie y el saludo de siempre
+  assert.match(escena(MODELO()), /<b class="esc-nom">Ascua<\/b>/)
+  assert.match(hilo(MODELO()), /¡Hola! Estoy en/)
+  // Escapado
+  assert.match(hilo(MODELO({ usuario: '<b>' })), /¡Hola, &lt;b&gt;!/)
+})
+
 test('vista esperando: título, reloj, tres pasos y la nota; a los 45 s la de "tardando"', () => {
   const c = enviar(abierta()).chat
   const h = hilo(MODELO({ chat: c, ahoraMs: AHORA + 5000 }))

@@ -7,7 +7,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  PESTANAS, IDS_PESTANAS, pestanaSiguiente, validarAjuste, UBICACIONES, ubicacionDe, bordeDeUbicacion,
+  PESTANAS, IDS_PESTANAS, pestanaSiguiente, validarAjuste, cambiosNombres, nombreMarca, subtituloConfiguracion, UBICACIONES, ubicacionDe, bordeDeUbicacion,
   configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion,
   pestanaValida, valorInterruptor, FORMAS_VISTA, opcionesForma, elegirForma, rotuloEspecie, anuncioEspecie, anuncioForma,
   modoVistaPrevia, CLAVE_VISTA_PREVIA, horaArgentina, textoMod, textoModelo, puntoPestana, clicBorrar, armadoVigente,
@@ -17,7 +17,7 @@ import {
 import { chatInicial, transicionChat } from '../src/chat.js'
 import {
   pestanasConfiguracion, seccionConfiguracion, avisoPreguntaConfiguracion, esqueletoConfiguracion, partesMascota, miniConfiguracion,
-  nombrePestana, partesModelos,
+  nombrePestana, partesModelos, seccionMascota,
 } from '../src/configuracionVista.js'
 import { NOMBRES_ESPECIES } from '../src/especies.js'
 
@@ -61,6 +61,58 @@ test('validarAjuste: mascota acepta solo las siete especies', () => {
   assert.equal(validarAjuste('mascota', ''), false)
   assert.equal(validarAjuste('mascota', null), false)
   assert.equal(validarAjuste('mascota', 'dragon'), false)
+})
+
+test('validarAjuste: los nombres, texto de hasta 40 caracteres sin controles; vacío sirve (#37 S4)', () => {
+  for (const clave of ['nombreMascota', 'nombreUsuario']) {
+    for (const bueno of ['Pancho', '', 'María José', 'x'.repeat(40), '  Nico  ']) assert.equal(validarAjuste(clave, bueno), true, `${clave} ${bueno}`)
+    for (const malo of ['x'.repeat(41), 'a\nb', 'a\tb', 3, null, undefined, true, ['Nico']]) assert.equal(validarAjuste(clave, malo), false, `${clave} ${String(malo)}`)
+  }
+})
+
+test('partesMascota: los campos de nombre con lo guardado, la especie de pista y su error (#37 S1)', () => {
+  const campo = (h, id) => h.match(new RegExp(`<input id="${id}"[^>]*>`))?.[0] ?? ''
+  const p = partesMascota({ mascota: 'ascua', forma: 'base', nombreMascota: 'Pancho', nombreUsuario: '' })
+  const m = campo(p.nombres, 'cfg-nom-mascota')
+  assert.match(m, /value="Pancho"/)
+  assert.match(m, /placeholder="Ascua"/)
+  assert.match(m, /maxlength="40"/)
+  assert.match(p.nombres, /<label class="aj-t" for="cfg-nom-mascota">Su nombre<\/label>/)
+  const u = campo(p.nombres, 'cfg-nom-usuario')
+  assert.match(u, /value=""/)
+  assert.match(p.nombres, /<label class="aj-t" for="cfg-nom-usuario">Tu nombre<\/label>/)
+  // Lo escrito a mano no rompe el HTML
+  assert.match(campo(partesMascota({ mascota: 'avi', nombreUsuario: 'Ni"<co' }).nombres, 'cfg-nom-usuario'), /value="Ni&quot;&lt;co"/)
+  // Sin nombres guardados, la pista es la especie elegida
+  assert.match(campo(partesMascota({ mascota: 'lumen' }).nombres, 'cfg-nom-mascota'), /placeholder="Lumen"[^>]*value=""/)
+  // Un solo "Guardar" para los dos, apagado hasta que se escribe algo distinto (main.js lo prende)
+  assert.match(p.nombres, /<button type="button" class="btn" id="cfg-nom-guardar" data-accion="cfg-nom-guardar" data-k="nom-guardar" aria-disabled="true">Guardar<\/button>/)
+  assert.doesNotMatch(p.nombres, /aj-error|Guardado/)
+  assert.match(partesMascota({ mascota: 'avi', error: 'nombres' }).nombres, /<p class="aj-error" role="alert">No se pudo guardar/)
+  assert.match(partesMascota({ mascota: 'avi', nombresOk: true }).nombres, /<span class="nom-ok" role="status">Guardado<\/span>/)
+  // La sección entera lleva la parte
+  assert.match(seccionMascota({ mascota: 'avi' }), /data-parte="nombres"/)
+})
+
+test('cambiosNombres: solo lo que cambió, sin espacios de los bordes; null si alguno no sirve (#37)', () => {
+  const guardados = { nombreMascota: 'Pancho', nombreUsuario: '' }
+  assert.deepEqual(cambiosNombres(guardados, { nombreMascota: 'Pancho', nombreUsuario: '' }), [])
+  assert.deepEqual(cambiosNombres(guardados, { nombreMascota: ' Pancho ', nombreUsuario: ' Nico ' }), [{ clave: 'nombreUsuario', valor: 'Nico' }])
+  assert.deepEqual(cambiosNombres(guardados, { nombreMascota: '', nombreUsuario: 'Nico' }),
+    [{ clave: 'nombreMascota', valor: '' }, { clave: 'nombreUsuario', valor: 'Nico' }])
+  assert.equal(cambiosNombres(guardados, { nombreMascota: 'x'.repeat(41), nombreUsuario: 'Nico' }), null)
+  assert.equal(cambiosNombres(guardados, { nombreMascota: 'Pancho', nombreUsuario: 'a\nb' }), null)
+})
+
+test('subtituloConfiguracion: en Mascota avisa que los nombres van con Guardar (#37)', () => {
+  assert.equal(subtituloConfiguracion('mascota'), 'Se guarda al instante · los nombres, con Guardar')
+  for (const tab of ['panel', 'modelos', 'datos', 'instalacion']) assert.equal(subtituloConfiguracion(tab), 'Se guarda al instante', tab)
+})
+
+test('nombreMarca: el nombre de la mascota bajo la marca; sin nombre, Avis (#37)', () => {
+  assert.equal(nombreMarca('Pancho'), 'Pancho')
+  assert.equal(nombreMarca(''), 'Avis')
+  assert.equal(nombreMarca(undefined), 'Avis')
 })
 
 test('validarAjuste: arriba, avisar y pausa solo booleanos', () => {
@@ -477,8 +529,10 @@ test('Mascota: un error al guardar la especie queda debajo de las fichas', () =>
 test('Mascota por partes: cambiar la forma no toca la figura (así el acto no se corta)', () => {
   const base = partesMascota(MASCOTA)
   const evo = partesMascota({ ...MASCOTA, forma: 'evo' })
-  assert.deepEqual(Object.keys(base), ['fig', 'texto', 'fichas', 'error'])
+  assert.deepEqual(Object.keys(base), ['fig', 'texto', 'fichas', 'error', 'nombres'])
   assert.equal(evo.fig, base.fig)
+  // Los campos de nombre tampoco (#37): se escribe en ellos sin que se redibujen
+  assert.equal(evo.nombres, base.nombres)
   assert.equal(evo.fichas, base.fichas)
   assert.notEqual(evo.texto, base.texto)
   // Otra especie cambia la figura, el texto y las fichas

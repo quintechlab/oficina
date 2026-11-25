@@ -42,13 +42,43 @@ export function pestanaSiguiente(actual, tecla, lista = IDS_PESTANAS) {
 /** Los interruptores que se guardan en preferencias.json (9.1) y su valor de fábrica. */
 export const INTERRUPTORES = { arriba: true, avisar: true, pausa: false }
 
+/** Los nombres de la pestaña Mascota (#37) y su largo máximo (el mismo de `nombre_valido` de Rust). */
+export const NOMBRES = ['nombreMascota', 'nombreUsuario']
+export const MAX_NOMBRE = 40
+
+/** ¿Sirve como nombre? Hasta 40 caracteres sin los espacios de los bordes y sin caracteres de control; vacío sirve ("el de siempre"). */
+export function nombreValido(n) {
+  // eslint-disable-next-line no-control-regex
+  return typeof n === 'string' && [...n.trim()].length <= MAX_NOMBRE && !/[\u0000-\u001f\u007f-\u009f]/.test(n)
+}
+
+/**
+ * Lo que guarda "Guardar" de la pestaña Mascota (#37): los nombres que cambiaron respecto de lo
+ * guardado, sin espacios de los bordes, en el orden de `NOMBRES`. `null` si alguno no sirve.
+ */
+export function cambiosNombres(guardados, escritos) {
+  const cambios = []
+  for (const clave of NOMBRES) {
+    const valor = String(escritos?.[clave] ?? '').trim()
+    if (!nombreValido(valor)) return null
+    if (valor !== (guardados?.[clave] ?? '')) cambios.push({ clave, valor })
+  }
+  return cambios
+}
+
+/** El título bajo la marca (#37): el nombre que le puso el usuario a la mascota; sin nombre, "Avis". */
+export const nombreMarca = nombre => nombre || 'Avis'
+
+/** El subtítulo de la configuración: todo se guarda al instante, salvo los nombres de Mascota (#37, con "Guardar"). */
+export const subtituloConfiguracion = tab => (tab === 'mascota' ? 'Se guarda al instante · los nombres, con Guardar' : 'Se guarda al instante')
+
 /**
  * ¿`valor` sirve para `clave`? `mascota`, una de las siete especies (texto exacto); `arriba`,
  * `avisar` y `pausa`, solo booleanos; `tareasAvisado` (el día del aviso diario de tareas,
  * tareas-ux.md 11.4), un día que existe `AAAA-MM-DD` o vacío; `habitosRecordados` (los hábitos ya
  * recordados hoy, habitos-ux.md 8.3 y 11.5), `{ dia, ids }` con solo esas dos claves, un día que existe
  * y hasta 100 ids de hábito; `habitosResumen` (8.4), un lunes que existe o vacío; `habitosFrase` (8.4),
- * `{ lunes, frase }` (`fraseGuardadaValida` de habitos.js); cualquier otra clave, no. Las mismas reglas que `ajuste_valido` de
+ * `{ lunes, frase }` (`fraseGuardadaValida` de habitos.js); los nombres (#37), `nombreValido`; cualquier otra clave, no. Las mismas reglas que `ajuste_valido` de
  * preferencias.rs. `motor` llega con el chat (D6).
  */
 export function validarAjuste(clave, valor) {
@@ -59,6 +89,7 @@ export function validarAjuste(clave, valor) {
   // El resumen semanal de Hábitos (habitos-ux.md 8.4): el lunes visto y la frase de esa semana
   if (clave === 'habitosResumen') return resumenGuardadoValido(valor)
   if (clave === 'habitosFrase') return fraseGuardadaValida(valor)
+  if (NOMBRES.includes(clave)) return nombreValido(valor)
   return false
 }
 
