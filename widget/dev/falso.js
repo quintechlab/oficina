@@ -38,6 +38,7 @@
 //   &cfgfalla     guardar_ajuste falla: el interruptor (o la especie) vuelve y dice "No se pudo guardar. Probá de nuevo."
 //   ?cfg=mascota  la pestaña Mascota: elegir una especie cambia toda la ventana; "Base · {evo}" corre el acto
 //                 (con ?pausa o movimiento reducido, al instante)
+//   &nombre=Pancho&usuario=Nico  los nombres guardados (#37): campos de la pestaña Mascota, la charla y su saludo
 //   ?cfg=instalacion&mod=al-dia|actualizado|apagado|instalando|fallo|sin-claude|sin-instalar  la tarjeta
 //                 "Mod de Claude Code" (7.3): estado_mod falso, con la última revisión y el aviso de una vez;
 //                 instalando no termina nunca (para mirarlo). "Prender" corre el paso activar falso
@@ -497,7 +498,11 @@
   window.__acople = acople
   /** preferencias.json falso (configuracion-ux.md 9.1): los interruptores; guardar_ajuste los cambia. */
   const ESPECIES = ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']
-  const ajustes = { arriba: true, avisar: true, pausa: url.has('pausa'), mascota: ESPECIES.includes(url.get('mascota')) ? url.get('mascota') : 'avi' }
+  const ajustes = {
+    arriba: true, avisar: true, pausa: url.has('pausa'), mascota: ESPECIES.includes(url.get('mascota')) ? url.get('mascota') : 'avi',
+    // Los nombres (#37): ?nombre=Pancho&usuario=Nico
+    nombreMascota: url.get('nombre') ?? '', nombreUsuario: url.get('usuario') ?? '',
+  }
   // Las claves de API falsas (entrega 4): solo el final de 4, como lo que devuelve Rust. ?clave=sin
   // ninguna, ?clave=guardada las tres; sin ?clave, Claude y Gemini (las del boceto)
   const PROVEEDORES_FALSOS = ['anthropic', 'openai', 'gemini']
@@ -958,7 +963,10 @@
     }),
     // Como `ajuste_valido` de preferencias.rs; ?cfgfalla hace fallar el guardado (la fila vuelve y lo dice)
     guardar_ajuste: ({ clave, valor }) => {
-      const valido = clave === 'mascota' ? ESPECIES.includes(valor) : ['arriba', 'avisar', 'pausa'].includes(clave) && typeof valor === 'boolean'
+      const nombre = v => typeof v === 'string' && [...v.trim()].length <= 40 && !/\p{Cc}/u.test(v)
+      const valido = clave === 'mascota' ? ESPECIES.includes(valor)
+        : ['nombreMascota', 'nombreUsuario'].includes(clave) ? nombre(valor)
+          : ['arriba', 'avisar', 'pausa'].includes(clave) && typeof valor === 'boolean'
       if (!valido) throw new Error(`ajuste inválido: ${clave}`)
       if (url.has('cfgfalla')) throw new Error('no se pudo escribir preferencias.json (falso)')
       ajustes[clave] = valor

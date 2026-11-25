@@ -32,16 +32,16 @@ fn costo_total(sistema: &str, r: &Recorte) -> usize {
 
 #[test]
 fn el_sistema_lleva_la_instruccion_con_la_mascota_y_el_bloque_avis() {
-    let s = sistema_local("Ascua", "proyectos:\n  -\n    nombre: catalogo");
+    let s = sistema_local("Ascua", None, "proyectos:\n  -\n    nombre: catalogo");
     assert!(s.starts_with("Sos Ascua, la mascota de Avis"), "{s}");
     assert!(s.contains("si no sabés algo de las sesiones, decilo"));
     assert!(s.ends_with("<avis>\nproyectos:\n  -\n    nombre: catalogo\n</avis>"), "{s}");
     // Sin herramientas: nunca promete leer archivos
     assert!(!s.contains("{Mascota}"));
     // Sin sesiones, el bloque lo dice (así no inventa)
-    assert!(sistema_local("Avi", "  ").ends_with(&format!("<avis>\n{SIN_SESIONES}\n</avis>")));
+    assert!(sistema_local("Avi", None, "  ").ends_with(&format!("<avis>\n{SIN_SESIONES}\n</avis>")));
     // Un nombre raro vuelve a "Avi", como en Claude Code
-    assert!(sistema_local("", "x").starts_with("Sos Avi,"));
+    assert!(sistema_local("", None, "x").starts_with("Sos Avi,"));
 }
 
 #[test]
@@ -358,6 +358,24 @@ fn un_turno_local_responde_en_streaming_sin_lanzar_claude() {
     assert_eq!(m[1]["content"], "Hola");
     assert_eq!(m[2]["role"], "assistant");
     assert_eq!(m[3], json!({ "role": "user", "content": "¿Quién me está esperando?" }));
+    // Sin nombre de usuario, no lo nombra
+    assert!(!sistema.contains("La persona se llama"), "{sistema}");
+    chat.apagar();
+    let _ = std::fs::remove_dir_all(carpeta);
+}
+
+#[test]
+fn un_turno_local_nombra_al_usuario_desde_el_turno_siguiente() {
+    // #37 S3: el motor local toma el nombre en cada turno (no hay proceso que relanzar)
+    let (puerto, visto) = servidor(200, lineas_de(COMPLETO), Duration::from_millis(2));
+    let (chat, r, _, carpeta) = chat_local(Some(motor_en(puerto)));
+    chat.abrir("c-l-usu", "local", None, "Pancho", None).unwrap();
+    chat.poner_usuario("Nico");
+    chat.enviar_con("c-l-usu", 1, "Hola", &[], &json!({}), &json!([])).unwrap();
+    r.esperar_final();
+    let cuerpo = visto.cuerpo.lock().unwrap().clone().expect("el pedido");
+    let sistema = cuerpo["messages"][0]["content"].as_str().unwrap().to_string();
+    assert!(sistema.starts_with("Sos Pancho,") && sistema.contains("La persona se llama Nico: llamala por su nombre."), "{sistema}");
     chat.apagar();
     let _ = std::fs::remove_dir_all(carpeta);
 }

@@ -1744,6 +1744,10 @@ p.det-rot { margin-top: var(--e-5) }
 }
 #cfg .esp-error:empty { display: none }
 #cfg .esp-error .aj-error { margin: var(--e-4) 0 0 }
+/* Nombres (#37): campos de texto con la letra del cuerpo, del ancho de un control */
+#cfg .nombres .sub { margin-top: 22px }
+#cfg .nombres .campo.nom { width: 176px; min-height: 34px }
+#cfg .nombres .campo.nom input { font: var(--t-cuerpo); letter-spacing: 0 }
 
 /* Modelos e Instalación (6.1, entrega 3): píldoras de estado con su texto siempre, tarjetas del
    modelo local y del mod, y el "¿Borrar? Sí" que confirma en el mismo botón (D5) */

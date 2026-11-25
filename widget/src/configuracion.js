@@ -40,13 +40,25 @@ export function pestanaSiguiente(actual, tecla, lista = IDS_PESTANAS) {
 /** Los interruptores que se guardan en preferencias.json (9.1) y su valor de fábrica. */
 export const INTERRUPTORES = { arriba: true, avisar: true, pausa: false }
 
+/** Los nombres de la pestaña Mascota (#37) y su largo máximo (el mismo de `nombre_valido` de Rust). */
+export const NOMBRES = ['nombreMascota', 'nombreUsuario']
+export const MAX_NOMBRE = 40
+
+/** ¿Sirve como nombre? Hasta 40 caracteres sin los espacios de los bordes y sin caracteres de control; vacío sirve ("el de siempre"). */
+export function nombreValido(n) {
+  // eslint-disable-next-line no-control-regex
+  return typeof n === 'string' && [...n.trim()].length <= MAX_NOMBRE && !/[\u0000-\u001f\u007f-\u009f]/.test(n)
+}
+
 /**
  * ¿`valor` sirve para `clave`? `mascota`, una de las siete especies (texto exacto); `arriba`,
- * `avisar` y `pausa`, solo booleanos; cualquier otra clave, no. `motor` llega con el chat (D6).
+ * `avisar` y `pausa`, solo booleanos; los nombres (#37), `nombreValido`; cualquier otra clave, no.
+ * `motor` llega con el chat (D6).
  */
 export function validarAjuste(clave, valor) {
   if (clave === 'mascota') return NOMBRES_ESPECIES.includes(valor)
   if (Object.hasOwn(INTERRUPTORES, clave ?? '')) return typeof valor === 'boolean'
+  if (NOMBRES.includes(clave)) return nombreValido(valor)
   return false
 }
 

@@ -46,7 +46,7 @@ fn args(sesion: &Sesion) -> Vec<String> {
 }
 
 fn args_con_modelo(sesion: &Sesion, modelo: Option<&str>) -> Vec<String> {
-    argumentos_chat(&Pedido { ajustes: Path::new(r"C:\config\chat\ajustes.json"), mascota: "Ascua", sesion, modelo })
+    argumentos_chat(&Pedido { ajustes: Path::new(r"C:\config\chat\ajustes.json"), mascota: "Ascua", usuario: None, sesion, modelo })
 }
 
 /// El valor que sigue a `bandera` en la lista.
@@ -86,7 +86,7 @@ fn argumentos_exactos_de_7_1_la_primera_vez() {
         "--tools", "Read,Glob,Grep", "--allowedTools", "Read,Glob,Grep",
         "--permission-prompts", "none", "--safe-mode", "--strict-mcp-config",
         "--settings", r"C:\config\chat\ajustes.json",
-        "--append-system-prompt", &instruccion_chat("Ascua"),
+        "--append-system-prompt", &instruccion_chat("Ascua", None),
         "--max-budget-usd", "2",
         "--session-id", "8c9494fd-dbea-492d-a475-8660c720f9d9",
     ]
@@ -158,7 +158,7 @@ fn session_id_la_primera_vez_y_resume_despues_nunca_los_dos() {
 
 #[test]
 fn la_instruccion_lleva_el_nombre_de_la_mascota() {
-    let i = instruccion_chat("Ascua");
+    let i = instruccion_chat("Ascua", None);
     assert!(i.starts_with("Sos Ascua, la mascota de Avis,"));
     assert!(!i.contains("{Mascota}"));
     assert!(i.contains("no modificás archivos ni corrés comandos"));
@@ -173,6 +173,45 @@ fn un_nombre_de_mascota_raro_vuelve_a_avi() {
     assert_eq!(nombre_mascota(""), "Avi");
     assert_eq!(nombre_mascota("a\nb"), "Avi");
     assert_eq!(nombre_mascota(&"x".repeat(41)), "Avi");
+}
+
+#[test]
+fn la_instruccion_nombra_al_usuario_solo_si_hay_nombre() {
+    // #37 S3
+    let i = instruccion_chat("Pancho", Some("Nico"));
+    assert!(i.starts_with("Sos Pancho, la mascota de Avis,"), "{i}");
+    assert!(i.contains("La persona se llama Nico: llamala por su nombre."), "{i}");
+    assert!(!i.contains('\n') && !i.contains('\r'));
+    assert!(!instruccion_chat("Ascua", None).contains("La persona se llama"));
+}
+
+#[test]
+fn un_nombre_de_usuario_raro_no_se_usa() {
+    assert_eq!(nombre_usuario("  Nico "), Some(String::from("Nico")));
+    assert_eq!(nombre_usuario(""), None);
+    assert_eq!(nombre_usuario("   "), None);
+    assert_eq!(nombre_usuario("a\nb"), None);
+    assert_eq!(nombre_usuario(&"x".repeat(41)), None);
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_el_proceso_nuevo_lleva_el_nombre_del_usuario() {
+    let (lanzador, lanzados) = lanzador_que_anota(String::from("ping -n 5 127.0.0.1 >nul"));
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    chat.poner_usuario("Nico");
+    chat.abrir_con("c-usu", "claude", None, "Pancho", None, None).unwrap();
+    let a = lanzados.lock().unwrap().last().unwrap().clone();
+    assert_eq!(valor(&a, "--append-system-prompt"), Some(instruccion_chat("Pancho", Some("Nico")).as_str()));
+    // Sin nombre (o uno raro), la instrucción de siempre en la próxima charla
+    chat.poner_usuario("a\nb");
+    chat.abrir_con("c-usu2", "claude", None, "Pancho", None, None).unwrap();
+    let b = lanzados.lock().unwrap().last().unwrap().clone();
+    assert_eq!(valor(&b, "--append-system-prompt"), Some(instruccion_chat("Pancho", None).as_str()));
+    chat.apagar();
+    borrar(&carpeta);
 }
 
 #[test]
@@ -1151,7 +1190,7 @@ fn real_el_init_lista_solo_read_glob_grep_y_no_oficina() {
     let carpeta = carpeta_temporal();
     let ajustes = escribir_ajustes(&carpeta).unwrap();
     let sesion = Sesion::Nueva(nuevo_uuid());
-    let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: "Avi", sesion: &sesion, modelo: None }), cwd: carpeta_trabajo(&carpeta) };
+    let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: "Avi", usuario: None, sesion: &sesion, modelo: None }), cwd: carpeta_trabajo(&carpeta) };
     let mut c = (lanzador_real_haiku())(&l).unwrap();
     c.current_dir(&l.cwd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
     let mut hijo = c.spawn().unwrap();

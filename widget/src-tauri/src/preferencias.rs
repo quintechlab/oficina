@@ -124,16 +124,42 @@ pub fn leer_interruptores(ruta: &Path) -> Interruptores {
 
 /// Las claves que escribe `guardar_ajuste` (el tamaño y el acople tienen sus comandos propios). Las
 /// mismas que `validarAjuste` de configuracion.js; `motor` llega con el chat.
-const AJUSTES: [&str; 4] = ["mascota", "arriba", "avisar", "pausa"];
+const AJUSTES: [&str; 6] = ["mascota", "arriba", "avisar", "pausa", "nombreMascota", "nombreUsuario"];
 
 /// ¿`valor` sirve para `clave`? La mascota, una de `ESPECIES` (texto exacto); los interruptores,
-/// solo booleanos. Cualquier otra clave, no.
+/// solo booleanos; los nombres (#37), texto que sirva para `nombre_valido`. Cualquier otra clave, no.
 pub fn ajuste_valido(clave: &str, valor: &Value) -> bool {
     match clave {
         "mascota" => valor.as_str().is_some_and(|m| ESPECIES.contains(&m)),
         "arriba" | "avisar" | "pausa" => valor.is_boolean(),
+        "nombreMascota" | "nombreUsuario" => valor.as_str().is_some_and(nombre_valido),
         _ => false,
     }
+}
+
+/// Un nombre de la configuración (#37 S4): hasta 40 caracteres sin contar los espacios de los
+/// bordes y sin caracteres de control. Vacío sirve: es "el de siempre".
+pub fn nombre_valido(n: &str) -> bool {
+    n.trim().chars().count() <= 40 && !n.chars().any(char::is_control)
+}
+
+/// Los nombres de la configuración (#37), sin espacios de más; vacío si no hay o no sirve.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Nombres {
+    pub mascota: String,
+    pub usuario: String,
+}
+
+pub fn leer_nombres(ruta: &Path) -> Nombres {
+    let v = leer_valor(ruta);
+    let leer = |clave: &str| {
+        v.as_ref()
+            .and_then(|v| v.get(clave)?.as_str())
+            .filter(|n| nombre_valido(n))
+            .map(|n| n.trim().to_string())
+            .unwrap_or_default()
+    };
+    Nombres { mascota: leer("nombreMascota"), usuario: leer("nombreUsuario") }
 }
 
 /// Guarda un ajuste de la configuración y conserva lo demás. Uno inválido no toca el archivo.
@@ -781,6 +807,42 @@ mod tests {
         for clave in ["tamano", "acople", "mod", "clave", "anthropic", ""] {
             assert!(!ajuste_valido(clave, &json!(true)), "{clave}");
         }
+    }
+
+    #[test]
+    fn los_nombres_aceptan_texto_corto_sin_caracteres_de_control() {
+        // #37 S4: hasta 40 caracteres; vacío es "el de siempre"
+        for clave in ["nombreMascota", "nombreUsuario"] {
+            for bueno in [json!("Pancho"), json!(""), json!("María José"), json!("x".repeat(40)), json!("  Nico  ")] {
+                assert!(ajuste_valido(clave, &bueno), "{clave} {bueno}");
+            }
+            for malo in [json!("x".repeat(41)), json!("a\nb"), json!("a\tb"), json!(3), Value::Null, json!(true), json!(["Nico"])] {
+                assert!(!ajuste_valido(clave, &malo), "{clave} {malo}");
+            }
+        }
+    }
+
+    #[test]
+    fn los_nombres_se_guardan_y_se_leen_sin_espacios_de_mas() {
+        let r = ruta_temporal("nombres");
+        assert_eq!(leer_nombres(&r), Nombres::default());
+        guardar_ajuste(&r, "nombreMascota", &json!(" Pancho ")).unwrap();
+        guardar_ajuste(&r, "nombreUsuario", &json!("Nico")).unwrap();
+        // Cambiar de especie no toca el nombre (S2)
+        guardar_ajuste(&r, "mascota", &json!("ascua")).unwrap();
+        assert_eq!(leer_nombres(&r), Nombres { mascota: String::from("Pancho"), usuario: String::from("Nico") });
+        assert_eq!(leer_mascota(&r), "ascua");
+        // Vacío vuelve al de siempre (S1)
+        guardar_ajuste(&r, "nombreMascota", &json!("")).unwrap();
+        assert_eq!(leer_nombres(&r), Nombres { mascota: String::new(), usuario: String::from("Nico") });
+        // Uno inválido no toca el archivo
+        let antes = fs::read_to_string(&r).unwrap();
+        assert!(guardar_ajuste(&r, "nombreUsuario", &json!("a\nb")).is_err());
+        assert_eq!(fs::read_to_string(&r).unwrap(), antes);
+        // Basura escrita a mano: se lee como vacío
+        fs::write(&r, r#"{"nombreMascota":"a\nb","nombreUsuario":7}"#).unwrap();
+        assert_eq!(leer_nombres(&r), Nombres::default());
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 
     #[test]

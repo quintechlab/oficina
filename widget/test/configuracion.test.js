@@ -17,7 +17,7 @@ import {
 import { chatInicial, transicionChat } from '../src/chat.js'
 import {
   pestanasConfiguracion, seccionConfiguracion, avisoPreguntaConfiguracion, esqueletoConfiguracion, partesMascota, miniConfiguracion,
-  nombrePestana, partesModelos,
+  nombrePestana, partesModelos, seccionMascota,
 } from '../src/configuracionVista.js'
 import { NOMBRES_ESPECIES } from '../src/especies.js'
 
@@ -61,6 +61,34 @@ test('validarAjuste: mascota acepta solo las siete especies', () => {
   assert.equal(validarAjuste('mascota', ''), false)
   assert.equal(validarAjuste('mascota', null), false)
   assert.equal(validarAjuste('mascota', 'dragon'), false)
+})
+
+test('validarAjuste: los nombres, texto de hasta 40 caracteres sin controles; vacío sirve (#37 S4)', () => {
+  for (const clave of ['nombreMascota', 'nombreUsuario']) {
+    for (const bueno of ['Pancho', '', 'María José', 'x'.repeat(40), '  Nico  ']) assert.equal(validarAjuste(clave, bueno), true, `${clave} ${bueno}`)
+    for (const malo of ['x'.repeat(41), 'a\nb', 'a\tb', 3, null, undefined, true, ['Nico']]) assert.equal(validarAjuste(clave, malo), false, `${clave} ${String(malo)}`)
+  }
+})
+
+test('partesMascota: los campos de nombre con lo guardado, la especie de pista y su error (#37 S1)', () => {
+  const campo = (h, id) => h.match(new RegExp(`<input id="${id}"[^>]*>`))?.[0] ?? ''
+  const p = partesMascota({ mascota: 'ascua', forma: 'base', nombreMascota: 'Pancho', nombreUsuario: '' })
+  const m = campo(p.nombres, 'cfg-nom-mascota')
+  assert.match(m, /value="Pancho"/)
+  assert.match(m, /placeholder="Ascua"/)
+  assert.match(m, /maxlength="40"/)
+  assert.match(p.nombres, /<label class="aj-t" for="cfg-nom-mascota">Su nombre<\/label>/)
+  const u = campo(p.nombres, 'cfg-nom-usuario')
+  assert.match(u, /value=""/)
+  assert.match(p.nombres, /<label class="aj-t" for="cfg-nom-usuario">Tu nombre<\/label>/)
+  // Lo escrito a mano no rompe el HTML
+  assert.match(campo(partesMascota({ mascota: 'avi', nombreUsuario: 'Ni"<co' }).nombres, 'cfg-nom-usuario'), /value="Ni&quot;&lt;co"/)
+  // Sin nombres guardados, la pista es la especie elegida
+  assert.match(campo(partesMascota({ mascota: 'lumen' }).nombres, 'cfg-nom-mascota'), /placeholder="Lumen"[^>]*value=""/)
+  assert.doesNotMatch(p.nombres, /aj-error/)
+  assert.match(partesMascota({ mascota: 'avi', error: 'nombreUsuario' }).nombres, /aj-error/)
+  // La sección entera lleva la parte
+  assert.match(seccionMascota({ mascota: 'avi' }), /data-parte="nombres"/)
 })
 
 test('validarAjuste: arriba, avisar y pausa solo booleanos', () => {
@@ -466,8 +494,10 @@ test('Mascota: un error al guardar la especie queda debajo de las fichas', () =>
 test('Mascota por partes: cambiar la forma no toca la figura (así el acto no se corta)', () => {
   const base = partesMascota(MASCOTA)
   const evo = partesMascota({ ...MASCOTA, forma: 'evo' })
-  assert.deepEqual(Object.keys(base), ['fig', 'texto', 'fichas', 'error'])
+  assert.deepEqual(Object.keys(base), ['fig', 'texto', 'fichas', 'error', 'nombres'])
   assert.equal(evo.fig, base.fig)
+  // Los campos de nombre tampoco (#37): se escribe en ellos sin que se redibujen
+  assert.equal(evo.nombres, base.nombres)
   assert.equal(evo.fichas, base.fichas)
   assert.notEqual(evo.texto, base.texto)
   // Otra especie cambia la figura, el texto y las fichas

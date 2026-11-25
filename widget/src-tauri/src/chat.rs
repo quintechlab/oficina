@@ -79,14 +79,32 @@ pub fn modelo_valido(m: &str) -> bool {
 pub struct Pedido<'a> {
     pub ajustes: &'a Path,
     pub mascota: &'a str,
+    /// El nombre del usuario (#37), o `None` si no cargó uno.
+    pub usuario: Option<&'a str>,
     pub sesion: &'a Sesion,
     /// Uno de `MODELOS`, o `None` ("Por defecto").
     pub modelo: Option<&'a str>,
 }
 
-/// `INSTRUCCION_CHAT` con el nombre de la mascota.
-pub fn instruccion_chat(mascota: &str) -> String {
-    INSTRUCCION_CHAT.replace("{Mascota}", &nombre_mascota(mascota))
+/// `INSTRUCCION_CHAT` con el nombre de la mascota y, si hay, el del usuario (#37 S3).
+pub fn instruccion_chat(mascota: &str, usuario: Option<&str>) -> String {
+    format!("{}{}", INSTRUCCION_CHAT.replace("{Mascota}", &nombre_mascota(mascota)), frase_usuario(usuario))
+}
+
+/// La frase que agrega el nombre del usuario a las instrucciones (con Claude Code y con el modelo
+/// local), con un espacio adelante; vacía si no hay nombre o no sirve.
+pub fn frase_usuario(usuario: Option<&str>) -> String {
+    match usuario.and_then(nombre_usuario) {
+        Some(u) => format!(" La persona se llama {u}: llamala por su nombre."),
+        None => String::new(),
+    }
+}
+
+/// El nombre del usuario que manda la ventana, sin espacios de más; `None` si viene vacío, largo
+/// (más de 40 caracteres) o con caracteres de control (#37 S4).
+pub fn nombre_usuario(nombre: &str) -> Option<String> {
+    let n = nombre.trim();
+    (!n.is_empty() && n.chars().count() <= 40 && !n.chars().any(char::is_control)).then(|| n.to_string())
 }
 
 /// El nombre que manda la ventana, o "Avi" si viene vacío, largo o con caracteres de control.
@@ -114,7 +132,7 @@ pub fn argumentos_chat(p: &Pedido) -> Vec<String> {
     a.push(String::from("--settings"));
     a.push(p.ajustes.to_string_lossy().into_owned());
     a.push(String::from("--append-system-prompt"));
-    a.push(instruccion_chat(p.mascota));
+    a.push(instruccion_chat(p.mascota, p.usuario));
     a.push(String::from("--max-budget-usd"));
     a.push(String::from(TOPE_USD));
     // #35 (S3): "Por defecto" no pasa `--model`; un alias, sí (Claude Code lo resuelve al último de
@@ -640,6 +658,8 @@ struct Estado {
     /// El turno del motor local que corre.
     local: Option<TurnoLocal>,
     generacion_local: u64,
+    /// El nombre del usuario (#37), ya validado.
+    usuario: Option<String>,
 }
 
 impl Estado {
@@ -693,6 +713,12 @@ impl Chat {
     /// El modelo de esta PC para las charlas del motor local (8).
     pub fn poner_motor_local(&self, motor: MotorLocal) {
         *bloquear(&self.0.motor_local) = Some(motor);
+    }
+
+    /// El nombre del usuario (#37): lo toma el próximo proceso de Claude Code y el próximo turno del
+    /// motor local. Vacío o raro, ninguno.
+    pub fn poner_usuario(&self, nombre: &str) {
+        self.estado().usuario = nombre_usuario(nombre);
     }
 
     fn estado(&self) -> MutexGuard<'_, Estado> {
@@ -786,7 +812,7 @@ impl Chat {
         let c = e.conversaciones.get(conversacion).ok_or("conversación desconocida")?;
         let ajustes = escribir_ajustes(&self.0.carpeta).map_err(|e| format!("ajustes.json: {e}"))?;
         let sesion = if c.usada { Sesion::Retomar(c.sesion.clone()) } else { Sesion::Nueva(c.sesion.clone()) };
-        let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: &c.mascota, sesion: &sesion, modelo: c.modelo.as_deref() }), cwd: c.cwd.clone() };
+        let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: &c.mascota, usuario: e.usuario.as_deref(), sesion: &sesion, modelo: c.modelo.as_deref() }), cwd: c.cwd.clone() };
         let mut comando = (self.0.lanzador)(&l).map_err(|e| e.to_string())?;
         comando.current_dir(&l.cwd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
         let mut hijo = comando.spawn().map_err(|e| e.to_string())?;
@@ -964,12 +990,13 @@ impl Chat {
             t.frenar.store(true, Ordering::SeqCst);
         }
         let mascota = e.conversaciones.get(conversacion).map(|c| c.mascota.clone()).ok_or("la charla no está abierta")?;
+        let usuario = e.usuario.clone();
         let frenar = Arc::new(AtomicBool::new(false));
         e.generacion_local += 1;
         let generacion = e.generacion_local;
         e.local = Some(TurnoLocal { generacion, conversacion: conversacion.to_string(), numero: turno, frenar: frenar.clone() });
         drop(e);
-        let sistema = chat_local::sistema_local(&mascota, &modelo::datos_como_texto(datos));
+        let sistema = chat_local::sistema_local(&mascota, usuario.as_deref(), &modelo::datos_como_texto(datos));
         let recorte = chat_local::recorte_local(&sistema, &chat_local::historia_de(historia), texto);
         let cuerpo = chat_local::cuerpo_local(&sistema, &recorte);
         let chat = self.clone();

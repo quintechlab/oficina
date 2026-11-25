@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::chat::{nombre_mascota, MAX_TEXTO};
+use crate::chat::{frase_usuario, nombre_mascota, MAX_TEXTO};
 
 /// La instrucción de 4.3 sin herramientas, con "si no sabés algo de las sesiones, decilo" (8) y lo
 /// que el resumen aprendió de los datos (#11: "abierta_hace" no es cuánto espera).
@@ -65,11 +65,13 @@ pub fn costo(texto: &str) -> usize {
     (texto.chars().count() as f64 / CARACTERES_POR_TOKEN).ceil() as usize + TOKENS_POR_MENSAJE
 }
 
-/// El mensaje de sistema (8): la instrucción con la mascota y el bloque `<avis>` (el texto de
-/// `modelo::datos_como_texto`, sin las claves prohibidas y con el tope de 6000 caracteres).
-pub fn sistema_local(mascota: &str, avis: &str) -> String {
+/// El mensaje de sistema (8): la instrucción con la mascota (y el usuario, si hay: #37) y el bloque
+/// `<avis>` (el texto de `modelo::datos_como_texto`, sin las claves prohibidas y con el tope de 6000
+/// caracteres).
+pub fn sistema_local(mascota: &str, usuario: Option<&str>, avis: &str) -> String {
     let avis = if avis.trim().is_empty() { SIN_SESIONES } else { avis.trim_end() };
-    format!("{}\n\n<avis>\n{avis}\n</avis>", INSTRUCCION_CHAT_LOCAL.replace("{Mascota}", &nombre_mascota(mascota)))
+    let instruccion = INSTRUCCION_CHAT_LOCAL.replace("{Mascota}", &nombre_mascota(mascota));
+    format!("{instruccion}{}\n\n<avis>\n{avis}\n</avis>", frase_usuario(usuario))
 }
 
 /// La historia que manda la ventana (`[{ rol: "usuario" | "mascota", texto }]`): lo que no tiene esa

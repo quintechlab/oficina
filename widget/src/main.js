@@ -59,7 +59,7 @@ import {
   configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion, pestanaSiguiente, validarAjuste,
   valorInterruptor, INTERRUPTORES, ubicacionDe, bordeDeUbicacion, IDS_PESTANAS, elegirForma, anuncioEspecie, anuncioForma,
   textoMod, textoModelo, modeloDesdeChat, descargaDesdeConfig, puntoPestana, filasEnEstaPC, clicBorrar, armadoVigente, desarmarVencido, MS_CONFIRMAR,
-  MOTORES, modeloDeValor, textoHistorial,
+  MOTORES, modeloDeValor, textoHistorial, nombreValido,
   PROVEEDORES, finalDe, formaClave, textoClave, clavesDesdeLectura, resultadoPrueba, anuncioPrueba, anuncioGuardada,
   ANUNCIO_CLAVE_BORRADA, empezarClave, retieneConfig, detalleErrorClave, marcoBajo,
 } from './configuracion.js'
@@ -153,6 +153,13 @@ const st = {
    * (configuracion-ux.md 9.3): toda la ventana se redibuja con la especie nueva, sin acto.
    */
   mascota: ESPECIE_POR_DEFECTO,
+  /**
+   * Los nombres de la pestaña Mascota (#37): el que le puso el usuario a la mascota (vacío: el de su
+   * especie) y el del usuario (vacío: no lo nombra). Sin espacios de más; `nombreMascota` y
+   * `nombreUsuario` de preferencias.json, leídos al arrancar.
+   */
+  nombreMascota: '',
+  nombreUsuario: '',
   /**
    * La evolución (docs/diseno/mascotas-avi-ux.md 6): el estado de cada clave (una por sesión y
    * `'marca'`) → { estado: 'base' | 'evo' | 'cuenta', hasta }, las claves con la forma evolucionada
@@ -3194,6 +3201,7 @@ function datosConfiguracion(local = modeloDesdeChat(st.chat), ahora = Date.now()
   return {
     tamano: st.tamano, ubicacion: ubicacionDe(st.acople), arriba: st.arriba, avisar: st.avisar, pausa: st.pausa,
     arranque: st.arranque, error: st.config.error, mascota: st.mascota, forma: st.config.forma,
+    nombreMascota: st.nombreMascota, nombreUsuario: st.nombreUsuario,
     modelo: textoModelo(local),
     mod: textoMod(lectura, st.cfgMod, st.ultimoAvisoMod, ahora, { instalando: corriendo && ejecMod.accion === 'mod', prendiendo: corriendo && ejecMod.accion === 'activar' }),
     enEstaPC: filasEnEstaPC(st.cfgMod, st.pp.revision),
@@ -3336,13 +3344,56 @@ function datosFirma(ahora) {
 function ponerParteConCampo(el, html) {
   const viejo = el.querySelector('#cfg-clave-in')
   const guardado = viejo && { valor: viejo.value, ini: viejo.selectionStart, fin: viejo.selectionEnd, foco: document.activeElement === viejo }
+  // Un campo de nombre con el foco (#37): lo escrito sigue aunque la parte se redibuje
+  const act = document.activeElement
+  const nombre = act?.matches?.('input.cfg-nom') && el.contains(act)
+    ? { k: act.dataset.k, valor: act.value, ini: act.selectionStart, fin: act.selectionEnd, foco: true } : null
   el.innerHTML = html
-  const nuevo = guardado && el.querySelector('#cfg-clave-in')
-  if (!nuevo) return
-  nuevo.value = guardado.valor
-  try { nuevo.setSelectionRange(guardado.ini, guardado.fin) } catch { /* el tipo no admite selección */ }
-  if (guardado.foco) nuevo.focus({ preventScroll: true })
+  const pasar = (nuevo, g) => {
+    if (!nuevo || !g) return
+    nuevo.value = g.valor
+    try { nuevo.setSelectionRange(g.ini, g.fin) } catch { /* el tipo no admite selección */ }
+    if (g.foco) nuevo.focus({ preventScroll: true })
+  }
+  pasar(guardado && el.querySelector('#cfg-clave-in'), guardado)
+  pasar(nombre && el.querySelector(`[data-k="${CSS.escape(nombre.k)}"]`), nombre)
 }
+
+/**
+ * Guarda un nombre de la pestaña Mascota (#37) al salir del campo o con Enter: sin espacios de más,
+ * solo si cambió. Si no se pudo, vuelve al de antes y lo dice debajo de su fila. La charla toma el
+ * nombre de la mascota al instante; con Claude Code, los nombres llegan a las instrucciones en la
+ * próxima charla.
+ */
+async function guardarNombreConfig(clave, texto) {
+  const valor = String(texto ?? '').trim()
+  if (!validarAjuste(clave, valor) || valor === st[clave]) return
+  const antes = st[clave]
+  st[clave] = valor
+  st.config = { ...st.config, error: null }
+  pintarConfiguracion()
+  pintarHoja()
+  try {
+    await invocar('guardar_ajuste', { clave, valor })
+  } catch (err) {
+    registrar(`configuración: no se pudo guardar ${clave}: ${err}`)
+    if (st[clave] === valor) st[clave] = antes
+    st.config = { ...st.config, error: clave }
+    // El campo muestra otra vez lo guardado
+    const campo = $(`#cfg input.cfg-nom[data-valor="${clave}"]`)
+    if (campo && document.activeElement !== campo) campo.value = st[clave]
+    pintarConfiguracion()
+    pintarHoja()
+  }
+}
+
+document.addEventListener('change', e => {
+  if (!e.target.matches?.('#cfg input.cfg-nom')) return
+  // Sin los espacios de los bordes, como se guarda
+  const limpio = e.target.value.trim()
+  if (limpio !== e.target.value) e.target.value = limpio
+  guardarNombreConfig(e.target.dataset.valor, limpio)
+})
 
 /**
  * Acoplada, el panel no se pliega mientras el campo de una clave está abierto (4.1, el mismo
@@ -3988,8 +4039,8 @@ let hojaCerrando = false
 /** El lado con el que se vio la hoja por última vez: si cambia al soltar el tablero, se funde (D2). */
 let ladoVisto = null
 
-/** El nombre de la mascota ("Avi", "Ascua"…): la cara y la voz de la charla. */
-const nombreMascota = () => datosEspecie(st.mascota).nombre
+/** El nombre de la mascota (el que le puso el usuario, #37, o el de su especie: "Avi", "Ascua"…): la cara y la voz de la charla. */
+const nombreMascota = () => st.nombreMascota || datosEspecie(st.mascota).nombre
 
 /** Un id nuevo de conversación (`c-<uuid>`, como pide `conversacion_valida` de Rust). */
 const idConversacion = () => `c-${globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`
@@ -4004,7 +4055,10 @@ function modeloVista(ahora = Date.now()) {
   const c = st.chat
   const reciente = (c.estado === 'listo' && c.listoMs != null && ahora - c.listoMs < FELIZ_MS)
     || (c.estado === 'vacio' && st.chatSaludo != null && ahora - st.chatSaludo < SALUDA_MS)
-  return { chat: c, especie: st.mascota, ahoraMs: ahora, reciente, hablando: false, puedeAdjuntar: true, proyectos: carpetasDeProyectos(st.proyectos) }
+  return {
+    chat: c, especie: st.mascota, nombre: st.nombreMascota, usuario: st.nombreUsuario, ahoraMs: ahora, reciente, hablando: false, puedeAdjuntar: true,
+    proyectos: carpetasDeProyectos(st.proyectos),
+  }
 }
 
 /** El centro de la capa de soltar del último archivo soltado (px de la ventana): de ahí nacen sus chips (6.2). */
@@ -4234,7 +4288,7 @@ function efectoChat(e) {
     case 'abrir': {
       // Precalienta sin mandar nada (D19). Con el motor local, además, qué hay del modelo (solo lee).
       // Con otro modelo de Claude (#35), Rust la vuelve a abrir con él y la misma sesión
-      abriendo = invocar('chat_abrir', { conversacion: e.conversacion, motor: e.motor, carpeta: e.carpeta, mascota: nombreMascota(), sesionClaude: e.sesionClaude, modelo: e.modelo })
+      abriendo = invocar('chat_abrir', { conversacion: e.conversacion, motor: e.motor, carpeta: e.carpeta, mascota: nombreMascota(), usuario: st.nombreUsuario, sesionClaude: e.sesionClaude, modelo: e.modelo })
         .then(resultado => despacharChat({ tipo: 'abierta', conversacion: e.conversacion, resultado }))
         .catch(err => registrar(`chat abrir: ${err}`))
       if (e.motor === 'local') leerModelo()
@@ -4693,6 +4747,9 @@ async function iniciar() {
       const m = await invocar('leer_configuracion')
       // La mascota, antes del primer dibujo: las firmas no la llevan (mascotas-avi-ux.md 9.1)
       st.mascota = especieValida(m.mascota)
+      // Los nombres (#37): lo que no sirve es "el de siempre"
+      st.nombreMascota = nombreValido(m.nombreMascota) ? m.nombreMascota.trim() : ''
+      st.nombreUsuario = nombreValido(m.nombreUsuario) ? m.nombreUsuario.trim() : ''
       ponerArriba(valorInterruptor(m.arriba, INTERRUPTORES.arriba))
       st.avisar = valorInterruptor(m.avisar, INTERRUPTORES.avisar)
       ponerPausa(valorInterruptor(m.pausa, INTERRUPTORES.pausa))
