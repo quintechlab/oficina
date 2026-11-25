@@ -51,6 +51,23 @@ export function nombreValido(n) {
 }
 
 /**
+ * Lo que guarda "Guardar" de la pestaña Mascota (#37): los nombres que cambiaron respecto de lo
+ * guardado, sin espacios de los bordes, en el orden de `NOMBRES`. `null` si alguno no sirve.
+ */
+export function cambiosNombres(guardados, escritos) {
+  const cambios = []
+  for (const clave of NOMBRES) {
+    const valor = String(escritos?.[clave] ?? '').trim()
+    if (!nombreValido(valor)) return null
+    if (valor !== (guardados?.[clave] ?? '')) cambios.push({ clave, valor })
+  }
+  return cambios
+}
+
+/** El título bajo la marca (#37): el nombre que le puso el usuario a la mascota; sin nombre, "Avis". */
+export const nombreMarca = nombre => nombre || 'Avis'
+
+/**
  * ¿`valor` sirve para `clave`? `mascota`, una de las siete especies (texto exacto); `arriba`,
  * `avisar` y `pausa`, solo booleanos; los nombres (#37), `nombreValido`; cualquier otra clave, no.
  * `motor` llega con el chat (D6).

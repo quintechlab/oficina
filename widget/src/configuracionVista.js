@@ -189,17 +189,20 @@ export function partesMascota(datos) {
       + '<p class="esp-nota">Se ve en la marca, la muesca y cada sesión. Sus subagentes son de su especie.</p>',
     error: errorDe(datos, 'mascota'),
     nombres: '<h3 class="sub">Nombres</h3>'
-      + fila('Su nombre', `Cómo se llama en la charla. Vacío: ${escapar(d.nombre)}.`, campoNombre('cfg-nom-mascota', 'nombreMascota', datos.nombreMascota, d.nombre),
-        { para: 'cfg-nom-mascota', error: errorDe(datos, 'nombreMascota') })
+      + fila('Su nombre', `Cómo se llama en la marca y en la charla. Vacío: ${escapar(d.nombre)}.`, campoNombre('cfg-nom-mascota', 'nombreMascota', datos.nombreMascota, d.nombre),
+        { para: 'cfg-nom-mascota' })
       + fila('Tu nombre', 'Cómo te llama en la charla. Vacío: no te nombra.', campoNombre('cfg-nom-usuario', 'nombreUsuario', datos.nombreUsuario, 'Tu nombre'),
-        { para: 'cfg-nom-usuario', error: errorDe(datos, 'nombreUsuario') }),
+        { para: 'cfg-nom-usuario' })
+      + '<div class="nom-acc"><button type="button" class="btn" id="cfg-nom-guardar" data-accion="cfg-nom-guardar" data-k="nom-guardar" aria-disabled="true">Guardar</button>'
+      + `${datos.nombresOk ? '<span class="nom-ok" role="status">Guardado</span>' : ''}</div>`
+      + errorDe(datos, 'nombres'),
   }
 }
 
 /**
- * Un campo de nombre (#37): se guarda al salir del campo o con Enter (main.js). El valor es el
- * guardado; mientras se escribe, el texto vive en el `<input>` (main.js lo conserva si la parte se
- * redibuja con el foco adentro).
+ * Un campo de nombre (#37): los dos se guardan juntos con "Guardar" o con Enter (main.js). El valor
+ * es el guardado; mientras se escribe, el texto vive en el `<input>` (main.js lo conserva si la
+ * parte se redibuja con el foco adentro).
  */
 function campoNombre(id, clave, valor, pista) {
   return `<div class="campo nom"><input id="${id}" class="cfg-nom" type="text" maxlength="${MAX_NOMBRE}" autocomplete="off" spellcheck="false"`

@@ -59,7 +59,7 @@ import {
   configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion, pestanaSiguiente, validarAjuste,
   valorInterruptor, INTERRUPTORES, ubicacionDe, bordeDeUbicacion, IDS_PESTANAS, elegirForma, anuncioEspecie, anuncioForma,
   textoMod, textoModelo, modeloDesdeChat, descargaDesdeConfig, puntoPestana, filasEnEstaPC, clicBorrar, armadoVigente, desarmarVencido, MS_CONFIRMAR,
-  MOTORES, modeloDeValor, textoHistorial, nombreValido,
+  MOTORES, modeloDeValor, textoHistorial, nombreValido, cambiosNombres, nombreMarca,
   PROVEEDORES, finalDe, formaClave, textoClave, clavesDesdeLectura, resultadoPrueba, anuncioPrueba, anuncioGuardada,
   ANUNCIO_CLAVE_BORRADA, empezarClave, retieneConfig, detalleErrorClave, marcoBajo,
 } from './configuracion.js'
@@ -3201,7 +3201,7 @@ function datosConfiguracion(local = modeloDesdeChat(st.chat), ahora = Date.now()
   return {
     tamano: st.tamano, ubicacion: ubicacionDe(st.acople), arriba: st.arriba, avisar: st.avisar, pausa: st.pausa,
     arranque: st.arranque, error: st.config.error, mascota: st.mascota, forma: st.config.forma,
-    nombreMascota: st.nombreMascota, nombreUsuario: st.nombreUsuario,
+    nombreMascota: st.nombreMascota, nombreUsuario: st.nombreUsuario, nombresOk: !!st.config.nombresOk,
     modelo: textoModelo(local),
     mod: textoMod(lectura, st.cfgMod, st.ultimoAvisoMod, ahora, { instalando: corriendo && ejecMod.accion === 'mod', prendiendo: corriendo && ejecMod.accion === 'activar' }),
     enEstaPC: filasEnEstaPC(st.cfgMod, st.pp.revision),
@@ -3344,10 +3344,10 @@ function datosFirma(ahora) {
 function ponerParteConCampo(el, html) {
   const viejo = el.querySelector('#cfg-clave-in')
   const guardado = viejo && { valor: viejo.value, ini: viejo.selectionStart, fin: viejo.selectionEnd, foco: document.activeElement === viejo }
-  // Un campo de nombre con el foco (#37): lo escrito sigue aunque la parte se redibuje
-  const act = document.activeElement
-  const nombre = act?.matches?.('input.cfg-nom') && el.contains(act)
-    ? { k: act.dataset.k, valor: act.value, ini: act.selectionStart, fin: act.selectionEnd, foco: true } : null
+  // Los campos de nombre (#37): lo escrito sin guardar sigue en los dos, y el que tiene el foco, con su cursor
+  const nombres = [...el.querySelectorAll('input.cfg-nom')].map(i => ({
+    k: i.dataset.k, valor: i.value, ini: i.selectionStart, fin: i.selectionEnd, foco: document.activeElement === i,
+  }))
   el.innerHTML = html
   const pasar = (nuevo, g) => {
     if (!nuevo || !g) return
@@ -3356,43 +3356,77 @@ function ponerParteConCampo(el, html) {
     if (g.foco) nuevo.focus({ preventScroll: true })
   }
   pasar(guardado && el.querySelector('#cfg-clave-in'), guardado)
-  pasar(nombre && el.querySelector(`[data-k="${CSS.escape(nombre.k)}"]`), nombre)
+  for (const n of nombres) pasar(el.querySelector(`input.cfg-nom[data-k="${CSS.escape(n.k)}"]`), n)
+  if (nombres.length) prenderGuardarNombres()
+}
+
+/** Lo escrito en los dos campos de nombre (#37), por clave. */
+function nombresEscritos() {
+  const escritos = {}
+  for (const i of document.querySelectorAll('#cfg input.cfg-nom')) escritos[i.dataset.valor] = i.value
+  return escritos
+}
+
+/** "Guardar" de los nombres (#37): prendido solo si lo escrito cambió y sirve. */
+function prenderGuardarNombres() {
+  const b = $('#cfg-nom-guardar')
+  if (!b) return
+  const cambios = cambiosNombres(st, nombresEscritos())
+  if (cambios?.length) b.removeAttribute('aria-disabled')
+  else b.setAttribute('aria-disabled', 'true')
+}
+
+/** El título bajo la marca (#37): el nombre de la mascota, o "Avis". */
+function pintarNombreMarca() {
+  texto('.marca-n', nombreMarca(st.nombreMascota))
 }
 
 /**
- * Guarda un nombre de la pestaña Mascota (#37) al salir del campo o con Enter: sin espacios de más,
- * solo si cambió. Si no se pudo, vuelve al de antes y lo dice debajo de su fila. La charla toma el
- * nombre de la mascota al instante; con Claude Code, los nombres llegan a las instrucciones en la
- * próxima charla.
+ * "Guardar" (o Enter en un campo) de la pestaña Mascota (#37): guarda los dos nombres que cambiaron,
+ * sin espacios de los bordes, y lo dice ("Guardado"). Si alguno no se pudo, ese vuelve al de antes,
+ * lo escrito queda en su campo y lo dice debajo. La marca y la charla toman el nombre de la mascota
+ * al instante; con Claude Code, los nombres llegan a las instrucciones en la próxima charla.
  */
-async function guardarNombreConfig(clave, texto) {
-  const valor = String(texto ?? '').trim()
-  if (!validarAjuste(clave, valor) || valor === st[clave]) return
-  const antes = st[clave]
-  st[clave] = valor
-  st.config = { ...st.config, error: null }
+async function guardarNombres() {
+  const cambios = cambiosNombres(st, nombresEscritos())
+  if (!cambios?.length) return
+  // Los campos, como se guardan
+  for (const { clave, valor } of cambios) {
+    const campo = $(`#cfg input.cfg-nom[data-valor="${clave}"]`)
+    if (campo) campo.value = valor
+  }
+  let fallo = false
+  for (const { clave, valor } of cambios) {
+    const antes = st[clave]
+    st[clave] = valor
+    try {
+      await invocar('guardar_ajuste', { clave, valor })
+    } catch (err) {
+      registrar(`configuración: no se pudo guardar ${clave}: ${err}`)
+      st[clave] = antes
+      fallo = true
+    }
+  }
+  st.config = { ...st.config, error: fallo ? 'nombres' : null, nombresOk: !fallo }
+  if (!fallo) decirConfig('Nombres guardados')
+  pintarNombreMarca()
   pintarConfiguracion()
   pintarHoja()
-  try {
-    await invocar('guardar_ajuste', { clave, valor })
-  } catch (err) {
-    registrar(`configuración: no se pudo guardar ${clave}: ${err}`)
-    if (st[clave] === valor) st[clave] = antes
-    st.config = { ...st.config, error: clave }
-    // El campo muestra otra vez lo guardado
-    const campo = $(`#cfg input.cfg-nom[data-valor="${clave}"]`)
-    if (campo && document.activeElement !== campo) campo.value = st[clave]
-    pintarConfiguracion()
-    pintarHoja()
-  }
 }
 
-document.addEventListener('change', e => {
+// Al escribir en un nombre: "Guardar" se prende si hay algo para guardar, y "Guardado" o el error se van
+document.addEventListener('input', e => {
   if (!e.target.matches?.('#cfg input.cfg-nom')) return
-  // Sin los espacios de los bordes, como se guarda
-  const limpio = e.target.value.trim()
-  if (limpio !== e.target.value) e.target.value = limpio
-  guardarNombreConfig(e.target.dataset.valor, limpio)
+  if (st.config.nombresOk || st.config.error === 'nombres') {
+    st.config = { ...st.config, nombresOk: false, error: st.config.error === 'nombres' ? null : st.config.error }
+    pintarConfiguracion()
+  }
+  prenderGuardarNombres()
+})
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.isComposing || !e.target.matches?.('#cfg input.cfg-nom')) return
+  e.preventDefault()
+  guardarNombres()
 })
 
 /**
@@ -3937,6 +3971,7 @@ async function accionConfiguracion(a, b) {
       break
     case 'cfg-ubic': await ubicarConfig(b.dataset.valor); break
     case 'cfg-esp': await elegirEspecieConfig(b.dataset.valor); break
+    case 'cfg-nom-guardar': if (b.getAttribute('aria-disabled') !== 'true') await guardarNombres(); break
     case 'cfg-forma': cambiarFormaConfig(b.dataset.valor); break
     case 'cfg-local':
       // El modelo local (7.2): bajarlo sin abrir la hoja de la charla ni mandarle nada al terminar, o
@@ -4750,6 +4785,7 @@ async function iniciar() {
       // Los nombres (#37): lo que no sirve es "el de siempre"
       st.nombreMascota = nombreValido(m.nombreMascota) ? m.nombreMascota.trim() : ''
       st.nombreUsuario = nombreValido(m.nombreUsuario) ? m.nombreUsuario.trim() : ''
+      pintarNombreMarca()
       ponerArriba(valorInterruptor(m.arriba, INTERRUPTORES.arriba))
       st.avisar = valorInterruptor(m.avisar, INTERRUPTORES.avisar)
       ponerPausa(valorInterruptor(m.pausa, INTERRUPTORES.pausa))

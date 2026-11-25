@@ -7,7 +7,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  PESTANAS, IDS_PESTANAS, pestanaSiguiente, validarAjuste, UBICACIONES, ubicacionDe, bordeDeUbicacion,
+  PESTANAS, IDS_PESTANAS, pestanaSiguiente, validarAjuste, cambiosNombres, nombreMarca, UBICACIONES, ubicacionDe, bordeDeUbicacion,
   limitesTamano, configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion,
   pestanaValida, valorInterruptor, FORMAS_VISTA, opcionesForma, elegirForma, rotuloEspecie, anuncioEspecie, anuncioForma,
   modoVistaPrevia, CLAVE_VISTA_PREVIA, horaArgentina, textoMod, textoModelo, puntoPestana, clicBorrar, armadoVigente,
@@ -85,10 +85,29 @@ test('partesMascota: los campos de nombre con lo guardado, la especie de pista y
   assert.match(campo(partesMascota({ mascota: 'avi', nombreUsuario: 'Ni"<co' }).nombres, 'cfg-nom-usuario'), /value="Ni&quot;&lt;co"/)
   // Sin nombres guardados, la pista es la especie elegida
   assert.match(campo(partesMascota({ mascota: 'lumen' }).nombres, 'cfg-nom-mascota'), /placeholder="Lumen"[^>]*value=""/)
-  assert.doesNotMatch(p.nombres, /aj-error/)
-  assert.match(partesMascota({ mascota: 'avi', error: 'nombreUsuario' }).nombres, /aj-error/)
+  // Un solo "Guardar" para los dos, apagado hasta que se escribe algo distinto (main.js lo prende)
+  assert.match(p.nombres, /<button type="button" class="btn" id="cfg-nom-guardar" data-accion="cfg-nom-guardar" data-k="nom-guardar" aria-disabled="true">Guardar<\/button>/)
+  assert.doesNotMatch(p.nombres, /aj-error|Guardado/)
+  assert.match(partesMascota({ mascota: 'avi', error: 'nombres' }).nombres, /<p class="aj-error" role="alert">No se pudo guardar/)
+  assert.match(partesMascota({ mascota: 'avi', nombresOk: true }).nombres, /<span class="nom-ok" role="status">Guardado<\/span>/)
   // La sección entera lleva la parte
   assert.match(seccionMascota({ mascota: 'avi' }), /data-parte="nombres"/)
+})
+
+test('cambiosNombres: solo lo que cambió, sin espacios de los bordes; null si alguno no sirve (#37)', () => {
+  const guardados = { nombreMascota: 'Pancho', nombreUsuario: '' }
+  assert.deepEqual(cambiosNombres(guardados, { nombreMascota: 'Pancho', nombreUsuario: '' }), [])
+  assert.deepEqual(cambiosNombres(guardados, { nombreMascota: ' Pancho ', nombreUsuario: ' Nico ' }), [{ clave: 'nombreUsuario', valor: 'Nico' }])
+  assert.deepEqual(cambiosNombres(guardados, { nombreMascota: '', nombreUsuario: 'Nico' }),
+    [{ clave: 'nombreMascota', valor: '' }, { clave: 'nombreUsuario', valor: 'Nico' }])
+  assert.equal(cambiosNombres(guardados, { nombreMascota: 'x'.repeat(41), nombreUsuario: 'Nico' }), null)
+  assert.equal(cambiosNombres(guardados, { nombreMascota: 'Pancho', nombreUsuario: 'a\nb' }), null)
+})
+
+test('nombreMarca: el nombre de la mascota bajo la marca; sin nombre, Avis (#37)', () => {
+  assert.equal(nombreMarca('Pancho'), 'Pancho')
+  assert.equal(nombreMarca(''), 'Avis')
+  assert.equal(nombreMarca(undefined), 'Avis')
 })
 
 test('validarAjuste: arriba, avisar y pausa solo booleanos', () => {
