@@ -398,6 +398,21 @@ fn los_cambios_validos_sobreviven_a_normalizar() {
 }
 
 #[test]
+fn la_lista_nueva_de_un_cambio_se_guarda_y_una_que_no_sirve_se_descarta() {
+    // La lista que armó la charla sin listas (25/11): `{ nombre, color }` para el «· nueva» del recibo
+    let mut nueva = cambio_crear();
+    nueva["listaNueva"] = json!({ "nombre": "Tareas", "color": "celeste" });
+    let n = normalizar(&con_cambios(json!([nueva.clone()]))).unwrap();
+    assert_eq!(n["mensajes"][1]["cambios"], json!([nueva]));
+    // Un color que no es de la lista o un nombre largo: el cambio queda, sin la marca
+    for mala in [json!({ "nombre": "Tareas", "color": "fucsia" }), json!({ "nombre": "x".repeat(101), "color": "celeste" }), json!(true)] {
+        let mut c = cambio_crear();
+        c["listaNueva"] = mala;
+        assert_eq!(normalizar(&con_cambios(json!([c]))).unwrap()["mensajes"][1]["cambios"], json!([cambio_crear()]));
+    }
+}
+
+#[test]
 fn un_cambio_invalido_se_descarta_sin_rechazar_la_charla() {
     let mut desconocido = cambio_crear();
     desconocido["estado"] = json!("rehecho");

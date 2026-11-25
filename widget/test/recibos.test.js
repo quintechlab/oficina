@@ -8,6 +8,7 @@ import {
   verboCambio, encabezadoRecibo, encabezadoError, metaCambio, debeMostrarLectura, faltantes, lineaPuede, anuncioRecibo,
   armarRecibos, diferenciaRecibos, tituloLectura, pieDeshacer, anuncioDeshacer,
 } from '../src/recibos.js'
+import { colorDe } from '../src/tareas.js'
 import { recibosHtml, lineaPuedeHtml, globoPuedeHtml, pieCambiosHtml } from '../src/recibosVista.js'
 
 // Hoy es miércoles 25/11/2026 (Argentina)
@@ -74,6 +75,21 @@ test('verboCambio: un caso por verbo de 5.2', () => {
 })
 
 // ------------------------------------------------------------------ 3. metaCambio
+
+test('metaCambio: la lista que armó la charla (sin listas) lleva «· nueva», también antes de releer las listas', () => {
+  const nueva = cambio('tarea_crear', {
+    lista: 'l-tareas',
+    despues: { titulo: 'Pan', fecha: null, hecha: false, importante: false, lista: 'l-tareas' },
+    listaNueva: { nombre: 'Tareas', color: 'celeste' },
+  })
+  // Todavía sin leer: el nombre y el color vienen en el cambio
+  assert.deepEqual(metaCambio(nueva, [], HOY), [{ tipo: 'lista', texto: 'Tareas · nueva', color: colorDe('celeste') }])
+  // Ya leída: el de la pantalla (si el usuario la renombró, ese)
+  const leidas = [{ id: 'l-tareas', nombre: 'Súper', color: 'verde', tareas: [] }]
+  assert.deepEqual(metaCambio(nueva, leidas, HOY), [{ tipo: 'lista', texto: 'Súper · nueva', color: colorDe('verde') }])
+  // Lo de antes: sin listaNueva, el chip de siempre
+  assert.deepEqual(metaCambio(CREAR, LISTAS, HOY)[1], { tipo: 'lista', texto: 'Compras', color: 'rosa' })
+})
 
 test('metaCambio: la fecha con etiquetaFecha (ámbar hoy y mañana) y la lista con su color', () => {
   assert.deepEqual(metaCambio(CREAR, LISTAS, HOY), [

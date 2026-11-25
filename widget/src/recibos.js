@@ -115,6 +115,11 @@ export function metaCambio(c, listas, hoy) {
     const de = listaDe(listas, antes.lista)
     const a = listaDe(listas, despues.lista)
     meta.push(de && a ? { tipo: 'lista', texto: `${de.nombre} → ${a.nombre}`, color: colorDe(a.color) } : null)
+  } else if (c?.listaNueva && destino) {
+    // La lista que armó la charla porque no había ninguna (decisión del 25/11): «· nueva», con el nombre de
+    // la pantalla si ya se leyó y, si no, el que trae el cambio
+    const l = listaDe(listas, destino) ?? c.listaNueva
+    meta.push({ tipo: 'lista', texto: `${String(l.nombre ?? '')} · nueva`, color: colorDe(l.color) })
   } else if (destino) {
     meta.push(chipLista(listas, destino))
   }

@@ -255,7 +255,19 @@ fn cambio(c: &Value) -> Option<Value> {
     if c.get("resumen").is_some() {
         x["resumen"] = resumen_de(&c["resumen"])?;
     }
+    // La lista que armó la charla porque no había ninguna (25/11): si no sirve, el cambio queda sin la marca
+    if let Some(l) = lista_nueva_de(&c["listaNueva"]) {
+        x["listaNueva"] = l;
+    }
     Some(x)
+}
+
+/// `{ nombre, color }` de la lista nueva de un cambio: un nombre de hasta 100 caracteres y un color de
+/// `tareas::COLORES`.
+fn lista_nueva_de(v: &Value) -> Option<Value> {
+    let nombre = v["nombre"].as_str().filter(|n| !n.trim().is_empty() && n.chars().count() <= 100)?;
+    let color = v["color"].as_str().filter(|c| crate::tareas::COLORES.contains(c))?;
+    Some(json!({ "nombre": nombre, "color": color }))
 }
 
 /// Los cambios de un mensaje de la mascota: los que sirven, en orden y con tope.

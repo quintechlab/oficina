@@ -486,18 +486,47 @@ fn crear(carpeta: &Path, args: &Value, ahora: i64) -> Result<Hecho, Fallo> {
     let pedida = texto_de(&args["lista"], "La lista")?.filter(|q| !q.trim().is_empty());
     let l = tareas::listar(carpeta);
     let destino = match &pedida {
-        Some(q) => buscar_lista(&l, q)?,
-        None => l.listas.first().ok_or(SIN_LISTAS)?,
+        Some(q) => Some(buscar_lista(&l, q)?),
+        None => l.listas.first(),
     };
-    let (lid, lnombre) = (id_de_lista(destino), nombre(destino));
     let usados: HashSet<String> = l.listas.iter().flat_map(|x| x["tareas"].as_array().cloned().unwrap_or_default()).filter_map(|t| t["id"].as_str().map(String::from)).collect();
     let id = id_tarea(ahora, &usados);
     let t = json!({ "id": id, "titulo": titulo, "hecha": false, "hechaEn": null, "fecha": fecha, "importante": importante, "notas": notas, "subtareas": [], "creada": ahora.max(0) });
-    tareas::modificar(carpeta, &lid, |doc| poner_tarea(doc, &t)).map_err(|f| Fallo { lista: Some(lid.clone()), ..de_falla(f, &lnombre) })?;
+    let (lid, lnombre, nueva) = match destino {
+        Some(d) => {
+            let (lid, lnombre) = (id_de_lista(d), nombre(d));
+            tareas::modificar(carpeta, &lid, |doc| poner_tarea(doc, &t)).map_err(|f| Fallo { lista: Some(lid.clone()), ..de_falla(f, &lnombre) })?;
+            (lid, lnombre, false)
+        }
+        None => {
+            let lid = crear_lista_tareas(carpeta, &t, ahora)?;
+            (lid, String::from(NOMBRE_LISTA_NUEVA), true)
+        }
+    };
     let para = fecha.as_str().map(|f| format!(", para el {f}")).unwrap_or_default();
     let mut c = cambio_base("tarea_crear", "hecho", Some(&lid), Some(&id), Some(&titulo));
     c["despues"] = json!({ "titulo": titulo, "fecha": fecha, "hecha": false, "importante": importante, "lista": lid });
+    if nueva {
+        // El recibo dice «· nueva» con su nombre y color, aunque la ventana todavía no la haya leído
+        c["listaNueva"] = json!({ "nombre": NOMBRE_LISTA_NUEVA, "color": tareas::COLORES[0] });
+    }
+    let lnombre = if nueva { format!("{lnombre} (lista nueva)") } else { lnombre };
     Ok(Hecho { texto: format!("Anotada «{titulo}» en {lnombre}{para}."), error: false, tipo: "cambio", cambio: Some(c), tocadas: vec![aviso(&lid, &id)] })
+}
+
+/// El nombre de la lista que arma la charla cuando no hay ninguna (decisión de Quintana del 25/11).
+const NOMBRE_LISTA_NUEVA: &str = "Tareas";
+
+/// Sin listas, la primera tarea de la charla va a una lista nueva «Tareas» (`l-tareas`, o `l-tareas-2`…
+/// si ya hay un archivo con ese id, aunque esté roto: nunca se pisa). Devuelve su id.
+fn crear_lista_tareas(carpeta: &Path, t: &Value, ahora: i64) -> Result<String, Fallo> {
+    let libre = (1..=9)
+        .map(|n| if n == 1 { String::from("l-tareas") } else { format!("l-tareas-{n}") })
+        .find(|id| !carpeta.join(format!("{id}.json")).exists())
+        .ok_or(SIN_LISTAS)?;
+    let doc = json!({ "v": 1, "id": libre, "nombre": NOMBRE_LISTA_NUEVA, "color": tareas::COLORES[0], "orden": 0, "creada": ahora.max(0), "tareas": [t] });
+    tareas::crear(carpeta, &doc).map_err(|f| Fallo { lista: Some(libre.clone()), ..de_falla(f, NOMBRE_LISTA_NUEVA) })?;
+    Ok(libre)
 }
 
 /// Mueve la tarea `t` (ya con sus cambios) de `origen` a `destino`: destino primero (11.3); si el

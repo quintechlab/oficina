@@ -288,6 +288,22 @@ pub fn modificar<R>(carpeta: &Path, id: &str, f: impl FnOnce(&mut Value) -> Resu
     Ok((r, limpio))
 }
 
+/// Crea el archivo de una lista nueva (#43: la primera tarea de la charla sin listas), con el candado de
+/// las escrituras tomado. Nunca pisa un archivo que ya está, aunque esté roto: entonces `Regla`.
+pub fn crear(carpeta: &Path, doc: &Value) -> Result<Value, Falla> {
+    let limpio = normalizar(doc).map_err(Falla::Regla)?;
+    let id = limpio["id"].as_str().unwrap_or_default().to_string();
+    let destino = ruta(carpeta, &id).ok_or_else(|| Falla::Regla(String::from("id de lista inválido")))?;
+    let _candado = bloquear();
+    if destino.exists() {
+        return Err(Falla::Regla(String::from("la lista ya existe")));
+    }
+    fs::create_dir_all(carpeta).map_err(|e| Falla::Disco(e.to_string()))?;
+    let bytes = serde_json::to_vec(&limpio).map_err(|e| Falla::Disco(e.to_string()))?;
+    crate::atomico::escribir(&destino, &bytes).map_err(|e| Falla::Disco(e.to_string()))?;
+    Ok(limpio)
+}
+
 /// Borra el archivo de la lista (con sus tareas). Lo que ya no existe no es un error; un archivo
 /// roto no se borra.
 pub fn borrar(carpeta: &Path, id: &str) -> Result<(), String> {

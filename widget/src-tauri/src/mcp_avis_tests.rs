@@ -391,14 +391,64 @@ fn crear_en_una_lista_que_no_existe_da_error_y_no_escribe_nada() {
     assert!(p.tareas.todos().is_empty());
 }
 
-#[test]
-fn sin_listas_crear_da_error() {
-    let p = prueba();
+/// Deja la carpeta de la prueba sin ninguna lista.
+fn sin_listas(p: &Prueba) {
     std::fs::remove_file(p.carpeta.join("l-casa.json")).unwrap();
     std::fs::remove_file(p.carpeta.join("l-compras.json")).unwrap();
+}
+
+#[test]
+fn sin_listas_la_primera_tarea_arma_la_lista_tareas() {
+    // Decisión de Quintana (25/11): sin listas, la charla anota igual en una lista nueva «Tareas»
+    let p = prueba();
+    sin_listas(&p);
+    let (texto, error) = p.llamar("tarea_crear", json!({ "titulo": "Pan", "fecha": "mañana" }));
+    assert!(!error, "{texto}");
+    assert_eq!(texto, "Anotada «Pan» en Tareas (lista nueva), para el 2026-11-26.");
+    let l = p.lista("l-tareas");
+    assert_eq!((l["nombre"].as_str(), l["color"].as_str()), (Some("Tareas"), Some(tareas::COLORES[0])));
+    assert_eq!(p.titulos("l-tareas"), ["Pan"]);
+    let c = p.ultimo_cambio();
+    assert_eq!((c["estado"].as_str(), c["lista"].as_str()), (Some("hecho"), Some("l-tareas")));
+    assert_eq!(c["listaNueva"], json!({ "nombre": "Tareas", "color": tareas::COLORES[0] }));
+    // La segunda va a esa misma lista, ya sin «lista nueva»
+    let (texto, _) = p.llamar("tarea_crear", json!({ "titulo": "Leche" }));
+    assert_eq!(texto, "Anotada «Leche» en Tareas.");
+    assert_eq!(p.titulos("l-tareas"), ["Pan", "Leche"]);
+    assert!(p.ultimo_cambio().get("listaNueva").is_none());
+}
+
+#[test]
+fn sin_listas_deshacer_saca_la_tarea_y_la_lista_queda() {
+    let p = prueba();
+    sin_listas(&p);
+    p.llamar("tarea_crear", json!({ "titulo": "Pan" }));
+    let r = deshacer(&p.carpeta, &p.ultimo_cambio(), MEDIODIA).unwrap();
+    assert_eq!(r.estado, "deshecho");
+    assert!(p.titulos("l-tareas").is_empty());
+}
+
+#[test]
+fn sin_listas_un_archivo_roto_con_ese_id_no_se_pisa() {
+    let p = prueba();
+    sin_listas(&p);
+    std::fs::write(p.carpeta.join("l-tareas.json"), "{ roto").unwrap();
     let (texto, error) = p.llamar("tarea_crear", json!({ "titulo": "Pan" }));
+    assert!(!error, "{texto}");
+    assert_eq!(std::fs::read(p.carpeta.join("l-tareas.json")).unwrap(), b"{ roto");
+    assert_eq!(p.titulos("l-tareas-2"), ["Pan"]);
+    assert_eq!(p.ultimo_cambio()["lista"], "l-tareas-2");
+}
+
+#[test]
+fn sin_listas_con_una_lista_pedida_sigue_el_error_de_antes() {
+    // Lo de antes: pedir una lista que no existe no la crea
+    let p = prueba();
+    sin_listas(&p);
+    let (texto, error) = p.llamar("tarea_crear", json!({ "titulo": "Pan", "lista": "Facultad" }));
     assert!(error);
-    assert_eq!(texto, "No hay listas todavía: creá una en Tareas.");
+    assert_eq!(texto, "No existe la lista «Facultad».");
+    assert!(p.listas().is_empty());
 }
 
 #[test]

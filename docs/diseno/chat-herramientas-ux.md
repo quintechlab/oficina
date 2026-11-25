@@ -142,7 +142,7 @@ Al terminar el turno, si el modelo pidió más cambios (`tool_use` de `tarea_cre
 | Lectura | «Hoy · {miércoles} {25/11}» · «Vencidas» · «{lista}» · «{k} de {n}» · «y {k} más» · «solo lectura · no cambió nada» · «Abrir Tareas →» |
 | Para borrar | «Para borrar» · «Ir a la tarea →» · «Ya no está» |
 | Error, encabezado | «No se anotó» · «No se cambió» · «No se tildó» |
-| Error, motivos (los arma Rust, 11.4) | «No existe la lista «{nombre}».» · «No hay listas todavía: creá una en Tareas.» · «Esa tarea ya no está.» · «El archivo de la lista está roto: no lo toco.» · «No se pudo guardar. No cambió nada.» · «Demasiados cambios en un mensaje: hacé de a 20.» |
+| Error, motivos (los arma Rust, 11.4) | «No existe la lista «{nombre}».» · «No hay listas todavía: creá una en Tareas.» (solo si ya hay nueve archivos `l-tareas…`) · «Esa tarea ya no está.» · «El archivo de la lista está roto: no lo toco.» · «No se pudo guardar. No cambió nada.» · «Demasiados cambios en un mensaje: hacé de a 20.» |
 | Error, botones | «Reintentar» · «Abrir Tareas» |
 | No llegó | «Un cambio no llegó a Avis» · «Avi intentó cambiar algo y Avis no lo recibió. No cambió nada; revisá en Tareas.» |
 
@@ -265,7 +265,7 @@ Nombres del servidor (Claude Code los ve como `mcp__avis__<nombre>`). Las descri
 | Herramienta | Descripción (exacta) | Entrada | Hace | Devuelve al modelo |
 |---|---|---|---|---|
 | `tareas_ver` | «Muestra las tareas de Avis. vista: hoy, vencidas, lista o todas. Devuelve también la fecha de hoy.» | `{ vista: "hoy"\|"vencidas"\|"lista"\|"todas", lista?: string (nombre o id, con vista "lista"), hechas?: bool = false }` | solo lee | JSON compacto: `{ hoy, diaSemana, listas: [{ id, nombre }], tareas: [{ id, lista, titulo, fecha, importante, hecha }] }`, hasta 100 tareas |
-| `tarea_crear` | «Anota una tarea nueva. Sin lista va a la primera. fecha: AAAA-MM-DD, "hoy", "mañana" o "pasado mañana".» | `{ titulo: 1–200, lista?: string, fecha?: string\|null, importante?: bool, notas?: ≤ 4000 }` | crea la tarea (id `t-…` de Rust, `creada` = ahora) | «Anotada «{título}» en {lista}{, para el AAAA-MM-DD}.» |
+| `tarea_crear` | «Anota una tarea nueva. Sin lista va a la primera. fecha: AAAA-MM-DD, "hoy", "mañana" o "pasado mañana".» | `{ titulo: 1–200, lista?: string, fecha?: string\|null, importante?: bool, notas?: ≤ 4000 }` | crea la tarea (id `t-…` de Rust, `creada` = ahora). **Sin ninguna lista y sin `lista` pedida** (decisión de Quintana del 25/11): arma la lista «Tareas» (`l-tareas`, o `l-tareas-2`… si ya hay un archivo con ese id, aunque esté roto: nunca se pisa) con la tarea adentro, y el cambio lleva `listaNueva: { nombre, color }` (el chip del recibo dice «Tareas · nueva»; el historial lo guarda) | «Anotada «{título}» en {lista}{, para el AAAA-MM-DD}.» · con lista nueva: «… en Tareas (lista nueva)…» |
 | `tarea_editar` | «Cambia una tarea: título, fecha (null la quita), importante, notas o lista (la mueve). Pasá solo lo que cambia.» | `{ id: "t-…", titulo?, fecha?, importante?, notas?, lista? }` (al menos uno) | cambia esos campos; mover = la regla de dos listas de tareas-ux 11.3 (destino primero) | «Listo: {lo que cambió}.» |
 | `tarea_tildar` | «Tilda o destilda una tarea.» | `{ id, hecha: bool }` | `hecha` y `hechaEn` | «Tildada «{título}».» / «Destildada…» |
 | `tarea_mostrar` | «No cambia nada: le muestra al usuario una tarea con un botón para abrirla. Usala cuando pida borrar una tarea (el borrado lo hace él).» | `{ id, para: "borrar"\|"ver" }` | nada en disco | «Le mostré «{título}».» |
