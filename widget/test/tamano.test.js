@@ -1,63 +1,14 @@
-// Tests del tamaño de la ventana: escala del dibujo, ajuste al contenido, límites y posición.
+// Tests del tamaño de la ventana: ajuste al contenido, límites y posición (sin zoom desde #47).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  zoomDe, direccionDeTecla, tamanoDeseado, debeAjustar, posicionEnPantalla, tamanoMini, medidaVentana, fueraDeLugar, MINIMO, FRACCION_MAXIMA,
-  esquinaTira, MARGEN_TIRA, fraccionFlotante, posicionDeFraccion, pasoQueEntra,
+  tamanoDeseado, debeAjustar, posicionEnPantalla, tamanoMini, medidaVentana, fueraDeLugar, MINIMO, FRACCION_MAXIMA,
+  esquinaTira, MARGEN_TIRA, fraccionFlotante, posicionDeFraccion,
 } from '../src/tamano.js'
+import * as tamanoJs from '../src/tamano.js'
+import { readFileSync } from 'node:fs'
 
 const AREA = { x: 0, y: 0, ancho: 1920, alto: 1040 }
-
-test('el zoom sale del porcentaje elegido: 100 % es el tamaño original, 200 % el doble', () => {
-  assert.equal(zoomDe(100), 1)
-  assert.equal(zoomDe(125), 1.25)
-  assert.equal(zoomDe(150), 1.5)
-  assert.equal(zoomDe(175), 1.75)
-  assert.equal(zoomDe(200), 2)
-  // Un valor raro o fuera de los pasos vuelve al tamaño original
-  assert.equal(zoomDe(undefined), 1)
-  assert.equal(zoomDe(300), 1)
-  assert.equal(zoomDe('grande'), 1)
-})
-
-test('el zoom baja al paso más grande que entra en el área, sin pasar del elegido', () => {
-  // Panel de 676 px CSS (barra de 188 + columna de 460 + bordes): al 200 % mide 1 352 px
-  // 1366 de ancho: entra hasta el 90 % (1 229 px) → 175 % (1 183 px)
-  assert.equal(pasoQueEntra(200, 676, 1366), 175)
-  assert.equal(pasoQueEntra(175, 676, 1366), 175)
-  // 1440: 1 296 px libres, el 200 % no entra
-  assert.equal(pasoQueEntra(200, 676, 1440), 175)
-  // Pantalla grande: el elegido tal cual, nunca más grande que él
-  assert.equal(pasoQueEntra(200, 676, 1920), 200)
-  assert.equal(pasoQueEntra(100, 676, 1920), 100)
-  assert.equal(pasoQueEntra(125, 676, 3840), 125)
-  // Angosta: el más chico que hay es 100 %, aunque no entre
-  assert.equal(pasoQueEntra(200, 676, 768), 100)
-  assert.equal(pasoQueEntra(100, 676, 375), 100)
-  // Justo en el borde entra: 900 × 0,9 = 810 = 405 × 2
-  assert.equal(pasoQueEntra(200, 405, 900), 200)
-  assert.equal(pasoQueEntra(200, 406, 900), 175)
-})
-
-test('sin medida del panel o con un paso raro, el zoom elegido no cambia', () => {
-  assert.equal(pasoQueEntra(200, 0, 1366), 200)
-  assert.equal(pasoQueEntra(200, NaN, 1366), 200)
-  assert.equal(pasoQueEntra(175, 676, undefined), 175)
-  assert.equal(pasoQueEntra(300, 676, 1366), 300)
-})
-
-test('teclas: Ctrl + agranda, Ctrl − achica, Ctrl 0 vuelve a 100 %; sin Ctrl no hace nada', () => {
-  const t = (key, ctrlKey = true, code = '') => direccionDeTecla({ key, ctrlKey, code })
-  assert.equal(t('+'), 1)
-  assert.equal(t('='), 1)
-  assert.equal(t('', true, 'NumpadAdd'), 1)
-  assert.equal(t('-'), -1)
-  assert.equal(t('', true, 'NumpadSubtract'), -1)
-  assert.equal(t('0'), 0)
-  assert.equal(t('', true, 'Numpad0'), 0)
-  assert.equal(t('+', false), null)
-  assert.equal(t('a'), null)
-})
 
 test('la ventana toma el tamaño del contenido, redondeado hacia arriba', () => {
   assert.deepEqual(tamanoDeseado({ ancho: 763.4, alto: 640.2 }, AREA), { ancho: 764, alto: 641 })
@@ -86,13 +37,6 @@ test('al crecer la esquina de arriba a la izquierda no se mueve, salvo que se sa
   assert.deepEqual(posicionEnPantalla({ x: -300, y: 50 }, { ancho: 764, alto: 641 }, izq), { x: -764, y: 50 })
 })
 
-test('la tira mini crece con el zoom', () => {
-  assert.deepEqual(tamanoMini(zoomDe(100)), { ancho: 400, alto: 56 })
-  assert.deepEqual(tamanoMini(zoomDe(125)), { ancho: 500, alto: 70 })
-  assert.deepEqual(tamanoMini(zoomDe(175)), { ancho: 700, alto: 98 })
-  assert.deepEqual(tamanoMini(zoomDe(200)), { ancho: 800, alto: 112 })
-})
-
 test('tablero: alto fijo, el mismo en todos los proyectos; el ancho sale del contenido', () => {
   const extras = { ancho: 34, alto: 50 }
   // Un proyecto con poco contenido y otro con mucho miden lo mismo: el alto no depende del proyecto
@@ -102,7 +46,7 @@ test('tablero: alto fijo, el mismo en todos los proyectos; el ancho sale del con
   assert.deepEqual(largo, corto)
 })
 
-test('tablero: el alto fijo crece con el zoom (en px de la ventana)', () => {
+test('tablero: el alto fijo se pasa a px de la ventana con la relación medida (f)', () => {
   const m = medidaVentana({ contenido: { ancho: 996, alto: 300 }, extras: { ancho: 34, alto: 50 }, f: 1.5, altoTablero: 640, margen: 16 })
   assert.deepEqual(m, { ancho: 1047, alto: 984 })
   // Topado al 90 % del área, como siempre: el resto se ve con scroll adentro
@@ -134,8 +78,6 @@ test('la tira mini va abajo a la derecha del área, apoyada sobre la barra de ta
   assert.deepEqual(esquinaTira({ x: -1280, y: 0, ancho: 1280, alto: 984 }, { ancho: 362, alto: 56 }), { x: -362 - 8, y: 984 - 56 - 8 })
   // Si no entra, no se sale del área por la izquierda ni por arriba
   assert.deepEqual(esquinaTira({ x: 0, y: 0, ancho: 300, alto: 40 }, { ancho: 362, alto: 56 }), { x: 0, y: 0 })
-  // Crece con el zoom: la tira de 200 % sigue pegada a la esquina
-  assert.deepEqual(esquinaTira(AREA, tamanoMini(2)), { x: 1920 - 800 - 8, y: 1040 - 112 - 8 })
 })
 
 test('posición flotante: se guarda como fracción del lugar libre del área y se restaura dentro del área', () => {
@@ -159,4 +101,39 @@ test('posición flotante: se guarda como fracción del lugar libre del área y s
   assert.deepEqual(fraccionFlotante({ x: -200, y: 900 }, tam, AREA), { x: 0, y: 1 })
   // Un tablero más grande que el área: arriba a la izquierda
   assert.deepEqual(posicionDeFraccion({ x: 0.7, y: 0.7 }, { ancho: 2000, alto: 2000 }, AREA), { x: 0, y: 0 })
+})
+
+// ------------------------------------------------------------------ sin zoom (#47)
+
+
+const leer = ruta => readFileSync(new URL(ruta, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+
+test('sin zoom (#47): tamano.js ya no tiene pasos, tope ni atajos', () => {
+  for (const nombre of ['zoomDe', 'pasoQueEntra', 'direccionDeTecla', 'PASO_POR_DEFECTO']) {
+    assert.equal(tamanoJs[nombre], undefined, nombre)
+  }
+})
+
+test('sin zoom (#47): la tira mini mide siempre 400 × 56', () => {
+  assert.deepEqual(tamanoMini(), { ancho: 400, alto: 56 })
+  assert.deepEqual(esquinaTira(AREA, tamanoMini()), { x: 1920 - 400 - 8, y: 1040 - 56 - 8 })
+})
+
+test('sin zoom (#47): la ventana no aplica zoom a <html> ni escucha Ctrl + / Ctrl − / Ctrl 0', () => {
+  const main = leer('../src/main.js')
+  assert.doesNotMatch(main, /style\.zoom/)
+  assert.doesNotMatch(main, /cambiar_tamano|oficina:\/\/tamano|topearPaso|aplicarTamano|ponerPaso|st\.paso|st\.tamano/)
+  assert.doesNotMatch(main, /'cfg-tam'/)
+  assert.doesNotMatch(leer('../dev/falso.js'), /cambiar_tamano|oficina:\/\/tamano/)
+})
+
+test('sin zoom (#47): Rust no registra cambiar_tamano, leer_configuracion no devuelve tamano y WebView2 no hace zoom', () => {
+  const lib = leer('../src-tauri/src/lib.rs')
+  assert.doesNotMatch(lib, /cambiar_tamano|oficina:\/\/tamano|leer_tamano/)
+  const cuerpo = lib.slice(lib.indexOf('fn leer_configuracion'), lib.indexOf('\n}\n', lib.indexOf('fn leer_configuracion')))
+  assert.ok(cuerpo.includes('"mascota"'))
+  assert.doesNotMatch(cuerpo, /"tamano"/)
+  // Tauri apaga el zoom propio de WebView2 (Ctrl +/−/0 y la rueda) salvo con zoomHotkeysEnabled
+  const conf = JSON.parse(leer('../src-tauri/tauri.conf.json'))
+  for (const v of conf.app.windows) assert.notEqual(v.zoomHotkeysEnabled, true, v.label)
 })

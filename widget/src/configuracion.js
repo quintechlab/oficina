@@ -91,11 +91,6 @@ export function bordeDeUbicacion(ubicacion) {
   return UBICACIONES.some(([v]) => v === ubicacion) ? ubicacion : undefined
 }
 
-/** Los botones − y + del tamaño: se apagan en las puntas (100 y 200 %, los de preferencias.rs). */
-export function limitesTamano(tamano) {
-  return { achicar: tamano > 100, agrandar: tamano < 200 }
-}
-
 /**
  * Estado de la hoja en la ventana (4.6): abierta, la pestaña (la última usada en esta ejecución, no
  * se guarda), la clave que se escribe (`editando`, nunca el texto), el borrado armado, el ajuste
@@ -544,5 +539,5 @@ export function retieneConfig(config) {
 /** Con el tablero más bajo que esto (px CSS), la hoja compacta su encabezado (16, M4). */
 export const ALTO_MARCO_BAJO = 520
 
-/** ¿El tablero es bajo? `alto` en px CSS (sin el zoom), el de `d.local.tablero`. */
+/** ¿El tablero es bajo? `alto` en px CSS (sin escala), el de `d.local.tablero`. */
 export const marcoBajo = alto => Number(alto) < ALTO_MARCO_BAJO

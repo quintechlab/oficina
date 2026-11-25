@@ -753,3 +753,12 @@ test('semana: el mensaje de la mascota viaja como historia del motor local y se 
   assert.equal(doc.titulo, 'Tu semana · 16/11 al 22/11')
   assert.deepEqual(doc.mensajes.map(m => [m.rol, m.texto, m.estado]), [['mascota', 'Bien.', 'ok']])
 })
+
+test('sin zoom (#47): la hoja al costado sin escala es la del 100 %', () => {
+  const t = { x: 100, y: 200, ancho: 676, alto: 640 }
+  const area = { x: 0, y: 0, ancho: 1920, alto: 1040 }
+  for (const [modo, borde] of [['flotante', null], ['acoplada', 'arriba'], ['acoplada', 'derecha'], ['acoplada', 'izquierda']]) {
+    assert.equal(ladoHoja(t, area, modo, borde), ladoHoja(t, area, modo, borde, 1))
+  }
+  assert.deepEqual(rectHoja(t, 'derecha', 1, 208), { x: 100 + 676 + HUECO_HOJA, y: 200, ancho: ANCHO_HOJA, alto: 640 })
+})

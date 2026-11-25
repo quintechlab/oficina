@@ -8,7 +8,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   PESTANAS, IDS_PESTANAS, pestanaSiguiente, validarAjuste, UBICACIONES, ubicacionDe, bordeDeUbicacion,
-  limitesTamano, configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion,
+  configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion,
   pestanaValida, valorInterruptor, FORMAS_VISTA, opcionesForma, elegirForma, rotuloEspecie, anuncioEspecie, anuncioForma,
   modoVistaPrevia, CLAVE_VISTA_PREVIA, horaArgentina, textoMod, textoModelo, puntoPestana, clicBorrar, armadoVigente,
   desarmarVencido, MS_CONFIRMAR, filasEnEstaPC, marcoBajo, modeloDesdeChat, descargaDesdeConfig,
@@ -176,15 +176,9 @@ test('ubicacionDe y bordeDeUbicacion: flotando es "flota"; acoplada, su borde', 
   assert.equal(bordeDeUbicacion('cualquiera'), undefined)
 })
 
-test('limitesTamano: − se apaga en 100 % y + en 200 %', () => {
-  assert.deepEqual(limitesTamano(100), { achicar: false, agrandar: true })
-  assert.deepEqual(limitesTamano(150), { achicar: true, agrandar: true })
-  assert.deepEqual(limitesTamano(200), { achicar: true, agrandar: false })
-})
-
 // ------------------------------------------------------------------ lo que dibuja la hoja (4.3 y 5)
 
-const PANEL = { tamano: 125, ubicacion: 'flota', arriba: true, avisar: false, pausa: false, arranque: false, error: null }
+const PANEL = { ubicacion: 'flota', arriba: true, avisar: false, pausa: false, arranque: false, error: null }
 
 test('las pestañas: tablist con una sola en el orden de tabulación y el indicador', () => {
   const html = pestanasConfiguracion('panel')
@@ -203,10 +197,9 @@ test('el esqueleto: aviso, pestañas, panel de pestaña enfocable y la región d
   assert.match(html, /class="oculto" role="status" id="cfg-vivo"/)
 })
 
-test('Panel: las seis filas, en orden y con los textos de la dirección', () => {
+test('Panel: las cinco filas, en orden y con los textos de la dirección', () => {
   const html = seccionConfiguracion('panel', PANEL)
   const textos = [
-    'Tamaño', 'De 100 a 200 %, de a 25. También con Ctrl + y Ctrl −.',
     'Dónde vive', 'Flotando, o acoplada a un borde de la pantalla.',
     'Siempre arriba', 'Queda encima de las otras ventanas.',
     'Avisarme con cada pregunta', 'Una notificación de Windows cuando Claude te pregunta algo.',
@@ -230,15 +223,6 @@ test('Panel: cada interruptor es un switch con su estado y "Sí"/"No" oculto al 
   const prendido = seccionConfiguracion('panel', { ...PANEL, arranque: true, pausa: true })
   assert.match(prendido, /aria-checked="true" aria-label="Arrancar con Windows"/)
   assert.match(prendido, /aria-checked="true" aria-label="Pausar animaciones"/)
-})
-
-test('Panel: el tamaño con − y + que se apagan en las puntas y el porcentaje', () => {
-  const html = seccionConfiguracion('panel', PANEL)
-  assert.match(html, /role="group" aria-label="Tamaño del panel"/)
-  assert.match(html, /aria-label="Achicar" aria-disabled="false"/)
-  assert.match(html, /<output class="pv"[^>]*>125 %<\/output>/)
-  assert.match(seccionConfiguracion('panel', { ...PANEL, tamano: 100 }), /aria-label="Achicar" aria-disabled="true"/)
-  assert.match(seccionConfiguracion('panel', { ...PANEL, tamano: 200 }), /aria-label="Agrandar" aria-disabled="true"/)
 })
 
 test('Panel: "Dónde vive" es un radiogroup con la ubicación actual elegida y enfocable', () => {
@@ -861,4 +845,17 @@ test('validarAjuste: habitosResumen (un lunes o vacío) y habitosFrase ({ lunes,
   assert.equal(validarAjuste('habitosRecordados', '2026-11-23'), false)
   assert.equal(validarAjuste('mascota', 'lumen'), true)
   assert.equal(validarAjuste('otra', '2026-11-23'), false)
+})
+
+test('Panel sin zoom (#47): no hay fila Tamaño ni botones − y +; quedan las otras cinco en orden', () => {
+  const html = seccionConfiguracion('panel', PANEL)
+  assert.doesNotMatch(html, /Tamaño|Ctrl \+|cfg-tam|Achicar|Agrandar|class="pv"/)
+  const textos = ['Dónde vive', 'Siempre arriba', 'Avisarme con cada pregunta', 'Pausar animaciones', 'Arrancar con Windows']
+  let desde = -1
+  for (const t of textos) {
+    const i = html.indexOf(t, desde + 1)
+    assert.ok(i > desde, `falta o fuera de orden: ${t}`)
+    desde = i
+  }
+  assert.equal((html.match(/<span class="aj-t"|<label class="aj-t"/g) ?? []).length, 5)
 })

@@ -38,7 +38,7 @@ export const esHorizontal = borde => borde === 'arriba' || borde === 'abajo'
  */
 export const TAM_MUESCA = Object.freeze({ horizontal: Object.freeze({ largo: 150, grosor: 54 }), vertical: Object.freeze({ largo: 140, grosor: 62 }) })
 
-/** Tamaño de la muesca en `borde`, en px de pantalla con el zoom `z`. */
+/** Tamaño de la muesca en `borde`, en px de pantalla con la escala `z` (1: el panel va siempre al 100 %, #47). */
 export function tamMuescaDe(borde, z = 1) {
   const t = esHorizontal(borde) ? TAM_MUESCA.horizontal : TAM_MUESCA.vertical
   return { largo: t.largo * z, grosor: t.grosor * z }
@@ -118,7 +118,7 @@ function pegada(borde, centro, largo, grosor, area) {
 /**
  * Ventana de la muesca cerrada: la muesca (`tam`: `largo` a lo largo del borde y `grosor`), sus
  * hombros, la luz y la holgura del golpe; nada más, porque los píxeles transparentes toman clics
- * (9.5). `caja`: la muesca negra, en px de pantalla. `z`: el zoom del tamaño elegido.
+ * (9.5). `caja`: la muesca negra, en px de pantalla. `z`: la escala (1 desde #47).
  */
 export function rectMuesca(acople, tam, area, z = 1) {
   const centro = centroEnBorde(acople, tam.largo, area, z)
@@ -160,7 +160,7 @@ function radios(borde, r) {
 
 /**
  * Recorte de la apertura (6.4): `desde` es la muesca dentro del tablero y `hasta` el tablero entero,
- * como `clip-path: inset(...)` en px CSS del tablero (los de pantalla divididos por el zoom).
+ * como `clip-path: inset(...)` en px CSS del tablero (los de pantalla divididos por la escala `z`).
  */
 export function recorte(caja, tablero, borde, z = 1) {
   const px = v => Math.max(0, Math.round(v / z * 100) / 100)
@@ -253,7 +253,7 @@ export const MARGEN_ZONA = 4
  * volverla píldora al arrastrar no mueven ni redimensionan la ventana (WebView2 tarda en repintar
  * después de un redimensionado: eso era el parpadeo). Solo cambia de monitor. `local`: la muesca, su
  * luz y el tablero en px CSS de esa ventana (para colocarlos con --mx, --lx, --tx…). `tam`: la
- * muesca; `tablero`: el tamaño natural del tablero, ambos en px de pantalla (ya con el zoom `z`).
+ * muesca; `tablero`: el tamaño natural del tablero, ambos en px de pantalla (ya con la escala `z`).
  */
 export function disposicionAcoplada(acople, tam, tablero, area, z = 1) {
   const m = rectMuesca(acople, tam, area, z)
@@ -268,7 +268,7 @@ export function disposicionAcoplada(acople, tam, tablero, area, z = 1) {
 /**
  * Ventana única (estilo-avis-ux.md 9.7): flotando, la ventana también es el área de trabajo entera y
  * el tablero es un elemento adentro, en `pos` (px de pantalla; quien llama lo topa al área si hace
- * falta) y de tamaño `tam` (px de pantalla, ya con el zoom `z`). Moverlo es mover el elemento.
+ * falta) y de tamaño `tam` (px de pantalla, ya con la escala `z`). Moverlo es mover el elemento.
  */
 export function disposicionFlotante(pos, tam, area, z = 1) {
   const ventana = ventanaDeArea(area)
@@ -278,7 +278,7 @@ export function disposicionFlotante(pos, tam, area, z = 1) {
 
 /**
  * La tira mini adentro de la ventana del área: abajo a la derecha (`esquinaTira`) o en `pos`, donde
- * se la soltó. `tam`: `tamanoMini` del zoom `z`.
+ * se la soltó. `tam`: `tamanoMini()`.
  */
 export function disposicionTira(pos, tam, area, z = 1) {
   const ventana = ventanaDeArea(area)

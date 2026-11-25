@@ -7,7 +7,7 @@ import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, 
 import { companeros } from './equipo.js'
 import { iconoBandeja, textoInsignia } from './bandeja.js'
 import {
-  zoomDe, pasoQueEntra, direccionDeTecla, tamanoDeseado, fueraDeLugar, posicionEnPantalla, tamanoMini, medidaVentana, PASO_POR_DEFECTO,
+  tamanoDeseado, fueraDeLugar, posicionEnPantalla, tamanoMini, medidaVentana,
   fraccionFlotante, posicionDeFraccion,
 } from './tamano.js'
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
@@ -250,10 +250,6 @@ const st = {
   actosEvo: [],
   pendientesEvo: new Set(),
   temporizadorEvo: null,
-  /** Tamaño en porcentaje del original: 100, 125, 150, 175 o 200. */
-  tamano: PASO_POR_DEFECTO,
-  /** El paso aplicado: `tamano`, o menos si con él el panel no entra en el área (`pasoQueEntra`). */
-  paso: PASO_POR_DEFECTO,
   firmas: {},
   /** El último HTML de las escenas (con los tiempos) y sus subagentes, para los cambios en vivo (panel-avis-ux.md 8.4). */
   htmlEscenas: null,
@@ -2534,48 +2530,17 @@ document.addEventListener('keydown', e => {
 // ------------------------------------------------------------------ tamaño de la ventana
 
 /**
- * Tamaño elegido (Ctrl + / Ctrl − o el submenú "Tamaño"): todo, dibujo y texto, crece con el
- * mismo zoom. La ventana no cambia (es el área): en la misma tarea se vuelve a ubicar lo de adentro,
- * así nada salta de lugar por un cuadro.
+ * Al arrancar, con lo guardado ya leído: ubica lo de adentro, ajusta la ventana y pinta la
+ * configuración (lo que pasaba al aplicar el tamaño guardado antes de #47, sin el zoom).
  */
-async function aplicarTamano(porcentaje) {
-  st.tamano = porcentaje
-  ponerPaso(porcentaje)
+function ubicarAlArrancar() {
   recolocar()
   programarAjuste()
   pintarConfiguracion()
 }
 
-/** Aplica el paso `p` en `<html>` (todo crece junto). */
-function ponerPaso(p) {
-  st.paso = p
-  document.documentElement.style.zoom = String(zoomDe(p))
-}
-
 /**
- * El panel nunca más ancho que el área (`area`, px de pantalla): con el zoom elegido, o el paso más
- * grande que entra (`pasoQueEntra`). La preferencia guardada no cambia. El ancho del panel en px CSS
- * no depende del zoom (#contenido es `max-content`), así que medirlo de nuevo da el mismo paso. En
- * la tira mini el tablero no se ve: queda el paso de antes.
- */
-function topearPaso(area) {
-  if (!area || st.mini) return
-  const marco = $('#marco')
-  const f = marco.offsetWidth ? marco.getBoundingClientRect().width / marco.offsetWidth : zoomDe(st.paso)
-  const p = pasoQueEntra(st.tamano, medirContenido().ancho / f, area.ancho)
-  if (p !== st.paso) ponerPaso(p)
-}
-
-// Ctrl + / Ctrl − / Ctrl 0 con la ventana enfocada: el paso lo decide y lo guarda la app
-document.addEventListener('keydown', e => {
-  const direccion = direccionDeTecla(e)
-  if (direccion === null || !tauri?.core) return
-  e.preventDefault()
-  invocar('cambiar_tamano', { direccion }).catch(() => {})
-})
-
-/**
- * Tamaño del tablero en px de pantalla (ya con el zoom aplicado). El ancho es el de #contenido más
+ * Tamaño del tablero en px de pantalla (el panel va siempre al 100 %, #47). El ancho es el de #contenido más
  * el relleno del área que desplaza, su barra y el borde de #marco. El alto del tablero es fijo
  * (`--alto-tablero`, 9.2): no cambia de un proyecto a otro. En el vacío y la carga el alto sigue al
  * contenido. El body ya no tiene relleno (la ventana es el área: la sombra entra sobrada).
@@ -2583,7 +2548,7 @@ document.addEventListener('keydown', e => {
 function medirContenido() {
   const marco = $('#marco'), cuerpo = $('#cuerpo'), contenido = $('#contenido')
   const rMarco = marco.getBoundingClientRect(), rContenido = contenido.getBoundingClientRect()
-  // Relación entre px de la ventana y px del documento (el zoom), medida y no supuesta
+  // Relación entre px de la ventana y px del documento, medida y no supuesta (1 sin transformaciones)
   const f = marco.offsetWidth ? rMarco.width / marco.offsetWidth : 1
   const suma = (el, a, b) => { const cs = getComputedStyle(el); return parseFloat(cs[a]) + parseFloat(cs[b]) }
   const barra = cuerpo.offsetWidth - cuerpo.clientWidth
@@ -2621,25 +2586,23 @@ async function ajustarVentana() {
 // Escondida o minimizada (si el WebView lo informa): pausa al instante, sin esperar la lectura
 document.addEventListener('visibilitychange', () => ponerFuera(document.hidden))
 
-// El contenido cambia (otro proyecto, globo, compañero desplegado, tamaño elegido): el tablero lo
+// El contenido cambia (otro proyecto, globo, compañero desplegado): el tablero lo
 // sigue adentro de la ventana. La muesca tiene un tamaño fijo (TAM_MUESCA): no hace falta observarla
 const observador = new ResizeObserver(() => programarAjuste())
 observador.observe($('#contenido'))
 
 // ------------------------------------------------------------------ muesca acoplable (sección 7)
 
-const zoom = () => zoomDe(st.paso)
-/** Tamaño de la muesca en px de pantalla (`TAM_MUESCA` por el zoom), sin medir el DOM. */
-const tamMuesca = () => tamMuescaDe(st.acople.borde, zoom())
+/** Tamaño de la muesca en px de pantalla (`TAM_MUESCA`), sin medir el DOM. */
+const tamMuesca = () => tamMuescaDe(st.acople.borde)
 
 /** Largo del área de trabajo a lo largo de un borde. */
 const largoDe = (borde, area) => esHorizontal(borde) ? area.ancho : area.alto
 
 /** Disposición acoplada con el área de trabajo `area`: ventana fija, muesca y panel (9.6). */
 function disposicion(area, tablero) {
-  topearPaso(area)
   tablero ??= medirContenido()
-  return disposicionAcoplada(st.acople, tamMuesca(), tablero, area, zoom())
+  return disposicionAcoplada(st.acople, tamMuesca(), tablero, area)
 }
 
 /**
@@ -2649,15 +2612,13 @@ function disposicion(area, tablero) {
  */
 function disposicionActual(area) {
   if (st.acople) return disposicion(area)
-  topearPaso(area)
-  const z = zoom()
   if (st.mini) {
-    const tam = tamanoMini(z)
-    return disposicionTira(st.tira ? posicionEnPantalla(st.tira, tam, area) : null, tam, area, z)
+    const tam = tamanoMini()
+    return disposicionTira(st.tira ? posicionEnPantalla(st.tira, tam, area) : null, tam, area)
   }
   const tam = tamanoDeseado(medirContenido(), area)
   st.flotante = posicionEnPantalla(st.flotante ?? posicionDeFraccion(st.fraccion, tam, area), tam, area)
-  return disposicionFlotante(st.flotante, tam, area, z)
+  return disposicionFlotante(st.flotante, tam, area)
 }
 
 /**
@@ -2676,7 +2637,7 @@ function colocar(d) {
   if (d.local.muesca) { poner('m', d.local.muesca); poner('l', d.local.luz) }
   if (d.local.tablero) {
     poner('t', d.local.tablero)
-    // Poco alto (200 % en una pantalla de 768): la hoja de la configuración compacta su encabezado (configuracion-ux.md 16, M4)
+    // Poco alto (una pantalla de 768 o menos): la hoja de la configuración compacta su encabezado (configuracion-ux.md 16, M4)
     $('#marco').classList.toggle('bajo', marcoBajo(d.local.tablero.alto))
   }
   if (d.local.tira) poner('q', d.local.tira)
@@ -2700,14 +2661,13 @@ function colocarHoja(d, poner) {
   const tablero = d.modo === 'flotante' ? d.tablero : d.modo === 'acoplada' ? d.p.tablero : null
   d.hoja = null
   if (!st.chat.abierta || !tablero) return
-  const z = zoom()
-  if (!st.arrastre?.activo || !st.chat.lado) st.chat = { ...st.chat, lado: ladoHoja(tablero, d.ventana, d.modo, st.acople?.borde, z) }
-  const r = rectHoja(tablero, st.chat.lado, z, anchoBarra() * z)
+  if (!st.arrastre?.activo || !st.chat.lado) st.chat = { ...st.chat, lado: ladoHoja(tablero, d.ventana, d.modo, st.acople?.borde) }
+  const r = rectHoja(tablero, st.chat.lado, 1, anchoBarra())
   // `d.local.hoja` (px CSS de la ventana): desde dónde se pliega con el panel (3.1)
-  d.local.hoja = relativo(r, d.ventana, z)
+  d.local.hoja = relativo(r, d.ventana)
   poner('h', d.local.hoja)
   hojaEl.dataset.lado = st.chat.lado
-  // Poco alto (200 % en una pantalla de 768): el escenario compacto, así se lee la charla (18, B1)
+  // Poco alto (una pantalla de 768 o menos): el escenario compacto, así se lee la charla (18, B1)
   hojaEl.classList.toggle('baja', hojaBaja(d.local.hoja.alto))
   if (st.chat.lado !== 'encima') d.hoja = r
   // Si al soltar cambió de lado, la hoja se funde en el nuevo (D2); nunca en medio de un acto
@@ -2739,7 +2699,7 @@ function recolocar() {
 /**
  * Lleva la ventana al área de trabajo `g.area` si no está (9.7): solo pasa al cambiar de monitor o
  * de área, y entonces lo que se ve se vela antes y vuelve cuando WebView2 ya pintó (`planVentana`).
- * Pasar de una forma a otra, abrir, cerrar o cambiar el zoom no la tocan. Después ubica lo de adentro.
+ * Pasar de una forma a otra, abrir o cerrar no la tocan. Después ubica lo de adentro.
  */
 async function colocarEnArea(g) {
   const d = disposicionActual(g.area)
@@ -2763,7 +2723,7 @@ async function enviarZona(forzar = false) {
   if (!st.disp || !tauri?.core) return null
   // El globo de la muesca (tareas o recordatorio) suma su rectángulo: si no, su clic pasaría a la app de abajo (tareas-ux.md 8.5)
   const globo = st.lugarGlobo === 'muesca' ? st.rectGloboMuesca : null
-  const zona = zonaInteractiva(st.disp, { abierta: st.vista, arrastrando: !!st.arrastre?.activo, hoja: hojaSeVe() ? st.disp.hoja : null, globo }, zoom())
+  const zona = zonaInteractiva(st.disp, { abierta: st.vista, arrastrando: !!st.arrastre?.activo, hoja: hojaSeVe() ? st.disp.hoja : null, globo })
   // `mirada`: acoplada, el Avi a la vista (la marca abierta o el de la muesca cerrada) quiere el
   // puntero; entonces Rust manda su posición global (muesca-avi-ux.md 9). Flotando, la marca mira
   // con el puntero del DOM, como siempre
@@ -2866,7 +2826,7 @@ async function sincronizar() {
 async function medidasAcople() {
   const g = await invocar('geometria')
   const d = disposicion(g.area)
-  return { g, d, rc: recorte(d.m.caja, d.p.tablero, st.acople.borde, zoom()) }
+  return { g, d, rc: recorte(d.m.caja, d.p.tablero, st.acople.borde) }
 }
 
 /**
@@ -2974,15 +2934,14 @@ async function cerrarAntes() {
  * del centro de lo que se ve sobre el borde (7.3), salvo que venga dado.
  */
 async function acoplarABorde(borde, lugar, area) {
-  const z = zoom()
-  const tam = tamMuescaDe(borde, z)
+  const tam = tamMuescaDe(borde)
   const desde = st.acople ? 'muesca' : st.mini ? 'tira' : 'tablero'
   if (desde === 'muesca' && st.acople.borde === borde && lugar == null) return
   const caja = desde === 'muesca' ? st.disp.m.caja : desde === 'tira' ? st.disp.tira : st.disp.tablero
   const l = lugar ?? (desde === 'muesca' ? st.acople.lugar : lugarDe(borde, centroDe(caja), area))
-  const acople = { borde, lugar: lugarAjustado(l, tam.largo, largoDe(borde, area), z) }
+  const acople = { borde, lugar: lugarAjustado(l, tam.largo, largoDe(borde, area)) }
   // Dónde queda la muesca (para eso no hace falta medir el tablero)
-  const destino = disposicionAcoplada(acople, tam, { ancho: 0, alto: 0 }, area, z).local.muesca
+  const destino = disposicionAcoplada(acople, tam, { ancho: 0, alto: 0 }, area).local.muesca
   await transicion(async () => {
     let soltar = () => {}
     let soltarHoja = async () => {}
@@ -3035,7 +2994,7 @@ async function flotar(puntero, area) {
     aplicarModo()
     const tam = tamanoDeseado(medirContenido(), area)
     st.flotante = puntero ? posicionFlotante(puntero, tam, area) : posicionEnPantalla(st.flotante ?? posicionDeFraccion(st.fraccion, tam, area), tam, area)
-    const d = disposicionFlotante(st.flotante, tam, area, zoom())
+    const d = disposicionFlotante(st.flotante, tam, area)
     colocar(d)
     // Lo de adentro se funde con el despliegue: sin entrada escalonada encima (6.4)
     st.revelado = true
@@ -3178,7 +3137,7 @@ function empezarArrastre(a, e) {
     document.body.classList.remove('abierta', 'desplegada', 'abriendo', 'muesca-oculta')
     $('#marco').style.clipPath = ''
     pintarControles()
-    a.tam = { ancho: PILDORA.ancho * zoom(), alto: PILDORA.alto * zoom() }
+    a.tam = { ancho: PILDORA.ancho, alto: PILDORA.alto }
     // El tablero se mide una vez: a lo largo del borde la ventana fija solo se mueve (9.6)
     a.tablero = medirContenido()
   }
@@ -3187,7 +3146,7 @@ function empezarArrastre(a, e) {
   verAvis()
 }
 
-/** Una caja de la píldora en px CSS de la ventana (184 × 48 en px CSS, con cualquier zoom). */
+/** Una caja de la píldora en px CSS de la ventana (184 × 48). */
 const cajaPildora = p => ({ x: p.x, y: p.y, ancho: PILDORA.ancho, alto: PILDORA.alto })
 
 function moverArrastre(a) {
@@ -3225,14 +3184,14 @@ function moverMuesca(a, puntero, ventana) {
     }
     document.body.classList.remove('pildora')
     const tm = tamMuesca()
-    st.acople.lugar = lugarAjustado(lugarDe(a.borde, centroDe(caja), a.area), tm.largo, largoDe(a.borde, a.area), zoom())
+    st.acople.lugar = lugarAjustado(lugarDe(a.borde, centroDe(caja), a.area), tm.largo, largoDe(a.borde, a.area))
     colocar(disposicion(a.area, a.tablero))
     const ahora = st.disp.local.muesca
     if (eraPildora && st.pildora) movimientoMuesca.viajar(muescaEl, cajaPildora(st.pildora), ahora, { llega: true })
     else if (otroBorde && antes) movimientoMuesca.viajar(muescaEl, antes, ahora, { llega: true })
   } else {
     // Lejos de todo borde: la píldora flotante sigue al puntero, dentro de la misma ventana
-    const p = relativo(caja, ventana, zoom())
+    const p = relativo(caja, ventana)
     const cuerpo = document.body.style
     cuerpo.setProperty('--px', `${p.x}px`)
     cuerpo.setProperty('--py', `${p.y}px`)
@@ -3257,10 +3216,10 @@ function moverForma(a, puntero) {
   const pos = { x: caja.x, y: caja.y }
   if (a.origen === 'tablero') {
     st.flotante = pos
-    colocar(disposicionFlotante(pos, a.caja0, a.area, zoom()))
+    colocar(disposicionFlotante(pos, a.caja0, a.area))
   } else {
     st.tira = pos
-    colocar(disposicionTira(pos, a.caja0, a.area, zoom()))
+    colocar(disposicionTira(pos, a.caja0, a.area))
   }
 }
 
@@ -3275,10 +3234,10 @@ function soltarDentro(a) {
   const pos = posicionEnPantalla(a.caja, a.caja0, a.area)
   if (tablero) {
     st.flotante = pos
-    colocar(disposicionFlotante(pos, a.caja0, a.area, zoom()))
+    colocar(disposicionFlotante(pos, a.caja0, a.area))
   } else {
     st.tira = pos
-    colocar(disposicionTira(pos, a.caja0, a.area, zoom()))
+    colocar(disposicionTira(pos, a.caja0, a.area))
   }
   const ahora = tablero ? st.disp.local.tablero : st.disp.local.tira
   if (!mismoRect(antes, ahora)) movimientoMuesca.viajar(el, antes, ahora, { llega: true })
@@ -3651,7 +3610,7 @@ function datosConfiguracion(local = modeloDesdeChat(st.chat), ahora = Date.now()
   const lectura = st.cfgMod ?? (st.pp.revision?.claude ? st.pp.revision : null)
   const armado = st.config.armado
   return {
-    tamano: st.tamano, ubicacion: ubicacionDe(st.acople), arriba: st.arriba, avisar: st.avisar, pausa: st.pausa,
+    ubicacion: ubicacionDe(st.acople), arriba: st.arriba, avisar: st.avisar, pausa: st.pausa,
     arranque: st.arranque, error: st.config.error, mascota: st.mascota, forma: st.config.forma,
     modelo: textoModelo(local),
     mod: textoMod(lectura, st.cfgMod, st.ultimoAvisoMod, ahora, { instalando: corriendo && ejecMod.accion === 'mod', prendiendo: corriendo && ejecMod.accion === 'activar' }),
@@ -4706,12 +4665,11 @@ function ubicarGloboMuesca() {
   const el = $('#muesca-globo')
   const d = st.disp
   if (el.hidden || !st.acople || d?.modo !== 'acoplada') { st.rectGloboMuesca = null; return }
-  const z = zoom()
-  const local = lugarGloboMuesca(st.acople.borde, d.local.muesca, { ancho: el.offsetWidth, alto: el.offsetHeight }, { ancho: d.ventana.ancho / z, alto: d.ventana.alto / z })
+  const local = lugarGloboMuesca(st.acople.borde, d.local.muesca, { ancho: el.offsetWidth, alto: el.offsetHeight }, { ancho: d.ventana.ancho, alto: d.ventana.alto })
   el.style.left = `${local.x}px`
   el.style.top = `${local.y}px`
   el.style.setProperty('--cola', `${local.cola}px`)
-  st.rectGloboMuesca = absoluto(local, d.ventana, z)
+  st.rectGloboMuesca = absoluto(local, d.ventana)
 }
 
 /**
@@ -5454,16 +5412,6 @@ async function accionConfiguracion(a, b) {
       else await guardarAjusteConfig(clave, !st[clave])
       break
     }
-    case 'cfg-tam':
-      st.config = { ...st.config, error: null }
-      try {
-        await invocar('cambiar_tamano', { direccion: Number(b.dataset.valor) })
-      } catch (err) {
-        registrar(`configuración: tamaño: ${err}`)
-        st.config = { ...st.config, error: 'tamano' }
-        pintarConfiguracion()
-      }
-      break
     case 'cfg-ubic': await ubicarConfig(b.dataset.valor); break
     case 'cfg-esp': await elegirEspecieConfig(b.dataset.valor); break
     case 'cfg-forma': cambiarFormaConfig(b.dataset.valor); break
@@ -6265,7 +6213,7 @@ let rutasArrastre = []
 function alArrastrarArchivo(p) {
   if (!p?.type) return
   if (p.type === 'enter' || p.type === 'drop') rutasArrastre = Array.isArray(p.paths) ? p.paths.filter(r => typeof r === 'string') : rutasArrastre
-  const sobre = p.type !== 'leave' && hojaSeVe() && sobreHoja(p.position, window.devicePixelRatio || 1, st.disp?.local?.hoja, zoom())
+  const sobre = p.type !== 'leave' && hojaSeVe() && sobreHoja(p.position, window.devicePixelRatio || 1, st.disp?.local?.hoja)
   if (p.type === 'drop' && sobre) {
     const rutas = rutasArrastre
     rutasArrastre = []
@@ -6975,15 +6923,13 @@ async function iniciar() {
         st.acople = { borde: m.acople.borde, lugar: Number(m.acople.lugar) }
         aplicarModo()
       }
-      await aplicarTamano(typeof m.tamano === 'number' ? m.tamano : PASO_POR_DEFECTO)
     } catch {
       st.mascota = ESPECIE_POR_DEFECTO
-      await aplicarTamano(PASO_POR_DEFECTO)
     }
+    ubicarAlArrancar()
     const escuchar = tauri.event.listen
     // "Pausar animaciones" de la bandeja o de la configuración
     escuchar('oficina://pausa', ev => ponerPausa(!!ev.payload))
-    escuchar('oficina://tamano', ev => aplicarTamano(Number(ev.payload)))
     // La mascota guardada (configuracion-ux.md 9.3): toda la ventana se redibuja con ella, sin acto;
     // si la eligió esta misma ventana, ya está puesta y no pasa nada
     escuchar('oficina://mascota', ev => ponerMascota(ev.payload?.mascota))
@@ -7038,7 +6984,7 @@ async function iniciar() {
     leerHabitos()
   } else {
     // Sin Tauri (el HTML abierto solo): la ventana del navegador hace de área
-    await aplicarTamano(PASO_POR_DEFECTO)
+    ubicarAlArrancar()
     colocar(disposicionActual({ x: 0, y: 0, ancho: innerWidth, alto: innerHeight }))
   }
   ciclo()

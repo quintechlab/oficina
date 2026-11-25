@@ -650,15 +650,14 @@ test('flotando, la ventana es el área de trabajo entera y el tablero va adentro
 })
 
 test('en la tira, la ventana es el área de trabajo entera y la tira va abajo a la derecha (o donde se la soltó)', () => {
-  for (const z of [1, 1.5, 2]) {
-    const tam = tamanoMini(z)
-    const d = disposicionTira(null, tam, AREA, z)
-    assert.equal(d.modo, 'tira')
-    assert.deepEqual(d.ventana, ventanaDeArea(AREA))
-    assert.deepEqual(d.tira, { ...esquinaTira(AREA, tam), ...tam })
-    assert.deepEqual(d.local.tira, { x: d.tira.x / z, y: d.tira.y / z, ancho: 400, alto: 56 })
-  }
-  const suelta = disposicionTira({ x: 200, y: 300 }, tamanoMini(1), AREA)
+  // Siempre al 100 % (#47): la tira mide 400 × 56 en px de pantalla y en px CSS
+  const tam = tamanoMini()
+  const d = disposicionTira(null, tam, AREA)
+  assert.equal(d.modo, 'tira')
+  assert.deepEqual(d.ventana, ventanaDeArea(AREA))
+  assert.deepEqual(d.tira, { ...esquinaTira(AREA, tam), ...tam })
+  assert.deepEqual(d.local.tira, { x: d.tira.x, y: d.tira.y, ancho: 400, alto: 56 })
+  const suelta = disposicionTira({ x: 200, y: 300 }, tamanoMini(), AREA)
   assert.deepEqual(suelta.tira, { x: 200, y: 300, ancho: 400, alto: 56 })
 })
 
@@ -668,8 +667,8 @@ test('acoplada, flotando y en la tira la ventana es la misma: pasar de una forma
     disposicionAcoplada({ borde: 'derecha', lugar: 0.2 }, MUESCA_V, TABLERO, AREA).ventana,
     disposicionFlotante({ x: 300, y: 120 }, TAB, AREA).ventana,
     disposicionFlotante({ x: 1500, y: 900 }, TAB, AREA, 2).ventana,
-    disposicionTira(null, tamanoMini(1), AREA).ventana,
-    disposicionTira({ x: 10, y: 10 }, tamanoMini(2), AREA, 2).ventana,
+    disposicionTira(null, tamanoMini(), AREA).ventana,
+    disposicionTira({ x: 10, y: 10 }, tamanoMini(), AREA).ventana,
   ]
   for (const v of ventanas) {
     assert.ok(mismoRect(v, ventanas[0]))
@@ -683,12 +682,9 @@ test('zona interactiva por forma: flotando, el tablero; en la tira, la tira; arr
   const f = disposicionFlotante({ x: 300, y: 120 }, TAB, AREA)
   assert.deepEqual(zonaInteractiva(f, { abierta: false }), { x: 300, y: 120, ancho: 700, alto: 500, toda: false })
   assert.deepEqual(zonaInteractiva(f, { abierta: false, arrastrando: true }), { ...ventanaDeArea(AREA), toda: true })
-  const t = disposicionTira(null, tamanoMini(1), AREA)
+  const t = disposicionTira(null, tamanoMini(), AREA)
   assert.deepEqual(zonaInteractiva(t, { abierta: false }), { ...t.tira, toda: false })
   assert.deepEqual(zonaInteractiva(t, { abierta: false, arrastrando: true }), { ...ventanaDeArea(AREA), toda: true })
-  // Con zoom la zona sigue en px de pantalla (el tablero y la tira ya vienen con el zoom)
-  const t2 = disposicionTira(null, tamanoMini(2), AREA, 2)
-  assert.deepEqual(zonaInteractiva(t2, { abierta: false }, 2), { ...t2.tira, toda: false })
   // Acoplada sigue igual: la muesca + 4 cerrada, el tablero abierta
   const a = disposicionAcoplada({ borde: 'arriba', lugar: 0.5 }, MUESCA_H, TABLERO, AREA)
   assert.equal(a.modo, 'acoplada')
@@ -739,4 +735,23 @@ test('estiloMuesca: las manos del alféizar y la luz de cara, del color de la ma
   for (const e of ['ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']) {
     assert.deepEqual(estiloMuesca(e), { '--mano-muesca': datosEspecie(e).mano, '--c-muesca': datosEspecie(e).c }, e)
   }
+})
+
+test('sin zoom (#47): la ventana llama a la geometría sin escala y da lo mismo que al 100 %', () => {
+  // main.js dejó de pasar el zoom: cada función, sin `z`, tiene que ser la de z = 1 de siempre
+  for (const borde of BORDES) {
+    const tam = tamMuescaDe(borde)
+    assert.deepEqual(tam, tamMuescaDe(borde, 1))
+    const acople = { borde, lugar: 0.37 }
+    const d = disposicionAcoplada(acople, tam, TABLERO, AREA)
+    assert.deepEqual(d, disposicionAcoplada(acople, tam, TABLERO, AREA, 1))
+    assert.deepEqual(recorte(d.m.caja, d.p.tablero, borde), recorte(d.m.caja, d.p.tablero, borde, 1))
+    assert.equal(lugarAjustado(0.99, tam.largo, 1920), lugarAjustado(0.99, tam.largo, 1920, 1))
+    for (const abierta of [true, false]) assert.deepEqual(zonaInteractiva(d, { abierta }), zonaInteractiva(d, { abierta }, 1))
+  }
+  const r = { x: 110, y: 50, ancho: 20, alto: 10 }
+  assert.deepEqual(relativo(r, { x: 100, y: 40 }), { x: 10, y: 10, ancho: 20, alto: 10 })
+  assert.deepEqual(absoluto(relativo(r, { x: 100, y: 40 }), { x: 100, y: 40 }), r)
+  assert.deepEqual(disposicionFlotante({ x: 300, y: 120 }, TAB, AREA), disposicionFlotante({ x: 300, y: 120 }, TAB, AREA, 1))
+  assert.deepEqual(disposicionTira(null, tamanoMini(), AREA), disposicionTira(null, tamanoMini(), AREA, 1))
 })

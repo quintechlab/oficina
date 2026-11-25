@@ -51,7 +51,7 @@
   --e-1: 2px; --e-2: 4px; --e-3: 6px; --e-4: 8px; --e-5: 10px; --e-6: 12px; --e-7: 14px;
   --e-8: 16px; --e-9: 18px; --e-10: 20px; --e-11: 28px;
   /* Tamaño del tablero (9.2): ancho y alto fijos, iguales en todos los proyectos; lo que no entra se
-     ve con scroll adentro de cada columna. Crece con el zoom y se topa al 90 % del área */
+     ve con scroll adentro de cada columna. Se topa al 90 % del área */
   --ancho-lado: 208px; --ancho-principal: 500px; --alto-tablero: 680px;
   /* El menú de módulos (modulos-ux.md 6): alto de cada fila y de la píldora que viaja */
   --alto-modulo: 40px;
@@ -190,7 +190,7 @@ h1, h2, h3 { font: inherit }
 .mod:active { transform: scale(.97) }
 .mod-ic { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: var(--r-icono); background: var(--s2); color: var(--crema2); transition: background var(--d-color) ease, color var(--d-color) ease }
 .mod-ic svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round }
-/* Entre el nombre y la cuenta, 6 (no 10): así «Configuración» y «Ctrl ,» entran enteros con zoom de 175 y 200 % */
+/* Entre el nombre y la cuenta, 6 (no 10): así «Configuración» y «Ctrl ,» entran enteros (medido con zoom de 175 y 200 %, antes de #47) */
 .mod-n { flex: 1; min-width: 0; margin-right: -4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 /* La cuenta (4.2): aria-hidden, a la derecha; el número va en el nombre de la fila */
 .mod-ct { display: contents }
@@ -208,7 +208,7 @@ h1, h2, h3 { font: inherit }
   background: var(--ambar-osc); overflow: hidden; pointer-events: none; transition: opacity var(--d-color) ease;
 }
 /* La marca de 3 px a la izquierda (4.3): una franja recortada por el radio, no `box-shadow: inset`, que en
-   posiciones fraccionarias (zoom, barra que desplaza) deja un filo ámbar alrededor de toda la píldora */
+   posiciones fraccionarias (barra que desplaza) deja un filo ámbar alrededor de toda la píldora */
 .ind-mod::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--ambar) }
 #marco.mod-config .ind-mod { opacity: 0 }
 /* La tira de repos (4.4, M2): una sola fila arriba de las sesiones, con scroll horizontal sin barra y la
@@ -1768,17 +1768,6 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .seg > button:active { transform: scale(.97) }
 #cfg .seg > button[aria-checked="true"] { background: var(--crema); color: var(--tinta) }
 
-/* Tamaño (6.1): − / % / +, redondos de 32; en la punta, aria-disabled (sigue enfocable) */
-#cfg .paso { display: inline-flex; align-items: center; gap: var(--e-2) }
-#cfg .pb {
-  width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--s3); color: var(--crema);
-  font: 800 15px/1 var(--f); cursor: pointer; transition: transform var(--d-presion) ease, background var(--d-color) ease;
-}
-#cfg .pb:hover { background: #27272C }
-#cfg .pb:active { transform: scale(.92) }
-#cfg .pb[aria-disabled="true"] { opacity: .38; cursor: not-allowed; transform: none }
-#cfg .pv { min-width: 58px; text-align: center; font: 600 12px/1 var(--m); font-variant-numeric: tabular-nums }
-
 /* Mascota (6.1): el escenario con la luz de la especie y las siete fichas. La luz (--cc) la pone
    main.js en #cfg, que no se redibuja; registrada como color, cambia con su transición (8) */
 @property --cc { syntax: '<color>'; inherits: true; initial-value: #F2B632 }
@@ -1941,7 +1930,7 @@ body.pausa :is(#cfg, #tar, #hab) .armado::after { animation: none }
   body:not(.pausa) .mod.engr:not([aria-current]):hover svg { transform: rotate(45deg) }
 }
 @media (prefers-reduced-motion: reduce) {
-  #cfg .pes, #cfg .sw, #cfg .sw i, #cfg .seg > button, #cfg .pb, #cfg .esc-m, #cfg .esp, #cfg .esp .avi { transition: none }
+  #cfg .pes, #cfg .sw, #cfg .sw i, #cfg .seg > button, #cfg .esc-m, #cfg .esp, #cfg .esp .avi { transition: none }
   #cfg .esp:hover .avi { transform: none }
 }
 body.pausa #cfg .sw i, body.pausa #cfg .esc-m, body.pausa #cfg .esp .avi { transition: none }
