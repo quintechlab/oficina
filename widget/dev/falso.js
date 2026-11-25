@@ -293,6 +293,15 @@
       })
     }
   }
+  // ?repos=1|muchos: la tira de repos de Sesiones (modulos-ux.md 4.4, #42 M2) con un solo proyecto (oficina)
+  // o con 9 (los 3 de siempre y 6 quietos más, para ver el scroll horizontal y la máscara)
+  if (url.get('repos') === '1') SESIONES.splice(0, SESIONES.length, SESIONES.find(s => s.sesion === 'ses-oficina'))
+  if (url.get('repos') === 'muchos') {
+    const nucleo = SESIONES.find(s => s.sesion === 'ses-nucleo')
+    for (const [k, nombre] of ['quintech-crm', 'webs-portfolio', 'brasa-noble', 'temple-barberia', 'mis-gastos-app', 'playbook'].entries()) {
+      SESIONES.push({ ...nucleo, sesion: `ses-extra-${k}`, repo: `quintechlab/${nombre}`, rama: 'main', inicio: hace(20 + k * 7), actividad: 'esperándote', agentes: [] })
+    }
+  }
   /** Preguntas que el falso da por tomadas (?envio=listo) o respondidas en Claude (?envio=ya). */
   const tomadas = new Set()
   // &tapa: las preguntas solo entre los 4 y los 10 s (tapan el globo de tareas de la muesca y se van)
@@ -303,7 +312,9 @@
   // central-nucleo espera tu mensaje y catalogo tiene un mensaje en cola ("en cola").
   if (!url.has('sincontrol')) {
     for (const s of SESIONES) Object.assign(s, { puedeControlar: true, enTurno: s.actividad !== 'esperándote' })
-    SESIONES.find(s => s.sesion === 'ses-catalogo').enCola = 1
+    const catalogo = SESIONES.find(s => s.sesion === 'ses-catalogo')
+    // Con ?repos=1 no está
+    if (catalogo) catalogo.enCola = 1
     // Cerrar (#25, mod v0.11): central-nucleo y catalogo son de terminal ("Cerrar sesión" se ve);
     // oficina es de la app de escritorio (sin el botón). ?sincerrar: mod v0.10, ninguna se cierra
     if (!url.has('sincerrar')) for (const s of SESIONES) s.puedeCerrar = s.sesion === 'ses-nucleo' || s.sesion === 'ses-catalogo'

@@ -5,7 +5,9 @@
 // animaciones" no hace nada: el contenido aparece al instante.
 
 /** Bloques que entran escalonados, en el orden del DOM (6.1). */
-const BLOQUES = ['.marca', '#proyectos > .pj', '.lado-cfg', '.lado-pie', '.cab', '#otro > *', '#w-globo > *', '#conteos > .conteo', '#sesiones > .ses'].join(', ')
+const BLOQUES = ['.marca', '.lado-cfg', '.lado-pie', '.cab', '#repos > .rch', '#otro > *', '#w-globo > *', '#conteos > .conteo', '#sesiones > .ses'].join(', ')
+/** Lo que no entra al cambiar de proyecto (6.2): el encabezado, la tira de repos y la pregunta vista desde otro módulo. */
+const QUIETOS = '.cab, #repos, #aviso-p'
 
 const ENTRADA_MS = 620
 const ESCALON_MS = 65
@@ -62,7 +64,9 @@ export function cambioProyecto(direccion) {
   const principal = document.querySelector('.principal')
   if (!principal) return
   principal.style.setProperty('--desde', `${(direccion < 0 ? -1 : 1) * 14}px`)
-  animar([principal], 'cambia', CAMBIO_MS)
+  // Desde la tira de repos (modulos-ux.md 4.4, #42 M2) entra lo de abajo: el encabezado («Sesiones»), la
+  // tira (el chip que se acaba de elegir, bajo el puntero) y `#aviso-p` se quedan quietos
+  animar([...principal.children].filter(el => !el.matches(QUIETOS) && el.getClientRects().length), 'cambia', CAMBIO_MS)
   const tarjetas = [...document.querySelectorAll('#sesiones > .ses')]
   animar(tarjetas, 'rv-ses', duracionEscalonada(tarjetas.length, ESCALON_TARJETAS_MS, 0, ENTRADA_MS))
 }

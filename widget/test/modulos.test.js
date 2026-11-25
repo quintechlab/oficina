@@ -1,4 +1,4 @@
-// Tests de modulos.js y modulosVista.js (#42, docs/diseno/modulos-ux.md, entrega M1): la barra como menú
+// Tests de modulos.js y modulosVista.js (#42, docs/diseno/modulos-ux.md, entregas M1 y M2): la barra como menú
 // de módulos. La lógica pura (qué módulo abrir y qué hoja cerrar, el Esc por capas, las cuentas y los
 // nombres de cada fila, la pregunta vista desde otro módulo, a dónde vuelve el panel al expandirse) y,
 // leyendo main.js e index.html como texto, que todos los caminos pasen por `irModulo` (11.1).
@@ -7,8 +7,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   MODULOS, MODULOS_ACTIVOS, irModulo, alEscModulo, cuentaModulo, nombreModulo, avisoPregunta, moduloAlExpandir, tituloModulo,
+  cuentasModulosMini, RESUMEN_MINIMO_MINI, ANCHO_CUENTA_MINI, desplazarTira,
 } from '../src/modulos.js'
-import { avisoPreguntaHtml } from '../src/modulosVista.js'
+import { avisoPreguntaHtml, cuentasMiniHtml } from '../src/modulosVista.js'
 import { agruparPorProyecto } from '../src/logica.js'
 import { ladoFilaTareas } from '../src/tareasVista.js'
 import { nombreFilaTareas } from '../src/tareas.js'
@@ -180,6 +181,55 @@ test('moduloAlExpandir: con pregunta, Sesiones en su proyecto; sin pregunta, el 
   assert.deepEqual(moduloAlExpandir({ modulo: 'tareas', repo: CATALOGO, preguntas: [{ repo: OFICINA }, { repo: CATALOGO }] }), { modulo: 'sesiones', repo: CATALOGO })
 })
 
+// ------------------------------------------------------------------ cuentasModulosMini (8, M2)
+
+const T = { hoy: 2, vencidas: 0 }
+const H = { hechos: 2, total: 5 }
+
+test('cuentasModulosMini: con lugar entran las dos; si el resumen quedaría por debajo de 120, se va Hábitos y después Tareas', () => {
+  assert.equal(RESUMEN_MINIMO_MINI, 120)
+  assert.deepEqual(cuentasModulosMini(T, H, 200), { tareas: true, habitos: true })
+  assert.deepEqual(cuentasModulosMini(T, H, 160), { tareas: true, habitos: false })
+  assert.deepEqual(cuentasModulosMini(T, H, 110), { tareas: false, habitos: false })
+  // El borde: el resumen se queda con 120 justos
+  const { tareas: aT, habitos: aH } = ANCHO_CUENTA_MINI
+  assert.deepEqual(cuentasModulosMini(T, H, 120 + aT + aH), { tareas: true, habitos: true })
+  assert.deepEqual(cuentasModulosMini(T, H, 120 + aT + aH - 1), { tareas: true, habitos: false })
+  assert.deepEqual(cuentasModulosMini(T, H, 120 + aT), { tareas: true, habitos: false })
+  assert.deepEqual(cuentasModulosMini(T, H, 120 + aT - 1), { tareas: false, habitos: false })
+})
+
+test('cuentasModulosMini: sin nada que contar no ocupa lugar (sin pista de atajo en la tira)', () => {
+  assert.deepEqual(cuentasModulosMini({ hoy: 0, vencidas: 0 }, H, 200), { tareas: false, habitos: true })
+  assert.deepEqual(cuentasModulosMini(null, null, 400), { tareas: false, habitos: false })
+  // Hábitos todavía no existe (#41): solo Tareas, con su propio ancho
+  assert.deepEqual(cuentasModulosMini({ hoy: 0, vencidas: 1 }, null, 120 + ANCHO_CUENTA_MINI.tareas), { tareas: true, habitos: false })
+  assert.deepEqual(cuentasModulosMini(T, { hechos: 0, total: 0 }, 400), { tareas: true, habitos: false })
+})
+
+test('cuentasModulosMini: la insignia de preguntas no se toca (no es parte de lo que se esconde)', () => {
+  assert.deepEqual(Object.keys(cuentasModulosMini(T, H, 0)).sort(), ['habitos', 'tareas'])
+})
+
+test('cuentasMiniHtml: la cuenta chica de Tareas (la de su fila, sin la pista) con su nombre para el lector; nada si no entra', () => {
+  assert.equal(cuentasMiniHtml(T, null, { tareas: false, habitos: false }), '')
+  assert.equal(cuentasMiniHtml({ hoy: 0, vencidas: 0 }, null, { tareas: true, habitos: false }), '')
+  assert.equal(cuentasMiniHtml(T, null, { tareas: true, habitos: false }), `${ladoFilaTareas(T)}<span class="oculto">Tareas, 2 para hoy</span>`)
+  assert.equal(cuentasMiniHtml({ hoy: 1, vencidas: 2 }, null, { tareas: true, habitos: false }), '<span class="chip chip-venc" aria-hidden="true"><i></i>3</span><span class="oculto">Tareas, 1 para hoy, 2 vencidas</span>')
+})
+
+// ------------------------------------------------------------------ desplazarTira (4.4: el chip elegido queda a la vista)
+
+test('desplazarTira: un chip a la vista no mueve la tira; uno escondido a la izquierda o debajo de la máscara la corre lo justo', () => {
+  // Tira de 300 con 20 de máscara a la derecha
+  assert.equal(desplazarTira({ izq: 40, ancho: 90 }, { scroll: 0, visible: 300 }, 20), 0)
+  assert.equal(desplazarTira({ izq: 40, ancho: 90 }, { scroll: 100, visible: 300 }, 20), 40)
+  assert.equal(desplazarTira({ izq: 260, ancho: 90 }, { scroll: 0, visible: 300 }, 20), 70)
+  assert.equal(desplazarTira({ izq: 260, ancho: 90 }, { scroll: 80, visible: 300 }, 20), 80)
+  // Más ancho que la tira: su comienzo
+  assert.equal(desplazarTira({ izq: 500, ancho: 400 }, { scroll: 0, visible: 300 }, 20), 500)
+})
+
 // ------------------------------------------------------------------ cableado en main.js e index.html (11.1)
 
 const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
@@ -253,9 +303,76 @@ test('index.html: el menú de módulos con la píldora, Tareas sube al menú, Co
   assert.match(html, /id="volver" data-accion="volver"/)
   // #aviso-p va entre el encabezado y las hojas
   assert.match(html, /<\/header>[\s\S]*<div id="aviso-p"><\/div>[\s\S]*<div id="cfg"><\/div>/)
-  // Los proyectos siguen en la barra en M1, colgados de Sesiones: entre su fila y la de Tareas (14, el paso intermedio de B)
-  assert.ok(html.indexOf('id="mod-sesiones"') < html.indexOf('id="proyectos"'))
-  assert.ok(html.indexOf('id="proyectos"') < html.indexOf('id="tar-fila"'))
+  // M2: en el menú quedan solo las filas de los módulos; los proyectos ya no cuelgan de Sesiones
+  const menu = html.slice(html.indexOf('<nav class="mods"'), html.indexOf('</nav>', html.indexOf('<nav class="mods"')))
+  assert.doesNotMatch(menu, /proyectos|data-proy/)
+})
+
+test('index.html (M2, 3.4 y 4.4): la tira de repos en la columna, entre las hojas y #otro, y fuera de la barra', () => {
+  assert.doesNotMatch(html, /id="proyectos"|class="proyectos"|id="h-proyectos"/)
+  assert.match(html, /<nav class="repos" id="repos" aria-label="Repos"><\/nav>/)
+  const lado = html.slice(html.indexOf('<aside class="lado">'), html.indexOf('</aside>'))
+  assert.doesNotMatch(lado, /id="repos"/)
+  assert.ok(html.indexOf('<main class="principal">') < html.indexOf('id="repos"'))
+  assert.ok(html.indexOf('<div id="tar"></div>') < html.indexOf('id="repos"'))
+  assert.ok(html.indexOf('id="repos"') < html.indexOf('<div id="otro"></div>'))
+  // La tira mini: las cuentas de los módulos van después de la insignia de preguntas (8)
+  assert.match(html, /<span id="tira-pend"><\/span>\s*(<!--[\s\S]*?-->\s*)?<span class="tira-mods" id="tira-mods"><\/span>/)
+})
+
+test('la tira de repos se dibuja solo en Sesiones; las hojas, el vacío, la carga y primeros pasos no la tocan', () => {
+  assert.doesNotMatch(main, /barraProyectos|#proyectos/)
+  // En Sesiones, el elegido; el redibujo no se lleva el foco (9.4)
+  assert.match(cuerpo('pintar'), /const enfocado = document\.activeElement\?\.closest\?\.\('#repos \[data-proy\]'\)\n {2}if \(poner\('#repos', tiraRepos\(st\.proyectos, i\)\) && enfocado\) \{/)
+  assert.match(cuerpo('pintar'), /\$\(`#repos \[data-proy="\$\{enfocado\.dataset\.proy\}"\]`\)\?\.focus\(\)/)
+  // Vacío, cargando y el escenario de primeros pasos la vacían, como antes la barra
+  assert.equal((cuerpo('pintar').match(/poner\('#repos', ''\); poner\('#otro', ''\); poner\('#w-globo', ''\); poner\('#conteos', ''\); poner\('#sesiones', ''\)/g) ?? []).length, 2)
+  for (const f of ['pintarHojaConfiguracion', 'pintarHojaTareas']) assert.doesNotMatch(cuerpo(f), /#repos|tiraRepos/, f)
+})
+
+test('el encabezado de Sesiones (M2): h1 «Sesiones», title el repositorio y la bajada con el proyecto; vacío, carga y primeros pasos como antes', () => {
+  const f = cuerpo('pintar')
+  assert.match(f, /const cab = encabezadoSesiones\(proyecto, preparadas, c\)\n {2}texto\('#titulo', cab\.titulo\)\n {2}\$\('#titulo'\)\.title = cab\.title\n {2}texto\('#subtitulo', cab\.subtitulo\)/)
+  assert.doesNotMatch(f, /texto\('#titulo', proyecto\.nombre\)/)
+  assert.match(f, /texto\('#titulo', 'Primeros pasos'\)\n {4}texto\('#subtitulo', ''\)/)
+  assert.match(f, /texto\('#titulo', cargando \? 'Buscando sesiones…' : 'No hay sesiones de Claude Code abiertas\.'\)/)
+  assert.match(f, /texto\('#subtitulo', cargando \? '' : 'Cuando abras una, aparece acá con sus subagentes\.'\)/)
+  // Las hojas siguen poniendo su propio título
+  assert.match(cuerpo('pintarHojaConfiguracion'), /texto\('#titulo', 'Configuración'\)/)
+  assert.match(cuerpo('pintarHojaTareas'), /texto\('#titulo', 'Tareas'\)/)
+})
+
+test('elegir un repo de la tira: el mismo manejador de siempre, el chip queda a la vista y el foco se queda en él (4.4, 9.4)', () => {
+  // El manejador de data-accion="ir" no cambia: en Sesiones, irAProyecto; desde otro módulo, irModulo con el repo
+  assert.match(main, /\n {4}if \(p\) irAProyecto\(p\.repo, 1\)\n/)
+  assert.match(main, /if \(p && st\.modulo !== 'sesiones'\) \{\n {6}await irModulo\('sesiones', \{ repo: p\.repo, foco: false \}\)\n {6}\$\(`#repos \[data-proy="\$\{b\.dataset\.proy\}"\]`\)\?\.focus\(\)/)
+  // Cambiar de proyecto (tira, ← →, aviso, riel) corre la tira hasta el elegido
+  assert.match(cuerpo('irAProyecto'), /verRepoElegido\(\)/)
+  assert.match(cuerpo('verRepoElegido'), /desplazarTira\(/)
+})
+
+test('← → siguen cambiando de proyecto en Sesiones; con el foco en la tira, el foco sigue al elegido; ↑ ↓ siguen moviendo el foco', () => {
+  assert.match(main, /if \(st\.modulo !== 'sesiones'\) return\n {2}if \(e\.key === 'ArrowLeft' \|\| e\.key === 'ArrowRight'\) \{/)
+  assert.match(main, /moverProyecto\(e\.key === 'ArrowLeft' \? -1 : 1\)\n {4}if \(enTira\) \$\('#repos \[aria-current\]'\)\?\.focus\(\)/)
+  assert.match(main, /const fila = e\.target\.closest\?\.\('#repos \[data-proy\]'\)\n {2}if \(fila && \(e\.key === 'ArrowUp' \|\| e\.key === 'ArrowDown'\)\)/)
+  // moverProyecto no cambia: el siguiente o el anterior, en ronda
+  assert.match(cuerpo('moverProyecto'), /irAProyecto\(st\.proyectos\[\(i \+ dir \+ n\) % n\]\.repo, dir\)/)
+})
+
+test('el foco que se queda sin lugar vuelve al repo elegido: tras cerrar una sesión, al salir de la dividida y por defecto', () => {
+  assert.match(cuerpo('trasCierre'), /\|\| \$\('#repos \[aria-current\]'\)/)
+  assert.match(main, /if \(focoAdentro\) \$\('#repos \[aria-current\]'\)\?\.focus\(\)/)
+  assert.match(cuerpo('aplicarFoco'), /else \(\$\('#repos \[aria-current\]'\) \?\? \$\('#repos \[data-proy\]'\) \?\? \$\('#marco \[data-accion="pin"\]'\)\)\?\.focus\(\)/)
+})
+
+test('la tira mini (8, M2): caras, resumen e insignia como siempre; después, las cuentas de los módulos que entran', () => {
+  const f = cuerpo('pintarTira')
+  assert.match(f, /const r = resumenMini\(st\.proyectos, ahora, st\.mascota\)/)
+  assert.match(f, /poner\('#tira-pend', insignia\(r\.pendientes\)\)/)
+  assert.match(f, /cuentasModulosMini\(/)
+  assert.match(f, /poner\('#tira-mods', cuentasMiniHtml\(/)
+  // La insignia se pone antes y sin condición: nunca se esconde
+  assert.ok(f.indexOf("poner('#tira-pend'") < f.indexOf('cuentasModulosMini('))
 })
 
 // ------------------------------------------------------------------ lo de antes sigue igual (Risk 3: código compartido)
@@ -311,7 +428,7 @@ test('la muesca, primeros pasos y el Esc de Sesiones siguen igual', () => {
   assert.match(main, /if \(e\.key === 'Escape' && st\.config\.abierta\) \{[\s\S]{0,200}const \{ config, accion \} = alEsc\(st\.config\)/)
   assert.match(cuerpo('escTareas'), /alEscTareas\(antes, campo \?/)
   // ← → no cambian de proyecto fuera de Sesiones
-  assert.match(main, /if \(st\.modulo !== 'sesiones'\) return\n {2}if \(e\.key === 'ArrowLeft'\)/)
+  assert.match(main, /if \(st\.modulo !== 'sesiones'\) return\n {2}if \(e\.key === 'ArrowLeft' \|\| e\.key === 'ArrowRight'\)/)
 })
 
 test('el aviso diario de Tareas sigue en la marca con una hoja abierta y sin sesiones (lugarAviso, barra)', () => {
@@ -323,8 +440,25 @@ test('estilos: se van las reglas de «‹ Tablero»; el menú, la píldora y #av
   assert.match(css, /--alto-modulo: 40px;/)
   assert.match(css, /\.ind-mod \{[^}]*height: var\(--alto-modulo\)[^}]*overflow: hidden/)
   assert.match(css, /\.ind-mod::before \{[^}]*width: 3px; background: var\(--ambar\)/)
-  assert.match(css, /#marco:not\(\.mod-sesiones\) \.mods > \.proyectos \{ display: none \}/)
   assert.match(css, /\.aviso-p \{[^}]*min-height: 46px/)
   // El latido del «1 ?» solo con movimiento y sin pausa
   assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{\n[^}]*body:not\(\.pausa\) #mod-sesiones \.chip-preg\.late \{ animation: modLate \.5s var\(--rebote\) 2 \}/)
+})
+
+test('estilos (M2): la tira de repos (4.4) y sus chips; la píldora ya no se apaga en Sesiones (4.3); se van las reglas de la barra de proyectos', () => {
+  assert.doesNotMatch(css, /\.pj \{|\.pj\.activo|\.pj-n|\.mods > \.proyectos|#proyectos/)
+  // La píldora se apaga solo con Configuración (no baja hasta .lado-cfg)
+  assert.match(css, /#marco\.mod-config \.ind-mod \{ opacity: 0 \}/)
+  assert.doesNotMatch(css, /#marco\.mod-sesiones \.ind-mod|#marco\.mod-sesiones #mod-sesiones/)
+  // Una sola fila con scroll horizontal sin barra y la máscara a la derecha; solo en Sesiones
+  assert.match(css, /\.repos \{[^}]*display: flex;[^}]*gap: 6px;[^}]*overflow-x: auto;[^}]*scrollbar-width: none;[^}]*linear-gradient\(90deg, #000 88%, transparent\)/)
+  assert.match(css, /#repos:empty, #marco:not\(\.mod-sesiones\) #repos, #marco\.dividida #repos, #marco\.vacio #repos, #marco\.cargando #repos, #marco\.escenario #repos \{ display: none \}/)
+  // El chip: alto 32, píldora, borde --linea; elegido en crema con texto --tinta y el contorno del foco en --tinta (12)
+  assert.match(css, /\.rch \{[^}]*min-height: 32px;[^}]*border: 1px solid var\(--linea\);[^}]*border-radius: var\(--r-pildora\)/)
+  assert.match(css, /\.rch\[aria-current="true"\] \{ background: var\(--crema\); color: var\(--tinta\); border-color: var\(--crema\) \}/)
+  assert.match(css, /\.rch\[aria-current="true"\] \.chip:not\(\.chip-preg\) \{ background: rgba\(20, 17, 12, \.12\); color: var\(--tinta\) \}/)
+  assert.match(css, /\.rch\[aria-current="true"\]:focus-visible \{ outline-color: var\(--tinta\) \}/)
+  // La tira mini: la insignia de preguntas no se achica; las cuentas tampoco (se esconden enteras)
+  assert.match(css, /\.pend \{ flex: none;/)
+  assert.match(css, /\.tira-mods \{[^}]*flex: none/)
 })

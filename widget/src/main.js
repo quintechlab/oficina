@@ -13,7 +13,7 @@ import {
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
   prepararProyecto, firmaEscenas, sesiones, carasMini, companero, firmaCompanero,
-  barraProyectos, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, chips, lineaEncabezado, colorProyecto, animoTexto,
+  tiraRepos, encabezadoSesiones, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, chips, colorProyecto, animoTexto,
 } from './tablero.js'
 import {
   vistaBarra, clicFrenar, validarTexto, teclaControl, lineaResultado, lineaError, pasoOrden,
@@ -81,8 +81,8 @@ import {
   primerUso, errorGuardar, errorRota, errorCarpeta, atrasTarea, esqueletoDetalle, partesDetalle, globoMarca, globoMuesca, filaAviso,
 } from './tareasVista.js'
 import * as movimientoTareas from './tareasMotion.js'
-import { MODULOS, irModulo as planModulo, alEscModulo, cuentaModulo, nombreModulo, avisoPregunta, moduloAlExpandir } from './modulos.js'
-import { avisoPreguntaHtml } from './modulosVista.js'
+import { MODULOS, irModulo as planModulo, alEscModulo, cuentaModulo, nombreModulo, avisoPregunta, moduloAlExpandir, cuentasModulosMini, desplazarTira } from './modulos.js'
+import { avisoPreguntaHtml, cuentasMiniHtml } from './modulosVista.js'
 import * as movimientoModulos from './modulosMotion.js'
 
 const INTERVALO_MS = 1500
@@ -459,7 +459,7 @@ async function despedirCerradas(nuevas) {
 function trasCierre(c) {
   anunciar(c.anuncio)
   if (!c.focoAdentro) return
-  const destino = (c.destino && botonHistorial(c.destino)) || $('#proyectos .pj.activo')
+  const destino = (c.destino && botonHistorial(c.destino)) || $('#repos [aria-current]')
   destino?.focus({ preventScroll: true })
 }
 
@@ -748,12 +748,34 @@ function pintarPie() {
   pie.textContent = `actualizado ${hora} · cada 1,5 s`
 }
 
-/** Tira mini: caras, resumen y cuenta de preguntas. */
+/**
+ * Tira mini: caras, resumen y cuenta de preguntas, que nunca se esconde; después, las cuentas chicas de
+ * los módulos que entran sin dejar el resumen por debajo de 120 (modulos-ux.md 8, M2).
+ */
 function pintarTira(ahora) {
   const r = resumenMini(st.proyectos, ahora, st.mascota)
   poner('#tira-caras', carasMini(r.caras, st.mascota, st.formas), r.caras.map(c => `${c.nombre}:${c.animo}:${c.variante ?? ''}`).join(','))
   poner('#tira-resumen', `<b>${escapar(r.titulo)}</b><span class="dim">${escapar(r.detalle)}</span>`)
   poner('#tira-pend', insignia(r.pendientes))
+  // Escondida no se mide: queda lo último (al mostrarse, el ciclo siguiente decide con la medida real)
+  const libre = anchoLibreTira()
+  if (libre == null) return
+  const tareas = st.tareas.leido ? cuentas(st.tareas.listas, hoyTareas()) : null
+  poner('#tira-mods', cuentasMiniHtml(tareas, null, cuentasModulosMini(tareas, null, libre)))
+}
+
+/**
+ * Lo que tendría `#tira-resumen` sin las cuentas de los módulos: el ancho de su caja (la que estira) menos
+ * las caras y su separación, más lo que hoy ocupan las cuentas. null si la tira no se ve.
+ */
+function anchoLibreTira() {
+  const arrastre = $('#tira .arrastre')
+  if (!arrastre?.clientWidth) return null
+  const mods = $('#tira-mods')
+  const estilo = getComputedStyle(arrastre)
+  const separacion = parseFloat(getComputedStyle($('#tira')).columnGap) || 0
+  const conMods = mods.offsetWidth ? mods.offsetWidth + separacion : 0
+  return arrastre.clientWidth - (parseFloat(estilo.paddingLeft) || 0) - $('#tira-caras').offsetWidth - (parseFloat(estilo.columnGap) || 0) + conMods
 }
 
 /** Ícono y texto de la bandeja: se mandan a Tauri solo cuando cambia la cuenta. */
@@ -1037,7 +1059,7 @@ function pintar() {
     modoMarco('escenario')
     texto('#titulo', 'Primeros pasos')
     texto('#subtitulo', '')
-    poner('#proyectos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
+    poner('#repos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
     pintarAsistente(pp, forma)
     return
   }
@@ -1049,7 +1071,7 @@ function pintar() {
     poner('#vacio-avi', figuraVacio(cargando ? 'esperando' : 'durmiendo', st.mascota), cargando ? 'cargando' : 'vacio')
     texto('#titulo', cargando ? 'Buscando sesiones…' : 'No hay sesiones de Claude Code abiertas.')
     texto('#subtitulo', cargando ? '' : 'Cuando abras una, aparece acá con sus subagentes.')
-    poner('#proyectos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
+    poner('#repos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
     return
   }
   modoMarco('tablero')
@@ -1059,10 +1081,11 @@ function pintar() {
   let i = st.proyectos.findIndex(p => p.repo === st.repo)
   if (i < 0) { i = 0; st.repo = st.proyectos[0].repo }
   const proyecto = st.proyectos[i]
-  const enfocado = document.activeElement?.closest?.('#proyectos [data-proy]')
-  if (poner('#proyectos', barraProyectos(st.proyectos, i)) && enfocado) {
-    // El redibujo no se lleva el foco: queda en el proyecto que lo tenía
-    $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
+  // La tira de repos arriba de las sesiones (modulos-ux.md 4.4, M2)
+  const enfocado = document.activeElement?.closest?.('#repos [data-proy]')
+  if (poner('#repos', tiraRepos(st.proyectos, i)) && enfocado) {
+    // El redibujo no se lleva el foco: queda en el proyecto que lo tenía (9.4)
+    $(`#repos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
   }
   // El aviso de primeros pasos va debajo del de pregunta; con la hoja abierta no hace falta (3.5)
   // En la dividida el aviso es de una pregunta en cualquier proyecto, también los dos que conversan (5.3)
@@ -1073,9 +1096,11 @@ function pintar() {
 
   const preparadas = prepararProyecto(proyecto, ahora, st.mascota)
   const c = conteos(preparadas, ahora)
-  texto('#titulo', proyecto.nombre)
-  $('#titulo').title = proyecto.repo ?? proyecto.nombre
-  texto('#subtitulo', lineaEncabezado(preparadas, c))
+  // El h1 es el del módulo, «Sesiones»; el proyecto va en la bajada (modulos-ux.md 5 y 11.1, M2)
+  const cab = encabezadoSesiones(proyecto, preparadas, c)
+  texto('#titulo', cab.titulo)
+  $('#titulo').title = cab.title
+  texto('#subtitulo', cab.subtitulo)
   poner('#conteos', chips(c))
   // El rastro de las sesiones que conversan con otra (dividida-ux.md 5.10)
   const pid = sesionesPorId()
@@ -1129,8 +1154,24 @@ function irAProyecto(repo, direccion) {
   st.activa = 0
   pintar()
   $('.principal').scrollTop = 0
+  verRepoElegido()
   cambioProyecto(direccion)
   entradaEscenas(document.querySelectorAll('#sesiones > .ses'))
+}
+
+/** Lo que tapa la máscara a la derecha de la tira de repos (el 12 % del ancho, `estilos.css`). */
+const MASCARA_REPOS = 0.12
+
+/**
+ * El chip elegido de la tira de repos queda a la vista (modulos-ux.md 4.4): corre solo la tira, en
+ * horizontal (`scrollIntoView` correría también la columna y el marco).
+ */
+function verRepoElegido() {
+  const tira = $('#repos')
+  const chip = tira?.querySelector('[aria-current]')
+  if (!chip || !tira.clientWidth) return
+  const x = desplazarTira({ izq: chip.offsetLeft, ancho: chip.offsetWidth }, { scroll: tira.scrollLeft, visible: tira.clientWidth }, tira.clientWidth * MASCARA_REPOS)
+  if (x !== tira.scrollLeft) tira.scrollLeft = x
 }
 
 // ------------------------------------------------------------------ módulos (#42, docs/diseno/modulos-ux.md)
@@ -1548,7 +1589,7 @@ async function cerrarConversacion({ descartar = false, repo } = {}) {
       st.activa = 0
       pintar()
       $('.principal').scrollTop = repo === undefined ? (vista?.scroll ?? 0) : 0
-      if (focoAdentro) $('#proyectos .pj.activo')?.focus()
+      if (focoAdentro) $('#repos [aria-current]')?.focus()
     })
   } catch (e) {
     registrar(`dividida: ${e}`)
@@ -2113,7 +2154,7 @@ document.addEventListener('click', async e => {
     // Tareas y Configuración. El foco se queda en el proyecto
     if (p && st.modulo !== 'sesiones') {
       await irModulo('sesiones', { repo: p.repo, foco: false })
-      $(`#proyectos [data-proy="${b.dataset.proy}"]`)?.focus()
+      $(`#repos [data-proy="${b.dataset.proy}"]`)?.focus()
       return
     }
     if (p) irAProyecto(p.repo, 1)
@@ -2351,18 +2392,23 @@ document.addEventListener('keydown', e => {
   // Fuera de la pregunta, Esc cierra la muesca aunque esté fijada y devuelve el foco a la muesca (7.2)
   if (e.key === 'Escape' && st.acople && st.muesca.abierta) { e.preventDefault(); evento({ tipo: 'esc' }); return }
   if (st.mini || e.target.closest?.('input, textarea, summary, #pp, #hoja, #cfg, #tar')) return
-  // ↑ ↓ mueven el foco entre los proyectos de la barra (no cambian de proyecto)
-  const fila = e.target.closest?.('#proyectos [data-proy]')
+  // ↑ ↓ mueven el foco entre los repos de la tira (no cambian de proyecto), como en la barra de antes
+  const fila = e.target.closest?.('#repos [data-proy]')
   if (fila && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
     e.preventDefault()
-    const filas = [...document.querySelectorAll('#proyectos [data-proy]')]
+    const filas = [...document.querySelectorAll('#repos [data-proy]')]
     filas[(filas.indexOf(fila) + (e.key === 'ArrowDown' ? 1 : -1) + filas.length) % filas.length].focus()
     return
   }
   // Con la configuración o las tareas abiertas no hay proyecto a la vista: ← → no cambian ninguno por detrás
   if (st.modulo !== 'sesiones') return
-  if (e.key === 'ArrowLeft') { e.preventDefault(); moverProyecto(-1) }
-  if (e.key === 'ArrowRight') { e.preventDefault(); moverProyecto(1) }
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault()
+    // Con el foco en la tira de repos, el foco sigue al elegido (la tira se redibuja en el cambio)
+    const enTira = !!fila
+    moverProyecto(e.key === 'ArrowLeft' ? -1 : 1)
+    if (enTira) $('#repos [aria-current]')?.focus()
+  }
 })
 
 // ------------------------------------------------------------------ tamaño de la ventana
@@ -2673,7 +2719,7 @@ function aplicarFoco() {
   else if (foco.startsWith('cfg:') && st.config.abierta) ($(`#cfg [data-k="${CSS.escape(foco.slice(4))}"]`) ?? $('#titulo')).focus()
   // Tareas: su título al abrir (tareas-ux.md 9.4)
   else if (foco === 'tar' && st.tareas.abierta) $('#titulo').focus()
-  else ($('#proyectos .pj.activo') ?? $('#proyectos [data-proy]') ?? $('#marco [data-accion="pin"]'))?.focus()
+  else ($('#repos [aria-current]') ?? $('#repos [data-proy]') ?? $('#marco [data-accion="pin"]'))?.focus()
 }
 
 /** Lleva lo que se ve (`st.vista`) a lo pedido (`st.muesca.abierta`), una animación por vez. */
@@ -3519,12 +3565,10 @@ function firmaConfiguracion(tab, ahora) {
   return seccionConfiguracion(tab, datosFirma(ahora))
 }
 
-/** El encabezado y la barra con la configuración abierta: ningún proyecto elegido, la hoja abajo. */
+/** El encabezado con la configuración abierta y la hoja abajo; la tira de repos es solo de Sesiones (modulos-ux.md 4.4). */
 function pintarHojaConfiguracion() {
   modoMarco('tablero')
   $('#marco').classList.remove('con-hoja')
-  const enfocado = document.activeElement?.closest?.('#proyectos [data-proy]')
-  if (poner('#proyectos', barraProyectos(st.proyectos, -1)) && enfocado) $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
   texto('#titulo', 'Configuración')
   $('#titulo').title = ''
   texto('#subtitulo', 'Se guarda al instante')
@@ -4177,12 +4221,10 @@ function pintarFilaTareas() {
   if ($('#tar-fila').getAttribute('aria-label') !== nombre) $('#tar-fila').setAttribute('aria-label', nombre)
 }
 
-/** El encabezado y la barra con la hoja abierta: ningún proyecto elegido, "Tareas" y su bajada (5.1). */
+/** El encabezado con la hoja abierta: "Tareas" y su bajada (5.1); la tira de repos es solo de Sesiones (modulos-ux.md 4.4). */
 function pintarHojaTareas() {
   modoMarco('tablero')
   $('#marco').classList.remove('con-hoja')
-  const enfocado = document.activeElement?.closest?.('#proyectos [data-proy]')
-  if (poner('#proyectos', barraProyectos(st.proyectos, -1)) && enfocado) $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
   const hoy = hoyTareas()
   texto('#titulo', 'Tareas')
   $('#titulo').title = ''

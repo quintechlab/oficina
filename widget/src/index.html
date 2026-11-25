@@ -34,17 +34,13 @@
           <section class="conversan-s" id="conversan" aria-labelledby="h-conversan" hidden></section>
           <!-- Menú de módulos (docs/diseno/modulos-ux.md 3.3 y 4.1, #42): Sesiones, Tareas (y Hábitos con #41); la píldora
                ámbar (.ind-mod) viaja a la fila abierta (aria-current="page"). Las cuentas (#…-ct) y los nombres los pone
-               main.js (cuentaModulo, nombreModulo). Entrega M1: los proyectos cuelgan de Sesiones y se ven solo en Sesiones -->
+               main.js (cuentaModulo, nombreModulo). Desde M2 los proyectos están en la tira de repos de la columna (#repos) -->
           <nav class="mods" id="mods" aria-label="Módulos">
             <span class="ind-mod" aria-hidden="true"></span>
             <button type="button" class="mod" id="mod-sesiones" data-accion="mod" data-mod="sesiones" aria-keyshortcuts="Escape" title="Sesiones (Esc)" aria-label="Sesiones, buscando">
               <span class="mod-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="9" rx="2.6"/><path d="M5 14h6M6 7.2h.01M10 7.2h.01"/></svg></span>
               <span class="mod-n">Sesiones</span><span class="mod-ct" id="mod-sesiones-ct"><span class="cuentas" aria-hidden="true"><span class="chip">…</span></span></span>
             </button>
-            <nav class="proyectos" aria-labelledby="h-proyectos">
-              <h2 class="oculto" id="h-proyectos">Proyectos</h2>
-              <div id="proyectos"></div>
-            </nav>
             <!-- Tareas (docs/diseno/tareas-ux.md 4.1): la cuenta de hoy + vencidas o la pista "Ctrl T" (#tar-fila-ct, tareasVista.js) -->
             <button type="button" class="mod tar" id="tar-fila" data-accion="mod" data-mod="tareas" aria-keyshortcuts="Control+T" title="Tareas (Ctrl T)" aria-label="Tareas">
               <span class="mod-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="3.2"/><path class="tilde-p" d="M5.3 8.2l1.9 1.9 3.6-4"/></svg></span>
@@ -102,6 +98,9 @@
           <div id="cfg"></div>
           <!-- Tareas (docs/diseno/tareas-ux.md 3.2): hermana de #cfg, una hoja por vez en la columna -->
           <div id="tar"></div>
+          <!-- La tira de repos (modulos-ux.md 4.4, #42 M2): un chip por proyecto, solo en Sesiones (tablero.js, tiraRepos).
+               Se llama «Repos»: «Proyectos» es un módulo nuevo (#44) -->
+          <nav class="repos" id="repos" aria-label="Repos"></nav>
           <div id="otro"></div>
           <!-- El aviso diario de tareas en la pantalla dividida (tareas-ux.md 8.4): la fila arriba de las sesiones -->
           <div id="aviso-tar"></div>
@@ -182,6 +181,8 @@
       <span class="resumen" id="tira-resumen"></span>
     </div>
     <span id="tira-pend"></span>
+    <!-- Las cuentas chicas de los módulos (modulos-ux.md 8, M2): las que entran sin dejar el resumen por debajo de 120 -->
+    <span class="tira-mods" id="tira-mods"></span>
     <button type="button" class="tb" data-accion="expandir" aria-label="Expandir" title="Expandir">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5h9v9h-9z"/></svg>
     </button>

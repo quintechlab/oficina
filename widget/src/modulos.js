@@ -118,3 +118,37 @@ export function moduloAlExpandir({ modulo, repo, preguntas } = {}) {
   if (!con.length) return { modulo: modulo ?? 'sesiones', repo: null }
   return { modulo: 'sesiones', repo: (con.find(p => p.repo === repo) ?? con[0]).repo ?? null }
 }
+
+/** La tira mini (8, M2): el resumen nunca queda más angosto que esto por las cuentas de los módulos. */
+export const RESUMEN_MINIMO_MINI = 120
+/** Lo que ocupa cada cuenta chica en la tira con su separación: Tareas medida con Playwright (27 a 33 px el chip, 4 de separación; se toma el de dos cifras); Hábitos estimada hasta #41. */
+export const ANCHO_CUENTA_MINI = { tareas: 36, habitos: 44 }
+
+/**
+ * Qué cuentas de módulos entran en la tira mini (8): `{ tareas, habitos }`. `anchoLibre` es lo que tendría
+ * `#tira-resumen` sin ninguna de ellas. Cada una cuesta su ancho (`anchos`); si el resumen quedaría por
+ * debajo de `RESUMEN_MINIMO_MINI`, se va primero Hábitos y después Tareas. Un módulo sin nada que contar
+ * no ocupa lugar (en la tira no va la pista del atajo). La insignia de preguntas no pasa por acá: nunca
+ * se esconde.
+ */
+export function cuentasModulosMini(tareas, habitos, anchoLibre, anchos = ANCHO_CUENTA_MINI) {
+  const hayTareas = (tareas?.hoy ?? 0) + (tareas?.vencidas ?? 0) > 0
+  const hayHabitos = (habitos?.total ?? 0) > 0
+  const costoTareas = hayTareas ? anchos.tareas : 0
+  const costoHabitos = hayHabitos ? anchos.habitos : 0
+  if (anchoLibre - costoTareas - costoHabitos >= RESUMEN_MINIMO_MINI) return { tareas: hayTareas, habitos: hayHabitos }
+  if (anchoLibre - costoTareas >= RESUMEN_MINIMO_MINI) return { tareas: hayTareas, habitos: false }
+  return { tareas: false, habitos: false }
+}
+
+/**
+ * El chip elegido de la tira de repos queda a la vista (4.4): el `scrollLeft` nuevo de la tira. `chip`:
+ * `{ izq, ancho }` dentro de la tira; `tira`: `{ scroll, visible }`; `margen`: lo que tapa la máscara de
+ * la derecha. A la vista, no la mueve; si no, la corre lo justo (si el chip no entra, a su comienzo).
+ */
+export function desplazarTira(chip, tira, margen = 0) {
+  const visible = Math.max(0, tira.visible - margen)
+  if (chip.izq < tira.scroll || chip.ancho > visible) return chip.izq
+  if (chip.izq + chip.ancho > tira.scroll + visible) return chip.izq + chip.ancho - visible
+  return tira.scroll
+}
