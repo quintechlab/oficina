@@ -285,3 +285,35 @@ export function errorRota(archivo) {
 export function errorCarpeta(detalle) {
   return err('No se pudo abrir la carpeta de tareas.', escapar(detalle ?? ''), boton('tar-releer', 'releer', 'Volver a leer'))
 }
+
+// ------------------------------------------------------------------ el aviso diario (8 y 5.4)
+
+const X = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
+const MAS_TARDE = 'aria-label="Más tarde: avisame mañana" title="Más tarde"'
+
+/** Los tramos de `textoGlobo` en HTML: lo fuerte en `<b>`, las vencidas con la clase `r` (en rojo). */
+const tramos = segs => segs.map(s => (s.fuerte || s.venc ? `<b${s.venc ? ' class="r"' : ''}>${escapar(s.t)}</b>` : escapar(s.t))).join('')
+
+/**
+ * El globo de la marca (8.3; `.globo-tar`, porque `.globo` ya es el del SVG del Avi): hermano del
+ * botón "Charlar con Avi", con dos botones: todo el texto y "Ver tareas →" (abre la hoja en Hoy) y
+ * la × (lo deja para mañana). `t`: lo de `textoGlobo`.
+ */
+export function globoMarca(t) {
+  return `<div class="globo-tar" data-globo-tar><button type="button" class="globo-b" data-accion="tar-globo"><span class="globo-t">${tramos(t.globo)}</span>`
+    + `<span class="globo-c">Ver tareas →</span></button><button type="button" class="globo-x" data-accion="tar-globo-x" ${MAS_TARDE}>${X}</button></div>`
+}
+
+/**
+ * Lo de adentro de `#muesca-tareas` (8.5), un botón hermano de `#muesca`: "{h} para hoy · {v} vencidas"
+ * y "Ver →"; `nombre`, el del botón (el texto entero del globo, que la muesca abrevia).
+ */
+export function globoMuesca(t) {
+  return { html: `<span class="mt-t">${tramos(t.muesca)}</span><span class="mt-c">Ver <span aria-hidden="true">→</span></span>`, nombre: `${t.texto} Ver tareas` }
+}
+
+/** La fila de aviso de la pantalla dividida (8.4, D-n7): la píldora de `avisoOtroProyecto` con "Ver →" y la ×. */
+export function filaAviso(t) {
+  return `<div class="aviso aviso-tar" data-globo-tar><span class="at-t">${tramos(t.fila)}</span>`
+    + `<button type="button" class="lnk" data-accion="tar-globo">Ver →</button><button type="button" class="tb" data-accion="tar-globo-x" ${MAS_TARDE}>${X}</button></div>`
+}

@@ -6,7 +6,7 @@
 
 import { NOMBRES_ESPECIES, datosEspecie, especieValida } from './especies.js'
 import { cifrasDescarga, formatoGB, MODELOS } from './chat.js'
-import { DESFASE_AR, diaArgentina } from './fechas.js'
+import { DESFASE_AR, diaArgentina, fechaValida } from './fechas.js'
 
 /** Orden fijo de las pestañas (4.4). */
 export const PESTANAS = [
@@ -43,11 +43,14 @@ export const INTERRUPTORES = { arriba: true, avisar: true, pausa: false }
 
 /**
  * ¿`valor` sirve para `clave`? `mascota`, una de las siete especies (texto exacto); `arriba`,
- * `avisar` y `pausa`, solo booleanos; cualquier otra clave, no. `motor` llega con el chat (D6).
+ * `avisar` y `pausa`, solo booleanos; `tareasAvisado` (el día del aviso diario de tareas,
+ * tareas-ux.md 11.4), un día que existe `AAAA-MM-DD` o vacío; cualquier otra clave, no. `motor`
+ * llega con el chat (D6).
  */
 export function validarAjuste(clave, valor) {
   if (clave === 'mascota') return NOMBRES_ESPECIES.includes(valor)
   if (Object.hasOwn(INTERRUPTORES, clave ?? '')) return typeof valor === 'boolean'
+  if (clave === 'tareasAvisado') return valor === '' || fechaValida(valor)
   return false
 }
 

@@ -14,6 +14,7 @@ import {
   buscarTarea, editarTarea, agregarSubtarea, tildarSubtarea, editarSubtarea, borrarTarea, moverTarea, listaParaGuardar,
   nuevaMudanza, soltarMudanzas, olvidarMudanzas, opcionFecha, fechaDeOpcion, creadaEl, abrirDetalle, cerrarDetalle,
   diferirGuardado, ESPERA_GUARDAR_MS, MAX_NOTAS, MAX_SUBTAREAS, textoSubtareas,
+  AVISO_INICIAL, evaluarAviso, verAviso, soltarAviso, lugarAviso, textoGlobo, plano, horaGlobo, anuncioGlobo,
 } from '../src/tareas.js'
 import { clicBorrar, armadoVigente, desarmarVencido, MS_CONFIRMAR } from '../src/configuracion.js'
 import { diaArgentina, DESFASE_AR } from '../src/fechas.js'
@@ -130,6 +131,125 @@ test('5 · debeAvisar: mismo día no; día nuevo con 0 no; día nuevo con 1 de h
   assert.equal(debeAvisar({ avisado: '2026-11-23', hoy: HOY, cuentas: { hoy: 0, vencidas: 0 } }), false)
   assert.equal(debeAvisar({ avisado: '2026-11-23', hoy: HOY, cuentas: { hoy: 1, vencidas: 0 } }), true)
   assert.equal(debeAvisar({ avisado: null, hoy: HOY, cuentas: { hoy: 0, vencidas: 1 } }), true)
+})
+
+/// ------------------------------------------------------------------ 5 y 6. el aviso diario (8, 11.4 y 5.4)
+
+test('5 · evaluarAviso: una sola vez, después del primer tareas_leer; el día de hoy y sin ver', () => {
+  const c1 = { hoy: 1, vencidas: 0 }
+  let a = evaluarAviso(AVISO_INICIAL, { avisado: '2026-11-23', hoy: HOY, cuentas: c1 })
+  assert.deepEqual(a, { evaluado: true, pendiente: true, dia: HOY, visto: false })
+  // Una segunda lectura (abrir la hoja, "Volver a leer") no lo vuelve a evaluar
+  assert.equal(evaluarAviso(a, { avisado: '2026-11-23', hoy: HOY, cuentas: { hoy: 0, vencidas: 0 } }), a)
+  // El mismo día ya avisado: no sale, y tampoco más tarde en esta ejecución
+  a = evaluarAviso(AVISO_INICIAL, { avisado: HOY, hoy: HOY, cuentas: c1 })
+  assert.equal(a.pendiente, false)
+  assert.equal(evaluarAviso(a, { avisado: null, hoy: '2026-11-25', cuentas: c1 }), a)
+  // Día nuevo sin nada de hoy ni vencido: no sale
+  assert.equal(evaluarAviso(AVISO_INICIAL, { avisado: null, hoy: HOY, cuentas: { hoy: 0, vencidas: 0 } }).pendiente, false)
+  assert.equal(evaluarAviso(AVISO_INICIAL, { avisado: null, hoy: HOY, cuentas: { hoy: 0, vencidas: 1 } }).pendiente, true)
+})
+
+test('5 · verAviso: la primera vez que se ve devuelve el día para tareas.avisado; después, nada', () => {
+  const a = evaluarAviso(AVISO_INICIAL, { avisado: null, hoy: HOY, cuentas: { hoy: 2, vencidas: 0 } })
+  const r1 = verAviso(a)
+  assert.equal(r1.guardar, HOY)
+  assert.equal(r1.aviso.visto, true)
+  assert.equal(r1.aviso.pendiente, true)
+  const r2 = verAviso(r1.aviso)
+  assert.equal(r2.guardar, null)
+  assert.equal(r2.aviso, r1.aviso)
+  // Sin aviso pendiente no se guarda nada
+  assert.equal(verAviso(AVISO_INICIAL).guardar, null)
+  assert.equal(verAviso(soltarAviso(a)).guardar, null)
+})
+
+test('5 · soltarAviso: el clic, la × o abrir la hoja lo sacan; no vuelve en esta ejecución', () => {
+  const a = verAviso(evaluarAviso(AVISO_INICIAL, { avisado: null, hoy: HOY, cuentas: { hoy: 1, vencidas: 1 } })).aviso
+  const s = soltarAviso(a)
+  assert.equal(s.pendiente, false)
+  assert.equal(s.visto, true)
+  assert.equal(soltarAviso(s), s)
+  assert.equal(evaluarAviso(s, { avisado: null, hoy: HOY, cuentas: { hoy: 1, vencidas: 1 } }), s)
+})
+
+test('5 · lugarAviso (8.2): marca, dividida o muesca; espera en la tira, la bandeja y con la charla; nunca con la hoja', () => {
+  const a = { evaluado: true, pendiente: true, dia: HOY, visto: false }
+  const C = { hoy: 1, vencidas: 0 }
+  const f = (extra = {}) => ({ cuentas: C, barra: true, ...extra })
+  assert.equal(lugarAviso(a, f()), 'marca')
+  assert.equal(lugarAviso(a, f({ acoplada: true, abierta: true })), 'marca')
+  assert.equal(lugarAviso(a, f({ dividida: true })), 'dividida')
+  assert.equal(lugarAviso(a, f({ acoplada: true, abierta: false })), 'muesca')
+  // La pregunta pendiente tapa el de la muesca (vuelve cuando se va); con el panel abierto, no
+  assert.equal(lugarAviso(a, f({ acoplada: true, abierta: false, pregunta: true })), null)
+  assert.equal(lugarAviso(a, f({ pregunta: true })), 'marca')
+  // Espera: tira, bandeja o escondida, la charla abierta, arrastrando, sin barra (vacío o primeros pasos)
+  for (const espera of [{ mini: true }, { fuera: true }, { chat: true }, { arrastrando: true }, { barra: false }]) {
+    assert.equal(lugarAviso(a, f(espera)), null, JSON.stringify(espera))
+  }
+  assert.equal(lugarAviso(a, f({ acoplada: true, abierta: false, barra: false })), 'muesca')
+  // La hoja de Tareas abierta, sin aviso o sin nada que contar: nada
+  assert.equal(lugarAviso(a, f({ hoja: true })), null)
+  assert.equal(lugarAviso({ ...a, pendiente: false }, f()), null)
+  assert.equal(lugarAviso(a, f({ cuentas: { hoy: 0, vencidas: 0 } })), null)
+  assert.equal(lugarAviso(AVISO_INICIAL, f()), null)
+})
+
+test('6 · textoGlobo: los tres casos de 5.4 en el globo, la muesca y la fila', () => {
+  const t = textoGlobo({ hoy: 2, vencidas: 2 }, '09:30')
+  assert.equal(plano(t.globo), '¡Buen día! Tenés 2 tareas para hoy y 2 vencidas.')
+  assert.equal(plano(t.muesca), '2 para hoy · 2 vencidas')
+  assert.equal(plano(t.fila), '¡Buen día! 2 para hoy y 2 vencidas.')
+  assert.equal(t.texto, '¡Buen día! Tenés 2 tareas para hoy y 2 vencidas.')
+  // Los números del globo en negrita; las vencidas, en rojo (globo, muesca y fila)
+  assert.deepEqual(t.globo.filter(s => s.fuerte).map(s => s.t), ['2 tareas para hoy', '2 vencidas'])
+  for (const segs of [t.globo, t.muesca, t.fila]) assert.deepEqual(segs.filter(s => s.venc).map(s => s.t), ['2 vencidas'])
+  const h = textoGlobo({ hoy: 3, vencidas: 0 }, '09:30')
+  assert.equal(plano(h.globo), '¡Buen día! Tenés 3 tareas para hoy.')
+  assert.equal(plano(h.muesca), '3 para hoy')
+  assert.equal(plano(h.fila), '¡Buen día! 3 para hoy.')
+  const v = textoGlobo({ hoy: 0, vencidas: 4 }, '09:30')
+  assert.equal(plano(v.globo), '¡Buen día! Tenés 4 vencidas.')
+  assert.equal(plano(v.muesca), '4 vencidas')
+  assert.equal(plano(v.fila), '¡Buen día! 4 vencidas.')
+  assert.equal(textoGlobo({ hoy: 0, vencidas: 0 }, '09:30'), null)
+})
+
+test('6 · textoGlobo: singulares «1 tarea» y «1 vencida»', () => {
+  const t = textoGlobo({ hoy: 1, vencidas: 1 }, '09:30')
+  assert.equal(plano(t.globo), '¡Buen día! Tenés 1 tarea para hoy y 1 vencida.')
+  assert.equal(plano(t.muesca), '1 para hoy · 1 vencida')
+  assert.equal(plano(t.fila), '¡Buen día! 1 para hoy y 1 vencida.')
+  assert.equal(plano(textoGlobo({ hoy: 0, vencidas: 1 }, '09:30').globo), '¡Buen día! Tenés 1 vencida.')
+})
+
+test('6 · textoGlobo: el saludo con la hora de Argentina (D-n1): 12:59 día, 13:00 tarde, 20:00 noche', () => {
+  const c = { hoy: 1, vencidas: 0 }
+  assert.equal(textoGlobo(c, '12:59').saludo, '¡Buen día!')
+  assert.equal(textoGlobo(c, '13:00').saludo, '¡Buenas tardes!')
+  assert.equal(textoGlobo(c, '19:59').saludo, '¡Buenas tardes!')
+  assert.equal(textoGlobo(c, '20:00').saludo, '¡Buenas noches!')
+  assert.equal(textoGlobo(c, '00:10').saludo, '¡Buen día!')
+  assert.equal(plano(textoGlobo(c, '20:00').fila), '¡Buenas noches! 1 para hoy.')
+  // Desde un instante: la hora de Argentina, no la de la PC (12:59 en Argentina son las 15:59 UTC)
+  const ms = Date.UTC(2026, 10, 24, 15, 59)
+  assert.equal(horaGlobo(ms), '12:59')
+  assert.equal(horaGlobo(ms + 60000), '13:00')
+  assert.equal(textoGlobo(c, horaGlobo(Date.UTC(2026, 10, 24, 23, 0))).saludo, '¡Buenas noches!')
+})
+
+test('6 · anuncioGlobo: «{nombre de la mascota}: {texto del globo}»', () => {
+  assert.equal(anuncioGlobo('Avi', textoGlobo({ hoy: 2, vencidas: 1 }, '15:00')), 'Avi: ¡Buenas tardes! Tenés 2 tareas para hoy y 1 vencida.')
+})
+
+test('9 · alEscTareas: con la hoja cerrada y el foco en el globo, Esc es la × (9.1)', () => {
+  const t = tareasInicial()
+  assert.deepEqual(alEscTareas(t, { globo: true }), { tareas: t, accion: 'globo-x' })
+  // Fuera del globo, sigue sin ser de la hoja
+  assert.equal(alEscTareas(t, null).accion, null)
+  // Con la hoja abierta, el globo no se ve: las capas de siempre
+  assert.equal(alEscTareas({ ...t, abierta: true }, { globo: true }).accion, 'cerrar')
 })
 
 // ------------------------------------------------------------------ 7. nombre de lista (D-n4)

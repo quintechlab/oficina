@@ -9,6 +9,7 @@ import {
   estadoMuesca, ESTADO_INICIAL, siguiente, tocaGolpe, dentroDe, posicionFlotante, contenidoMuesca, contenidoPildora,
   disposicionAcoplada, ventanaDeArea, mismoRect, zonaInteractiva, MARGEN_ZONA, TAM_MUESCA, tamMuescaDe, figuraMuesca, planVentana, secuenciaVelo, ASIENTO_VELO_MS, REAPARECE_MS,
   disposicionFlotante, disposicionTira, transformEntre, plegadoHacia, anclaHacia, fueraDelBorde, estiloMuesca,
+  lugarGloboMuesca, absoluto, MARGEN_GLOBO, SEPARA_GLOBO,
 } from '../src/muesca.js'
 import { esquinaTira, tamanoMini } from '../src/tamano.js'
 import { agruparPorProyecto, reposoPermitido } from '../src/logica.js'
@@ -326,6 +327,62 @@ test('zona interactiva cerrada: la caja de la muesca + 4, sin hombros, contiene 
       assert.ok(h ? zona.x > c.x - HOMBRO * z : zona.y > c.y - HOMBRO * z, `${borde} ${z}: sin hombros`)
       // El panel escondido no toma clics
       assert.ok(!contiene(zona, d.p.tablero), borde)
+    }
+  }
+})
+
+// El globo del aviso diario de tareas (tareas-ux.md 8.5): cuelga 8 px del lado de adentro y la zona lo suma
+
+const GLOBO = { ancho: 168, alto: 32 }
+
+test('lugarGloboMuesca: cuelga 8 px del lado de adentro de la pantalla, centrado en la muesca', () => {
+  assert.equal(SEPARA_GLOBO, 8)
+  const ventana = { ancho: 1920, alto: 1040 }
+  const m = { x: 885, y: 0, ancho: 150, alto: 54 }
+  const centroX = m.x + m.ancho / 2
+  let g = lugarGloboMuesca('arriba', m, GLOBO, ventana)
+  assert.deepEqual(g, { x: centroX - 84, y: 62, ancho: 168, alto: 32, cola: 84 })
+  const ab = { x: 885, y: 986, ancho: 150, alto: 54 }
+  g = lugarGloboMuesca('abajo', ab, GLOBO, ventana)
+  assert.deepEqual(g, { x: centroX - 84, y: 986 - 8 - 32, ancho: 168, alto: 32, cola: 84 })
+  const iz = { x: 0, y: 450, ancho: 62, alto: 140 }
+  g = lugarGloboMuesca('izquierda', iz, GLOBO, ventana)
+  assert.deepEqual(g, { x: 62 + 8, y: 520 - 16, ancho: 168, alto: 32, cola: 16 })
+  const de = { x: 1858, y: 450, ancho: 62, alto: 140 }
+  g = lugarGloboMuesca('derecha', de, GLOBO, ventana)
+  assert.deepEqual(g, { x: 1858 - 8 - 168, y: 520 - 16, ancho: 168, alto: 32, cola: 16 })
+})
+
+test('lugarGloboMuesca: contra una esquina queda adentro de la ventana y la cola sigue apuntando a la muesca', () => {
+  const ventana = { ancho: 1366, alto: 728 }
+  const m = { x: 0, y: 0, ancho: 150, alto: 54 }
+  const g = lugarGloboMuesca('arriba', m, { ancho: 260, alto: 32 }, ventana)
+  assert.equal(g.x, MARGEN_GLOBO)
+  assert.equal(g.x + g.cola, 75)
+  const fin = lugarGloboMuesca('izquierda', { x: 0, y: 700, ancho: 62, alto: 28 }, GLOBO, ventana)
+  assert.equal(fin.y, 728 - MARGEN_GLOBO - 32)
+  assert.ok(fin.cola > 0 && fin.cola <= 32)
+})
+
+test('zonaInteractiva: cerrada y con el globo, la muesca + 4 unida al globo; sin globo, como siempre', () => {
+  for (const z of [1, 1.75, 2]) {
+    for (const borde of BORDES) {
+      const d = disposicionAcoplada({ borde, lugar: 0.5 }, tamMuescaDe(borde, z), TABLERO, AREA, z)
+      const local = lugarGloboMuesca(borde, d.local.muesca, GLOBO, { ancho: d.ventana.ancho / z, alto: d.ventana.alto / z })
+      const globo = absoluto(local, d.ventana, z)
+      // absoluto es la vuelta de relativo
+      const r6 = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.round(v * 1e6) / 1e6]))
+      assert.deepEqual(r6(relativo(globo, d.ventana, z)), r6({ x: local.x, y: local.y, ancho: local.ancho, alto: local.alto }))
+      const sin = zonaInteractiva(d, { abierta: false }, z)
+      assert.deepEqual(zonaInteractiva(d, { abierta: false, globo: null }, z), sin, `${borde} ${z}: sin globo`)
+      const zona = zonaInteractiva(d, { abierta: false, globo }, z)
+      // El clic en el globo cae en la ventana (no pasa a la app de abajo), y la muesca sigue adentro
+      assert.ok(contiene(zona, globo), `${borde} ${z}: el globo`)
+      assert.ok(contiene(zona, sin), `${borde} ${z}: la muesca`)
+      assert.equal(zona.toda, false)
+      // Abierta o arrastrando, el globo no cuenta (no se ve)
+      assert.deepEqual(zonaInteractiva(d, { abierta: true, globo }, z), zonaInteractiva(d, { abierta: true }, z))
+      assert.deepEqual(zonaInteractiva(d, { abierta: false, arrastrando: true, globo }, z), { ...d.ventana, toda: true })
     }
   }
 })

@@ -67,6 +67,15 @@
 //   &tareaslento       tareas_leer tarda 1,2 s (las filas fantasma de 7.1)
 //   Lo guardado queda en window.__tareas (un Map por id de lista). Cada guardado se anota en
 //   window.__guardadasTareas ([id, n.º de tareas], en orden): mover guarda primero el destino y después el origen.
+// Aviso diario de tareas (entrega 3, tareas-ux.md 8 y 11.6): sin &globo, preferencias.json ya dice que hoy
+//   se avisó (tareas.avisado = hoy) y no sale nada. Con &globo es el primer arranque del día (avisado = ayer)
+//   y el aviso sale donde esté la mascota; guardarlo (guardar_ajuste tareasAvisado) queda en window.__ajustes:
+//   &globo=marca     el globo debajo del Avi de la marca (el panel con la barra lateral)
+//   &globo=muesca    el globo que cuelga de la muesca plegada; sin ?acople, arriba, y sin ?estado ni ?muesca, en
+//                    reposo (sin la pregunta de catalogo, que lo taparía). Con ?muesca=pregunta, la pregunta lo tapa
+//   &globo=dividida  la fila de aviso arriba de las mitades; sin ?dividida, ?dividida=pregunta
+//   &tapa            la pregunta de catalogo llega a los 4 s y se va a los 10 s: tapa el globo de la muesca y vuelve
+//   Las cuentas son las de las listas falsas (2 para hoy y 2 vencidas, con ?tareas=… las de cada caso)
 //   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
 //                 docs/diseno/mascotas-avi-ux.md 9.1), con su forma evolucionada, sus bucles y sus actos;
 //                 los subagentes, sus variantes (7.3; con el Avi, el elenco por nombre)
@@ -172,6 +181,13 @@
   if ((muesca === 'reposo' || muesca === 'trabajando') && !url.has('estado')) url.set('estado', muesca)
   if (muesca === 'duerme') url.set('vacio', '')
   if (Number(url.get('reposo')) > 1) window.__escalaReposo = Number(url.get('reposo'))
+  // &globo (tareas-ux.md 11.6): cada forma con lo que necesita para verse
+  const globoTar = url.get('globo')
+  if (globoTar === 'muesca') {
+    if (!url.has('acople')) url.set('acople', 'arriba')
+    if (!url.has('estado') && !url.has('muesca') && !url.has('tapa')) url.set('estado', 'reposo')
+  }
+  if (globoTar === 'dividida' && !url.has('dividida')) url.set('dividida', 'pregunta')
   const ahora = Date.now()
   const hace = min => new Date(ahora - min * 60000).toISOString()
   const PASOS = [100, 125, 150, 175, 200]
@@ -274,7 +290,9 @@
   }
   /** Preguntas que el falso da por tomadas (?envio=listo) o respondidas en Claude (?envio=ya). */
   const tomadas = new Set()
-  const sinTomadas = () => SESIONES.map(s => ({ ...s, preguntas: (s.preguntas ?? []).filter(p => !tomadas.has(p.id)) }))
+  // &tapa: las preguntas solo entre los 4 y los 10 s (tapan el globo de tareas de la muesca y se van)
+  const tapada = () => !url.has('tapa') || (Date.now() - ahora >= 4000 && Date.now() - ahora < 10000)
+  const sinTomadas = () => SESIONES.map(s => ({ ...s, preguntas: tapada() ? (s.preguntas ?? []).filter(p => !tomadas.has(p.id)) : [] }))
 
   // Barra de control (#19): las sesiones aceptan órdenes (mod v0.10). oficina trabaja (Frenar se ve),
   // central-nucleo espera tu mensaje y catalogo tiene un mensaje en cola ("en cola").
@@ -516,6 +534,9 @@
   /** preferencias.json falso (configuracion-ux.md 9.1): los interruptores; guardar_ajuste los cambia. */
   const ESPECIES = ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']
   const ajustes = { arriba: true, avisar: true, pausa: url.has('pausa'), mascota: ESPECIES.includes(url.get('mascota')) ? url.get('mascota') : 'avi' }
+  // tareas.avisado (11.4): con &globo, ayer (el primer arranque del día); sin él, hoy (ya se avisó)
+  const diaArFalso = n => new Date(Date.now() - 3 * 3600000 + n * 86400000).toISOString().slice(0, 10)
+  let avisadoTar = url.has('globo') ? diaArFalso(-1) : diaArFalso(0)
   // Las claves de API falsas (entrega 4): solo el final de 4, como lo que devuelve Rust. ?clave=sin
   // ninguna, ?clave=guardada las tres; sin ?clave, Claude y Gemini (las del boceto)
   const PROVEEDORES_FALSOS = ['anthropic', 'openai', 'gemini']
@@ -1053,13 +1074,23 @@
     // Como Rust (leer_configuracion): la mascota que no es una especie es el Avi (la ventana la valida
     // otra vez); los interruptores, lo guardado con guardar_ajuste; el arranque, el "sistema" falso
     leer_configuracion: () => ({
-      tamano: paso, acople, flotante, ...ajustes, arranque: arranqueFalso, version: '0.10.0', chat: prefsChat,
+      tamano: paso, acople, flotante, ...ajustes, arranque: arranqueFalso, version: '0.10.0', chat: prefsChat, tareasAvisado: avisadoTar,
     }),
     // Como `ajuste_valido` de preferencias.rs; ?cfgfalla hace fallar el guardado (la fila vuelve y lo dice)
     guardar_ajuste: ({ clave, valor }) => {
-      const valido = clave === 'mascota' ? ESPECIES.includes(valor) : ['arriba', 'avisar', 'pausa'].includes(clave) && typeof valor === 'boolean'
+      // tareasAvisado: un día "AAAA-MM-DD" que existe, o vacío (11.4); Rust lo guarda en "tareas": { "avisado" }
+      const dia = v => v === '' || (/^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v)
+      const valido = clave === 'mascota' ? ESPECIES.includes(valor)
+        : clave === 'tareasAvisado' ? typeof valor === 'string' && dia(valor)
+          : ['arriba', 'avisar', 'pausa'].includes(clave) && typeof valor === 'boolean'
       if (!valido) throw new Error(`ajuste inválido: ${clave}`)
       if (url.has('cfgfalla')) throw new Error('no se pudo escribir preferencias.json (falso)')
+      if (clave === 'tareasAvisado') {
+        avisadoTar = valor || null
+        window.__ajustes = { ...ajustes, tareas: { avisado: valor } }
+        console.info('[preferencias] tareas.avisado', valor)
+        return { ok: true, valor }
+      }
       ajustes[clave] = valor
       window.__ajustes = { ...ajustes }
       console.info('[preferencias]', JSON.stringify(ajustes))

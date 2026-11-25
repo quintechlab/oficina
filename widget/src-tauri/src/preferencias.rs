@@ -123,26 +123,55 @@ pub fn leer_interruptores(ruta: &Path) -> Interruptores {
 }
 
 /// Las claves que escribe `guardar_ajuste` (el tamaño y el acople tienen sus comandos propios). Las
-/// mismas que `validarAjuste` de configuracion.js; `motor` llega con el chat.
-const AJUSTES: [&str; 4] = ["mascota", "arriba", "avisar", "pausa"];
+/// mismas que `validarAjuste` de configuracion.js; `motor` llega con el chat. `tareasAvisado` es el
+/// día del aviso diario de tareas (tareas-ux.md 11.4) y se guarda adentro de `"tareas"`.
+const AJUSTES: [&str; 5] = ["mascota", "arriba", "avisar", "pausa", "tareasAvisado"];
 
 /// ¿`valor` sirve para `clave`? La mascota, una de `ESPECIES` (texto exacto); los interruptores,
-/// solo booleanos. Cualquier otra clave, no.
+/// solo booleanos; el aviso de tareas, un día que existe `AAAA-MM-DD` o vacío. Cualquier otra clave, no.
 pub fn ajuste_valido(clave: &str, valor: &Value) -> bool {
     match clave {
         "mascota" => valor.as_str().is_some_and(|m| ESPECIES.contains(&m)),
         "arriba" | "avisar" | "pausa" => valor.is_boolean(),
+        "tareasAvisado" => valor.as_str().is_some_and(|d| d.is_empty() || dia_valido(d)),
         _ => false,
     }
 }
 
-/// Guarda un ajuste de la configuración y conserva lo demás. Uno inválido no toca el archivo.
+/// ¿`AAAA-MM-DD` de un día que existe? Solo dígitos y los dos guiones (sin hora ni signo).
+fn dia_valido(d: &str) -> bool {
+    let b = d.as_bytes();
+    b.len() == 10
+        && b.iter().enumerate().all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() })
+        && chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok()
+}
+
+/// Guarda un ajuste de la configuración y conserva lo demás. Uno inválido no toca el archivo. El aviso
+/// de tareas va a `"tareas": { "avisado" }` (11.4), conservando lo demás que haya en `"tareas"`.
 pub fn guardar_ajuste(ruta: &Path, clave: &str, valor: &Value) -> Result<(), String> {
     let clave = AJUSTES
         .into_iter()
         .find(|c| *c == clave && ajuste_valido(c, valor))
         .ok_or_else(|| format!("ajuste inválido: {clave}"))?;
-    escribir(ruta, Preferencias { ajustes: vec![(clave, valor.clone())], ..leer_todo(ruta) })
+    let ajuste = if clave == "tareasAvisado" {
+        let mut tareas = match leer_valor(ruta).and_then(|v| v.get("tareas").cloned()) {
+            Some(Value::Object(m)) => m,
+            _ => serde_json::Map::new(),
+        };
+        tareas.insert(String::from("avisado"), valor.clone());
+        ("tareas", Value::Object(tareas))
+    } else {
+        (clave, valor.clone())
+    };
+    escribir(ruta, Preferencias { ajustes: vec![ajuste], ..leer_todo(ruta) })
+}
+
+/// El día del último aviso diario de tareas (`tareas.avisado`, 11.4). Sin archivo, sin la clave,
+/// vacío o algo que no es un día: `None` (nunca avisado).
+pub fn leer_tareas_avisado(ruta: &Path) -> Option<String> {
+    leer_valor(ruta)
+        .and_then(|v| v.get("tareas")?.get("avisado")?.as_str().map(String::from))
+        .filter(|d| dia_valido(d))
 }
 
 // ------------------------------------------------------------------ mascota (docs/diseno/mascotas-avi-ux.md 9.1)
@@ -781,6 +810,60 @@ mod tests {
         for clave in ["tamano", "acople", "mod", "clave", "anthropic", ""] {
             assert!(!ajuste_valido(clave, &json!(true)), "{clave}");
         }
+    }
+
+    #[test]
+    fn el_aviso_de_tareas_acepta_un_dia_que_existe_o_vacio() {
+        // tareas-ux.md 11.4: el día de Argentina en que se vio el globo, "AAAA-MM-DD"
+        for bueno in ["2026-11-24", "2024-02-29", ""] {
+            assert!(ajuste_valido("tareasAvisado", &json!(bueno)), "{bueno}");
+        }
+        for malo in [
+            json!("2026-02-30"), json!("2025-02-29"), json!("2026-13-01"), json!("2026-11-24T10:00"), json!("2026-11-24 10:00"),
+            json!("2026-1-05"), json!("+026-11-24"), json!("24/11/2026"), json!(20261124), json!(true), Value::Null, json!({}),
+        ] {
+            assert!(!ajuste_valido("tareasAvisado", &malo), "{malo}");
+        }
+    }
+
+    #[test]
+    fn el_aviso_de_tareas_se_guarda_en_tareas_avisado_sin_borrar_lo_demas() {
+        let r = ruta_temporal("tareas-avisado");
+        assert_eq!(leer_tareas_avisado(&r), None);
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        fs::write(&r, r#"{"tareas":{"futura":3},"otra":[1]}"#).unwrap();
+        guardar_ajuste(&r, "arriba", &json!(false)).unwrap();
+        guardar_ajuste(&r, "mascota", &json!("lumen")).unwrap();
+        guardar_tamano(&r, 150).unwrap();
+        guardar_ajuste(&r, "tareasAvisado", &json!("2026-11-24")).unwrap();
+        let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+        // Dentro de "tareas" (11.4), sin pisar lo que esa clave ya traía ni lo demás del archivo
+        assert_eq!(guardado["tareas"], json!({ "avisado": "2026-11-24", "futura": 3 }));
+        assert!(guardado.get("tareasAvisado").is_none());
+        assert_eq!(guardado["otra"], json!([1]));
+        assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-24"));
+        assert!(!leer_interruptores(&r).arriba);
+        assert_eq!(leer_mascota(&r), "lumen");
+        assert_eq!(leer_tamano(&r), 150);
+        // Y guardar otra cosa después no lo borra
+        guardar_ajuste(&r, "pausa", &json!(true)).unwrap();
+        guardar_tamano(&r, 100).unwrap();
+        assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-24"));
+        // Uno inválido no toca el archivo
+        let antes = fs::read_to_string(&r).unwrap();
+        assert!(guardar_ajuste(&r, "tareasAvisado", &json!("2026-02-30")).is_err());
+        assert_eq!(fs::read_to_string(&r).unwrap(), antes);
+        // Vacío: nunca avisado
+        guardar_ajuste(&r, "tareasAvisado", &json!("")).unwrap();
+        assert_eq!(leer_tareas_avisado(&r), None);
+        // Lo guardado a mano que no es un día se lee como nunca avisado
+        fs::write(&r, r#"{"tareas":{"avisado":"ayer"}}"#).unwrap();
+        assert_eq!(leer_tareas_avisado(&r), None);
+        fs::write(&r, r#"{"tareas":"basura"}"#).unwrap();
+        assert_eq!(leer_tareas_avisado(&r), None);
+        guardar_ajuste(&r, "tareasAvisado", &json!("2026-11-25")).unwrap();
+        assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-25"));
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 
     #[test]

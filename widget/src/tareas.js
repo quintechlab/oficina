@@ -7,7 +7,7 @@
 // Sin DOM: lo dibuja tareasVista.js, lo mueve tareasMotion.js y lo conecta main.js (que guarda con
 // `tareas_guardar`). Confirmar en el mismo botón es `clicBorrar` de configuracion.js, sobre `armado`.
 
-import { hoyArgentina, diasEntre, sumarDias, fechaValida } from './fechas.js'
+import { hoyArgentina, diasEntre, sumarDias, fechaValida, DESFASE_AR } from './fechas.js'
 
 export { hoyArgentina, diasEntre }
 
@@ -126,10 +126,96 @@ export function cifrasLista(lista) {
 
 /**
  * ¿La mascota avisa al arrancar (S5, 11.4)? El primer arranque del día de Argentina (`avisado` es el
- * día del último aviso) y con algo de hoy o vencido. El globo es de la entrega 3.
+ * día del último aviso) y con algo de hoy o vencido.
  */
 export function debeAvisar({ avisado, hoy, cuentas: c }) {
   return avisado !== hoy && (c?.hoy ?? 0) + (c?.vencidas ?? 0) > 0
+}
+
+// ------------------------------------------------------------------ el aviso diario (8 y 11.4)
+
+/**
+ * El aviso de esta ejecución: `evaluado` (ya se decidió, después del primer `tareas_leer`), `pendiente`
+ * (falta que el usuario lo vea y lo cierre), `dia` (el de Argentina al evaluarlo) y `visto` (ya se vio
+ * una vez: `tareas.avisado` quedó guardado).
+ */
+export const AVISO_INICIAL = Object.freeze({ evaluado: false, pendiente: false, dia: null, visto: false })
+
+/** Se decide una sola vez por ejecución, con lo del primer `tareas_leer` (8.1); después no cambia. */
+export function evaluarAviso(a, { avisado, hoy, cuentas: c }) {
+  if (a.evaluado) return a
+  return { evaluado: true, pendiente: debeAvisar({ avisado, hoy, cuentas: c }), dia: hoy, visto: false }
+}
+
+/**
+ * El aviso se ve (tiene un lugar): la primera vez devuelve en `guardar` el día para `tareas.avisado`
+ * (8.1: se guarda cuando se ve, así un reinicio el mismo día no lo repite); después, `guardar` null.
+ */
+export function verAviso(a) {
+  if (!a.pendiente || a.visto) return { aviso: a, guardar: null }
+  return { aviso: { ...a, visto: true }, guardar: a.dia }
+}
+
+/** El clic en el globo, la × o abrir la hoja por otro camino lo sacan; no vuelve en esta ejecución. */
+export function soltarAviso(a) {
+  return a.pendiente ? { ...a, pendiente: false } : a
+}
+
+/**
+ * Dónde se ve el aviso pendiente (8.2), o null si espera: 'marca' (el panel con la barra lateral),
+ * 'dividida' (el riel en lugar de la barra) o 'muesca' (acoplada y plegada; una pregunta pendiente la
+ * tapa). Espera en la tira, en la bandeja o escondida, con la charla abierta, a mitad de un arrastre y
+ * sin barra (el vacío o primeros pasos). Con la hoja de Tareas abierta, o sin nada que contar, nada.
+ * `f`: `{ cuentas, hoja, fuera, mini, chat, arrastrando, acoplada, abierta, dividida, barra, pregunta }`.
+ */
+export function lugarAviso(a, f) {
+  if (!a?.pendiente || f.hoja || (f.cuentas?.hoy ?? 0) + (f.cuentas?.vencidas ?? 0) <= 0) return null
+  if (f.fuera || f.mini || f.chat || f.arrastrando) return null
+  if (f.acoplada && !f.abierta) return f.pregunta ? null : 'muesca'
+  if (f.dividida) return 'dividida'
+  return f.barra ? 'marca' : null
+}
+
+/** "HH:MM" en Argentina de un instante en ms (la hora del saludo, D-n1). */
+export function horaGlobo(ms) {
+  const d = new Date(ms - DESFASE_AR)
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+}
+
+/** El saludo según la hora de Argentina (5.4, D-n1): antes de las 13, día; hasta las 19:59, tarde; después, noche. */
+function saludo(horaAr) {
+  const h = Number.parseInt(String(horaAr ?? ''), 10)
+  if (!Number.isFinite(h) || h < 13) return '¡Buen día!'
+  return h < 20 ? '¡Buenas tardes!' : '¡Buenas noches!'
+}
+
+/** El texto llano de unos tramos de `textoGlobo`. */
+export const plano = segs => segs.map(s => s.t).join('')
+
+/**
+ * Los textos de 5.4 en tramos `{ t, fuerte?, venc? }` (en negrita los números del globo; las vencidas,
+ * en rojo): `globo` (el de la marca), `muesca` y `fila` (la de la dividida), con el `saludo` de la hora
+ * de Argentina (`horaAr`, "HH:MM") y `texto` (el globo llano, para el anuncio). Sin nada que contar, null.
+ */
+export function textoGlobo(c, horaAr) {
+  const h = c?.hoy ?? 0
+  const v = c?.vencidas ?? 0
+  if (!h && !v) return null
+  const s = saludo(horaAr)
+  const venc = v ? { t: plural(v, 'vencida', 'vencidas'), venc: true } : null
+  const entre = h && v
+  const globo = [
+    { t: `${s} Tenés ` }, h && { t: `${plural(h, 'tarea', 'tareas')} para hoy`, fuerte: true }, entre && { t: ' y ' },
+    venc && { ...venc, fuerte: true }, { t: '.' },
+  ].filter(Boolean)
+  const muesca = [h && { t: `${h} para hoy` }, entre && { t: ' · ' }, venc].filter(Boolean)
+  const fila = [{ t: `${s} ` }, h && { t: `${h} para hoy` }, entre && { t: ' y ' }, venc, { t: '.' }].filter(Boolean)
+  return { saludo: s, globo, muesca, fila, texto: plano(globo) }
+}
+
+/** Lo que se anuncia cuando aparece (5.4): "{nombre de la mascota}: {texto del globo}". */
+export function anuncioGlobo(nombre, t) {
+  return `${nombre}: ${t.texto}`
 }
 
 // ------------------------------------------------------------------ la fila de la barra y el encabezado (4.1 y 5.1)
@@ -454,10 +540,11 @@ export function cerrarDetalle(t) {
  * tarea, nueva subtarea; `foco`: `{ campo, texto }`) se vacía; 2) renombrar o crear una lista se
  * cancela, y también el texto de una subtarea que se edita (vuelve el de antes); 3) un "¿Borrar…? Sí"
  * se desarma; 4) la tarea abierta se cierra (título y notas ya se guardan solos); 5) la hoja se cierra.
- * Cerrada, no es de la hoja (`accion` null): el Esc siguiente es del panel acoplado.
+ * Cerrada, no es de la hoja (`accion` null): el Esc siguiente es del panel acoplado; salvo con el foco
+ * en el globo del aviso diario (`foco.globo`), donde Esc es su × (`globo-x`).
  */
 export function alEscTareas(t, foco) {
-  if (!t.abierta) return { tareas: t, accion: null }
+  if (!t.abierta) return { tareas: t, accion: foco?.globo ? 'globo-x' : null }
   if ((foco?.campo === 'nueva' || foco?.campo === 'subtarea') && foco.texto) return { tareas: t, accion: 'vaciar' }
   if (t.renombrando || t.creando) return { tareas: { ...t, renombrando: null, creando: false, errorLista: null }, accion: 'cancelar-lista' }
   if (t.editandoSub) return { tareas: { ...t, editandoSub: null }, accion: 'cancelar-sub' }

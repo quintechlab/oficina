@@ -2145,3 +2145,80 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 }
 body.pausa #tar .ix-b, body.pausa #tar .fila, body.pausa #tar .fila::before, body.pausa #tar .ck::before, body.pausa #tar .fc,
 body.pausa #tar .tit-in, body.pausa #tar .seg > button, body.pausa #tar .sub-t, body.pausa #tar .notas { transition: none }
+
+/* ------------------------------------------------------------------ aviso diario de tareas (tareas-ux.md 8, entrega 3)
+   Una vez por día de Argentina, donde esté la mascota: el globo de la marca (8.3), la fila de la
+   dividida (8.4) o el globo de la muesca (8.5). Crema con --tinta; las vencidas en --rojo-tinta y el
+   llamado en --ambar-tinta (6.2). La entrada y la salida son de tareasMotion.js (10); acá solo el hover.
+   `.globo-tar` y no `.globo`: `.globo` ya es el globo de voz del SVG del Avi, que vive en la marca */
+.marca .globo-tar {
+  pointer-events: auto; position: relative; width: 100%; margin-top: 12px; display: flex; align-items: stretch;
+  border-radius: 14px; background: var(--crema); color: var(--tinta); text-align: left; cursor: default; transform-origin: 50% -8px;
+  box-shadow: 0 14px 30px -14px rgba(242, 182, 50, .5), 0 0 0 4px rgba(242, 182, 50, .07);
+}
+/* La cola, un cuadrado girado de 12 arriba al centro, hacia el Avi */
+.marca .globo-tar::before { content: ""; position: absolute; top: -5px; left: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 2px; background: var(--crema); transform: rotate(45deg) }
+.globo-tar .globo-b {
+  position: relative; flex: 1; min-width: 0; display: grid; gap: 7px; padding: 11px 2px 11px 12px; border: 0; border-radius: 14px 0 0 14px;
+  background: none; color: inherit; text-align: left; cursor: pointer;
+}
+.globo-tar .globo-t { font: 600 12px/1.35 var(--f) }
+.globo-tar .globo-t b { font-weight: 800 }
+.globo-tar b.r, #muesca-tareas b.r { color: var(--rojo-tinta) }
+.globo-tar .globo-c { font: 600 10px/1 var(--m); letter-spacing: .03em; color: var(--ambar-tinta) }
+.globo-tar .globo-b:hover .globo-c { text-decoration: underline; text-underline-offset: 3px }
+.globo-tar .globo-x {
+  width: 30px; flex: none; display: grid; place-items: start center; padding: 10px 0 0; border: 0; border-radius: 0 14px 14px 0;
+  background: none; color: #5c554a; cursor: pointer; transition: color var(--d-color) ease;
+}
+.globo-tar .globo-x:hover { color: var(--tinta) }
+.globo-tar .globo-x svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round }
+/* Foco sobre el crema: --tinta (12) */
+.globo-tar :focus-visible, #muesca-tareas:focus-visible { outline: 2px solid var(--tinta); outline-offset: -3px }
+
+/* La fila de la dividida (8.4): la forma de `avisoOtroProyecto`, con «Ver →» y la ×; no es un botón entero */
+#aviso-tar:empty { display: none }
+#aviso-tar { contain: inline-size }
+.aviso.aviso-tar {
+  min-height: 40px; padding: 0 var(--e-1) 0 var(--e-6); gap: var(--e-2); cursor: default;
+  border-color: color-mix(in srgb, var(--ambar) 55%, transparent); background: var(--ambar-osc); color: var(--crema); font: 600 12px/1.3 var(--f);
+}
+.aviso.aviso-tar:hover { background: var(--ambar-osc); border-color: color-mix(in srgb, var(--ambar) 55%, transparent) }
+.aviso.aviso-tar:active { transform: none }
+.aviso-tar .at-t { flex: 1; min-width: 0; overflow-wrap: anywhere }
+.aviso-tar b { font-weight: 800 }
+.aviso-tar b.r { color: var(--rojo) }
+.aviso-tar .lnk {
+  flex: none; min-height: 32px; padding: 0 var(--e-3); border: 0; border-radius: var(--r-tag); background: none; color: var(--ambar);
+  font: 700 12px/1 var(--f); white-space: nowrap; cursor: pointer;
+}
+.aviso-tar .lnk:hover { text-decoration: underline; text-underline-offset: 3px }
+.aviso-tar .tb { flex: none }
+.aviso-tar :focus-visible { outline: 2px solid var(--ambar); outline-offset: -2px }
+
+/* El globo de la muesca (8.5): un botón hermano de #muesca, que main.js ubica del lado de adentro
+   (lugarGloboMuesca: left/top y --cola, desde donde sale la cola de 10 hacia la muesca). Se ve solo
+   acoplada y plegada, nunca durante el arrastre de la píldora */
+#muesca-tareas { display: none }
+body.acoplada:not(.abierta):not(.pildora) #muesca-tareas:not([hidden]) {
+  position: fixed; z-index: 2; display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 8px 12px; border: 0; border-radius: 12px;
+  background: var(--crema); color: var(--tinta); font: 700 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
+  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, .6);
+}
+#muesca-tareas::before { content: ""; position: absolute; width: 10px; height: 10px; border-radius: 2px; background: var(--crema); transform: rotate(45deg) }
+body[data-borde="arriba"] #muesca-tareas { transform-origin: var(--cola, 50%) 0 }
+body[data-borde="arriba"] #muesca-tareas::before { top: -4px; left: calc(var(--cola, 50%) - 5px) }
+body[data-borde="abajo"] #muesca-tareas { transform-origin: var(--cola, 50%) 100% }
+body[data-borde="abajo"] #muesca-tareas::before { bottom: -4px; left: calc(var(--cola, 50%) - 5px) }
+body[data-borde="izquierda"] #muesca-tareas { transform-origin: 0 var(--cola, 50%) }
+body[data-borde="izquierda"] #muesca-tareas::before { left: -4px; top: calc(var(--cola, 50%) - 5px) }
+body[data-borde="derecha"] #muesca-tareas { transform-origin: 100% var(--cola, 50%) }
+body[data-borde="derecha"] #muesca-tareas::before { right: -4px; top: calc(var(--cola, 50%) - 5px) }
+#muesca-tareas > * { pointer-events: none }
+#muesca-tareas .mt-c { font: 600 10px/1 var(--m); color: var(--ambar-tinta) }
+#muesca-tareas:hover .mt-c { text-decoration: underline; text-underline-offset: 3px }
+body:not(.colocada) #muesca-tareas, body.velada #muesca-tareas { visibility: hidden }
+@media (prefers-reduced-motion: reduce) {
+  .globo-tar .globo-x { transition: none }
+}
+body.pausa .globo-tar .globo-x { transition: none }

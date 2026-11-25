@@ -1009,8 +1009,8 @@ async fn elegir_carpeta(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 /// Todo lo que la ventana necesita al arrancar y para la configuración (configuracion-ux.md 9.2):
-/// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version, chat }`. `arranque` sale
-/// del sistema, no del archivo. Sin carpeta de configuración, los valores de fábrica.
+/// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version, chat, tareasAvisado }`.
+/// `arranque` sale del sistema, no del archivo. Sin carpeta de configuración, los valores de fábrica.
 #[tauri::command]
 fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
     let ruta = ruta_preferencias(&app);
@@ -1026,6 +1026,8 @@ fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::
         "arranque": arranque::marca_real(app.autolaunch().is_enabled()),
         "version": app.package_info().version.to_string(),
         "chat": valor_chat(ruta.as_deref().map(preferencias::leer_chat).unwrap_or_default()),
+        // El día del último aviso diario de tareas (tareas-ux.md 11.4), o null
+        "tareasAvisado": ruta.as_deref().and_then(preferencias::leer_tareas_avisado),
     })
 }
 
@@ -1042,9 +1044,10 @@ fn valor_chat(c: preferencias::Chat) -> serde_json::Value {
 }
 
 /// Guarda un ajuste de la configuración (`mascota`, `arriba`, `avisar` o `pausa`; configuracion-ux.md
-/// 9.2) y aplica su efecto: "Siempre arriba" a la ventana, la pausa a la marca de la bandeja y a la
-/// ventana (`oficina://pausa`), la mascota a la ventana (`oficina://mascota`). Si no se pudo guardar,
-/// no aplica nada y la ventana vuelve el control a su valor de antes.
+/// 9.2; y `tareasAvisado`, el día del aviso diario de tareas, tareas-ux.md 11.4) y aplica su
+/// efecto: "Siempre arriba" a la ventana, la pausa a la marca de la bandeja y a la ventana
+/// (`oficina://pausa`), la mascota a la ventana (`oficina://mascota`); el aviso, ninguno. Si no se
+/// pudo guardar, no aplica nada y la ventana vuelve el control a su valor de antes.
 #[tauri::command]
 fn guardar_ajuste(app: AppHandle, estado: State<'_, Estado>, clave: String, valor: serde_json::Value) -> Result<serde_json::Value, String> {
     // Un error vuelve a la ventana, que lo anota en widget.log y muestra "No se pudo guardar"

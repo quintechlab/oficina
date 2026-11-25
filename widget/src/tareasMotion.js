@@ -1,11 +1,12 @@
 // Movimiento de Tareas (#39, docs/diseno/tareas-ux.md 10) con anime.js v4: abrir la hoja, cambiar de
 // vista, abrir una tarea, las chispas y el salto de la mascota al tildar, el pliegue de la fila tildada, la fila que se
 // agrega y "Hechas" que se despliega. El círculo, el visto, el tachado, el destello, el hover, el chip
-// que late y la confirmación son CSS (estilos.css, bajo #tar). Solo `transform` y `opacity`, salvo el
+// que late y la confirmación son CSS (estilos.css, bajo #tar). Entrega 3: la entrada y la salida del globo
+// del aviso diario (la marca, la fila de la dividida y la muesca). Solo `transform` y `opacity`, salvo el
 // alto de la fila que se pliega. Con movimiento reducido: sin desplazamientos, escalas ni chispas, un
 // fundido de 160 ms; con "Pausar animaciones", todo al instante (`modoMovimiento` de chat.js).
 
-import { animate, stagger } from './vendor/animejs/anime.esm.min.js'
+import { animate, stagger, cubicBezier } from './vendor/animejs/anime.esm.min.js'
 import { modoMovimiento } from './chat.js'
 
 const FUNDIDO_MS = 160
@@ -111,4 +112,32 @@ export function latirChip(chip) {
   chip.classList.remove('late')
   void chip.offsetWidth
   chip.classList.add('late')
+}
+
+// ------------------------------------------------------------------ el globo del aviso diario (10)
+
+/** `--rebote` de estilos.css. */
+const REBOTE = cubicBezier(0.34, 1.56, 0.64, 1)
+
+/** Desde dónde llega el globo: de la cola, hacia la mascota (la marca y la muesca de arriba, de arriba). */
+const DESDE = { arriba: { translateY: [-8, 0] }, abajo: { translateY: [8, 0] }, izquierda: { translateX: [-8, 0] }, derecha: { translateX: [8, 0] } }
+
+/**
+ * El globo aparece (10): de `translateY(-8px) scale(.82)` a su lugar con rebote desde la cola, 560 ms
+ * (`borde`: el de la muesca, que cambia de dónde llega). Con movimiento reducido, un fundido de 160 ms;
+ * en pausa, al instante.
+ */
+export function entraGlobo(el, borde = 'arriba') {
+  if (!el || quieto([el])) return
+  animate(el, { opacity: { from: 0, to: 1, duration: 310, ease: 'linear' }, scale: [0.82, 1], ...(DESDE[borde] ?? DESDE.arriba), duration: 560, ease: REBOTE })
+}
+
+/** El globo se cierra (10): baja a `scale .9` y se apaga, 200 ms; reducido, se funde; en pausa, nada. Se resuelve al terminar. */
+export function saleGlobo(el) {
+  return new Promise(resolver => {
+    const m = modo()
+    if (!el?.isConnected || m === 'nada') { resolver(); return }
+    const pasos = m === 'completo' ? { opacity: [1, 0], scale: [1, 0.9], duration: 200, ease: 'inQuad' } : { opacity: [1, 0], duration: FUNDIDO_MS, ease: 'linear' }
+    animate(el, { ...pasos, onComplete: () => resolver() })
+  })
 }

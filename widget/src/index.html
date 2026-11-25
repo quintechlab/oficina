@@ -95,6 +95,8 @@
           <!-- Tareas (docs/diseno/tareas-ux.md 3.2): hermana de #cfg, una hoja por vez en la columna -->
           <div id="tar"></div>
           <div id="otro"></div>
+          <!-- El aviso diario de tareas en la pantalla dividida (tareas-ux.md 8.4): la fila arriba de las sesiones -->
+          <div id="aviso-tar"></div>
           <!-- Pantalla dividida: pestañas (2 o más conversaciones), las dos mitades con su puente y la ficha "Último" -->
           <div id="pestanas"></div>
           <section class="split" id="split" aria-labelledby="h-split">
@@ -156,6 +158,9 @@
   <!-- Muesca acoplada (sección 7): el único control mientras está cerrada. El panel es #marco -->
   <!-- Muesca A "Asoma" (docs/diseno/muesca-avi-ux.md): main.js escribe su armazón una vez (contenidoMuesca) -->
   <button type="button" id="muesca" aria-expanded="false" aria-controls="marco" aria-label="Avis. Abrir"></button>
+  <!-- El aviso diario de tareas con la muesca plegada (tareas-ux.md 8.5): un botón hermano (#muesca ya es un botón);
+       main.js lo ubica del lado de adentro (lugarGloboMuesca) y suma su rectángulo a la zona interactiva -->
+  <button type="button" id="muesca-tareas" data-accion="tar-globo" hidden></button>
   <div id="luz" aria-hidden="true"></div>
   <!-- Píldora al arrastrar la muesca lejos de los bordes, y aviso del imán al arrastrar el tablero (7.3) -->
   <div id="pildora" aria-hidden="true"></div>

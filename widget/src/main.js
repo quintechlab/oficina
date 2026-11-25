@@ -34,6 +34,7 @@ import {
   esHorizontal, bordeCercano, lugarDe, lugarAjustado, disposicionAcoplada, zonaInteractiva, recorte, cajaArrastre,
   posicionFlotante, dentroDe, ventanaDeArea, mismoRect, relativo, estadoMuesca, contenidoMuesca, contenidoPildora, estiloMuesca, ESTADO_INICIAL, siguiente, tocaGolpe, PILDORA,
   planVentana, tamMuescaDe, figuraMuesca, disposicionFlotante, disposicionTira, plegadoHacia, anclaHacia, fueraDelBorde, centroDe,
+  lugarGloboMuesca, absoluto,
 } from './muesca.js'
 import * as movimientoMuesca from './muescaMotion.js'
 import {
@@ -73,11 +74,11 @@ import {
   mezclarLectura, anuncioAgregada, anuncioBorradaLista, tiempoTilde, focoTrasTildar, hoyArgentina,
   buscarTarea, editarTarea, agregarSubtarea, tildarSubtarea, editarSubtarea, borrarTarea, moverTarea, listaParaGuardar,
   nuevaMudanza, soltarMudanzas, olvidarMudanzas, fechaDeOpcion, abrirDetalle, cerrarDetalle, diferirGuardado, nombreVista,
-  MAX_SUBTAREAS,
+  MAX_SUBTAREAS, AVISO_INICIAL, evaluarAviso, verAviso, soltarAviso, lugarAviso, textoGlobo, horaGlobo, anuncioGlobo,
 } from './tareas.js'
 import {
   ladoFilaTareas, esqueletoTareas, CARPETA, avisoPreguntaTareas, miniTareas, indiceTareas, cabeceraPanel, campoNueva, cuerpoLista,
-  primerUso, errorGuardar, errorRota, errorCarpeta, atrasTarea, esqueletoDetalle, partesDetalle,
+  primerUso, errorGuardar, errorRota, errorCarpeta, atrasTarea, esqueletoDetalle, partesDetalle, globoMarca, globoMuesca, filaAviso,
 } from './tareasVista.js'
 import * as movimientoTareas from './tareasMotion.js'
 
@@ -163,6 +164,17 @@ const st = {
   tareas: tareasInicial(),
   /** Partes de la hoja de Tareas ya dibujadas (y la fila de la barra), para no redibujar lo que no cambió. */
   tarFirmas: {},
+  /**
+   * El aviso diario de tareas (tareas-ux.md 8 y 11.4): `avisoTar` (`evaluarAviso`, una vez por
+   * ejecución), `avisadoTar` (`tareas.avisado` de preferencias.json, leído al arrancar), dónde se ve
+   * ahora (`lugarAvisoTar`: marca, dividida, muesca o null), lo dibujado (`firmaAvisoTar`) y el
+   * rectángulo del globo de la muesca en px de pantalla, para la zona interactiva (`globoMuescaTar`).
+   */
+  avisoTar: AVISO_INICIAL,
+  avisadoTar: null,
+  lugarAvisoTar: null,
+  firmaAvisoTar: null,
+  globoMuescaTar: null,
   mini: false,
   /** La ventana está escondida en la bandeja o minimizada: los Avis se pausan (6.5). */
   fuera: false,
@@ -821,6 +833,8 @@ const muescaAvi = montarMarca($('#muesca-avi'), { escala: Number(window.__escala
  * Si cambia cuál quiere el puntero, la zona se vuelve a mandar (`mirada`, 9).
  */
 function verAvis() {
+  // El aviso diario de tareas va donde esté la mascota a la vista (tareas-ux.md 8.2)
+  pintarAvisoTareas()
   // En la pantalla dividida el riel lleva a Claude de 34 sin juegos: el motor de la marca no corre (5.1).
   // Con la hoja de la charla abierta, la mascota se mudó a su escenario: la marca queda quieta (chat-avis-ux.md 3.2)
   marca.visible(!st.fuera && !st.mini && (!st.acople || st.vista) && !st.dividida.clave && !st.chat.abierta && !hojaCerrando, !!st.acople)
@@ -2070,6 +2084,12 @@ document.addEventListener('compositionend', () => { st.componiendo = false })
 document.addEventListener('keydown', e => {
   // Las teclas de la hoja de la charla (chat-avis-ux.md 3.5): van antes que el Esc de la pregunta y el de la muesca
   if (teclaChat(e)) return
+  // Esc con el foco en el globo del aviso diario y la hoja de Tareas cerrada: es la × (tareas-ux.md 9.1)
+  if (e.key === 'Escape' && e.target.closest?.('[data-globo-tar]') && alEscTareas(st.tareas, { globo: true }).accion === 'globo-x') {
+    e.preventDefault()
+    descartarAvisoTareas()
+    return
+  }
   // Ctrl , con el panel a la vista abre la configuración (configuracion-ux.md 4.1); abierta, el foco va al título
   if (esAtajoConfiguracion(e)) {
     e.preventDefault()
@@ -2340,6 +2360,7 @@ function colocar(d) {
   colocarHoja(d, poner)
   st.disp = d
   st.ventana = { ...d.ventana }
+  if (st.lugarAvisoTar === 'muesca') ubicarGloboMuesca()
   // La primera vez: hasta acá el tablero no tenía lugar y no se veía; flotando, entra (6.1)
   if (!document.body.classList.contains('colocada')) {
     document.body.classList.add('colocada')
@@ -2417,7 +2438,9 @@ async function colocarEnArea(g) {
  */
 async function enviarZona(forzar = false) {
   if (!st.disp || !tauri?.core) return null
-  const zona = zonaInteractiva(st.disp, { abierta: st.vista, arrastrando: !!st.arrastre?.activo, hoja: hojaSeVe() ? st.disp.hoja : null }, zoom())
+  // El globo de tareas de la muesca suma su rectángulo: si no, su clic pasaría a la app de abajo (tareas-ux.md 8.5)
+  const globo = st.lugarAvisoTar === 'muesca' ? st.globoMuescaTar : null
+  const zona = zonaInteractiva(st.disp, { abierta: st.vista, arrastrando: !!st.arrastre?.activo, hoja: hojaSeVe() ? st.disp.hoja : null, globo }, zoom())
   // `mirada`: acoplada, el Avi a la vista (la marca abierta o el de la muesca cerrada) quiere el
   // puntero; entonces Rust manda su posición global (muesca-avi-ux.md 9). Flotando, la marca mira
   // con el puntero del DOM, como siempre
@@ -2729,6 +2752,9 @@ muescaEl.addEventListener('pointerenter', e => {
 })
 $('#marco').addEventListener('pointerenter', e => {
   if (e.pointerType === 'mouse' && st.muesca.abierta) ponerDentro(true)
+})
+$('#muesca-tareas').addEventListener('pointerenter', e => {
+  if (e.pointerType === 'mouse' && !st.muesca.abierta) ponerDentro(true)
 })
 $('#hoja').addEventListener('pointerenter', e => {
   if (e.pointerType === 'mouse' && st.muesca.abierta) ponerDentro(true)
@@ -4144,6 +4170,8 @@ async function abrirTareasHoja({ ver, foco = true } = {}) {
     if (foco) $('#titulo').focus()
     return
   }
+  // El aviso diario se va si la hoja se abre, por el globo o por cualquier otro camino (8.1)
+  st.avisoTar = soltarAviso(st.avisoTar)
   if (st.config.abierta) cerrarConfig({ foco: false })
   if (st.dividida.clave) await cerrarConversacion({ descartar: true })
   if (st.mini) await ponerMini(false)
@@ -4206,6 +4234,116 @@ function escTareas(objetivo) {
   }
 }
 
+// ---- el aviso diario (8 y 11.4)
+
+/**
+ * Después del primer `tareas_leer` que sale bien: se decide una sola vez si la mascota avisa hoy
+ * (`evaluarAviso`). Si la hoja ya está abierta, el aviso no hace falta (8.1).
+ */
+function evaluarAvisoTareas() {
+  if (st.avisoTar.evaluado) return
+  const hoy = hoyTareas()
+  st.avisoTar = evaluarAviso(st.avisoTar, { avisado: st.avisadoTar, hoy, cuentas: cuentas(st.tareas.listas, hoy) })
+  if (st.tareas.abierta) st.avisoTar = soltarAviso(st.avisoTar)
+}
+
+/**
+ * Dibuja el aviso donde esté la mascota a la vista (8.2): el globo de la marca, la fila de la dividida
+ * o el globo de la muesca; en la tira, la bandeja, con la charla abierta o con una pregunta en la muesca,
+ * espera. La primera vez que se ve guarda `tareas.avisado` (8.1) y lo anuncia (5.4). Nada de esto abre
+ * nada: solo dibuja. Lo llama `verAvis` (cada pintada y cada cambio de forma).
+ */
+function pintarAvisoTareas() {
+  const hoy = hoyTareas()
+  const c = cuentas(st.tareas.listas, hoy)
+  const lugar = lugarAviso(st.avisoTar, {
+    cuentas: c, hoja: st.tareas.abierta, fuera: st.fuera, mini: st.mini, chat: st.chat.abierta || hojaCerrando,
+    arrastrando: !!st.arrastre?.activo || document.body.classList.contains('pildora'), acoplada: !!st.acople, abierta: st.vista,
+    dividida: !!st.dividida.clave, barra: st.proyectos.length > 0 || st.config.abierta,
+    pregunta: st.proyectos.some(p => preguntasPendientes(p).length > 0),
+  })
+  const t = lugar ? textoGlobo(c, horaGlobo(Date.now())) : null
+  const firma = lugar ? `${lugar}|${JSON.stringify(t)}` : null
+  const antes = st.lugarAvisoTar
+  if (firma !== st.firmaAvisoTar) {
+    st.firmaAvisoTar = firma
+    st.lugarAvisoTar = lugar
+    const marcaG = $('.marca .globo-tar')
+    const muescaG = $('#muesca-tareas')
+    // Lo que deja de verse se va sin acto (la × hace el suyo antes, `descartarAvisoTareas`)
+    if (lugar !== 'marca') marcaG?.remove()
+    if (lugar !== 'dividida' && $('#aviso-tar').firstChild) $('#aviso-tar').innerHTML = ''
+    if (lugar !== 'muesca') { muescaG.hidden = true; muescaG.innerHTML = ''; st.globoMuescaTar = null }
+    if (lugar === 'marca') {
+      const nuevo = !marcaG
+      if (nuevo) $('.marca').insertAdjacentHTML('beforeend', globoMarca(t))
+      else marcaG.outerHTML = globoMarca(t)
+      if (nuevo) movimientoTareas.entraGlobo($('.marca .globo-tar'))
+    } else if (lugar === 'dividida') {
+      const nuevo = !$('#aviso-tar').firstChild
+      $('#aviso-tar').innerHTML = filaAviso(t)
+      if (nuevo) movimientoTareas.entraGlobo($('#aviso-tar .aviso-tar'))
+    } else if (lugar === 'muesca') {
+      const g = globoMuesca(t)
+      const nuevo = muescaG.hidden
+      muescaG.innerHTML = g.html
+      muescaG.setAttribute('aria-label', g.nombre)
+      muescaG.hidden = false
+      ubicarGloboMuesca()
+      if (nuevo) movimientoTareas.entraGlobo(muescaG, st.acople?.borde)
+    }
+    if (lugar) {
+      // La primera vez que se ve: `tareas.avisado` = hoy (un reinicio el mismo día no lo repite) y el anuncio
+      const { aviso, guardar } = verAviso(st.avisoTar)
+      st.avisoTar = aviso
+      if (guardar) {
+        st.avisadoTar = guardar
+        anunciar(anuncioGlobo(datosEspecie(st.mascota).nombre, t))
+        invocar('guardar_ajuste', { clave: 'tareasAvisado', valor: guardar }).catch(e => registrar(`tareas: no se guardó el aviso: ${e}`))
+      }
+    }
+    if ((antes === 'marca') !== (lugar === 'marca')) pintarMarca()
+  } else if (lugar === 'muesca') {
+    ubicarGloboMuesca()
+  }
+}
+
+/**
+ * Ubica `#muesca-tareas` del lado de adentro de la muesca (`lugarGloboMuesca`) y guarda su rectángulo
+ * en px de pantalla para la zona interactiva (8.5): el tamaño se mide (depende del texto).
+ */
+function ubicarGloboMuesca() {
+  const el = $('#muesca-tareas')
+  const d = st.disp
+  if (el.hidden || !st.acople || d?.modo !== 'acoplada') { st.globoMuescaTar = null; return }
+  const z = zoom()
+  const local = lugarGloboMuesca(st.acople.borde, d.local.muesca, { ancho: el.offsetWidth, alto: el.offsetHeight }, { ancho: d.ventana.ancho / z, alto: d.ventana.alto / z })
+  el.style.left = `${local.x}px`
+  el.style.top = `${local.y}px`
+  el.style.setProperty('--cola', `${local.cola}px`)
+  st.globoMuescaTar = absoluto(local, d.ventana, z)
+}
+
+/**
+ * La × del globo o de la fila, o Esc en el globo (8 y 9.1): el aviso se va hasta mañana
+ * (`tareas.avisado` ya quedó guardado al verse), con su acto de salida, el anuncio de 5.3 y el foco en
+ * la fila "Tareas" de la barra (9.4); en la dividida, sin barra, en el primer botón del riel.
+ */
+async function descartarAvisoTareas() {
+  if (!st.avisoTar.pendiente) return
+  const el = $('.marca .globo-tar') ?? $('#aviso-tar .aviso-tar')
+  const tenia = el?.contains(document.activeElement)
+  st.avisoTar = soltarAviso(st.avisoTar)
+  if (el) await movimientoTareas.saleGlobo(el)
+  verAvis()
+  anunciar('Te lo recuerdo mañana')
+  if (tenia || !document.activeElement || document.activeElement === document.body) {
+    const fila = $('#tar-fila')
+    if (fila.offsetParent) fila.focus()
+    else $('#riel button')?.focus()
+  }
+}
+
 // ---- leer y guardar (11.3)
 
 let leyendoTareas = null
@@ -4229,6 +4367,7 @@ function leerTareas() {
       const listas = Array.isArray(r?.listas) ? r.listas : []
       const rotas = Array.isArray(r?.rotas) ? r.rotas.filter(x => typeof x?.archivo === 'string') : []
       st.tareas = { ...st.tareas, listas: mezclarLectura(listas, st.tareas.listas, listasSinGuardar()), rotas, leido: true, errorLeer: null }
+      evaluarAvisoTareas()
     } catch (err) {
       registrar(`tareas: no se pudieron leer: ${err}`)
       st.tareas = { ...st.tareas, errorLeer: String(err?.message ?? err).slice(0, 120) || 'sin detalle' }
@@ -4707,6 +4846,10 @@ async function accionTareas(a, b) {
   }
   switch (a) {
     case 'tar-abrir': await abrirTareasHoja(); break
+    // El globo del aviso diario (8): solo el clic abre la hoja en Hoy; la × lo deja para mañana.
+    // En la marca el globo es parte de lo que se arrastra: después de un arrastre real, el clic no cuenta
+    case 'tar-globo': if (!justoArrastro) await abrirTareasHoja({ ver: 'hoy' }); break
+    case 'tar-globo-x': if (!justoArrastro) descartarAvisoTareas(); break
     case 'tar-cerrar': cerrarTareasHoja(); break
     case 'tar-ver': verTareas(b.dataset.valor); break
     case 'tar-crear': empezarListaTareas(); break
@@ -5560,8 +5703,10 @@ document.addEventListener('contextmenu', e => {
 
 /** Pinta la marca: su ánimo real y la descripción del Avi-botón. Con la hoja abierta, su motor está quieto (3.2). */
 function pintarMarca(ahora = Date.now()) {
-  const animo = animoMarca(st.proyectos, ahora)
-  marca.animo(animo, reposoPermitido(st.proyectos, ahora))
+  // Con el globo del aviso diario a la vista, el Avi de la marca saluda (tareas-ux.md 8.2) y no juega
+  const saluda = st.lugarAvisoTar === 'marca'
+  const animo = saluda ? 'saluda' : animoMarca(st.proyectos, ahora)
+  marca.animo(animo, !saluda && reposoPermitido(st.proyectos, ahora))
   texto('#marca-animo', animoTexto(animo))
 }
 
@@ -5594,6 +5739,8 @@ async function iniciar() {
       ponerPausa(valorInterruptor(m.pausa, INTERRUPTORES.pausa))
       st.arranque = m.arranque === true
       st.version = typeof m.version === 'string' ? m.version : null
+      // El día del último aviso diario de tareas (tareas-ux.md 11.4)
+      st.avisadoTar = typeof m.tareasAvisado === 'string' ? m.tareasAvisado : null
       // Dónde quedó el tablero flotante la última vez (fracciones del área, 9.7)
       if (m.flotante && typeof m.flotante === 'object') st.fraccion = { x: Number(m.flotante.x), y: Number(m.flotante.y) }
       // El motor, la carpeta y el modelo (#35) de la próxima charla, y las recientes (chat-avis-ux.md 3.4, D11)

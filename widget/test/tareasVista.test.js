@@ -6,7 +6,9 @@ import assert from 'node:assert/strict'
 import {
   ladoFilaTareas, indiceTareas, cabeceraPanel, campoNueva, cuerpoLista, primerUso, errorGuardar, errorRota,
   errorCarpeta, avisoPreguntaTareas, esqueletoTareas, CARPETA, miniTareas, atrasTarea, esqueletoDetalle, partesDetalle,
+  globoMarca, globoMuesca, filaAviso,
 } from '../src/tareasVista.js'
+import { textoGlobo } from '../src/tareas.js'
 
 const HOY = '2026-11-24'
 const t = (id, extra = {}) => ({ id, titulo: id, hecha: false, hechaEn: null, fecha: null, importante: false, notas: '', subtareas: [], creada: 1, ...extra })
@@ -231,4 +233,31 @@ test('el panel por partes sigue igual con la tarea abierta: el esqueleto de la c
   // Los campos que se escriben llevan data-campo (no se pisan); la fecha y la lista no (se redibujan con su valor)
   for (const campo of ['titulo', 'notas', 'subtarea', 'sub-ed']) assert.match(Object.values(p).join(''), new RegExp(`data-campo="${campo}"`))
   assert.doesNotMatch(p.datos, /data-campo/)
+})
+
+// ------------------------------------------------------------------ el aviso diario (8.3, 8.4, 8.5 y 5.4)
+
+test('globoMarca (8.3): dos botones hermanos, el texto de 5.4 con los números en negrita y las vencidas en rojo, «Ver tareas →» y la ×', () => {
+  const html = globoMarca(textoGlobo({ hoy: 2, vencidas: 1 }, '09:00'))
+  assert.match(html, /^<div class="globo-tar" data-globo-tar>/)
+  assert.match(html, /<button type="button" class="globo-b" data-accion="tar-globo"><span class="globo-t">¡Buen día! Tenés <b>2 tareas para hoy<\/b> y <b class="r">1 vencida<\/b>\.<\/span><span class="globo-c">Ver tareas →<\/span><\/button>/)
+  assert.match(html, /<button type="button" class="globo-x" data-accion="tar-globo-x" aria-label="Más tarde: avisame mañana" title="Más tarde">/)
+  // Sin vencidas, sin rojo
+  assert.doesNotMatch(globoMarca(textoGlobo({ hoy: 1, vencidas: 0 }, '14:00')), /class="r"/)
+  assert.match(globoMarca(textoGlobo({ hoy: 1, vencidas: 0 }, '14:00')), /¡Buenas tardes! Tenés <b>1 tarea para hoy<\/b>\./)
+})
+
+test('globoMuesca (8.5): el contenido del botón #muesca-tareas, «Ver →» y el nombre con el texto entero', () => {
+  const t = textoGlobo({ hoy: 2, vencidas: 2 }, '21:00')
+  const g = globoMuesca(t)
+  assert.equal(g.html, '<span class="mt-t">2 para hoy · <b class="r">2 vencidas</b></span><span class="mt-c">Ver <span aria-hidden="true">→</span></span>')
+  assert.equal(g.nombre, '¡Buenas noches! Tenés 2 tareas para hoy y 2 vencidas. Ver tareas')
+})
+
+test('filaAviso (8.4): la píldora de la dividida con «Ver →» y la ×', () => {
+  const html = filaAviso(textoGlobo({ hoy: 0, vencidas: 3 }, '13:00'))
+  assert.match(html, /^<div class="aviso aviso-tar" data-globo-tar>/)
+  assert.match(html, /<span class="at-t">¡Buenas tardes! <b class="r">3 vencidas<\/b>\.<\/span>/)
+  assert.match(html, /<button type="button" class="lnk" data-accion="tar-globo">Ver →<\/button>/)
+  assert.match(html, /<button type="button" class="tb" data-accion="tar-globo-x" aria-label="Más tarde: avisame mañana" title="Más tarde">/)
 })
