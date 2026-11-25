@@ -32,3 +32,19 @@ export function diasEntre(fecha, hoy) {
 export function sumarDias(dia, n) {
   return desdeNumero(aNumero(dia) + n)
 }
+
+/** Lunes = 0 … domingo = 6 (habitos-ux.md 11.2): el 1/1/1970 (día 0) fue jueves. */
+export function diaSemana(dia) {
+  return (((aNumero(dia) + 3) % 7) + 7) % 7
+}
+
+/** El lunes de la semana de `dia` (la semana va de lunes a domingo, D-h3). */
+export function lunesDe(dia) {
+  return sumarDias(dia, -diaSemana(dia))
+}
+
+/** "HH:MM" en Argentina de un instante en ms (antes `horaGlobo` de tareas.js, que la reexporta). */
+export function horaArgentina(ms) {
+  const d = new Date(ms - DESFASE_AR)
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+}

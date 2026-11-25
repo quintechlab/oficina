@@ -80,6 +80,20 @@
 //                    reposo (sin la pregunta de catalogo, que lo taparía). Con ?muesca=pregunta, la pregunta lo tapa
 //   &globo=dividida  la fila de aviso arriba de las mitades; sin ?dividida, ?dividida=pregunta
 //   &tapa            la pregunta de catalogo llega a los 4 s y se va a los 10 s: tapa el globo de la muesca y vuelve
+// Hábitos (#41, docs/diseno/habitos-ux.md, entrega H1): la fila «Hábitos» del menú, Ctrl H o ?habitos=… abren la hoja.
+//   Sin ?habitos, los cinco hábitos del boceto (Agua, Caminar, Gimnasio, Correr y Leer 20 minutos, con el registro
+//   contado desde hoy en Argentina; Gimnasio va los días que hoy no toca, así se ve «Hoy no toca») y la hoja cerrada:
+//   la fila muestra el anillo de hoy. Con ?habitos, la hoja se abre sola a los 0,9 s por el clic en su fila y va a:
+//   ?habitos=hoy           Hoy: las filas de hoy, «Hoy no toca» abajo y el avance
+//   ?habitos=semana        Semana: la grilla de lunes a domingo con la franja de hoy, la leyenda y la pista
+//   ?habitos=nuevo         el formulario de un hábito nuevo (4.11)
+//   ?habitos=vacio         sin hábitos: el primer uso («Armá tu primer hábito» y las cuatro sugeridas)
+//   ?habitos=roto          un archivo que no se pudo leer (7.6): su fila en el índice y su error con «Abrir la carpeta»
+//   ?habitos=guardarfalla  habitos_guardar falla siempre: la primera marca muestra «No se guardó el último cambio.» (7.4)
+//   ?habitos=carpeta       habitos_leer falla: «No se pudo abrir la carpeta de hábitos.» con «Volver a leer» (5.2)
+//   ?habitos=agua|caminar|gimnasio|correr|leer  ese hábito abierto (4.10), desde Hoy
+//   &habitoslento          habitos_leer tarda 1,2 s (las filas fantasma de 7.1)
+//   Lo guardado queda en window.__habitos (un Map por id); cada guardado se anota en window.__guardadosHabitos.
 //   Las cuentas son las de las listas falsas (2 para hoy y 2 vencidas, con ?tareas=… las de cada caso)
 //   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
 //                 docs/diseno/mascotas-avi-ux.md 9.1), con su forma evolucionada, sus bucles y sus actos;
@@ -634,6 +648,75 @@
     },
     tareas_abrir_carpeta: () => console.info('[explorador] <config>\tareas'),
   }
+  // ---- Hábitos (#41, docs/diseno/habitos-ux.md 11.1): los del boceto, en memoria, con el registro contado
+  // desde hoy en Argentina (`diaAr`), como habitos.rs los guarda
+  const modoHabitos = url.get('habitos')
+  /** El día de la semana de Argentina de hace `n` días (lunes = 0). */
+  const semanaAr = n => (new Date(`${diaAr(n)}T12:00:00Z`).getUTCDay() + 6) % 7
+  const hoySem = semanaAr(0)
+  const habF = (id, nombre, extra) => ({
+    v: 1, id, nombre, tipo: 'diario', meta: 8, unidad: 'vasos', dias: [0, 2, 4], veces: 3, aviso: null, color: 'celeste', orden: 0,
+    creado: ahora - 60 * 86400000, inicio: diaAr(-60), mejor: 0, registro: {}, ...extra,
+  })
+  /** Un registro con `f(n)` en cada día de hace `n` (de `desde` a `hasta`, los dos hace n días); 0 no se guarda. */
+  const regF = (desde, hasta, f) => {
+    const r = {}
+    for (let n = desde; n >= hasta; n--) { const v = f(n); if (v > 0) r[diaAr(-n)] = v }
+    return r
+  }
+  // Gimnasio va tres días que hoy no toca (con el boceto, jueves: lun, mié y vie)
+  const diasGym = [1, 3, 5].map(d => (hoySem + d) % 7).sort((a, b) => a - b)
+  const AGUA_SEM = [8, 6, 8, 3, 8, 8, 5, 8, 8, 7, 8, 8, 9]
+  const HABITOS_FALSOS = [
+    habF('h-agua', 'Agua', { tipo: 'cantidad', meta: 8, unidad: 'vasos', color: 'celeste', aviso: '16:00', orden: 0, mejor: 9,
+      registro: { ...regF(13, 1, n => AGUA_SEM[n - 1]), [diaAr(0)]: 3 } }),
+    habF('h-caminar', 'Caminar', { color: 'verde', aviso: '19:00', orden: 1, mejor: 21, registro: regF(30, 1, n => (n === 7 ? 0 : 1)) }),
+    habF('h-gimnasio', 'Gimnasio', { tipo: 'dias', dias: diasGym, color: 'rosa', aviso: '07:30', orden: 2, mejor: 9,
+      registro: regF(26, 1, n => (diasGym.includes(semanaAr(-n)) ? 1 : 0)) }),
+    habF('h-correr', 'Correr', { tipo: 'semana', veces: 3, color: 'violeta', orden: 3, mejor: 6,
+      // Las cuatro semanas pasadas, tres salidas cada una (lunes, miércoles y viernes); esta, una (ayer, si es de esta semana)
+      registro: regF(hoySem + 28, 1, n => { const d = semanaAr(-n); return n > hoySem ? ([0, 2, 4].includes(d) ? 1 : 0) : (n === 1 ? 1 : 0) }) }),
+    habF('h-leer', 'Leer 20 minutos', { color: 'ambar', aviso: '23:00', orden: 4, mejor: 14, creado: ahora - 16 * 86400000, inicio: diaAr(-16),
+      registro: regF(16, 1, n => (n === 2 || n === 4 ? 0 : 1)) }),
+  ]
+  const habitosFalsos = new Map((modoHabitos === 'vacio' ? [] : HABITOS_FALSOS).map(h => [h.id, h]))
+  const rotasHabitos = modoHabitos === 'roto' ? [{ archivo: 'h-mf3k2a9x1b.json', motivo: 'no es JSON: EOF while parsing a value at line 9 column 0' }] : []
+  window.__habitos = habitosFalsos
+  window.__guardadosHabitos = []
+  const idHabito = id => /^h-[a-z0-9-]{1,38}$/.test(id ?? '')
+  const comandosHabitos = {
+    // Como habitos.rs: los hábitos por orden y los archivos rotos (&habitoslento tarda 1,2 s: las filas fantasma)
+    habitos_leer: () => new Promise((r, no) => setTimeout(() => {
+      if (modoHabitos === 'carpeta') { no('No se pudo abrir la carpeta de hábitos.'); return }
+      r({ habitos: [...habitosFalsos.values()].sort((a, b) => a.orden - b.orden || a.creado - b.creado).map(h => structuredClone(h)), rotas: rotasHabitos })
+    }, url.has('habitoslento') ? 1200 : 120)),
+    // ?habitos=guardarfalla: Rust no pudo escribir (7.4); lo de la pantalla queda y reintenta a los 5 s
+    habitos_guardar: ({ habito }) => {
+      if (!idHabito(habito?.id)) return { ok: false, error: 'id de hábito inválido' }
+      if (modoHabitos === 'guardarfalla') return { ok: false, error: 'acceso denegado (falso)' }
+      window.__guardadosHabitos.push([habito.id, Object.keys(habito.registro ?? {}).length])
+      habitosFalsos.set(habito.id, structuredClone(habito))
+      console.info('[hábitos] guardado', habito.id, habito.registro)
+      return { ok: true, habito }
+    },
+    habitos_borrar: ({ id }) => {
+      if (!idHabito(id)) return { ok: false, error: 'id de hábito inválido' }
+      habitosFalsos.delete(id)
+      console.info('[hábitos] borrado', id)
+      return { ok: true }
+    },
+    habitos_abrir_carpeta: () => console.info('[explorador] <config>\\habitos'),
+  }
+  // ?habitos=…: abre la hoja como el usuario (el clic en la fila «Hábitos») y va a la vista de cada caso
+  if (modoHabitos !== null) {
+    setTimeout(() => {
+      document.querySelector('#hab-fila')?.click()
+      const ver = { semana: 'ix-semana', nuevo: 'nuevo-b', roto: 'ix-rota:h-mf3k2a9x1b.json' }[modoHabitos]
+        ?? (habitosFalsos.has(`h-${modoHabitos}`) ? `nom-h-${modoHabitos}` : null)
+      if (ver) setTimeout(() => document.querySelector(`#hab [data-k="${CSS.escape(ver)}"]`)?.click(), 400)
+    }, 900)
+  }
+
   // ?modulo=…: abre el módulo como el usuario, con el clic en su fila del menú (modulos-ux.md 4.1)
   const modulo = url.get('modulo')
   if (modulo && modulo !== 'sesiones') setTimeout(() => document.querySelector(`.mod[data-mod="${CSS.escape(modulo)}"]`)?.click(), 900)
@@ -1066,6 +1149,7 @@
   const comandos = {
     ...comandosChat,
     ...comandosTareas,
+    ...comandosHabitos,
     registrar: ({ linea }) => console.debug('[widget.log]', linea),
     revisar_primeros_pasos: () => new Promise(r => setTimeout(() => r(revisionFalsa()), url.has('pplento') ? 2000 : 600)),
     // Como Rust (estado_mod): la lectura del mod y la última revisión guardada, solo lectura

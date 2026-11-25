@@ -7,7 +7,7 @@
 // Sin DOM: lo dibuja tareasVista.js, lo mueve tareasMotion.js y lo conecta main.js (que guarda con
 // `tareas_guardar`). Confirmar en el mismo botón es `clicBorrar` de configuracion.js, sobre `armado`.
 
-import { hoyArgentina, diasEntre, sumarDias, fechaValida, DESFASE_AR } from './fechas.js'
+import { hoyArgentina, diasEntre, sumarDias, fechaValida, horaArgentina } from './fechas.js'
 
 export { hoyArgentina, diasEntre }
 
@@ -176,11 +176,8 @@ export function lugarAviso(a, f) {
   return f.barra ? 'marca' : null
 }
 
-/** "HH:MM" en Argentina de un instante en ms (la hora del saludo, D-n1). */
-export function horaGlobo(ms) {
-  const d = new Date(ms - DESFASE_AR)
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
-}
+/** "HH:MM" en Argentina de un instante en ms (la hora del saludo, D-n1): vive en fechas.js (habitos-ux.md 11.2). */
+export { horaArgentina as horaGlobo }
 
 /** El saludo según la hora de Argentina (5.4, D-n1): antes de las 13, día; hasta las 19:59, tarde; después, noche. */
 function saludo(horaAr) {
@@ -243,8 +240,8 @@ export function subtituloTareas(c, hoy, hayListas) {
 
 // ------------------------------------------------------------------ nombres y títulos (D-n4, 11.1)
 
-/** Para comparar nombres: sin espacios en los bordes, sin mayúsculas ni tildes. */
-const clave = s => String(s ?? '').trim().normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+/** Para comparar nombres: sin espacios en los bordes, sin mayúsculas ni tildes (también los de hábitos). */
+export const claveNombre = s => String(s ?? '').trim().normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 
 /**
  * Un nombre de lista (7): `{ ok: true, nombre }` sin los espacios de los bordes, o `{ ok: false,
@@ -255,7 +252,7 @@ export function validarNombreLista(nombre, listas, propioId = null) {
   const n = String(nombre ?? '').trim()
   if (!n) return { ok: false, motivo: 'vacio' }
   if ([...n].length > MAX_NOMBRE_LISTA) return { ok: false, motivo: 'largo' }
-  const otra = listas.find(l => l.id !== propioId && clave(l.nombre) === clave(n))
+  const otra = listas.find(l => l.id !== propioId && claveNombre(l.nombre) === claveNombre(n))
   if (otra) return { ok: false, motivo: 'duplicada', existente: otra.nombre }
   return { ok: true, nombre: n }
 }
