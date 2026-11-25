@@ -6,6 +6,8 @@
 //!   del formato no se escribe, y de los adjuntos quedan el nombre y el tamaño (D23), nunca la ruta.
 //! - Escritura atómica (un `.tmp` propio y `rename`), de a una por vez en el proceso.
 //! - Un archivo roto se salta al listar y se anota en `widget.log`; nunca se borra solo.
+//! - Los cambios de la charla en las tareas (#43, chat-herramientas-ux.md 11.8) van con el mensaje de
+//!   la mascota (`cambios`, opcional): uno que no sirve se descarta sin rechazar la charla.
 
 use serde_json::{json, Map, Value};
 use std::fs;
@@ -26,6 +28,12 @@ const TOPE_CORTO: usize = 300;
 /// Hasta 5 archivos por mensaje (D27).
 const TOPE_ADJUNTOS: usize = 5;
 const TOPE_HERRAMIENTAS: usize = 500;
+/// Cambios por mensaje (11.8, D-c16): 20 que escriben, y aparte hasta 10 lecturas o "para borrar".
+const TOPE_CAMBIOS: usize = 20;
+const TOPE_LECTURAS: usize = 10;
+/// Las herramientas que dejan cambios (#43, 11.4) y sus estados (11.8).
+const HERRAMIENTAS_AVIS: [&str; 5] = ["tareas_ver", "tarea_crear", "tarea_editar", "tarea_tildar", "tarea_mostrar"];
+const ESTADOS_CAMBIO: [&str; 6] = ["hecho", "deshecho", "cambio-despues", "error", "lectura", "mostrar"];
 
 /// Una escritura por vez en todo el proceso: dos guardados a la vez no se pisan el `rename`.
 static ESCRITURA: Mutex<()> = Mutex::new(());
@@ -100,6 +108,12 @@ fn mensaje(m: &Value) -> Result<Value, String> {
                 .collect::<Result<Vec<_>, String>>()?;
             x.insert(String::from("herramientas"), Value::Array(herramientas));
             x.insert(String::from("ms"), numero_o_nulo(&m["ms"], "ms")?);
+            // Los cambios de la charla en las tareas (#43): solo si hay alguno, así una charla de antes
+            // se guarda igual
+            let cambios = cambios_de(&m["cambios"]);
+            if !cambios.is_empty() {
+                x.insert(String::from("cambios"), Value::Array(cambios));
+            }
             // El turno llevó el contexto de Avis ("↳ Miró tus sesiones de Avis", 4.1)
             if m["avis"] == json!(true) {
                 x.insert(String::from("avis"), json!(true));
@@ -108,6 +122,160 @@ fn mensaje(m: &Value) -> Result<Value, String> {
         _ => return Err(format!("rol desconocido: {rol:?}")),
     }
     Ok(Value::Object(x))
+}
+
+/// Un texto de hasta `tope` caracteres, o `null`.
+fn corto_o_nulo(v: &Value, tope: usize) -> Option<Value> {
+    match v {
+        Value::Null => Some(Value::Null),
+        Value::String(s) if s.chars().count() <= tope => Some(v.clone()),
+        _ => None,
+    }
+}
+
+/// Un id con su prefijo (`l-`, `t-`, `c-`), o `null`.
+fn id_o_nulo(v: &Value, prefijo: &str) -> Option<Value> {
+    match v {
+        Value::Null => Some(Value::Null),
+        Value::String(s) if s.len() <= 40 && s.len() > prefijo.len() && s.starts_with(prefijo) && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') => Some(v.clone()),
+        _ => None,
+    }
+}
+
+fn fecha_o_nulo(v: &Value) -> Option<Value> {
+    match v {
+        Value::Null => Some(Value::Null),
+        Value::String(s) if s.len() == 10 && chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok() => Some(v.clone()),
+        _ => None,
+    }
+}
+
+/// `antes` y `despues` (11.8): solo los campos que tocan las herramientas, cada uno con su forma.
+fn campos_de_tarea(v: &Value) -> Option<Value> {
+    if v.is_null() {
+        return Some(Value::Null);
+    }
+    let o = v.as_object()?;
+    let mut x = Map::new();
+    for (k, valor) in o {
+        let bueno = match k.as_str() {
+            "titulo" => corto_o_nulo(valor, 200).filter(|v| v.is_string()),
+            "fecha" => fecha_o_nulo(valor),
+            "hecha" | "importante" => valor.is_boolean().then(|| valor.clone()),
+            "hechaEn" => (valor.is_null() || valor.is_u64()).then(|| valor.clone()),
+            "notas" => corto_o_nulo(valor, 4000).filter(|v| v.is_string()),
+            "lista" => id_o_nulo(valor, "l-").filter(|v| v.is_string()),
+            _ => continue,
+        };
+        x.insert(k.clone(), bueno?);
+    }
+    Some(Value::Object(x))
+}
+
+/// `args` de un error (para «Reintentar», 11.9): solo las claves de las herramientas.
+fn args_de(v: &Value) -> Option<Value> {
+    if v.is_null() {
+        return Some(Value::Null);
+    }
+    let o = v.as_object()?;
+    let mut x = Map::new();
+    for (k, valor) in o {
+        let bueno = match k.as_str() {
+            "titulo" => corto_o_nulo(valor, 200),
+            "lista" => corto_o_nulo(valor, 100),
+            "fecha" => corto_o_nulo(valor, 40),
+            "notas" => corto_o_nulo(valor, 4000),
+            "id" => corto_o_nulo(valor, 40),
+            "importante" | "hecha" => valor.is_boolean().then(|| valor.clone()),
+            _ => continue,
+        };
+        x.insert(k.clone(), bueno?);
+    }
+    Some(Value::Object(x))
+}
+
+/// El resumen de una lectura o de "para borrar" (4.5, 4.6): la vista, las cuentas y hasta 6 filas.
+fn resumen_de(v: &Value) -> Option<Value> {
+    if v.is_null() {
+        return Some(Value::Null);
+    }
+    let o = v.as_object()?;
+    let mut x = Map::new();
+    for (k, valor) in o {
+        let bueno = match k.as_str() {
+            "vista" => valor.as_str().filter(|s| ["hoy", "vencidas", "lista", "todas"].contains(s)).map(|_| valor.clone()),
+            "para" => valor.as_str().filter(|s| *s == "borrar" || *s == "ver").map(|_| valor.clone()),
+            "nombre" => corto_o_nulo(valor, 40),
+            "hoy" => fecha_o_nulo(valor),
+            "hechas" | "total" | "mas" => valor.is_u64().then(|| valor.clone()),
+            "filas" => {
+                let filas = valor.as_array()?;
+                if filas.len() > 6 {
+                    return None;
+                }
+                let filas = filas
+                    .iter()
+                    .map(|f| {
+                        Some(json!({
+                            "tarea": id_o_nulo(&f["tarea"], "t-").filter(Value::is_string)?,
+                            "lista": id_o_nulo(&f["lista"], "l-").filter(Value::is_string)?,
+                            "titulo": corto_o_nulo(&f["titulo"], 200).filter(Value::is_string)?,
+                            "fecha": fecha_o_nulo(&f["fecha"])?,
+                            "hecha": f["hecha"].as_bool()?,
+                            "importante": f["importante"].as_bool()?,
+                        }))
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                Some(Value::Array(filas))
+            }
+            _ => continue,
+        };
+        x.insert(k.clone(), bueno?);
+    }
+    Some(Value::Object(x))
+}
+
+/// Un cambio de la charla (11.8) con su forma, o `None` si no sirve.
+fn cambio(c: &Value) -> Option<Value> {
+    let herramienta = c["herramienta"].as_str().filter(|h| HERRAMIENTAS_AVIS.contains(h))?;
+    let estado = c["estado"].as_str().filter(|e| ESTADOS_CAMBIO.contains(e))?;
+    let mut x = json!({
+        "id": id_o_nulo(&c["id"], "c-").filter(Value::is_string)?,
+        "herramienta": herramienta,
+        "estado": estado,
+        "lista": id_o_nulo(&c["lista"], "l-")?,
+        "tarea": id_o_nulo(&c["tarea"], "t-")?,
+        "titulo": corto_o_nulo(&c["titulo"], 200)?,
+        "antes": campos_de_tarea(&c["antes"])?,
+        "despues": campos_de_tarea(&c["despues"])?,
+        "motivo": corto_o_nulo(&c["motivo"], TOPE_CORTO)?,
+        "reintentable": c["reintentable"] == json!(true),
+        "args": args_de(&c["args"])?,
+    });
+    if c.get("resumen").is_some() {
+        x["resumen"] = resumen_de(&c["resumen"])?;
+    }
+    Some(x)
+}
+
+/// Los cambios de un mensaje de la mascota: los que sirven, en orden y con tope.
+fn cambios_de(v: &Value) -> Vec<Value> {
+    let Some(lista) = v.as_array() else { return Vec::new() };
+    let (mut escriben, mut leen) = (0, 0);
+    let mut r = Vec::new();
+    for c in lista {
+        let Some(c) = cambio(c) else {
+            registrar("chat: historial: se descarta un cambio que no sirve");
+            continue;
+        };
+        let lee = c["estado"] == "lectura" || c["estado"] == "mostrar";
+        let (cuenta, tope) = if lee { (&mut leen, TOPE_LECTURAS) } else { (&mut escriben, TOPE_CAMBIOS) };
+        if *cuenta < tope {
+            *cuenta += 1;
+            r.push(c);
+        }
+    }
+    r
 }
 
 /// El formato v1 de 9.1, solo con sus campos (más `modelo`, opcional, de #35). `engramId` no lo

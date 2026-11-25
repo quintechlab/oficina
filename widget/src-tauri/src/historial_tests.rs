@@ -356,3 +356,80 @@ fn guardar_dos_veces_a_la_vez_no_rompe_el_archivo() {
     assert_eq!(nombres, ["c-1.json"]);
     let _ = fs::remove_dir_all(&c);
 }
+
+// ---------------------------------------------------------------- #43: los cambios de la charla (11.8)
+
+fn cambio_crear() -> Value {
+    json!({
+        "id": "c-7k2m9q", "herramienta": "tarea_crear", "estado": "hecho", "lista": "l-k3f9a2", "tarea": "t-9x2b7q",
+        "titulo": "Comprar pan", "antes": null,
+        "despues": { "titulo": "Comprar pan", "fecha": "2026-11-26", "hecha": false, "importante": false, "lista": "l-k3f9a2" },
+        "motivo": null, "reintentable": false, "args": null,
+    })
+}
+
+fn con_cambios(cambios: Value) -> Value {
+    let mut doc = charla("c-1", "Pan");
+    doc["mensajes"][1]["cambios"] = cambios;
+    doc
+}
+
+#[test]
+fn los_cambios_validos_sobreviven_a_normalizar() {
+    let error = json!({
+        "id": "c-err1", "herramienta": "tarea_crear", "estado": "error", "lista": null, "tarea": null, "titulo": "Llamar",
+        "antes": null, "despues": null, "motivo": "No se pudo guardar. No cambió nada.", "reintentable": true,
+        "args": { "titulo": "Llamar", "fecha": "mañana" },
+    });
+    let lectura = json!({
+        "id": "c-lee1", "herramienta": "tareas_ver", "estado": "lectura", "lista": null, "tarea": null, "titulo": null,
+        "antes": null, "despues": null, "motivo": null, "reintentable": false, "args": null,
+        "resumen": { "vista": "hoy", "nombre": null, "hoy": "2026-11-25", "hechas": 1, "total": 2, "mas": 0,
+            "filas": [{ "tarea": "t-1", "lista": "l-k3f9a2", "titulo": "Pan", "fecha": "2026-11-25", "hecha": true, "importante": false }] },
+    });
+    let doc = con_cambios(json!([cambio_crear(), error, lectura]));
+    let n = normalizar(&doc).unwrap();
+    assert_eq!(n["mensajes"][1]["cambios"], doc["mensajes"][1]["cambios"]);
+    // Y se guarda y se lee igual
+    let c = carpeta_temporal();
+    guardar(&c, &doc).unwrap();
+    assert_eq!(leer(&c, "c-1").unwrap()["mensajes"][1]["cambios"], doc["mensajes"][1]["cambios"]);
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn un_cambio_invalido_se_descarta_sin_rechazar_la_charla() {
+    let mut desconocido = cambio_crear();
+    desconocido["estado"] = json!("rehecho");
+    let mut con_ruta = cambio_crear();
+    con_ruta["tarea"] = json!("t-../x");
+    con_ruta["id"] = json!("c-otro");
+    let mut otra_herramienta = cambio_crear();
+    otra_herramienta["herramienta"] = json!("tarea_borrar");
+    let n = normalizar(&con_cambios(json!([desconocido, cambio_crear(), con_ruta, otra_herramienta, "x"]))).unwrap();
+    assert_eq!(n["mensajes"][1]["cambios"], json!([cambio_crear()]));
+}
+
+#[test]
+fn lo_desconocido_de_un_cambio_no_se_guarda() {
+    let mut c = cambio_crear();
+    c["inventado"] = json!(1);
+    c["despues"]["ruta"] = json!("C:/x");
+    let n = normalizar(&con_cambios(json!([c]))).unwrap();
+    assert_eq!(n["mensajes"][1]["cambios"], json!([cambio_crear()]));
+}
+
+#[test]
+fn los_cambios_tienen_tope() {
+    let muchos: Vec<Value> = (0..30).map(|k| { let mut c = cambio_crear(); c["id"] = json!(format!("c-{k}")); c }).collect();
+    let n = normalizar(&con_cambios(json!(muchos))).unwrap();
+    assert_eq!(n["mensajes"][1]["cambios"].as_array().unwrap().len(), 20);
+}
+
+#[test]
+fn una_charla_vieja_sin_cambios_se_lee_igual() {
+    let doc = charla("c-1", "Vieja");
+    let n = normalizar(&doc).unwrap();
+    assert_eq!(n["mensajes"][1].get("cambios"), None);
+    assert_eq!(n["mensajes"], doc["mensajes"]);
+}

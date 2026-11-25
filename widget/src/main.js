@@ -71,7 +71,7 @@ import * as movimientoConfig from './configuracionMotion.js'
 import {
   tareasInicial, abrirTareas, cerrarTareas, cambiarVista, alEscTareas, esAtajoTareas, cuentas, nombreFilaTareas, subtituloTareas,
   validarNombreLista, textoErrorLista, validarTitulo, nuevaLista, nuevoId, renombrarLista, agregarTarea, tildarTarea, listaParaHoy,
-  mezclarLectura, anuncioAgregada, anuncioBorradaLista, tiempoTilde, focoTrasTildar, hoyArgentina,
+  mezclarLectura, rebasarLista, anuncioAgregada, anuncioBorradaLista, tiempoTilde, focoTrasTildar, hoyArgentina,
   buscarTarea, editarTarea, agregarSubtarea, tildarSubtarea, editarSubtarea, borrarTarea, moverTarea, listaParaGuardar,
   nuevaMudanza, soltarMudanzas, olvidarMudanzas, fechaDeOpcion, abrirDetalle, cerrarDetalle, diferirGuardado, nombreVista,
   MAX_SUBTAREAS, AVISO_INICIAL, evaluarAviso, verAviso, soltarAviso, lugarAviso, textoGlobo, horaGlobo, anuncioGlobo,
@@ -4556,6 +4556,7 @@ function leerTareas() {
       const r = await invocar('tareas_leer')
       const listas = Array.isArray(r?.listas) ? r.listas : []
       const rotas = Array.isArray(r?.rotas) ? r.rotas.filter(x => typeof x?.archivo === 'string') : []
+      for (const l of listas) anotarBaseTareas(l, r?.huellas?.[l.id])
       st.tareas = { ...st.tareas, listas: mezclarLectura(listas, st.tareas.listas, listasSinGuardar()), rotas, leido: true, errorLeer: null }
       evaluarAvisoTareas()
     } catch (err) {
@@ -4569,6 +4570,42 @@ function leerTareas() {
     }
   })()
   return leyendoTareas
+}
+
+/**
+ * Por lista, lo último que se leyó o guardó en el disco y su huella (#43, chat-herramientas-ux.md 11.5):
+ * `tareas_guardar` no pisa un cambio de la charla, y con esto se vuelve a aplicar lo de la ventana.
+ */
+const basesTareas = new Map()
+function anotarBaseTareas(lista, huella) {
+  if (typeof lista?.id === 'string' && typeof huella === 'string') basesTareas.set(lista.id, { lista, huella })
+}
+
+/**
+ * Relee las listas y pone la `id` al día con lo del disco sin perder lo de la pantalla (`rebasarLista`).
+ * Devuelve si pudo.
+ */
+async function rebasarTareas(id) {
+  let r
+  try { r = await invocar('tareas_leer') } catch (err) { registrar(`tareas: no se pudo releer ${id}: ${err}`); return false }
+  const disco = (Array.isArray(r?.listas) ? r.listas : []).find(l => l.id === id)
+  const pantalla = st.tareas.listas.find(l => l.id === id)
+  if (!disco || !pantalla) return false
+  st.tareas = { ...st.tareas, listas: st.tareas.listas.map(l => (l.id === id ? rebasarLista(basesTareas.get(id)?.lista, pantalla, disco) : l)) }
+  anotarBaseTareas(disco, r?.huellas?.[id])
+  pintar()
+  return true
+}
+
+/**
+ * `oficina://tareas` (#43, 11.6): la charla cambió una lista. Se relee enseguida (8); si se está
+ * guardando, ese guardado choca con la huella y se pone al día solo.
+ */
+function alCambiarTareasFuera(p) {
+  const id = p?.lista
+  if (typeof id !== 'string' || !st.tareas.leido || guardadosTareas.get(id)?.enCurso) return
+  if (st.tareas.listas.some(l => l.id === id)) rebasarTareas(id)
+  else leerTareas()
 }
 
 /** Por lista: el guardado en curso (`promesa`) y si hay que guardarla otra vez al terminar. */
@@ -4603,14 +4640,21 @@ function guardarListaTareas(id) {
   if (g.enCurso) { g.otraVez = true; return g.promesa }
   g.enCurso = true
   g.promesa = (async () => {
+    // 11.5: si la charla cambió el archivo, se relee y se vuelve a aplicar lo de la ventana una vez
+    let rebasada = false
     do {
       g.otraVez = false
       const lista = listaParaGuardar(st.tareas.listas, id, mudanzasTareas)
       if (!lista) { fallidasTareas.delete(id); break }
       const n = ++g.n
       let r
-      try { r = await invocar('tareas_guardar', { lista }) } catch (err) { r = { ok: false, error: String(err?.message ?? err) } }
+      try { r = await invocar('tareas_guardar', { lista, huella: basesTareas.get(id)?.huella ?? null }) } catch (err) { r = { ok: false, error: String(err?.message ?? err) } }
+      if (!r?.ok && r?.error === 'cambio' && !rebasada) {
+        rebasada = true
+        if (await rebasarTareas(id)) { g.otraVez = true; continue }
+      }
       if (r?.ok) {
+        anotarBaseTareas(r.lista, r.huella)
         fallidasTareas.delete(id)
         const s = soltarMudanzas(mudanzasTareas, id, n)
         mudanzasTareas = s.mudanzas
@@ -5980,6 +6024,7 @@ async function iniciar() {
     // La charla (chat-avis-ux.md 7.5): cada evento lleva su conversación y su turno; transicionChat
     // descarta los de otra conversación o de un turno viejo
     escuchar('oficina://chat', ev => despacharChat({ tipo: 'backend', payload: ev.payload }))
+    escuchar('oficina://tareas', ev => alCambiarTareasFuera(ev.payload))
     // El modelo de esta PC (3.6): la descarga y el borrado desde la configuración
     escuchar('oficina://modelo', ev => alEventoModelo(ev.payload))
     // Los archivos que se sueltan (10): Tauri los toma antes que el HTML (`dragDropEnabled`)

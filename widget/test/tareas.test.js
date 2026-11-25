@@ -13,7 +13,7 @@ import {
   anuncioAgregada, anuncioBorradaLista, tiempoTilde, focoTrasTildar, mezclarLectura, colorDe,
   buscarTarea, editarTarea, agregarSubtarea, tildarSubtarea, editarSubtarea, borrarTarea, moverTarea, listaParaGuardar,
   nuevaMudanza, soltarMudanzas, olvidarMudanzas, opcionFecha, fechaDeOpcion, creadaEl, abrirDetalle, cerrarDetalle,
-  diferirGuardado, ESPERA_GUARDAR_MS, MAX_NOTAS, MAX_SUBTAREAS, textoSubtareas,
+  diferirGuardado, ESPERA_GUARDAR_MS, rebasarLista, MAX_NOTAS, MAX_SUBTAREAS, textoSubtareas,
   AVISO_INICIAL, evaluarAviso, verAviso, soltarAviso, lugarAviso, textoGlobo, plano, horaGlobo, anuncioGlobo,
 } from '../src/tareas.js'
 import { clicBorrar, armadoVigente, desarmarVencido, MS_CONFIRMAR } from '../src/configuracion.js'
@@ -682,4 +682,70 @@ test('guardar sin mudanzas (entrega 1 igual): se manda la lista de la pantalla t
   const listas = [L('l-a', 0, [t('t-1')]), L('l-b', 1, [])]
   assert.equal(listaParaGuardar(listas, 'l-a', []), listas[0])
   assert.equal(listaParaGuardar(listas, 'l-x', []), null)
+})
+
+// ------------------------------------------------------------------ #43: dos escritores (chat-herramientas-ux.md 11.5)
+
+const tareaR = (id, titulo, extra = {}) => ({ id, titulo, hecha: false, hechaEn: null, fecha: null, importante: false, notas: '', subtareas: [], creada: 1, ...extra })
+const listaR = (tareas, extra = {}) => ({ v: 1, id: 'l-casa', nombre: 'Casa', color: 'verde', orden: 0, creada: 1, tareas, ...extra })
+
+test('rebasarLista: sin cambios en la ventana, queda lo del disco (lo que hizo la charla)', () => {
+  const base = listaR([tareaR('t-a', 'A')])
+  const disco = listaR([tareaR('t-a', 'A'), tareaR('t-b', 'Pan')])
+  assert.deepEqual(rebasarLista(base, base, disco), disco)
+})
+
+test('rebasarLista: vuelve a aplicar lo de la ventana sobre lo de la charla', () => {
+  const base = listaR([tareaR('t-a', 'A'), tareaR('t-c', 'C')])
+  // La ventana tildó A, sacó C y agregó D; la charla agregó B y cambió la fecha de C
+  const pantalla = listaR([tareaR('t-a', 'A', { hecha: true, hechaEn: 5 }), tareaR('t-d', 'D')])
+  const disco = listaR([tareaR('t-a', 'A'), tareaR('t-c', 'C', { fecha: '2026-11-26' }), tareaR('t-b', 'Pan')])
+  const r = rebasarLista(base, pantalla, disco)
+  assert.deepEqual(r.tareas.map(t => t.id), ['t-a', 't-b', 't-d'])
+  assert.equal(r.tareas[0].hecha, true)
+  // La misma tarea cambiada por las dos: gana la ventana (es lo que se estaba guardando)
+  const ambas = rebasarLista(base, listaR([tareaR('t-a', 'A1'), tareaR('t-c', 'C')]), listaR([tareaR('t-a', 'A2'), tareaR('t-c', 'C')]))
+  assert.equal(ambas.tareas[0].titulo, 'A1')
+  // El nombre de la lista cambiado en la ventana queda; lo demás del disco también
+  const renombrada = rebasarLista(base, { ...base, nombre: 'Hogar' }, disco)
+  assert.equal(renombrada.nombre, 'Hogar')
+  assert.equal(renombrada.tareas.length, 3)
+})
+
+test('rebasarLista: sin base o sin disco, lo de la pantalla (como antes)', () => {
+  const pantalla = listaR([tareaR('t-a', 'A')])
+  assert.equal(rebasarLista(null, pantalla, listaR([])), pantalla)
+  assert.equal(rebasarLista(pantalla, pantalla, null), pantalla)
+})
+
+// Lo que devuelve Rust (serde_json sin `preserve_order`): las claves en orden alfabético, en todos los niveles
+const comoRust = v => (Array.isArray(v) ? v.map(comoRust)
+  : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, comoRust(v[k])])) : v)
+
+test('rebasarLista: una tarea creada en la ventana y tildada por la charla queda tildada (el orden de las claves no cuenta)', () => {
+  // 1) La ventana agrega "Comprar pan" y se guarda: la base es lo que devolvió Rust
+  const pantalla = agregarTarea(listaR([]), 'Comprar pan', { id: 't-pan', ahora: 100 })
+  const base = comoRust(pantalla)
+  // 2) La charla la tilda (tarea_tildar)
+  const disco = comoRust({ ...base, tareas: base.tareas.map(t => ({ ...t, hecha: true, hechaEn: 200 })) })
+  // 3) Llega oficina://tareas: lo que se ve y lo que se guardará después es lo de la charla
+  const r = rebasarLista(base, pantalla, disco)
+  assert.equal(r.tareas[0].hecha, true)
+  assert.equal(r.tareas[0].hechaEn, 200)
+})
+
+test('rebasarLista: una subtarea agregada en la ventana no deshace lo que la charla editó en esa tarea', () => {
+  const leida = comoRust(listaR([tareaR('t-a', 'A')]))
+  // La ventana agrega una subtarea ({ id, titulo, hecha }) y se guarda: base = lo de Rust
+  const pantalla = { ...leida, tareas: [{ ...leida.tareas[0], subtareas: [{ id: 's-1', titulo: 'Harina', hecha: false }] }] }
+  const base = comoRust(pantalla)
+  // La charla le cambia la fecha, el título y la marca de importante (tarea_editar)
+  const disco = comoRust({ ...base, tareas: [{ ...base.tareas[0], fecha: '2026-11-26', titulo: 'A2', importante: true }] })
+  const r = rebasarLista(base, pantalla, disco)
+  assert.equal(r.tareas[0].fecha, '2026-11-26')
+  assert.equal(r.tareas[0].titulo, 'A2')
+  assert.equal(r.tareas[0].importante, true)
+  assert.deepEqual(r.tareas[0].subtareas, [{ hecha: false, id: 's-1', titulo: 'Harina' }])
+  // El nombre que cambió la charla también queda (la ventana no lo tocó)
+  assert.equal(rebasarLista(base, pantalla, comoRust({ ...disco, nombre: 'Hogar' })).nombre, 'Hogar')
 })

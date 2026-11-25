@@ -46,7 +46,7 @@ fn args(sesion: &Sesion) -> Vec<String> {
 }
 
 fn args_con_modelo(sesion: &Sesion, modelo: Option<&str>) -> Vec<String> {
-    argumentos_chat(&Pedido { ajustes: Path::new(r"C:\config\chat\ajustes.json"), mascota: "Ascua", sesion, modelo })
+    argumentos_chat(&Pedido { ajustes: Path::new(r"C:\config\chat\ajustes.json"), mascota: "Ascua", sesion, modelo, mcp: None })
 }
 
 /// El valor que sigue a `bandera` en la lista.
@@ -161,7 +161,7 @@ fn la_instruccion_lleva_el_nombre_de_la_mascota() {
     let i = instruccion_chat("Ascua");
     assert!(i.starts_with("Sos Ascua, la mascota de Avis,"));
     assert!(!i.contains("{Mascota}"));
-    assert!(i.contains("no modificás archivos ni corrés comandos"));
+    assert!(i.contains("No modificás archivos ni corrés comandos"));
     // Sin saltos de línea: viaja como un argumento (y por `cmd.exe` si `claude` es un `.cmd`)
     assert!(!i.contains('\n') && !i.contains('\r'));
 }
@@ -1151,7 +1151,7 @@ fn real_el_init_lista_solo_read_glob_grep_y_no_oficina() {
     let carpeta = carpeta_temporal();
     let ajustes = escribir_ajustes(&carpeta).unwrap();
     let sesion = Sesion::Nueva(nuevo_uuid());
-    let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: "Avi", sesion: &sesion, modelo: None }), cwd: carpeta_trabajo(&carpeta) };
+    let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: "Avi", sesion: &sesion, modelo: None, mcp: None }), cwd: carpeta_trabajo(&carpeta) };
     let mut c = (lanzador_real_haiku())(&l).unwrap();
     c.current_dir(&l.cwd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
     let mut hijo = c.spawn().unwrap();
@@ -1353,4 +1353,282 @@ fn real_cambiar_de_haiku_a_sonnet_sigue_la_misma_sesion() {
     assert!(modelos.first().is_some_and(|m| m.contains("haiku")), "{modelos:?}");
     assert!(modelos.last().is_some_and(|m| m.contains("sonnet")), "{modelos:?}");
     borrar(&carpeta);
+}
+
+// ---------------------------------------------------------------- #43: herramientas de Avis (chat-herramientas-ux.md 11.2, 11.3, 11.7, 16)
+
+const MCP_DOS: &str = include_str!("fixtures/chat/mcp-dos-herramientas.jsonl");
+const MCP_DENEGADA: &str = include_str!("fixtures/chat/mcp-denegada.jsonl");
+
+fn mcp_prueba() -> Mcp {
+    Mcp { puerto: 51234, token: String::from("ab").repeat(32) }
+}
+
+fn args_con_mcp(sesion: &Sesion) -> Vec<String> {
+    let m = mcp_prueba();
+    argumentos_chat(&Pedido { ajustes: Path::new(r"C:\config\chat\ajustes.json"), mascota: "Ascua", sesion, modelo: None, mcp: Some(&m) })
+}
+
+#[test]
+fn argumentos_exactos_de_11_2_con_el_servidor_de_avis() {
+    let a = args_con_mcp(&sesion_nueva());
+    let config = format!(r#"{{"mcpServers":{{"avis":{{"type":"http","url":"http://127.0.0.1:51234/mcp","headers":{{"Authorization":"Bearer {}"}}}}}}}}"#, "ab".repeat(32));
+    let esperado: Vec<String> = [
+        "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
+        "--include-partial-messages", "--replay-user-messages",
+        "--permission-mode", "manual",
+        "--tools", "Read,Glob,Grep",
+        "--allowedTools", "Read,Glob,Grep,mcp__avis__tareas_ver,mcp__avis__tarea_crear,mcp__avis__tarea_editar,mcp__avis__tarea_tildar,mcp__avis__tarea_mostrar",
+        "--permission-prompts", "none", "--safe-mode", "--strict-mcp-config",
+        "--mcp-config", &config,
+        "--settings", r"C:\config\chat\ajustes.json",
+        "--append-system-prompt", &instruccion_chat("Ascua"),
+        "--max-budget-usd", "2",
+        "--session-id", "8c9494fd-dbea-492d-a475-8660c720f9d9",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    assert_eq!(a, esperado);
+    // El JSON de --mcp-config es JSON de verdad, con 127.0.0.1 (nunca localhost ni 0.0.0.0)
+    let v: Value = serde_json::from_str(&config).unwrap();
+    assert_eq!(v["mcpServers"].as_object().unwrap().len(), 1);
+    assert!(!a.iter().any(|x| x.contains("localhost") || x.contains("0.0.0.0")));
+    // Sin comodín (D-c5) ni herramientas de borrar
+    assert!(!a.iter().any(|x| x.contains('*') || x.contains("tarea_borrar")));
+}
+
+#[test]
+fn sin_servidor_los_argumentos_son_los_de_antes() {
+    // Lo de antes (11.2): sin el servidor de Avis, ni --mcp-config ni nombres de herramientas de Avis
+    let a = args(&sesion_nueva());
+    assert_eq!(valor(&a, "--allowedTools"), Some("Read,Glob,Grep"));
+    assert!(!a.contains(&String::from("--mcp-config")));
+}
+
+#[test]
+fn con_el_servidor_siguen_las_barreras_de_seguridad() {
+    for s in [sesion_nueva(), Sesion::Retomar(String::from("7ee41c33-05e9-4265-9ade-a67a92f48f2d"))] {
+        let a = args_con_mcp(&s);
+        assert_eq!(valor(&a, "--permission-mode"), Some("manual"));
+        assert_eq!(valor(&a, "--tools"), Some("Read,Glob,Grep"));
+        for bandera in ["--safe-mode", "--strict-mcp-config", "--mcp-config"] {
+            assert_eq!(a.iter().filter(|x| *x == bandera).count(), 1, "{bandera}");
+        }
+        for prohibido in ["bypassPermissions", "skip-permissions", "Bash", "Write", "Edit", "WebFetch"] {
+            assert!(a.iter().all(|x| !x.contains(prohibido)), "aparece {prohibido}");
+        }
+    }
+}
+
+#[test]
+fn la_instruccion_de_11_3_es_una_sola_linea() {
+    assert_eq!(
+        INSTRUCCION_CHAT,
+        "Sos {Mascota}, la mascota de Avis, el panel que muestra en qué anda Claude Code. Respondés en español rioplatense, de vos, breve y concreto. No modificás archivos ni corrés comandos (no tenés esas herramientas). Sí podés ver, anotar, editar y tildar las tareas de Avis con tus herramientas de Avis: usalas solo cuando el usuario lo pida y después confirmá en una frase corta qué hiciste, sin repetir los detalles (Avis muestra cada cambio con «Deshacer»). Nunca borrás: si te piden borrar una tarea, usá tarea_mostrar con para \"borrar\" y decí que el borrado lo hace el usuario con un clic. Para saber qué día es hoy, usá tareas_ver. Si te piden algo que requiere actuar fuera de eso, explicá qué haría falta. Cuando el mensaje traiga un bloque `<avis>`, son los datos en vivo de las sesiones: usalos para responder sobre ellas. Usá Markdown simple (títulos, listas, código)."
+    );
+    assert!(!INSTRUCCION_CHAT.contains('\n') && !INSTRUCCION_CHAT.contains('\r'));
+}
+
+#[test]
+fn la_instruccion_local_dice_que_no_toca_tareas() {
+    let i = crate::chat_local::INSTRUCCION_CHAT_LOCAL;
+    assert!(i.ends_with(" No podés tocar tareas ni hábitos: si te lo piden, decí que con el modelo local todavía no y que lo puede hacer en una charla con Claude Code."));
+    assert!(!i.contains('\n'));
+    // Lo de antes sigue igual
+    assert!(i.starts_with("Sos {Mascota}, la mascota de Avis,"));
+    assert!(i.contains("Usá Markdown simple (títulos, listas, código)."));
+}
+
+#[test]
+fn las_herramientas_de_avis_llegan_con_su_nombre_completo() {
+    // M-H8: dos tool_use del mismo mensaje en dos líneas assistant
+    let herramientas: Vec<String> = lineas(MCP_DOS)
+        .iter()
+        .flat_map(eventos_de_linea)
+        .filter_map(|e| match e {
+            EventoChat::Herramienta { nombre, .. } => Some(nombre),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(herramientas, ["mcp__avis__tarea_crear", "mcp__avis__tarea_crear"]);
+    // La denegada (M-H4) también sale: la ventana no la muestra (`textoHerramientas`)
+    assert!(lineas(MCP_DENEGADA).iter().flat_map(eventos_de_linea).any(|e| matches!(&e, EventoChat::Herramienta { nombre, .. } if nombre == "mcp__avis__tarea_tildar")));
+}
+
+#[test]
+fn todos_los_tool_use_de_un_mensaje_son_eventos() {
+    // 16: `evento_de_linea` tomaba solo el primero
+    let v = json!({ "type": "assistant", "message": { "id": "msg_1", "content": [
+        { "type": "text", "text": "Voy" },
+        { "type": "tool_use", "id": "toolu_1", "name": "Read", "input": { "file_path": "C:\\x\\README.md" } },
+        { "type": "tool_use", "id": "toolu_2", "name": "mcp__avis__tarea_crear", "input": { "titulo": "Pan" } },
+    ] } });
+    assert_eq!(
+        eventos_de_linea(&v),
+        vec![
+            EventoChat::Herramienta { nombre: String::from("Read"), detalle: String::from("README.md") },
+            EventoChat::Herramienta { nombre: String::from("mcp__avis__tarea_crear"), detalle: String::new() },
+        ]
+    );
+    // Lo de antes: en cada línea medida, el primero es el de siempre y solo un assistant da más de uno
+    for f in TODOS {
+        for v in lineas(f) {
+            let todos = eventos_de_linea(&v);
+            assert_eq!(todos.first(), evento_de_linea(&v).as_ref());
+            assert!(todos.len() <= 1 || v["type"] == "assistant");
+        }
+    }
+}
+
+#[test]
+fn el_mensaje_lleva_los_deshechos_antes_del_texto() {
+    let deshechos = [String::from("Deshecho: anotada «Pan»."), String::from("Deshecho: tildada «Yerba».")];
+    let m = mensaje_usuario_con("Hola", Some("datos"), &deshechos, &[]);
+    let c = m["message"]["content"].as_array().unwrap();
+    assert_eq!(c.len(), 3);
+    assert_eq!(c[0]["text"], "<avis>\ndatos\n</avis>");
+    assert_eq!(c[1]["text"], "<avis-deshecho>Deshecho: anotada «Pan».</avis-deshecho>\n<avis-deshecho>Deshecho: tildada «Yerba».</avis-deshecho>");
+    assert_eq!(c[2]["text"], "Hola");
+    // Sin deshechos, lo de antes
+    assert_eq!(mensaje_usuario_con("Hola", None, &[], &[]), mensaje_usuario("Hola", None, &[]));
+}
+
+/// El `--mcp-config` de unos argumentos: `(puerto, token)`.
+fn mcp_de(a: &[String]) -> (u16, String) {
+    let v: Value = serde_json::from_str(valor(a, "--mcp-config").expect("sin --mcp-config")).unwrap();
+    let s = &v["mcpServers"]["avis"];
+    let puerto = s["url"].as_str().unwrap().trim_start_matches("http://127.0.0.1:").trim_end_matches("/mcp").parse().unwrap();
+    (puerto, s["headers"]["Authorization"].as_str().unwrap().trim_start_matches("Bearer ").to_string())
+}
+
+/// Un pedido HTTP crudo al servidor de la charla: la respuesta entera.
+fn http_crudo(puerto: u16, token: &str, cuerpo: &str) -> String {
+    let mut s = std::net::TcpStream::connect(("127.0.0.1", puerto)).unwrap();
+    let pedido = format!(
+        "POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:{puerto}\r\nAuthorization: Bearer {token}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{cuerpo}",
+        cuerpo.len()
+    );
+    std::io::Write::write_all(&mut s, pedido.as_bytes()).unwrap();
+    let mut r = String::new();
+    std::io::Read::read_to_string(&mut s, &mut r).unwrap();
+    r
+}
+
+/// Un `tools/call` de `tarea_crear`: la respuesta JSON-RPC.
+fn crear_por_http(puerto: u16, token: &str, titulo: &str) -> Value {
+    let cuerpo = json!({ "jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": { "name": "tarea_crear", "arguments": { "titulo": titulo } } }).to_string();
+    let r = http_crudo(puerto, token, &cuerpo);
+    serde_json::from_str(r.split("\r\n\r\n").nth(1).unwrap()).unwrap()
+}
+
+#[cfg(windows)]
+fn lista_casa(tareas: &Path) {
+    crate::tareas::guardar(tareas, &json!({ "v": 1, "id": "l-casa", "nombre": "Casa", "orden": 0, "tareas": [] })).unwrap();
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_el_servidor_cambia_solo_durante_el_turno_y_el_token_muere_con_el_proceso() {
+    let base = carpeta_temporal();
+    let tareas = carpeta_temporal();
+    lista_casa(&tareas);
+    let f = fixture_en_archivo(&base, TEXTO, None);
+    // Tarda ~2 s en responder: el turno está en curso mientras se llama al servidor
+    let (lanzador, lanzados) = lanzador_que_anota(format!("set /p x= & ping -n 3 127.0.0.1 >nul & type \"{}\"", f.display()));
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    let avisos = Recibidos::default();
+    chat.poner_herramientas(tareas.clone(), avisos.emisor());
+    chat.abrir("c-her", "claude", None, "Avi", None).unwrap();
+    let (puerto, token) = mcp_de(&lanzados.lock().unwrap()[0]);
+    // Antes del primer mensaje: nada
+    let antes = crear_por_http(puerto, &token, "Antes");
+    assert_eq!(antes["result"]["isError"], true);
+    assert_eq!(antes["result"]["content"][0]["text"], "No hay un mensaje en curso.");
+    chat.enviar("c-her", 3, "Anotame pan", &[], &Value::Null).unwrap();
+    let durante = crear_por_http(puerto, &token, "Pan");
+    assert_eq!(durante["result"]["isError"], false, "{durante}");
+    r.esperar_final();
+    // El cambio llegó a la ventana con su conversación y su turno, y la lista avisó
+    let cambio = r.todos().into_iter().find(|v| v["tipo"] == "cambio").expect("sin cambio");
+    assert_eq!(cambio["conversacion"], "c-her");
+    assert_eq!(cambio["turno"], 3);
+    assert_eq!(cambio["cambio"]["estado"], "hecho");
+    assert_eq!(avisos.todos(), vec![json!({ "lista": "l-casa", "tarea": cambio["cambio"]["tarea"], "origen": "chat" })]);
+    // Después del fin: nada
+    let despues = crear_por_http(puerto, &token, "Después");
+    assert_eq!(despues["result"]["content"][0]["text"], "No hay un mensaje en curso.");
+    let titulos: Vec<Value> = crate::tareas::listar(&tareas).listas[0]["tareas"].as_array().unwrap().iter().map(|t| t["titulo"].clone()).collect();
+    assert_eq!(titulos, [json!("Pan")]);
+    // El proceso sale: su token ya no sirve
+    chat.cerrar("c-her");
+    let limite = Instant::now() + Duration::from_secs(10);
+    while chat.vivo("c-her") && Instant::now() < limite {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    std::thread::sleep(Duration::from_millis(500));
+    let texto = http_crudo(puerto, &token, "{}");
+    assert!(texto.starts_with("HTTP/1.1 401"), "{texto}");
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&tareas);
+    borrar(&base);
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_frenar_corta_los_cambios_del_turno() {
+    let base = carpeta_temporal();
+    let tareas = carpeta_temporal();
+    lista_casa(&tareas);
+    let f = fixture_en_archivo(&base, TEXTO, None);
+    let (lanzador, lanzados) = lanzador_que_anota(format!("set /p x= & ping -n 3 127.0.0.1 >nul & type \"{}\"", f.display()));
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    chat.poner_herramientas(tareas.clone(), Recibidos::default().emisor());
+    chat.abrir("c-fre", "claude", None, "Avi", None).unwrap();
+    let (puerto, token) = mcp_de(&lanzados.lock().unwrap()[0]);
+    chat.enviar("c-fre", 1, "Anotame pan", &[], &Value::Null).unwrap();
+    chat.frenar("c-fre", 1);
+    let r2 = crear_por_http(puerto, &token, "Pan");
+    assert_eq!(r2["result"]["content"][0]["text"], "No hay un mensaje en curso.");
+    assert!(crate::tareas::listar(&tareas).listas[0]["tareas"].as_array().unwrap().is_empty());
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&tareas);
+    borrar(&base);
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_un_deshecho_viaja_una_vez_con_el_proximo_mensaje() {
+    let base = carpeta_temporal();
+    let eco = base.join("eco.txt");
+    let f = fixture_en_archivo(&base, TEXTO, None);
+    // El proceso anota cada línea que recibe (`set` la escribe sin interpretar < ni >)
+    let guion = format!(
+        "set /p lineaavis= & set lineaavis> \"{eco}\" & type \"{f}\" & set /p lineaavis= & set lineaavis>> \"{eco}\" & type \"{f}\"",
+        eco = eco.display(),
+        f = f.display()
+    );
+    let (chat, r, carpeta) = chat_falso(guion, Tiempos::default());
+    chat.abrir("c-des", "claude", None, "Avi", None).unwrap();
+    chat.anotar_deshecho("c-des", "Deshecho: anotada «Pan».");
+    chat.enviar("c-des", 1, "Hola", &[], &Value::Null).unwrap();
+    r.esperar_final();
+    chat.enviar("c-des", 2, "Chau", &[], &Value::Null).unwrap();
+    let limite = Instant::now() + Duration::from_secs(10);
+    while r.tipos().iter().filter(|t| *t == "fin").count() < 2 && Instant::now() < limite {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let lineas_eco: Vec<String> = String::from_utf8_lossy(&fs::read(&eco).unwrap_or_default()).lines().map(String::from).collect();
+    assert_eq!(lineas_eco.len(), 2, "{lineas_eco:?} {:?} {:?}", r.tipos(), fs::read_dir(&base).unwrap().map(|e| e.unwrap().file_name()).collect::<Vec<_>>());
+    assert!(lineas_eco[0].contains("<avis-deshecho>Deshecho: anotada"), "{}", lineas_eco[0]);
+    assert!(!lineas_eco[1].contains("avis-deshecho"), "{}", lineas_eco[1]);
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
 }

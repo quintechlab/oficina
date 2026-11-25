@@ -701,3 +701,9 @@ test('el resumen se fue: ni resumen.js, ni #resumen, ni pedir_resumen', () => {
   assert.ok(!/pedir_resumen|estado_resumen|cancelar_resumen/.test(lib))
   assert.ok(lib.includes('estado_modelo'))
 })
+
+test('textoHerramientas: las de Avis (mcp__avis__…) no van en la línea: tienen su recibo (#43, 11.6)', () => {
+  const avis = [{ nombre: 'mcp__avis__tarea_crear', detalle: '' }, { nombre: 'mcp__avis__tareas_ver', detalle: '' }]
+  assert.equal(textoHerramientas(avis, 'catalogo'), '')
+  assert.equal(textoHerramientas([...avis, { nombre: 'Read', detalle: 'README.md' }], 'catalogo'), 'Leyó <b>README.md</b>')
+})

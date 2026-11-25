@@ -9,6 +9,7 @@ mod engram;
 mod equipo;
 mod historial;
 mod preferencias;
+mod mcp_avis;
 mod modelo;
 mod mod_auto;
 mod transcripcion;
@@ -939,22 +940,73 @@ async fn tareas_leer(app: AppHandle) -> Result<serde_json::Value, String> {
             }
         }
         let l = tareas::listar(&carpeta);
-        Ok(serde_json::json!({ "listas": l.listas, "rotas": l.rotas }))
+        // #43 (11.5): la huella de cada lista, para guardar sin pisar un cambio de la charla
+        Ok(serde_json::json!({ "listas": l.listas, "rotas": l.rotas, "huellas": l.huellas }))
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
 /// Guarda una lista entera (formato v1; lo que no sirve se rechaza sin tocar el archivo):
-/// `{ ok: true, lista }` con lo guardado, o `{ ok: false, error }` (lo anota la ventana, 7.4: una sola línea en widget.log).
+/// `{ ok: true, lista, huella }` con lo guardado, o `{ ok: false, error }` (lo anota la ventana, 7.4: una sola línea en widget.log).
+/// `huella` (#43, 11.5): la de lo que leyó la ventana; si el archivo cambió desde entonces (la charla
+/// escribió), no guarda y el error es `"cambio"`. Sin `huella`, guarda como siempre.
 #[tauri::command]
-async fn tareas_guardar(app: AppHandle, lista: serde_json::Value) -> Result<serde_json::Value, String> {
+async fn tareas_guardar(app: AppHandle, lista: serde_json::Value, huella: Option<String>) -> Result<serde_json::Value, String> {
     let carpeta = carpeta_tareas(&app)?;
-    let r = tauri::async_runtime::spawn_blocking(move || tareas::guardar(&carpeta, &lista)).await.map_err(|e| e.to_string())?;
+    let r = tauri::async_runtime::spawn_blocking(move || tareas::guardar_si(&carpeta, &lista, huella.as_deref())).await.map_err(|e| e.to_string())?;
     Ok(match r {
-        Ok(lista) => serde_json::json!({ "ok": true, "lista": lista }),
+        Ok((lista, huella)) => serde_json::json!({ "ok": true, "lista": lista, "huella": huella }),
         Err(error) => serde_json::json!({ "ok": false, "error": error }),
     })
+}
+
+/// «Deshacer» de un recibo de la charla (#43, chat-herramientas-ux.md 11.7), solo con el clic: vuelve
+/// el cambio a su `antes` si la tarea sigue como la dejó la charla. `{ estado: "deshecho" |
+/// "cambio-despues" | "error", motivo? }`. No le manda nada a la mascota: el próximo mensaje lleva
+/// `<avis-deshecho>`. Un cambio con otra forma es un error del comando.
+#[tauri::command]
+async fn chat_deshacer(app: AppHandle, conversacion: String, cambio: serde_json::Value) -> Result<serde_json::Value, String> {
+    if !chat::conversacion_valida(&conversacion) {
+        return Err(String::from("id de conversación inválido"));
+    }
+    let carpeta = carpeta_tareas(&app)?;
+    let para_avisar = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let d = mcp_avis::deshacer(&carpeta, &cambio, chrono::Utc::now().timestamp_millis())?;
+        for t in &d.tocadas {
+            let _ = para_avisar.emit(mcp_avis::EVENTO_TAREAS, t);
+        }
+        if d.estado == "deshecho" && !d.tocadas.is_empty() {
+            el_chat()?.anotar_deshecho(&conversacion, &mcp_avis::linea_deshecho(&cambio));
+        }
+        if let Some(m) = &d.motivo {
+            registrar(format!("chat: no se pudo deshacer: {m}"));
+        }
+        Ok(serde_json::json!({ "estado": d.estado, "motivo": d.motivo }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// «Reintentar» de un recibo de error (#43, 11.9), solo con el clic: repite esa operación con lo que
+/// pidió el modelo, sin turno. Devuelve el cambio nuevo, que reemplaza a la fila de error.
+#[tauri::command]
+async fn chat_reintentar(app: AppHandle, conversacion: String, cambio: serde_json::Value) -> Result<serde_json::Value, String> {
+    if !chat::conversacion_valida(&conversacion) {
+        return Err(String::from("id de conversación inválido"));
+    }
+    let carpeta = carpeta_tareas(&app)?;
+    let para_avisar = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (nuevo, tocadas) = mcp_avis::reintentar(&carpeta, &cambio, chrono::Utc::now().timestamp_millis())?;
+        for t in &tocadas {
+            let _ = para_avisar.emit(mcp_avis::EVENTO_TAREAS, t);
+        }
+        Ok(nuevo)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Borra una lista con sus tareas (solo con el segundo clic de "¿Borrar? Sí"); nunca un archivo roto. `{ ok, error? }`.
@@ -1749,6 +1801,14 @@ pub fn run() {
                     };
                     modelo::IA.motor_charla(&avisar).map(|(puerto, uso)| (puerto, Box::new(uso) as Box<dyn chat_local::UsoMotor>))
                 }));
+                // Las herramientas de tareas de la charla (#43): el servidor arranca con el primer `claude`
+                let para_tareas = handle.clone();
+                el.poner_herramientas(
+                    config.join("tareas"),
+                    std::sync::Arc::new(move |v| {
+                        let _ = para_tareas.emit(mcp_avis::EVENTO_TAREAS, v);
+                    }),
+                );
                 let _ = chat::CHAT.set(el);
             }
             // La copia del historial en Engram (9.2): una sesión por arranque, que se abre con la primera copia
@@ -1819,6 +1879,8 @@ pub fn run() {
             chat_borrar,
             chat_contar,
             chat_borrar_todo,
+            chat_deshacer,
+            chat_reintentar,
             tareas_leer,
             tareas_guardar,
             tareas_borrar_lista,

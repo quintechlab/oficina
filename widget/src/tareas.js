@@ -483,6 +483,42 @@ export function diferirGuardado(guardar, ms = ESPERA_GUARDAR_MS) {
   }
 }
 
+/** El mismo valor con las claves de cada objeto en orden alfabético (los arreglos quedan en su orden). */
+function canonico(v) {
+  if (Array.isArray(v)) return v.map(canonico)
+  if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map(k => [k, canonico(v[k])]))
+  return v
+}
+
+/**
+ * Dos escritores (#43, chat-herramientas-ux.md 11.5): la charla cambió la lista en el disco (`disco`)
+ * después de que la ventana la leyó (`base`) y la cambió en pantalla (`pantalla`). Vuelve a aplicar
+ * lo de la ventana sobre lo del disco: las tareas que la ventana cambió, agregó o sacó, y los datos de
+ * la lista que cambió (el nombre); lo demás queda como lo dejó la charla. Si los dos cambiaron la misma
+ * tarea, gana la ventana (es lo que se estaba guardando). Sin base o sin disco, lo de la pantalla.
+ * "Cambió" compara el contenido sin mirar el orden de las claves: lo que devuelve Rust las trae en orden
+ * alfabético y lo creado en la ventana no, y eso no es un cambio del usuario.
+ */
+export function rebasarLista(base, pantalla, disco) {
+  if (!base || !disco || !pantalla) return pantalla
+  const igual = (a, b) => JSON.stringify(canonico(a)) === JSON.stringify(canonico(b))
+  const porId = l => new Map((l.tareas ?? []).map(t => [t.id, t]))
+  const deBase = porId(base)
+  const enPantalla = porId(pantalla)
+  const tareas = []
+  for (const d of disco.tareas ?? []) {
+    // La ventana la sacó (la borró o la movió): no vuelve
+    if (deBase.has(d.id) && !enPantalla.has(d.id)) continue
+    const p = enPantalla.get(d.id)
+    tareas.push(p && !igual(p, deBase.get(d.id)) ? p : d)
+  }
+  // Las que agregó la ventana
+  for (const t of pantalla.tareas ?? []) if (!deBase.has(t.id) && !tareas.some(x => x.id === t.id)) tareas.push(t)
+  const lista = { ...disco }
+  for (const k of Object.keys(pantalla)) if (k !== 'tareas' && !igual(pantalla[k], base[k])) lista[k] = pantalla[k]
+  return { ...lista, tareas }
+}
+
 /**
  * Lo leído de `tareas_leer` en lugar de lo que hay en pantalla, salvo las listas que no se pudieron
  * guardar (`sinGuardar`): esas siguen como están en pantalla (7.4: lo que está en pantalla no se deshace).

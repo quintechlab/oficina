@@ -285,9 +285,22 @@ export function relojEspera(desdeMs, ultimoMs, ahoraMs) {
   return { reloj: formatoReloj(ahoraMs - desdeMs), tarda: ahoraMs - desdeMs >= TARDA_MS, vencido: ahoraMs - (ultimoMs ?? desdeMs) >= SIN_NOTICIAS_MS }
 }
 
+/** Los eventos del servidor de Avis (#43, chat-herramientas-ux.md 11.6): un cambio, una lectura o "para borrar". */
+const TIPOS_CAMBIO = new Set(['cambio', 'lectura', 'mostrar'])
+
+/** Suma un cambio de Rust al mensaje de la mascota (una vez por id: 11.10, 6). */
+function conCambio(m, cambio) {
+  if (typeof cambio?.id !== 'string' || !cambio.id || (m.cambios ?? []).some(x => x.id === cambio.id)) return m
+  return { ...m, cambios: [...(m.cambios ?? []), cambio] }
+}
+
 /** Un evento de Rust (`oficina://chat`) del turno de ahora; los de otra conversación o de otro turno, nada. */
 function delBackend(c, p, ctx) {
   const conv = c.conversacion
+  // Un cambio en las tareas pasó de verdad (lo escribió Rust): queda aunque se haya frenado después
+  if (conv && p && TIPOS_CAMBIO.has(p.tipo) && p.conversacion === conv.id && p.turno === c.turno) {
+    return NADA({ ...c, conversacion: conMascota(conv, c.turno, m => conCambio(m, p.cambio)) })
+  }
   if (!conv || !p || p.conversacion !== conv.id || p.turno !== c.turno || c.frenado === c.turno) return NADA(c)
   const ahora = ctx.ahoraMs
   const vivo = ocupado(c)
@@ -945,6 +958,8 @@ export function aArchivo(conv) {
     mensajes.push({
       rol: 'mascota', texto: m.texto, cuando: iso(m.cuando), estado: m.estado === 'escribiendo' ? 'error' : m.estado,
       herramientas: (m.herramientas ?? []).map(({ nombre, detalle }) => ({ nombre, detalle })), ms: m.ms ?? null, avis: !!m.avis,
+      // Los cambios en las tareas (#43, 11.8): solo si hubo, así una charla sin herramientas se guarda como antes
+      ...(m.cambios?.length ? { cambios: m.cambios } : {}),
     })
   }
   return {
@@ -964,7 +979,7 @@ export function deArchivo(doc) {
   const sesionClaude = textoONulo(doc.sesionClaude)
   const mensajes = doc.mensajes.filter(m => m && (m.rol === 'usuario' || m.rol === 'mascota')).map(m => (m.rol === 'usuario'
     ? { rol: 'usuario', texto: String(m.texto ?? ''), cuando: msDe(m.cuando), estado: m.estado === 'no-enviado' ? 'no-enviado' : 'ok', adjuntos: Array.isArray(m.adjuntos) ? m.adjuntos : [], turno: 0, rutas: [] }
-    : { rol: 'mascota', texto: String(m.texto ?? ''), cuando: msDe(m.cuando), estado: ['ok', 'frenada', 'error'].includes(m.estado) ? m.estado : 'error', herramientas: Array.isArray(m.herramientas) ? m.herramientas : [], turno: 0, avis: !!m.avis, ms: m.ms ?? null }))
+    : { rol: 'mascota', texto: String(m.texto ?? ''), cuando: msDe(m.cuando), estado: ['ok', 'frenada', 'error'].includes(m.estado) ? m.estado : 'error', herramientas: Array.isArray(m.herramientas) ? m.herramientas : [], turno: 0, avis: !!m.avis, ms: m.ms ?? null, ...(Array.isArray(m.cambios) && m.cambios.length ? { cambios: m.cambios } : {}) }))
   return {
     id: doc.id, titulo: textoONulo(doc.titulo), motor, carpeta: motor === 'local' ? null : textoONulo(doc.carpeta),
     modelo: motor === 'local' ? null : modeloValido(doc.modelo), sesionClaude, sesionUsada: !!sesionClaude, creada: msDe(doc.creada), actualizada: msDe(doc.actualizada), nuevaEn: null, mensajes,

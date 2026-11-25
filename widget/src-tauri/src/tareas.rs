@@ -6,13 +6,18 @@
 //! - Los campos que este Avis no conoce y ya estaban en el archivo (de una versión futura) se conservan.
 //! - Escritura atómica (`atomico.rs`, la misma del historial del chat), de a una por vez en el proceso.
 //! - Un archivo roto se informa (`rotas`) y se anota en `widget.log`; nunca se pisa ni se borra.
+//! - Dos escritores (#43, chat-herramientas-ux.md 11.5): la ventana guarda la lista entera con la
+//!   `huella` (SHA-256 de los bytes) de lo que leyó; si el archivo cambió desde entonces, no escribe
+//!   (`guardar_si` → "cambio"). El servidor de la charla (`mcp_avis.rs`) cambia con `modificar`:
+//!   lee, cambia y escribe con el mismo candado, nunca con un documento armado aparte.
 //!
 //! Formato v1: `{ v: 1, id: "l-…", nombre, color, orden, creada: ms, tareas: [{ id: "t-…", titulo,
 //! hecha, hechaEn: ms | null, fecha: "AAAA-MM-DD" | null, importante, notas, subtareas: [{ id, titulo,
 //! hecha }], creada: ms }] }`.
 
 use serde_json::{json, Map, Value};
-use std::collections::HashSet;
+use sha2::{Digest, Sha256};
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
@@ -190,15 +195,24 @@ fn conservar(limpio: &mut Value, archivo: &Value) {
     conservar_items(limpio, archivo, "tareas", &CLAVES_TAREA);
 }
 
-/// Lee `<id>.json` tal cual está, si sirve: el valor crudo (con sus desconocidas) o por qué no.
-fn leer_crudo(r: &Path, id: &str) -> Result<Value, String> {
+/// La huella de un archivo de lista (11.5): SHA-256 de sus bytes, en hexadecimal.
+pub fn huella(bytes: &[u8]) -> String {
+    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Lee `<id>.json` tal cual está, si sirve: el valor crudo (con sus desconocidas) y su huella, o por qué no.
+fn leer_con_huella(r: &Path, id: &str) -> Result<(Value, String), String> {
     let bytes = fs::read(r).map_err(|e| e.to_string())?;
     let v: Value = serde_json::from_slice(&bytes).map_err(|e| format!("no es JSON: {e}"))?;
     let d = normalizar(&v)?;
     if d["id"] != json!(id) {
         return Err(String::from("el archivo es de otra lista"));
     }
-    Ok(v)
+    Ok((v, huella(&bytes)))
+}
+
+fn leer_crudo(r: &Path, id: &str) -> Result<Value, String> {
+    leer_con_huella(r, id).map(|(v, _)| v)
 }
 
 fn bloquear() -> std::sync::MutexGuard<'static, ()> {
@@ -206,17 +220,72 @@ fn bloquear() -> std::sync::MutexGuard<'static, ()> {
 }
 
 /// Guarda la lista (atómico) y devuelve lo guardado. Nunca pisa un archivo roto.
+#[cfg(test)]
 pub fn guardar(carpeta: &Path, doc: &Value) -> Result<Value, String> {
+    guardar_si(carpeta, doc, None).map(|(limpio, _)| limpio)
+}
+
+/// `guardar` con la huella de lo que leyó la ventana (11.5): si el archivo ya no tiene esa huella (lo
+/// cambió la charla, o ya no está), no escribe y el error es `"cambio"`. Sin huella, guarda como
+/// siempre. Devuelve lo guardado y su huella nueva.
+pub fn guardar_si(carpeta: &Path, doc: &Value, huella_leida: Option<&str>) -> Result<(Value, String), String> {
     let mut limpio = normalizar(doc)?;
     let id = limpio["id"].as_str().unwrap_or_default().to_string();
     let destino = ruta(carpeta, &id).ok_or("id de lista inválido")?;
     let _candado = bloquear();
+    if let Some(h) = huella_leida {
+        let actual = fs::read(&destino).ok().map(|b| huella(&b));
+        if actual.as_deref() != Some(h) {
+            return Err(String::from("cambio"));
+        }
+    }
     if destino.exists() {
         let archivo = leer_crudo(&destino, &id).map_err(|e| format!("el archivo de la lista está roto ({e}): no se pisa"))?;
         conservar(&mut limpio, &archivo);
     }
-    crate::atomico::escribir(&destino, &serde_json::to_vec(&limpio).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-    Ok(limpio)
+    let bytes = serde_json::to_vec(&limpio).map_err(|e| e.to_string())?;
+    crate::atomico::escribir(&destino, &bytes).map_err(|e| e.to_string())?;
+    Ok((limpio, huella(&bytes)))
+}
+
+/// Por qué no se pudo `modificar` una lista.
+#[derive(Debug)]
+pub enum Falla {
+    /// No hay un archivo de esa lista (o el id no es de lista).
+    NoExiste,
+    /// El archivo está roto: no se toca.
+    Rota,
+    /// No se pudo escribir (el disco): no cambió nada.
+    Disco(String),
+    /// Lo dijo el cambio (`f`), o lo que dejó no es una lista del formato: no se escribe.
+    Regla(String),
+}
+
+/// Lee la lista `id`, la cambia con `f` y la escribe, todo con el candado de las escrituras tomado
+/// (11.4): la ventana y la charla nunca se pisan a medias. `f` recibe la lista del formato con sus
+/// claves desconocidas; lo que deja se normaliza (los topes recortan) y lo desconocido del archivo se
+/// conserva. Devuelve lo que devolvió `f` y lo guardado.
+pub fn modificar<R>(carpeta: &Path, id: &str, f: impl FnOnce(&mut Value) -> Result<R, String>) -> Result<(R, Value), Falla> {
+    let destino = ruta(carpeta, id).ok_or(Falla::NoExiste)?;
+    let _candado = bloquear();
+    if !destino.is_file() {
+        return Err(Falla::NoExiste);
+    }
+    let crudo = leer_crudo(&destino, id).map_err(|e| {
+        registrar(&format!("tareas: {id}.json: {e}"));
+        Falla::Rota
+    })?;
+    let mut doc = normalizar(&crudo).map_err(|_| Falla::Rota)?;
+    conservar(&mut doc, &crudo);
+    let r = f(&mut doc).map_err(Falla::Regla)?;
+    let mut limpio = normalizar(&doc).map_err(Falla::Regla)?;
+    if limpio["id"] != json!(id) {
+        return Err(Falla::Regla(String::from("el cambio es de otra lista")));
+    }
+    conservar(&mut limpio, &crudo);
+    let bytes = serde_json::to_vec(&limpio).map_err(|e| Falla::Disco(e.to_string()))?;
+    crate::atomico::escribir(&destino, &bytes).map_err(|e| Falla::Disco(e.to_string()))?;
+    Ok((r, limpio))
 }
 
 /// Borra el archivo de la lista (con sus tareas). Lo que ya no existe no es un error; un archivo
@@ -231,11 +300,13 @@ pub fn borrar(carpeta: &Path, id: &str) -> Result<(), String> {
     fs::remove_file(&r).map_err(|e| e.to_string())
 }
 
-/// Lo que lee `tareas_leer`: las listas que sirven, en orden, y los archivos rotos (`{ archivo, motivo }`).
+/// Lo que lee `tareas_leer`: las listas que sirven, en orden, los archivos rotos (`{ archivo, motivo }`)
+/// y la huella de cada lista que sirve (por id, 11.5).
 #[derive(Debug, Default)]
 pub struct Lectura {
     pub listas: Vec<Value>,
     pub rotas: Vec<Value>,
+    pub huellas: HashMap<String, String>,
 }
 
 /// Todas las listas, ordenadas por `orden`, `creada` e id (con sus claves desconocidas). Un archivo
@@ -249,12 +320,15 @@ pub fn listar(carpeta: &Path) -> Lectura {
         if !e.metadata().is_ok_and(|m| m.is_file()) {
             continue;
         }
-        match leer_crudo(&e.path(), id).and_then(|crudo| {
+        match leer_con_huella(&e.path(), id).and_then(|(crudo, h)| {
             let mut d = normalizar(&crudo)?;
             conservar(&mut d, &crudo);
-            Ok(d)
+            Ok((d, h))
         }) {
-            Ok(d) => l.listas.push(d),
+            Ok((d, h)) => {
+                l.huellas.insert(id.to_string(), h);
+                l.listas.push(d);
+            }
             Err(motivo) => {
                 registrar(&format!("tareas: {archivo}: {motivo}"));
                 l.rotas.push(json!({ "archivo": archivo, "motivo": motivo }));
