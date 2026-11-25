@@ -13,7 +13,7 @@
 </head>
 <body>
   <!-- Tablero (estilo Avis, opción A): la ventana es transparente y #marco pinta el fondo -->
-  <div id="marco" class="cargando">
+  <div id="marco" class="cargando mod-sesiones">
     <div class="desplaza" id="cuerpo">
       <!-- El tamaño natural de este bloque decide el del tablero (tamano.js); la ventana es el área -->
       <div id="contenido">
@@ -32,22 +32,32 @@
           </div>
           <!-- Pantalla dividida (docs/diseno/dividida-ux.md 5.9): una ficha por conversación entre sesiones, solo si hay -->
           <section class="conversan-s" id="conversan" aria-labelledby="h-conversan" hidden></section>
-          <nav class="proyectos" aria-labelledby="h-proyectos">
-            <h2 class="oculto" id="h-proyectos">Proyectos</h2>
-            <div id="proyectos"></div>
-          </nav>
-          <!-- Configuración (docs/diseno/configuracion-ux.md 4.1): la fila al pie, encima de "Equipo"; abierta, aria-current="page".
-               Fuera de la sección de Equipo y pegada al pie de lo que se ve: con zoom alto la barra desplaza y la fila no se pierde (16, D-g) -->
-          <div class="lado-cfg">
-            <!-- Tareas (docs/diseno/tareas-ux.md 4.1): arriba de Configuración, con la cuenta de hoy + vencidas o la pista
-                 "Ctrl T" (#tar-fila-ct, tareasVista.js); abierta, aria-current="page" -->
-            <button type="button" class="pj tar" id="tar-fila" data-accion="tar-abrir" aria-keyshortcuts="Control+T" aria-label="Tareas">
-              <span class="pj-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="3.2"/><path class="tilde-p" d="M5.3 8.2l1.9 1.9 3.6-4"/></svg></span>
-              <span class="pj-n">Tareas</span><span class="tar-ct" id="tar-fila-ct"><kbd aria-hidden="true">Ctrl T</kbd></span>
+          <!-- Menú de módulos (docs/diseno/modulos-ux.md 3.3 y 4.1, #42): Sesiones, Tareas (y Hábitos con #41); la píldora
+               ámbar (.ind-mod) viaja a la fila abierta (aria-current="page"). Las cuentas (#…-ct) y los nombres los pone
+               main.js (cuentaModulo, nombreModulo). Entrega M1: los proyectos cuelgan de Sesiones y se ven solo en Sesiones -->
+          <nav class="mods" id="mods" aria-label="Módulos">
+            <span class="ind-mod" aria-hidden="true"></span>
+            <button type="button" class="mod" id="mod-sesiones" data-accion="mod" data-mod="sesiones" aria-keyshortcuts="Escape" title="Sesiones (Esc)" aria-label="Sesiones, buscando">
+              <span class="mod-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="9" rx="2.6"/><path d="M5 14h6M6 7.2h.01M10 7.2h.01"/></svg></span>
+              <span class="mod-n">Sesiones</span><span class="mod-ct" id="mod-sesiones-ct"><span class="cuentas" aria-hidden="true"><span class="chip">…</span></span></span>
             </button>
-            <button type="button" class="pj engr" id="cfg-fila" data-accion="cfg-abrir" aria-keyshortcuts="Control+Comma">
-              <span class="pj-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M13.14 6.72L14.93 7.01L14.93 8.99L13.14 9.28L12.54 10.73L13.60 12.20L12.20 13.60L10.73 12.54L9.28 13.14L8.99 14.93L7.01 14.93L6.72 13.14L5.27 12.54L3.80 13.60L2.40 12.20L3.46 10.73L2.86 9.28L1.07 8.99L1.07 7.01L2.86 6.72L3.46 5.27L2.40 3.80L3.80 2.40L5.27 3.46L6.72 2.86L7.01 1.07L8.99 1.07L9.28 2.86L10.73 3.46L12.20 2.40L13.60 3.80L12.54 5.27Z"/><circle cx="8" cy="8" r="2.1"/></svg></span>
-              <span class="pj-n">Configuración</span><kbd aria-hidden="true">Ctrl ,</kbd>
+            <nav class="proyectos" aria-labelledby="h-proyectos">
+              <h2 class="oculto" id="h-proyectos">Proyectos</h2>
+              <div id="proyectos"></div>
+            </nav>
+            <!-- Tareas (docs/diseno/tareas-ux.md 4.1): la cuenta de hoy + vencidas o la pista "Ctrl T" (#tar-fila-ct, tareasVista.js) -->
+            <button type="button" class="mod tar" id="tar-fila" data-accion="mod" data-mod="tareas" aria-keyshortcuts="Control+T" title="Tareas (Ctrl T)" aria-label="Tareas">
+              <span class="mod-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="3.2"/><path class="tilde-p" d="M5.3 8.2l1.9 1.9 3.6-4"/></svg></span>
+              <span class="mod-n">Tareas</span><span class="mod-ct tar-ct" id="tar-fila-ct"><kbd aria-hidden="true">Ctrl T</kbd></span>
+            </button>
+            <!-- Hábitos (#41, docs/diseno/habitos-ux.md): su fila #hab-fila va acá, con su anillo o la pista "Ctrl H" -->
+          </nav>
+          <!-- Configuración (docs/diseno/configuracion-ux.md 4.1, modulos-ux.md 3.3): sola y aparte, pegada al pie de lo que se
+               ve: con zoom alto la barra desplaza y la fila no se pierde (16, D-g). La píldora no baja hasta acá: abierta, pone su fondo -->
+          <div class="lado-cfg">
+            <button type="button" class="mod engr" id="cfg-fila" data-accion="mod" data-mod="config" aria-keyshortcuts="Control+Comma" title="Configuración (Ctrl ,)" aria-label="Configuración">
+              <span class="mod-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M13.14 6.72L14.93 7.01L14.93 8.99L13.14 9.28L12.54 10.73L13.60 12.20L12.20 13.60L10.73 12.54L9.28 13.14L8.99 14.93L7.01 14.93L6.72 13.14L5.27 12.54L3.80 13.60L2.40 12.20L3.46 10.73L2.86 9.28L1.07 8.99L1.07 7.01L2.86 6.72L3.46 5.27L2.40 3.80L3.80 2.40L5.27 3.46L6.72 2.86L7.01 1.07L8.99 1.07L9.28 2.86L10.73 3.46L12.20 2.40L13.60 3.80L12.54 5.27Z"/><circle cx="8" cy="8" r="2.1"/></svg></span>
+              <span class="mod-n">Configuración</span><span class="mod-ct" id="cfg-fila-ct"><kbd aria-hidden="true">Ctrl ,</kbd></span>
             </button>
           </div>
           <section class="lado-pie" aria-labelledby="h-equipo">
@@ -71,11 +81,7 @@
             <!-- Encabezado de la conversación (dividida-ux.md 5.2): kick, título y sub, y la salida "‹ vista anterior" -->
             <div class="cab-c-t" id="cab-conv" data-arrastre title="Arrastrá para mover o acoplar a un borde"></div>
             <button type="button" class="volver" id="volver" data-accion="volver"></button>
-            <!-- Salida de la configuración (configuracion-ux.md 4.1): solo con la hoja abierta -->
-            <button type="button" class="volver" id="cfg-volver" data-accion="cfg-cerrar" aria-keyshortcuts="Escape" title="Volver al tablero (Esc)">‹ Tablero</button>
             <div class="controles">
-              <!-- Salida de Tareas (tareas-ux.md 3.1 y 3.3): solo con la hoja abierta, primera de los controles -->
-              <button type="button" class="volver" id="tar-volver" data-accion="tar-cerrar" aria-keyshortcuts="Escape" title="Volver al tablero (Esc)">‹ Tablero</button>
               <button type="button" class="tb" data-accion="pin" aria-pressed="true" aria-label="Siempre arriba" title="Siempre arriba">
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2h5M6.5 2v4.2L4.5 8.5h7L9.5 6.2V2M8 8.5V14"/></svg>
               </button>
@@ -89,6 +95,8 @@
             <!-- La cuenta de la vuelta (dividida-ux.md 9.4): una barra de 2 px que se vacía en 60 s -->
             <span class="drena" id="drena" aria-hidden="true"><i></i></span>
           </header>
+          <!-- La pregunta vista desde otro módulo (modulos-ux.md 4.5, #42): una pregunta pendiente nunca se pierde -->
+          <div id="aviso-p"></div>
           <div id="vacio-avi" class="vacio-avi" hidden></div>
           <!-- Configuración (docs/diseno/configuracion-ux.md 4.2): la hoja reemplaza a lo de abajo mientras está abierta -->
           <div id="cfg"></div>

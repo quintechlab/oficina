@@ -53,6 +53,8 @@
   /* Tamaño del tablero (9.2): ancho y alto fijos, iguales en todos los proyectos; lo que no entra se
      ve con scroll adentro de cada columna. Crece con el zoom y se topa al 90 % del área */
   --ancho-lado: 188px; --ancho-principal: 460px; --alto-tablero: 640px;
+  /* El menú de módulos (modulos-ux.md 6): alto de cada fila y de la píldora que viaja */
+  --alto-modulo: 40px;
   /* Primeros pasos (bienvenida-ux.md 5): el escenario tiene alto fijo, como el tablero */
   --alto-escenario: 600px;
   /* Panel "Escenario + chips" (panel-avis-ux.md 7): la caja del escenario de cada sesión, los chips
@@ -148,7 +150,9 @@ h1, h2, h3 { font: inherit }
 /* Si los proyectos no entran, desplazan ellos; si tampoco alcanza, la barra entera */
 .lado { width: var(--ancho-lado); flex: none; min-height: 0; overflow-x: hidden; overflow-y: auto; display: flex; flex-direction: column; gap: var(--e-7) }
 .lado > * { flex: none }
-.lado > .proyectos { flex: 0 1 auto; min-height: 76px; overflow-x: hidden; overflow-y: auto }
+/* El menú (modulos-ux.md 3.3): si los proyectos de Sesiones no entran, desplazan ellos; si tampoco alcanza, la barra entera */
+.lado > .mods { flex: 0 1 auto }
+.mods > .proyectos { flex: 0 1 auto; min-height: 76px; overflow-x: hidden; overflow-y: auto }
 /* Con scroll la barra recorta lo que sale de ella: el foco va por dentro */
 .lado :focus-visible { outline-offset: -2px }
 /* Marca "Escenario" (docs/diseno/marca-avi-ux.md 5.1): columna centrada con el Avi de 112 sobre su luz
@@ -181,6 +185,78 @@ h1, h2, h3 { font: inherit }
 .pj .chip { padding: 3px var(--e-3); font-size: 10px }
 .chip-preg { background: var(--ambar); color: var(--negro); font-weight: 600 }
 .pj.activo .chip { background: color-mix(in srgb, var(--ambar) 22%, var(--ambar-osc)); color: var(--ambar) }
+
+/* ------------------------------------------------------------------ menú de módulos (docs/diseno/modulos-ux.md, opción A "Menú", #42)
+   Sesiones y Tareas (Hábitos con #41) en nav.mods, con la píldora ámbar que viaja a la fila abierta (.ind-mod,
+   4.3, la mueve modulosMotion.js); Configuración aparte, en .lado-cfg. Entrega M1: los proyectos cuelgan de
+   Sesiones (el paso intermedio de B) y se ven solo con Sesiones abierto; entonces la píldora se apaga y la fila
+   pone su fondo, como Configuración. */
+.mods { position: relative; display: flex; flex-direction: column; gap: 2px }
+.mods > * { flex: none }
+.mod {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--alto-modulo); padding: 0 8px;
+  border: 0; border-radius: var(--r-fila); background: transparent; color: var(--crema2);
+  font: var(--t-cuerpo-f); text-align: left; cursor: pointer;
+  transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
+}
+.mod:hover { background: var(--s2); color: var(--crema) }
+.mod:active { transform: scale(.97) }
+.mod-ic { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: var(--r-icono); background: var(--s2); color: var(--crema2); transition: background var(--d-color) ease, color var(--d-color) ease }
+.mod-ic svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round }
+/* Entre el nombre y la cuenta, 6 (no 10): así «Configuración» y «Ctrl ,» entran enteros con zoom de 175 y 200 % */
+.mod-n { flex: 1; min-width: 0; margin-right: -4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+/* La cuenta (4.2): aria-hidden, a la derecha; el número va en el nombre de la fila */
+.mod-ct { display: contents }
+.mod .cuentas { flex: none; display: inline-flex; align-items: center; gap: 4px }
+.mod .chip { padding: 3px var(--e-3); font-size: 10px }
+.mod kbd { flex: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+.mod > .mod-ct > .pt { margin-right: 3px }
+/* Abierta: texto e ícono ámbar; arriba el fondo lo pone la píldora */
+.mod[aria-current="page"], .mod[aria-current="page"]:hover { color: var(--ambar) }
+.mod[aria-current="page"] .mod-ic { background: color-mix(in srgb, var(--ambar) 18%, transparent); color: var(--ambar) }
+.mods > .mod[aria-current="page"], .mods > .mod[aria-current="page"]:hover { background: transparent }
+.lado-cfg .mod[aria-current="page"], #marco.mod-sesiones #mod-sesiones { background: var(--ambar-osc) }
+.ind-mod {
+  position: absolute; left: 0; right: 0; top: 0; height: var(--alto-modulo); border-radius: var(--r-fila);
+  background: var(--ambar-osc); overflow: hidden; pointer-events: none; transition: opacity var(--d-color) ease;
+}
+/* La marca de 3 px a la izquierda (4.3): una franja recortada por el radio, no `box-shadow: inset`, que en
+   posiciones fraccionarias (zoom, barra que desplaza) deja un filo ámbar alrededor de toda la píldora */
+.ind-mod::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--ambar) }
+#marco.mod-sesiones .ind-mod, #marco.mod-config .ind-mod { opacity: 0 }
+/* Los proyectos de Sesiones (M1): colgados de su fila con la línea del árbol; fuera de Sesiones no se ven (11.1) */
+.mods > .proyectos { margin: 0 0 var(--e-1) 19px; padding-left: 10px; border-left: 1px solid var(--linea) }
+.mods > .proyectos:has(.pj:only-child) { min-height: 0; flex-shrink: 0 }
+#marco:not(.mod-sesiones) .mods > .proyectos { display: none }
+@keyframes modLate { 40% { transform: scale(1.28) } }
+@media (prefers-reduced-motion: no-preference) {
+  /* Llega una pregunta (4.2): el «1 ?» de Sesiones late dos veces y queda quieto */
+  body:not(.pausa) #mod-sesiones .chip-preg.late { animation: modLate .5s var(--rebote) 2 }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mod, .mod-ic, .ind-mod { transition: none }
+}
+body.pausa .mod, body.pausa .mod-ic, body.pausa .ind-mod { transition: none }
+
+/* La pregunta vista desde otro módulo (4.5): arriba de la columna, a todo el ancho, con «Responder →» */
+#aviso-p:empty { display: none }
+.aviso-p {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 46px; padding: 0 6px; margin-bottom: 10px;
+  border: 1px solid color-mix(in srgb, var(--ambar) 60%, transparent); border-radius: var(--r-pildora);
+  background: linear-gradient(90deg, rgba(242, 182, 50, .14), var(--ambar-osc) 60%); box-shadow: 0 10px 26px -16px rgba(242, 182, 50, .7);
+  color: var(--crema); font: 600 12px/1.3 var(--f); text-align: left; cursor: pointer;
+  transition: border-color var(--d-color) ease, transform var(--d-presion) ease;
+}
+.aviso-p:hover { border-color: var(--ambar) }
+.aviso-p:active { transform: scale(.98) }
+.aviso-p .cara { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--negro) }
+.aviso-p .t { flex: 1; min-width: 0; overflow-wrap: anywhere }
+.aviso-p .t small { display: block; font: var(--t-mono-s); color: var(--crema2) }
+.aviso-p .ir { flex: none; padding: 8px 12px; border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro); font: 800 11.5px/1 var(--f); white-space: nowrap; transition: filter var(--d-color) ease }
+.aviso-p:hover .ir { filter: brightness(1.08) }
+@media (prefers-reduced-motion: reduce) {
+  .aviso-p, .aviso-p .ir { transition: none }
+}
 
 /* Equipo y pie: al fondo de la barra, con filete */
 .lado-pie { margin-top: auto; padding-top: var(--e-5); border-top: 1px solid var(--linea) }
@@ -1596,22 +1672,16 @@ p.det-rot { margin-top: var(--e-5) }
    mientras está abierta; el encabezado y las pestañas quedan fijos y la pestaña desplaza adentro.
    Todo va bajo #cfg: `.sub` e `.ind` ya existen en el tablero y el resumen. */
 
-/* La fila de la barra (6.1): el molde de un proyecto, con el engranaje; abierta, colores de .pj.activo */
-.pj.engr { --c: var(--crema2); margin-bottom: var(--e-4) }
+/* La fila (6.1, modulos-ux.md 4.1): un `.mod` con el engranaje, sola al pie; abierta, pone su propio fondo (la píldora no baja) */
+.mod.engr { margin-bottom: var(--e-4) }
 /* Su lugar: la línea y el aire que eran de .lado-pie, pegado al pie de lo que se ve (16, D-g) */
 .lado-cfg { position: sticky; bottom: 0; z-index: 1; margin-top: auto; padding-top: var(--e-5); border-top: 1px solid var(--linea); background: var(--negro) }
 .lado-cfg + .lado-pie { margin-top: 0; padding-top: 0; border-top: 0 }
-.pj.engr .pj-ic { background: var(--s2); color: var(--crema2) }
-.pj.engr svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round }
-.pj.engr kbd { flex: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
-.pj.engr[aria-current="page"] { background: var(--ambar-osc); color: var(--ambar) }
-.pj.engr[aria-current="page"] .pj-ic { background: color-mix(in srgb, var(--ambar) 18%, transparent); color: var(--ambar) }
-.pj.engr[aria-current="page"] svg { transform: rotate(90deg) }
+.mod.engr svg { stroke-width: 1.3 }
+.mod.engr[aria-current="page"] svg { transform: rotate(90deg) }
 
 /* La hoja en el marco */
 #cfg:empty, #cfg-aviso:empty { display: none }
-#marco:not(.con-cfg) #cfg-volver { display: none }
-#marco.con-cfg #cfg-volver { display: inline-flex; margin-right: var(--e-2) }
 #marco.con-cfg #vacio-avi, #marco.con-cfg #otro, #marco.con-cfg #pestanas, #marco.con-cfg .split, #marco.con-cfg .ficha-u,
 #marco.con-cfg #w-globo, #marco.con-cfg #pp, #marco.con-cfg .conteos, #marco.con-cfg .sesiones { display: none }
 #marco.con-cfg .principal { overflow: hidden }
@@ -1855,8 +1925,8 @@ body.pausa :is(#cfg, #tar) .armado::after { animation: none }
 /* Movimiento (8): el engranaje gira 45° al pasar; con movimiento reducido o pausa, nada se desliza y
    la luz de la mascota cambia sin transición */
 @media (prefers-reduced-motion: no-preference) {
-  body:not(.pausa) .pj.engr svg { transition: transform .6s var(--rebote) }
-  body:not(.pausa) .pj.engr:not([aria-current]):hover svg { transform: rotate(45deg) }
+  body:not(.pausa) .mod.engr svg { transition: transform .6s var(--rebote) }
+  body:not(.pausa) .mod.engr:not([aria-current]):hover svg { transform: rotate(45deg) }
 }
 @media (prefers-reduced-motion: reduce) {
   #cfg .pes, #cfg .sw, #cfg .sw i, #cfg .seg > button, #cfg .pb, #cfg .esc-m, #cfg .esp, #cfg .esp .avi { transition: none }
@@ -1870,28 +1940,20 @@ body.pausa #cfg .esp:hover .avi { transform: none }
    que la configuración. Un índice angosto a la izquierda y el panel a la derecha (.carpeta). Todo va
    bajo #tar: `.fila`, `.tag`, `.sub`, `.err` y `.desplaza` ya existen en otros lugares. */
 
-/* La fila de la barra (4.1): el molde de Configuración, arriba de ella, con el cuadro y el visto */
-.pj.tar { --c: var(--crema2); margin-bottom: var(--e-1) }
-.pj.tar .pj-ic { background: var(--s2); color: var(--crema2) }
-.pj.tar svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round }
-.pj.tar .tilde-p { stroke-dasharray: 9; stroke-dashoffset: 0 }
-.pj.tar .tar-ct { display: contents }
-.pj.tar kbd { flex: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
-.pj.tar[aria-current="page"] { background: var(--ambar-osc); color: var(--ambar) }
-.pj.tar[aria-current="page"] .pj-ic { background: color-mix(in srgb, var(--ambar) 18%, transparent); color: var(--ambar) }
+/* La fila (4.1, modulos-ux.md 4.1): un `.mod` del menú, debajo de Sesiones, con el cuadro y el visto */
+.mod.tar svg { stroke-width: 1.5 }
+.mod.tar .tilde-p { stroke-dasharray: 9; stroke-dashoffset: 0 }
 /* Con alguna vencida (4.1): rojo con su punto; el número va oculto en el nombre de la fila */
 .chip-venc { display: inline-flex; align-items: center; gap: 4px; background: color-mix(in srgb, var(--rojo) 22%, var(--s2)); color: var(--rojo); font-weight: 600 }
 .chip-venc i { width: 5px; height: 5px; border-radius: 50%; background: var(--rojo) }
-.pj.tar[aria-current="page"] .chip-preg { background: var(--ambar); color: var(--negro) }
-.pj.tar[aria-current="page"] .chip-venc { background: color-mix(in srgb, var(--rojo) 22%, var(--s2)); color: var(--rojo) }
+.mod.tar[aria-current="page"] .chip-preg { background: var(--ambar); color: var(--negro) }
+.mod.tar[aria-current="page"] .chip-venc { background: color-mix(in srgb, var(--rojo) 22%, var(--s2)); color: var(--rojo) }
 
 /* La hoja en el marco */
 #tar:empty, #tar-aviso:empty { display: none }
-#marco:not(.con-tar) #tar-volver { display: none }
-/* "‹ Tablero" va primero en los controles (3.3), centrado con los botones de 32 y con las medidas del
-   boceto (relleno 10/8, 12 px): así la bajada "martes 24/11 · 2 para hoy · 2 vencidas" entra en una línea
-   al 100 %. Si una bajada más larga no entra, se corta con "…" (las cuentas siguen a la vista en el índice) */
-#marco.con-tar #tar-volver { display: inline-flex; margin-right: 0; padding: 0 10px 0 8px; font-size: 12px }
+/* «‹ Tablero» se fue con el menú de módulos (modulos-ux.md 3.2): Esc o la fila de Sesiones vuelven. La bajada
+   "martes 24/11 · 2 para hoy · 2 vencidas" va en una línea; si una más larga no entra, se corta con "…" (las
+   cuentas siguen a la vista en el índice) */
 #marco.con-tar .controles { align-items: center }
 #marco.con-tar #subtitulo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #marco.con-tar #vacio-avi, #marco.con-tar #otro, #marco.con-tar #pestanas, #marco.con-tar .split, #marco.con-tar .ficha-u,
@@ -2137,8 +2199,8 @@ body.pausa #cfg .esp:hover .avi { transform: none }
   body:not(.pausa) #tar .pleg svg { transition: transform .3s var(--ease) }
   body:not(.pausa) #tar .prog i { transition: width .5s var(--ease) }
   body:not(.pausa) #tar .campo kbd { transition: opacity var(--d-color) ease }
-  body:not(.pausa) .pj.tar .chip.late { animation: tarLate .5s var(--rebote) }
-  body:not(.pausa) .pj.tar:not([aria-current]):hover .tilde-p { animation: tarRetilde .6s var(--ease) }
+  body:not(.pausa) .mod.tar .chip.late { animation: tarLate .5s var(--rebote) }
+  body:not(.pausa) .mod.tar:not([aria-current]):hover .tilde-p { animation: tarRetilde .6s var(--ease) }
 }
 @media (prefers-reduced-motion: reduce) {
   #tar .ix-b, #tar .fila, #tar .fila::before, #tar .ck::before, #tar .fc, #tar .tit-in, #tar .seg > button, #tar .sub-t, #tar .notas { transition: none }

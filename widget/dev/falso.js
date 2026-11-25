@@ -49,6 +49,11 @@
 //   ?cfg=datos&historial=muchas  el historial del chat (7.4) con 24 charlas falsas más las del chat falso;
 //                 "Borrar todo" tarda 0,9 s; &borrarfalla deja 3 sin borrar ("Reintentar")
 //   Lo guardado queda en window.__ajustes.
+// Módulos (#42, docs/diseno/modulos-ux.md, entrega M1): el menú de la barra (Sesiones, Tareas, Configuración).
+//   ?modulo=tareas|config  abre ese módulo a los 0,9 s con el clic en su fila (como el usuario). La pregunta
+//                 de catalogo sigue pendiente: se ve en el «1 ?» de Sesiones, en #aviso-p y en la marca
+//   ?pregunta=llega  la pregunta de catalogo llega a los 4 s y se queda (el «1 ?» late y #aviso-p baja);
+//                 con ?modulo=…, se ve llegar desde ese módulo
 // Tareas (#39, docs/diseno/tareas-ux.md): la fila "Tareas" de la barra, Ctrl T o ?tareas=… abren la hoja.
 //   Sin ?tareas, las cuatro listas del boceto (Trabajo, Casa, Compras y Facturación, con fechas contadas
 //   desde hoy en Argentina) y la hoja cerrada: la fila muestra la cuenta. Con ?tareas, la hoja se abre
@@ -291,7 +296,7 @@
   /** Preguntas que el falso da por tomadas (?envio=listo) o respondidas en Claude (?envio=ya). */
   const tomadas = new Set()
   // &tapa: las preguntas solo entre los 4 y los 10 s (tapan el globo de tareas de la muesca y se van)
-  const tapada = () => !url.has('tapa') || (Date.now() - ahora >= 4000 && Date.now() - ahora < 10000)
+  const tapada = () => url.get('pregunta') === 'llega' ? Date.now() - ahora >= 4000 : !url.has('tapa') || (Date.now() - ahora >= 4000 && Date.now() - ahora < 10000)
   const sinTomadas = () => SESIONES.map(s => ({ ...s, preguntas: tapada() ? (s.preguntas ?? []).filter(p => !tomadas.has(p.id)) : [] }))
 
   // Barra de control (#19): las sesiones aceptan órdenes (mod v0.10). oficina trabaja (Frenar se ve),
@@ -618,6 +623,9 @@
     },
     tareas_abrir_carpeta: () => console.info('[explorador] <config>\tareas'),
   }
+  // ?modulo=…: abre el módulo como el usuario, con el clic en su fila del menú (modulos-ux.md 4.1)
+  const modulo = url.get('modulo')
+  if (modulo && modulo !== 'sesiones') setTimeout(() => document.querySelector(`.mod[data-mod="${CSS.escape(modulo)}"]`)?.click(), 900)
   // ?tareas=…: abre la hoja como el usuario (el clic en la fila "Tareas") y va a la vista de cada caso
   if (modoTareas !== null) {
     setTimeout(() => {
