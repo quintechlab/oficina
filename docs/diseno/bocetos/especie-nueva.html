@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Avis · especie nueva (#46) — boceto</title>
+<link rel="stylesheet" href="../../../widget/src/avis.css">
+<link rel="stylesheet" href="../../../widget/src/especies.css">
+<style>
+/* Boceto #46: tres propuestas de una octava especie. Arquetipo pedido: criatura chica y redonda, orejas grandes
+   que hacen de alas para planear, compañera tierna y valiente. Nombre, cara, paleta, marcas y silueta propios.
+   Servir desde la raíz del repo: monta avis.js, especies.js y evolucionMotion.js reales; las tres especies se
+   inyectan en ESPECIES, VARIANTES y ACTOS_EVOLUCION en tiempo de ejecución. Lo que sigue a "especie nueva" es el
+   CSS que especies.css sumaría para la elegida. No es código de producción. */
+@font-face{font-family:"Manrope";src:url("../../../widget/src/fuentes/manrope-latin.woff2") format("woff2");font-weight:200 800;font-display:swap}
+@font-face{font-family:"Martian Mono";src:url("../../../widget/src/fuentes/martian-mono-latin.woff2") format("woff2");font-weight:100 800;font-stretch:75% 112.5%;font-display:swap}
+:root{
+  --negro:#000;--s1:#0C0C0E;--s2:#141417;--s3:#1D1D21;--linea:#25252A;--linea-hover:#36363C;
+  --crema:#F3EBD8;--crema2:#BDB5A4;--tenue:#8A8478;--ambar:#F2B632;--rojo:#FF7A6B;
+  --f:"Manrope","Segoe UI Variable",sans-serif;--m:"Martian Mono","Cascadia Mono",monospace;
+  --ease:cubic-bezier(.16,1,.3,1);--rebote:cubic-bezier(.34,1.56,.64,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#050506;color-scheme:dark}
+body{color:var(--crema);font:500 13px/1.5 var(--f);-webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--ambar);outline-offset:3px}
+.mono,.kicker{font-family:var(--m);font-stretch:75%}
+.kicker{font-size:10px;font-weight:500;line-height:1.3;letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+.defs{position:absolute;width:0;height:0;overflow:hidden}
+.pagina{max-width:1320px;margin:0 auto;padding:40px 32px 96px}
+@media (max-width:600px){.pagina{padding:24px 14px 64px}}
+
+/* ---------- cabecera */
+.top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:28px 48px;align-items:end;padding-bottom:28px}
+@media (max-width:1060px){.top{grid-template-columns:1fr}}
+h1{font:800 clamp(36px,6vw,70px)/.94 var(--f);letter-spacing:-.045em;margin-top:12px;max-width:13ch}
+h1 em{font-style:normal;background:linear-gradient(90deg,#FF5247,#FF7A9A 50%,#FFE53D);-webkit-background-clip:text;background-clip:text;color:transparent}
+.bajada{max-width:64ch;color:var(--crema2);margin-top:16px;font-size:14px;line-height:1.55}
+.bajada b{color:var(--crema)}
+.desfile{display:flex;gap:10px;align-items:flex-end;--t:84px}
+.desfile figure{display:grid;justify-items:center;gap:8px;opacity:0;transform:translateY(14px)}
+.desfile figcaption{font:500 10px/1 var(--m);font-stretch:75%;color:var(--tenue);letter-spacing:.08em;text-transform:uppercase}
+@media (max-width:600px){.desfile{--t:64px;justify-content:space-between}}
+
+.barra-ctl{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding:12px 0;border-top:1px solid var(--linea);border-bottom:1px solid var(--linea)}
+@media (min-width:768px){.barra-ctl{position:sticky;top:0;z-index:5;background:rgba(5,5,6,.94);backdrop-filter:blur(6px)}}
+.barra-ctl nav{display:flex;flex-wrap:wrap;gap:8px}
+.barra-ctl nav a{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--linea);color:var(--crema);text-decoration:none;font-weight:700;font-size:12.5px}
+.barra-ctl nav a:hover{border-color:var(--linea-hover)}
+.barra-ctl nav a i{width:9px;height:9px;border-radius:50%;background:var(--pc)}
+.barra-ctl .rm{flex-basis:100%;color:var(--tenue);font-size:12px;display:none}
+@media (prefers-reduced-motion:reduce){.barra-ctl .rm{display:block}}
+.interruptor{display:inline-flex;align-items:center;gap:9px;min-height:44px;padding:0 16px 0 12px;border-radius:999px;background:var(--s2);border:1px solid var(--linea);font-weight:700;font-size:12.5px;margin-left:auto}
+.interruptor i{flex:none;width:26px;height:16px;border-radius:999px;background:var(--s3);box-shadow:inset 0 0 0 1px var(--linea-hover);position:relative}
+.interruptor i::after{content:"";position:absolute;top:3px;left:3px;width:10px;height:10px;border-radius:50%;background:var(--tenue);transition:transform .25s var(--ease),background .2s}
+.interruptor[aria-pressed="true"] i::after{transform:translateX(10px);background:var(--ambar)}
+@media (max-width:600px){.interruptor{margin-left:0}}
+
+/* ---------- propuesta */
+.prop{--pc:#fff;position:relative;margin-top:34px;padding:30px;border:1px solid var(--linea);border-radius:24px;background:radial-gradient(120% 70% at 0% 0%,color-mix(in srgb,var(--pc) 9%,transparent),transparent 60%),#09090B;display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:30px 36px;scroll-margin-top:84px}
+@media (max-width:1060px){.prop{grid-template-columns:1fr}}
+@media (max-width:600px){.prop{padding:20px 14px;border-radius:18px}}
+.prop.reco{border-color:color-mix(in srgb,var(--pc) 45%,var(--linea))}
+.cab .fila1{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cab .num{font:600 11px/1 var(--m);font-stretch:75%;color:var(--pc)}
+.sello-reco{font:700 10px/1 var(--m);font-stretch:75%;letter-spacing:.1em;text-transform:uppercase;padding:5px 9px;border-radius:999px;background:var(--pc);color:#000}
+.cab h2{font:800 clamp(34px,4.6vw,52px)/.95 var(--f);letter-spacing:-.04em;margin-top:12px}
+.cab h2 .evo-n{color:var(--pc);font-weight:700}
+.concepto{font-size:15px;line-height:1.45;margin-top:12px;color:var(--crema)}
+.propio{margin-top:12px;color:var(--crema2);font-size:13px;line-height:1.55;padding-left:12px;border-left:2px solid var(--pc)}
+.propio b{color:var(--crema)}
+.paleta{display:flex;gap:6px;margin-top:16px;flex-wrap:wrap}
+.paleta span{display:grid;gap:4px;font:500 9.5px/1 var(--m);font-stretch:75%;color:var(--tenue)}
+.paleta span i{display:block;width:40px;height:26px;border-radius:7px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+
+.escena{position:relative;margin-top:22px;height:300px;border-radius:18px;background:radial-gradient(60% 46% at 50% 78%,color-mix(in srgb,var(--pc) 16%,transparent),transparent 72%),#0C0C0E;border:1px solid var(--linea);display:grid;place-items:center;overflow:hidden}
+.escena .avi{--t:176px;margin-top:-10px}
+.escena .nombre{position:absolute;left:16px;top:14px;font:800 16px/1.1 var(--f);letter-spacing:-.02em}
+.escena .nombre small{display:block;font:500 10px/1.3 var(--m);font-stretch:75%;color:var(--tenue);letter-spacing:.1em;text-transform:uppercase;margin-top:4px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border-radius:12px;font-weight:800;font-size:13px;background:var(--s2);border:1px solid var(--linea);transition:border-color .2s,transform .15s var(--ease),background .2s}
+.btn:hover{border-color:var(--linea-hover)}
+.btn:active{transform:scale(.97)}
+.btn-evo{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:var(--pc);color:#000;border:0;white-space:nowrap}
+.btn-evo:active{transform:translateX(-50%) scale(.97)}
+.btn-evo[aria-pressed="true"]{background:var(--s2);color:var(--crema);border:1px solid var(--linea)}
+
+.bloques{display:grid;gap:26px;min-width:0}
+.bloque h3{font:700 10px/1.3 var(--m);font-stretch:75%;letter-spacing:.12em;text-transform:uppercase;color:var(--tenue);display:flex;gap:10px;align-items:baseline;margin-bottom:12px}
+.bloque h3::after{content:"";flex:1;height:1px;background:var(--linea)}
+.nota{color:var(--tenue);font-size:12px;line-height:1.5;margin-top:8px;max-width:70ch}
+
+.poses{display:grid;grid-template-columns:62px repeat(5,minmax(0,1fr));gap:6px 8px;align-items:center;--t:72px}
+.poses .rot{font:500 10px/1.2 var(--m);font-stretch:75%;color:var(--tenue);letter-spacing:.06em}
+.poses .rot.forma{color:var(--crema);font-weight:600}
+.poses .col{text-align:center}
+.poses .celda{display:grid;place-items:center;padding:6px 0;border-radius:12px;background:#0C0C0E}
+@media (max-width:600px){.poses{grid-template-columns:repeat(5,minmax(0,1fr));--t:48px;gap:6px 4px}.poses .celda{overflow:hidden}.poses .rot.forma{grid-column:1/-1;margin-top:4px}.poses .vacio{display:none}}
+
+.canales{display:grid;grid-template-columns:136px minmax(0,1fr);gap:16px;align-items:center}
+.canales .fig{display:grid;place-items:center;width:136px;height:136px;border-radius:16px;background:#0C0C0E;border:1px solid var(--linea)}
+.canales ul{list-style:none;display:grid;gap:8px}
+.canales li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;align-items:center}
+.canales li .btn{min-width:96px;justify-content:flex-start}
+.canales li .btn i{width:8px;height:8px;border-radius:50%;background:var(--pc)}
+.canales li span{color:var(--crema2);font-size:12px;line-height:1.4}
+@media (max-width:600px){.canales{grid-template-columns:1fr}.canales .fig{margin:0 auto}}
+
+.variantes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:760px){.variantes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:480px){.variantes{grid-template-columns:1fr}}
+.ficha{display:grid;grid-template-columns:54px minmax(0,1fr);gap:10px;align-items:center;padding:10px;border-radius:14px;background:#0C0C0E;border:1px solid var(--linea)}
+.ficha b{display:block;font:800 13px/1.2 var(--f)}
+.ficha span{display:block;color:var(--tenue);font-size:11px;line-height:1.35;margin-top:2px}
+.ficha .avi{--t:54px}
+
+.tamanos{display:flex;flex-wrap:wrap;gap:18px 22px;align-items:flex-end}
+.tam{display:grid;justify-items:center;gap:8px}
+.tam small{font:500 10px/1.2 var(--m);font-stretch:75%;color:var(--tenue);letter-spacing:.06em;text-align:center}
+.muesca{position:relative;width:150px;height:54px;background:#000;border-radius:0 0 18px 18px;border:1px solid #1A1A1E;border-top:0;overflow:hidden;display:flex;align-items:center;gap:6px;padding:0 10px}
+.muesca .avi{--t:44px;flex:none}
+.muesca b{font:700 11px/1.2 var(--f)}
+.muesca b small{display:block;font:500 9.5px/1.2 var(--m);font-stretch:75%;color:var(--tenue)}
+.marcos{display:flex;flex-wrap:wrap;gap:14px}
+.lado-mock{position:relative;width:var(--w);height:226px;background:#0C0C0E;border:1px solid var(--linea);border-radius:0 0 14px 14px;overflow:hidden}
+.lado-mock::before{content:"";position:absolute;inset:0 0 auto;height:0;border-top:1px dashed color-mix(in srgb,var(--pc) 70%,transparent);z-index:2}
+.marca-mock{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;padding:6px 4px 4px}
+.marca-mock::before{content:"";position:absolute;left:50%;top:8px;width:150px;height:120px;transform:translateX(-50%);background:radial-gradient(50% 50% at 50% 62%,color-mix(in srgb,var(--pc) 16%,transparent),transparent 70%);pointer-events:none}
+.marca-mock .avi{--t:112px;position:relative}
+.marca-mock .marca-n{display:block;margin-top:6px;font:800 21px/1.1 var(--f);letter-spacing:-.03em}
+.marca-mock .estado{margin-top:7px;padding:4px 10px 4px 8px;background:var(--s2);border-radius:999px;font:500 10.5px/1.4 var(--m);font-stretch:75%;color:var(--crema2)}
+.lado-cap{margin-top:6px;font:500 10px/1.3 var(--m);font-stretch:75%;color:var(--tenue)}
+.lado-cap b{color:var(--crema);font-weight:600}
+.lado-cap b.mal{color:var(--rojo)}
+
+/* ---------- altura y cierre */
+.seccion{margin-top:48px}
+.seccion h2{font:800 clamp(26px,3.4vw,38px)/1 var(--f);letter-spacing:-.035em}
+.seccion > p{color:var(--crema2);max-width:70ch;margin-top:10px;font-size:13.5px}
+table.alt{margin-top:18px;border-collapse:collapse;width:100%;max-width:760px;font-size:12.5px}
+table.alt th,table.alt td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--linea)}
+table.alt th{font:600 10px/1.2 var(--m);font-stretch:75%;letter-spacing:.1em;text-transform:uppercase;color:var(--tenue)}
+table.alt td.n{font-family:var(--m);font-stretch:75%;text-align:right;white-space:nowrap}
+table.alt tr.nueva td{color:var(--crema);font-weight:700}
+table.alt tr.nueva td:first-child::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--pc);margin-right:8px}
+table.alt td .avi{--t:30px;margin-right:8px}
+.reco-final{margin-top:22px;padding:22px;border-radius:18px;border:1px solid color-mix(in srgb,#FF5247 40%,var(--linea));background:radial-gradient(80% 120% at 100% 0%,rgba(255,82,71,.1),transparent 60%),#09090B;max-width:900px}
+.reco-final p{color:var(--crema2);font-size:13.5px;line-height:1.6}
+.reco-final p + p{margin-top:8px}
+.reco-final b{color:var(--crema)}
+
+/* ---------- entrada orquestada */
+@media (prefers-reduced-motion:no-preference){
+  .entra{opacity:0;transform:translateY(18px)}
+}
+
+/* ================================================================ especie nueva: lo que sumaría especies.css
+   (copia de las reglas genéricas de las seis especies nuevas, más origenes, forma evolucionada y bucles propios) */
+.avi :is(.m-brio,.m-cometa,.m-nimbo) g{transform-box:view-box}
+.avi :is(.m-brio,.m-cometa,.m-nimbo) :is(.vuela,.cuerpo){transform-origin:60px 104px}
+.avi :is(.m-brio,.m-cometa,.m-nimbo) .ojos{transform-origin:60px var(--oy)}
+.avi :is(.m-brio,.m-cometa,.m-nimbo) :is(.burbuja,.saludo){transform-box:fill-box;transform-origin:30% 100%}
+.avi :is(.m-brio,.m-cometa,.m-nimbo) .emisor{transform-box:fill-box;transform-origin:50% 50%}
+.avi .m-brio .suelo{fill:url(#gSu-brio)}
+.avi .m-cometa .suelo{fill:url(#gSu-cometa)}
+.avi .m-nimbo .suelo{fill:url(#gSu-nimbo)}
+.avi :is(.m-brio,.m-cometa,.m-nimbo) :is(.o-ab,.o-ce,.o-fe,.o-x){transition:opacity .18s}
+.avi :is(.m-brio,.m-cometa,.m-nimbo) :is(.o-ce,.o-fe,.o-x){opacity:0}
+.avi :is(.m-brio,.m-cometa,.m-nimbo):is(.e-durmiendo,.e-inactiva,.e-listo,.e-fallo) .o-ab{opacity:0}
+.avi :is(.m-brio,.m-cometa,.m-nimbo):is(.e-durmiendo,.e-inactiva) .o-ce{opacity:1}
+.avi :is(.m-brio,.m-cometa,.m-nimbo).e-listo .o-fe{opacity:1}
+.avi :is(.m-brio,.m-cometa,.m-nimbo).e-fallo .o-x{opacity:1}
+.avi :is(.m-brio,.m-cometa,.m-nimbo) :is(.insig,.rombo,.rombo-f,.rayo-n,.rayo-f,.boca-dem){transform-box:fill-box;transform-origin:center}
+/* Brío › Gesta */
+.avi .m-brio [class^="ala"].ai{transform-origin:42px 49px}
+.avi .m-brio [class^="ala"].ad{transform-origin:78px 49px}
+.avi .m-brio .punta-b{transform-origin:79px 88px}
+.avi .m-brio .estandarte{transform-origin:82px 88px}
+.avi .m-brio .banda{opacity:0;transition:opacity .4s}
+.avi .m-brio.evol .banda{opacity:1}
+.avi .m-brio.evol .ala-e{transform:scale(1.22)}
+.avi .m-brio .ala{transition:transform .6s var(--ease)}
+.avi .m-brio:is(.e-durmiendo,.e-inactiva) .ala{transform:rotate(calc(var(--s) * -16deg))}
+/* Cometa › Estela */
+.avi .m-cometa [class^="ala"].ai{transform-origin:42px 49px}
+.avi .m-cometa [class^="ala"].ad{transform-origin:78px 49px}
+.avi .m-cometa .cola-c{transform-origin:88px 92px}
+.avi .m-cometa.evol .ala-e{transform:scale(1.26)}
+.avi .m-cometa .ala{transition:transform .6s var(--ease)}
+.avi .m-cometa:is(.e-durmiendo,.e-inactiva) .ala{transform:rotate(calc(var(--s) * -20deg))}
+/* Nimbo › Centella */
+.avi .m-nimbo .vuela{transform:translateY(-5px)}
+.avi .m-nimbo .contacto{transform-box:fill-box;transform-origin:center}
+.avi .m-nimbo [class^="ala"].ai{transform-origin:40px 52px}
+.avi .m-nimbo [class^="ala"].ad{transform-origin:80px 52px}
+.avi .m-nimbo .mechon-e{transform-origin:58px 46px}
+.avi .m-nimbo .orb-ni{transform-origin:60px 64px}
+.avi .m-nimbo.evol .mechon-e{transform:scale(1.25)}
+.avi .m-nimbo.evol .ala-e{transform:scale(1.18)}
+.avi .m-nimbo:is(.e-durmiendo,.e-inactiva) .rayo-n{opacity:.4}
+@media (prefers-reduced-motion:no-preference){
+  body:not(.pausa) .avi :is(.m-brio,.m-cometa,.m-nimbo):is(.e-listo,.e-fallo) .ojos{animation:none}
+  body:not(.pausa) .avi :is(.m-brio,.m-cometa,.m-nimbo).e-coordinando .emisor{animation:pulso 1.1s ease-in-out infinite alternate}
+  body:not(.pausa) .avi .m-brio .ala{animation:planea 3.2s ease-in-out infinite var(--d,0s)}
+  body:not(.pausa) .avi .m-brio .punta-b{animation:bufanda 1.9s ease-in-out infinite}
+  body:not(.pausa) .avi .m-brio .insig{animation:destella 2.6s ease-in-out infinite}
+  body:not(.pausa) .avi .m-brio.evol:not(.chica) .estandarte{animation:bandera 1.5s ease-in-out infinite}
+  body:not(.pausa) .avi .m-brio:is(.e-durmiendo,.e-inactiva) .ala{animation:none}
+  body:not(.pausa) .avi .m-cometa .ala{animation:vela 2.8s ease-in-out infinite var(--d,0s)}
+  body:not(.pausa) .avi .m-cometa .cola-c{animation:colea 3.4s ease-in-out infinite}
+  body:not(.pausa) .avi .m-cometa .rombo{animation:destella 2.4s ease-in-out infinite}
+  body:not(.pausa) .avi .m-cometa.evol:not(.chica) .traza{animation:aurora 4s ease-in-out infinite}
+  body:not(.pausa) .avi .m-cometa.evol:not(.chica) .t2{animation-delay:-2s}
+  body:not(.pausa) .avi .m-cometa:is(.e-durmiendo,.e-inactiva) .ala{animation:none}
+  body:not(.pausa) .avi .m-nimbo .vuela{animation:flota 3.6s ease-in-out infinite var(--d,0s)}
+  body:not(.pausa) .avi .m-nimbo .contacto{animation:sombra 3.6s ease-in-out infinite var(--d,0s)}
+  body:not(.pausa) .avi .m-nimbo .ala{animation:nubla 3.6s ease-in-out infinite var(--d,0s)}
+  body:not(.pausa) .avi .m-nimbo .rayo-n{animation:titila 2.8s ease-in-out infinite}
+  body:not(.pausa) .avi .m-nimbo.evol:not(.chica) .orb-ni{animation:gira 12s linear infinite}
+  body:not(.pausa) .avi .m-nimbo:is(.e-durmiendo,.e-inactiva) .vuela{animation-duration:6s}
+}
+.avi .actuando :is(.insig,.rombo,.rombo-f,.rayo-n),.avi .luz-sube :is(.insig,.rombo,.rombo-f,.rayo-n,.rayo-f){animation:none!important}
+@keyframes planea{0%,100%{transform:rotate(0)}50%{transform:rotate(calc(var(--s) * 7deg))}}
+@keyframes bufanda{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(7deg)}}
+@keyframes destella{0%,100%{opacity:.78;transform:scale(1)}50%{opacity:1;transform:scale(1.25)}}
+@keyframes bandera{0%,100%{transform:skewY(0) scaleX(1)}50%{transform:skewY(-4deg) scaleX(.95)}}
+@keyframes vela{0%,100%{transform:rotate(0)}50%{transform:rotate(calc(var(--s) * 5deg))}}
+@keyframes nubla{0%,100%{transform:scale(1)}50%{transform:scale(1.06,.96)}}
+</style>
+</head>
+<body>
+<div id="defs" class="defs" aria-hidden="true"></div>
+<div id="defs-nuevas" class="defs" aria-hidden="true"></div>
+
+<main class="pagina">
+  <header class="top">
+    <div>
+      <p class="kicker">Avis · #46 · boceto · especie nueva</p>
+      <h1>Tres criaturas que <em>planean</em> con las orejas</h1>
+      <p class="bajada">Del pedido tomé solo el <b>arquetipo</b>: chiquita y redonda, orejas grandes que hacen de alas para planear, compañera tierna y valiente. Nombre, cara, paleta, marcas y silueta son propios: ninguna lleva hocico, ni orejas de murciélago festoneadas, ni naranja y crema, ni una evolución en ángel. Las tres entran tal cual en el sistema de las siete: mismas capas, ojos ∪ ∩ x, canales de la marca y cuatro variantes de subagente. Todo lo que se ve está dibujado por <span class="mono">avis.js</span> real.</p>
+    </div>
+    <div class="desfile" id="desfile" aria-label="Las tres propuestas en su forma base"></div>
+  </header>
+
+  <div class="barra-ctl">
+    <nav aria-label="Propuestas" id="indice"></nav>
+    <button class="interruptor" id="pausa" aria-pressed="false"><i aria-hidden="true"></i>Pausar animaciones</button>
+    <p class="rm">Tu sistema pide menos movimiento: sin bucles ni actos; la forma cambia con un fundido, como en el widget (8.4).</p>
+  </div>
+
+  <div id="props"></div>
+
+  <section class="seccion entra" aria-labelledby="t-alto">
+    <h2 id="t-alto">La evolucionada entra en la marca</h2>
+    <p>Tope medido del dibujo visible de cada forma evolucionada a 112 px, desde el borde de arriba del SVG (negativo: sale por arriba). La marca tiene 6 px de aire arriba dentro de la barra: lo que pase de −6 se corta hoy. Las tres nuevas quedan por debajo de todas las actuales.</p>
+    <table class="alt">
+      <thead><tr><th scope="col">Forma evolucionada</th><th scope="col">Tope a 112 px</th><th scope="col">En la barra hoy</th></tr></thead>
+      <tbody id="tabla-alto"></tbody>
+    </table>
+  </section>
+
+  <section class="seccion entra" aria-labelledby="t-reco">
+    <h2 id="t-reco">Recomiendo Brío</h2>
+    <div class="reco-final">
+      <p><b>Es la lectura más directa del pedido sin ser una copia.</b> Las orejas son alas de verdad y el acto es eso mismo: toma carrera, aletea con las orejas y planea. Lo que se recuerda (la bufanda bermellón con su insignia, el cobalto, el mechón) no existe en la referencia, y su evolución gana un estandarte y una pluma, no alas extra, ni casco, ni aureola.</p>
+      <p><b>Cometa</b> es la más original y la de mejor acto (la vuelta carnero), pero lee "barrilete" antes que "orejas". <b>Nimbo</b> es la más tierna y flota, pero sus orejas de nube se leen menos como orejas y comparte el amarillo con la familia del ámbar.</p>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import { avi, claudeDe, defsAvis } from '../../../widget/src/avis.js'
+import { ESPECIES, NOMBRES_ESPECIES, VARIANTES } from '../../../widget/src/especies.js'
+import { ACTOS_EVOLUCION, evolucionar, devolver, formaAlInstante } from '../../../widget/src/evolucionMotion.js'
+import { animate, cubicBezier, stagger } from '../../../widget/src/vendor/animejs/anime.esm.min.js'
+
+const reducido = () => matchMedia('(prefers-reduced-motion: reduce)').matches || document.body.classList.contains('pausa')
+
+// ------------------------------------------------------------------ ayudas (las de especies.js)
+const f = n => +n.toFixed(2)
+const esp = s => `<g transform="matrix(-1 0 0 1 120 0)">${s}</g>`
+const par = (cls, s) => `<g class="${cls}-e ev ai"><g class="${cls}-s ai"><g class="${cls} ai">${s}</g></g></g><g class="${cls}-e ev ad"><g class="${cls}-s ad"><g class="${cls} ad">${esp(s)}</g></g></g>`
+const org = (x, y, k = 0) => `style="transform-box:view-box;transform-origin:${x}px ${y}px;--k:${k}"`
+const estrella4 = (cx, cy, r) => `M${cx} ${f(cy - r)}L${f(cx + r * .3)} ${f(cy - r * .3)}L${f(cx + r)} ${cy}L${f(cx + r * .3)} ${f(cy + r * .3)}L${cx} ${f(cy + r)}L${f(cx - r * .3)} ${f(cy + r * .3)}L${f(cx - r)} ${cy}L${f(cx - r * .3)} ${f(cy - r * .3)}Z`
+function festoneado(cx, cy, rx, ry, n, a) {
+  let d = ''
+  for (let i = 0; i < n; i++) {
+    const t0 = i / n * 2 * Math.PI, t1 = (i + 1) / n * 2 * Math.PI, tm = (t0 + t1) / 2
+    if (!i) d += `M${f(cx + rx * Math.cos(t0))} ${f(cy + ry * Math.sin(t0))}`
+    d += `Q${f(cx + (rx + a * 2) * Math.cos(tm))} ${f(cy + (ry + a * 2) * Math.sin(tm))} ${f(cx + rx * Math.cos(t1))} ${f(cy + ry * Math.sin(t1))}`
+  }
+  return d + 'Z'
+}
+const G = (id, colores, tipo = 'r', attrs = 'cx="38%" cy="28%" r="80%"') => {
+  const stops = colores.map((c, i) => `<stop offset="${f(i / (colores.length - 1))}" stop-color="${c}"/>`).join('')
+  return tipo === 'r' ? `<radialGradient id="${id}" ${attrs}>${stops}</radialGradient>` : `<linearGradient id="${id}" ${attrs}>${stops}</linearGradient>`
+}
+const suelo = (id, c, o) => `<radialGradient id="gSu-${id}"><stop offset="0" stop-color="${c}" stop-opacity="${o}"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></radialGradient>`
+const DIAG = 'x1="1" y1="0" x2="0" y2="1"', VERT = 'x1="0" y1="0" x2="0" y2="1"'
+
+// ------------------------------------------------------------------ degradés de las tres
+const DEGRADES = [
+  G('gBoPiel', ['#9DBBFF', '#5583F2', '#2E52C8', '#172B73']), G('gBoMemb', ['#FFF6B8', '#FFE45C', '#F5C518'], 'l', DIAG),
+  G('gBoBuf', ['#FF7A62', '#E5342C'], 'l', 'x1="0" y1="0" x2="1" y2="1"'), suelo('brio', '#FF5247', .24),
+  G('gBoMusgo', ['#D2EBA8', '#8DBB6A', '#5A8A44', '#2F4A26']), G('gBoMembVerde', ['#F4FFD0', '#CFF27A', '#9BD04A'], 'l', DIAG),
+  G('gBoCrema', ['#FFFBF2', '#F4E8D6', '#DCC8AE', '#A8927A']), G('gBoMembRosa', ['#FFE6EF', '#FFB3C8', '#F08AA8'], 'l', DIAG),
+  G('gBoNoche', ['#8C86E6', '#5B4FB8', '#352A80', '#1A1240']), G('gBoMembLila', ['#F2EAFF', '#C9B6FF', '#9A80F0'], 'l', DIAG),
+  G('gBoPlata', ['#F2F4F9', '#B9C0CF', '#8A93A8', '#4E5568']), G('gBoMembCeleste', ['#EAF8FF', '#9FDCFF', '#5CB8F0'], 'l', DIAG),
+  G('gCoPiel', ['#B4F7E6', '#5AD9BC', '#1F9C88', '#0E5048']), suelo('cometa', '#FF7A9A', .24),
+  G('gCoCoral', ['#FFD9C4', '#FF9A78', '#D9624A', '#7A2E22']), G('gCoLila', ['#EDE4FF', '#C2AEF5', '#8C72D8', '#4A3A8A']),
+  G('gCoMarino', ['#9AAEEC', '#4A62B8', '#26357A', '#121A40']), G('gCoMenta', ['#EEFFF7', '#B4F2D6', '#6FCFA8', '#2E7A5E']),
+  G('gNiPiel', ['#FFFFFF', '#F2F1FF', '#D2D0F5', '#9C99D8']), G('gNiTorm', ['#8F8BCB', '#5E5A9C', '#3A366E', '#24214A']),
+  G('gNiRayo', ['#FFF8C0', '#FFE53D', '#F2B800'], 'l', VERT), suelo('nimbo', '#FFE53D', .2),
+  G('gNiGris', ['#F4F8FC', '#D6E0EA', '#A9B8C9', '#6C7E94']), G('gNiCelaje', ['#FFF6F0', '#FFD6D6', '#F5A8B8', '#C27090']),
+  G('gNiNiebla', ['#FAFAFA', '#E6E8EC', '#C8CCD4', '#9AA0AC']), G('gNiIris', ['#FFFFFF', '#F6F8FF', '#DDE2F2', '#A8B0CC']),
+].join('')
+
+// ================================================================== 1 · BRÍO › GESTA
+const alaBo = (memb = 'url(#gBoMemb)', banda = true) => `<path d="M42 47C33 29 13 23 3 33C-1 39 5 48 18 52C28 55 36 53 43 52Z" fill="url(#gBoPiel)" stroke="#172B73" stroke-width="1.2" stroke-linejoin="round"/>`
+  + `<path d="M38 48C30 35 15 30 8 37C6 41 11 46 20 49C27 51 33 50 38 50Z" fill="${memb}"/>`
+  + `<path d="M37 48.5L12 37.5M36 50L17 46.5" stroke="#172B73" stroke-width=".7" opacity=".35" fill="none" stroke-linecap="round"/>`
+  + (banda ? `<path class="banda" d="M3 33C-1 39 5 48 11 50.6L9.6 35Q6.5 32 3 33Z" fill="#FF5247"/>` : '')
+const alaCortaBo = `<path d="M42 47C37 35 23 32 16 39C11 45 19 53 30 54C36 55 40 53 43 52Z" fill="url(#gBoPiel)" stroke="#172B73" stroke-width="1.2" stroke-linejoin="round"/><path d="M38 48.5C34 40 25 37.5 20.5 41.5C18 45 23 50 30 51C34 51.5 37 50.5 38 50Z" fill="url(#gBoMembRosa)"/>`
+const MECHO_BO = `<path class="mecho" d="M57 38.5Q51 27 59.5 21.5Q67 18 69.5 24.5Q64.5 22.5 62 26.5Q60 31 64 38.5Z" fill="#5583F2"/>`
+const BUF_BO = `<path d="M28 80Q60 92 92 80L92.5 87.5Q60 99.5 27.5 87.5Z" fill="url(#gBoBuf)"/><path d="M30 84.5Q60 95.5 90.5 84.5" stroke="#B8241E" stroke-width="1" fill="none" opacity=".45"/>`
+  + `<g class="punta-b"><path d="M78 86Q90 84 101 76Q99 84 104 88Q92 92 80 91Z" fill="#E5342C"/><path d="M78 89Q88 95 96 102Q90 102.5 86 99.5Q82 96.5 78 93Z" fill="#FF5247"/></g>`
+  + `<circle cx="76" cy="89" r="4.6" fill="#FF5247" stroke="#B8241E" stroke-width=".8"/><path class="insig" d="${estrella4(76, 89, 3.4)}" fill="#FFE45C"/>`
+const ojoBo = x => `<ellipse cx="${x}" cy="63" rx="5.4" ry="6.8" fill="#0E1638"/><circle cx="${x + 1.8}" cy="60" r="2.2" fill="#fff"/><circle cx="${x - 1.7}" cy="66.2" r="1" fill="#9DB8FF"/>`
+const BRIO = {
+  atras: par('ala', alaBo()),
+  cuerpo: `<ellipse cx="48" cy="101.5" rx="7.5" ry="4" fill="#172B73"/><ellipse cx="72" cy="101.5" rx="7.5" ry="4" fill="#172B73"/>`
+    + `<path d="M60 36C84 36 96 53 96 72C96 91 81 103 60 103C39 103 24 91 24 72C24 53 36 36 60 36Z" fill="url(#gBoPiel)"/>`
+    + `<ellipse cx="60" cy="96" rx="15" ry="6.4" fill="#FFF1DA" opacity=".9"/>`
+    + `<ellipse cx="44" cy="49" rx="10" ry="4.6" transform="rotate(-30 44 49)" fill="#fff" opacity=".3"/>`
+    + `<path d="M25.5 65L19 68.5L25 71L20 75.5L26.5 76Z" fill="#5583F2"/><path d="M94.5 65L101 68.5L95 71L100 75.5L93.5 76Z" fill="#5583F2"/>`
+    + `<ellipse cx="37" cy="72" rx="5" ry="2.8" fill="#FF8FA0" opacity=".5"/><ellipse cx="83" cy="72" rx="5" ry="2.8" fill="#FF8FA0" opacity=".5"/>`
+    + MECHO_BO + BUF_BO,
+  ojos: ojoBo(48) + ojoBo(72),
+  boca: `<path d="M58.3 70.6Q60 69.8 61.7 70.6L60 72.6Z" fill="#0E1638"/><path d="M55.6 74.4Q57.8 76.8 60 74.6Q62.2 76.8 64.4 74.4" stroke="#0E1638" stroke-width="1.5" fill="none" stroke-linecap="round"/>`,
+}
+const GESTA = {
+  evoAtras: `<g class="evo-p" ${org(82, 88)}><path class="estandarte" d="M80 86Q98 80 110 64Q115 57 119 58Q114 66 117 73Q106 75 98 84Q90 92 80 92Z" fill="url(#gBoBuf)"/><path d="M84 89Q100 82 112 66" stroke="#B8241E" stroke-width=".9" opacity=".5" fill="none"/></g>`
+    + `<g class="evo-p" ${org(60, 36, 1)}><path d="M58.5 37Q51 25 57.5 12Q62 23 66 35Z" fill="#FFE45C"/><path d="M60.5 35Q57.6 25 58.6 16" stroke="#E0A800" stroke-width=".9" fill="none"/></g>`,
+  evoFrente: `<g class="evo-p evo-fino" ${org(60, 70, 2)}><path d="M27.5 66.5l7 1.8M27 71.2l7 .3M92.5 66.5l-7 1.8M93 71.2l-7 .3" stroke="#FFE45C" stroke-width="1.8" stroke-linecap="round"/></g>`,
+  fx: `<circle class="anillo-b" cx="60" cy="70" r="12" fill="none" stroke="#FFE45C" stroke-width="2" opacity="0" ${org(60, 70)}/>`
+    + Array.from({ length: 8 }, (_, i) => `<g transform="rotate(${i * 45} 60 70)"><path class="pt racha" d="M80 70h12" stroke="${i % 2 ? '#FFE45C' : '#FF5247'}" stroke-width="2" stroke-linecap="round" opacity="0"/></g>`).join('')
+    + Array.from({ length: 6 }, (_, i) => `<path class="pt chis" d="${estrella4(60, 42, i % 2 ? 2.4 : 3.2)}" fill="${i % 3 ? '#FFE45C' : '#FF5247'}" opacity="0"/>`).join(''),
+}
+const BROTE = `<path d="M60 38Q59 30 61 24" stroke="#5A8A44" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M61 26Q68 18 75 22Q69 30 61 26Z" fill="#9BE36A"/><path d="M60.5 28Q53 22 47 26Q53 33 60.5 28Z" fill="#7FCB52"/>`
+const VAR_BRIO = [
+  { nombre: 'Trébol', rasgo: 'verde musgo, sin bufanda, con un brote', c: '#9BE36A', mano: '#8DBB6A', trazo: '#1C2A14',
+    reemplazos: [[MECHO_BO, BROTE], [BUF_BO, ''], ['url(#gBoPiel)', 'url(#gBoMusgo)'], ['url(#gBoMemb)', 'url(#gBoMembVerde)'], ['#172B73', '#2F4A26'], ['#5583F2', '#8DBB6A'], ['#0E1638', '#1C2A14'], ['#9DB8FF', '#CFF0A0']] },
+  { nombre: 'Pompón', rasgo: 'chico, crema, orejas cortas y cola pompón', c: '#FF8FB8', mano: '#F4E8D6', trazo: '#3A2A1C', talla: .88,
+    campos: { atras: `<circle cx="93" cy="93" r="6.5" fill="#FFFBF2" stroke="#DCC8AE" stroke-width="1"/>` + par('ala', alaCortaBo) },
+    reemplazos: [[MECHO_BO, ''], [BUF_BO, ''], ['url(#gBoPiel)', 'url(#gBoCrema)'], ['#172B73', '#A8927A'], ['#5583F2', '#E8DCC8'], ['#0E1638', '#3A2A1C'], ['#9DB8FF', '#FFB3C8']] },
+  { nombre: 'Noctámbulo', rasgo: 'índigo con pecas de estrella, membrana lila', c: '#C9B6FF', mano: '#5B4FB8', trazo: '#F2EAFF',
+    mas: [[45, 46, 2], [52, 41.5, 1.4], [75, 45, 1.8], [68, 41, 1.3], [31, 60, 1.4], [89, 58, 1.5]].map(([x, y, r]) => `<path d="${estrella4(x, y, r)}" fill="#F2EAFF"/>`).join(''),
+    reemplazos: [[BUF_BO, ''], ['url(#gBoPiel)', 'url(#gBoNoche)'], ['url(#gBoMemb)', 'url(#gBoMembLila)'], ['#172B73', '#1A1240'], ['#5583F2', '#5B4FB8'], ['#0E1638', '#0B0820'], ['#9DB8FF', '#C9B6FF']] },
+  { nombre: 'Rayado', rasgo: 'gris plata con rayas en la frente, membrana celeste', c: '#7FD3FF', mano: '#8A93A8', trazo: '#1E2330',
+    mas: `<path d="M51 40.5l2.4 7.5M60 38.5v8.5M69 40.5l-2.4 7.5" stroke="#4E5568" stroke-width="2.4" stroke-linecap="round"/>`,
+    reemplazos: [[MECHO_BO, ''], [BUF_BO, ''], ['url(#gBoPiel)', 'url(#gBoPlata)'], ['url(#gBoMemb)', 'url(#gBoMembCeleste)'], ['#172B73', '#4E5568'], ['#5583F2', '#8A93A8'], ['#0E1638', '#1E2330'], ['#9DB8FF', '#7FD3FF']] },
+]
+
+// ================================================================== 2 · COMETA › ESTELA
+const kiteCo = (a = '#FFF6E8', b = '#FF7A9A', l = '#0E5048') => `<path d="M24 18L2 38L19.4 42.8Z" fill="${a}"/><path d="M2 38L17 56L19.4 42.8Z" fill="${b}"/><path d="M17 56L42 49L19.4 42.8Z" fill="${a}"/><path d="M42 49L24 18L19.4 42.8Z" fill="${b}"/>`
+  + `<path d="M24 18L2 38L17 56L42 49Z" fill="none" stroke="${l}" stroke-width="1.3" stroke-linejoin="round"/><path d="M24 18L17 56M2 38L42 49" stroke="${l}" stroke-width=".9" opacity=".75"/>`
+const mono = (x, y, r, c, l = '#0E5048') => `<path d="M${x} ${y}l-5.2 -3.4v6.8zM${x} ${y}l5.2 -3.4v6.8z" fill="${c}" stroke="${l}" stroke-width=".7" stroke-linejoin="round" transform="rotate(${r} ${x} ${y})"/>`
+const HILO_CO = `<path d="M84 92Q102 94 106 80Q110 68 116 62" stroke="#0E5048" stroke-width="1.4" fill="none" stroke-linecap="round"/>`
+const COLA_CO = `<g class="cola-c">${HILO_CO}${mono(103, 86, -62, '#FF7A9A')}${mono(110.5, 69.5, -48, '#FFF6E8')}</g>`
+const COLA_LISA = `<g class="cola-c">${HILO_CO}</g>`
+const ROMBO_CO = `<circle class="rombo-f" cx="60" cy="54.5" r="7.5" fill="#FF7A9A" opacity="0"/><path class="rombo" d="M60 49.5L63.4 54.5L60 59.5L56.6 54.5Z" fill="#FF7A9A" stroke="#FFF6E8" stroke-width=".8" stroke-linejoin="round"/>`
+const ojoCo = x => `<ellipse cx="${x}" cy="66" rx="5.2" ry="6.4" fill="#0B2E2A"/><circle cx="${x + 1.7}" cy="63.2" r="2.1" fill="#fff"/><circle cx="${x - 1.6}" cy="68.6" r=".9" fill="#FF7A9A"/>`
+const COMETA = {
+  atras: COLA_CO + par('ala', kiteCo()),
+  cuerpo: `<ellipse cx="49" cy="101.5" rx="7" ry="3.8" fill="#0E5048"/><ellipse cx="71" cy="101.5" rx="7" ry="3.8" fill="#0E5048"/>`
+    + `<path d="M60 38C82 38 94 54 94 73C94 92 80 103 60 103C40 103 26 92 26 73C26 54 38 38 60 38Z" fill="url(#gCoPiel)"/>`
+    + `<ellipse cx="60" cy="90" rx="18" ry="10" fill="#E6FFF7" opacity=".5"/>`
+    + `<ellipse cx="44" cy="51" rx="9.5" ry="4.4" transform="rotate(-30 44 51)" fill="#fff" opacity=".42"/>`
+    + `<ellipse cx="37" cy="76" rx="5" ry="2.7" fill="#FF7A9A" opacity=".5"/><ellipse cx="83" cy="76" rx="5" ry="2.7" fill="#FF7A9A" opacity=".5"/>`
+    + ROMBO_CO,
+  ojos: ojoCo(48) + ojoCo(72),
+  boca: `<path d="M56 76Q60 80.6 64 76Q60 77.4 56 76Z" fill="#0B2E2A"/>`,
+}
+const ESTELA = {
+  evoAtras: `<g class="evo-p evo-fino" ${org(60, 40)}><path class="traza" d="M58 36Q88 12 118 22" stroke="#FF7A9A" stroke-width="3" fill="none" stroke-linecap="round" opacity=".6"/><path class="traza t2" d="M62 43Q90 26 116 33" stroke="#FFF6E8" stroke-width="2" fill="none" stroke-linecap="round" opacity=".5"/></g>`
+    + `<g class="evo-p" ${org(113, 62, 1)}><path d="M116 62Q119 52 113 45Q108 38 113 31" stroke="#0E5048" stroke-width="1.4" fill="none" stroke-linecap="round"/>${mono(114.6, 50, -80, '#FF7A9A')}${mono(110.6, 38.5, -100, '#FFF6E8')}</g>`,
+  evoFrente: `<g class="evo-p evo-fino" ${org(60, 44, 2)}><path d="M35 50Q40 44 44.6 44.5M75.4 44.5Q80 44 85 50" stroke="#0E5048" stroke-width="2.6" fill="none" stroke-linecap="round"/>`
+    + `<circle cx="50" cy="44.5" r="5.4" fill="#BFF7FF" fill-opacity=".6" stroke="#FFF6E8" stroke-width="1.8"/><circle cx="70" cy="44.5" r="5.4" fill="#BFF7FF" fill-opacity=".6" stroke="#FFF6E8" stroke-width="1.8"/>`
+    + `<path d="M55.4 44.5h9.2" stroke="#FFF6E8" stroke-width="1.8"/><circle cx="48.4" cy="42.8" r="1.4" fill="#fff"/><circle cx="68.4" cy="42.8" r="1.4" fill="#fff"/></g>`,
+  fx: Array.from({ length: 3 }, (_, i) => `<path class="pt rafaga" d="M${6 + i * 5} ${42 + i * 18}q14 -6 28 0t28 0" stroke="#FFF6E8" stroke-width="2" fill="none" stroke-linecap="round" opacity="0"/>`).join('')
+    + Array.from({ length: 10 }, (_, i) => `<path class="pt est" d="${estrella4(60, 66, i % 3 ? 2.4 : 3.4)}" fill="${i % 2 ? '#FF7A9A' : '#FFF6E8'}" opacity="0"/>`).join(''),
+}
+const deltaCo = `<path d="M42 50L26 12L2 50Z" fill="#FFD447"/><path d="M26 12L2 50L26 50Z" fill="#3D6BFF"/><path d="M42 50L26 12L2 50Z" fill="none" stroke="#5A2418" stroke-width="1.3" stroke-linejoin="round"/><path d="M26 12V50" stroke="#5A2418" stroke-width=".9"/>`
+const rondaCo = `<circle cx="20" cy="38" r="17" fill="#FFF6E8" stroke="#0E5048" stroke-width="1.3"/><path d="M20 21A17 17 0 0 1 37 38H20Z" fill="#FF7A9A"/><path d="M20 55A17 17 0 0 1 3 38H20Z" fill="#FF7A9A"/><path d="M20 21V55M3 38H37" stroke="#0E5048" stroke-width=".9"/>`
+const largaCo = `<path d="M28 8L12 32L24 58Z" fill="#FF7A9A"/><path d="M28 8L24 58L42 49Z" fill="#FFF6E8"/><path d="M28 8L12 32L24 58L42 49Z" fill="none" stroke="#0E5048" stroke-width="1.3" stroke-linejoin="round"/><path d="M28 8L24 58" stroke="#0E5048" stroke-width=".9"/>`
+const cintaCo = `<path d="M2 38Q-5 46 1 54Q-4 61 1 68" stroke="#7A5CFF" stroke-width="2.2" fill="none" stroke-linecap="round"/>`
+const VAR_COMETA = [
+  { nombre: 'Pandorga', rasgo: 'coral, velas en delta amarillo y azul', c: '#FFD447', mano: '#FF9A78', trazo: '#3A140E',
+    campos: { atras: `<g class="cola-c"><path d="M84 92Q102 94 106 80Q110 68 116 62" stroke="#5A2418" stroke-width="1.4" fill="none" stroke-linecap="round"/><path d="M103 86l4.5 4M110.5 69.5l5.5 1.2" stroke="#3D6BFF" stroke-width="2.2" stroke-linecap="round"/></g>` + par('ala', deltaCo) },
+    reemplazos: [['url(#gCoPiel)', 'url(#gCoCoral)'], ['#0E5048', '#5A2418'], ['#FF7A9A', '#FFD447'], ['#0B2E2A', '#3A140E'], ['#E6FFF7', '#FFE9DC']] },
+  { nombre: 'Chiringa', rasgo: 'chica y lila, con velas redondas', c: '#B9A6FF', mano: '#C2AEF5', trazo: '#1E1640', talla: .9,
+    campos: { atras: COLA_LISA + par('ala', rondaCo) },
+    reemplazos: [['url(#gCoPiel)', 'url(#gCoLila)'], ['#0E5048', '#3A2D6B'], ['#FF7A9A', '#B9A6FF'], ['#0B2E2A', '#1E1640'], ['#E6FFF7', '#F6F0FF']] },
+  { nombre: 'Papalote', rasgo: 'azul marino con velas largas y angostas', c: '#FF4F5E', mano: '#9AAEEC', trazo: '#E8EEFF',
+    campos: { atras: COLA_LISA + par('ala', largaCo) },
+    reemplazos: [['url(#gCoPiel)', 'url(#gCoMarino)'], ['#0E5048', '#0A1030'], ['#FF7A9A', '#FF4F5E'], ['#0B2E2A', '#050818'], ['#E6FFF7', '#C9D4FF']] },
+  { nombre: 'Milocha', rasgo: 'menta, velas violeta con cintas', c: '#7A5CFF', mano: '#B4F2D6', trazo: '#12302A',
+    campos: { atras: COLA_LISA + par('ala', kiteCo('#FFF6E8', '#7A5CFF') + cintaCo) },
+    reemplazos: [['url(#gCoPiel)', 'url(#gCoMenta)'], ['#0E5048', '#2E7A5E'], ['#FF7A9A', '#9C86FF'], ['#0B2E2A', '#12302A']] },
+]
+
+// ================================================================== 3 · NIMBO › CENTELLA
+const nubeNi = `<path d="M41 54C41 45 35 40.5 28.5 41.5C25.5 35 17 34 13 40C6 39 1.5 46 4.5 51C2.5 56.5 9 60.5 14 58.5C18 62.5 26 61.5 29 58.5C35 60.5 41 58.5 41 54Z" fill="#F7F6FF" stroke="#B9B6EA" stroke-width="1.1" stroke-linejoin="round"/>`
+  + `<path d="M31 51Q25 46.5 18.5 49.5M13.5 52.5Q10 50.5 8 52" stroke="#CFCDF5" stroke-width="1.2" fill="none" stroke-linecap="round"/>`
+const RAYO_NI = `<g class="mechon-e ev"><circle class="rayo-f" cx="59" cy="32" r="9" fill="#FFE53D" opacity="0"/><path class="rayo-n" d="M57 46L63 33.5H58.5L65 20L52.5 36.5H57.5L52 46Z" fill="url(#gNiRayo)" stroke="#E0A800" stroke-width=".8" stroke-linejoin="round"/></g>`
+const ojoNi = x => `<ellipse cx="${x}" cy="68" rx="5" ry="6.2" fill="#1C1A4A"/><circle cx="${x + 1.8}" cy="65.2" r="2" fill="#fff"/><circle cx="${x - 1.6}" cy="70.6" r=".9" fill="#FFE53D"/>`
+const NIMBO = {
+  atras: RAYO_NI + par('ala', nubeNi),
+  cuerpo: `<circle cx="48" cy="100.5" r="4.2" fill="#D2D0F5"/><circle cx="72" cy="100.5" r="4.2" fill="#D2D0F5"/>`
+    + `<path d="${festoneado(60, 72, 30, 28, 13, 2.3)}" fill="url(#gNiPiel)"/>`
+    + `<path d="M32 86Q60 100 88 86Q86 98 60 100Q34 98 32 86Z" fill="#9C99D8" opacity=".32"/>`
+    + `<ellipse cx="46" cy="54" rx="9" ry="4.4" transform="rotate(-30 46 54)" fill="#fff" opacity=".8"/>`
+    + `<ellipse cx="38" cy="77" rx="5" ry="2.7" fill="#FFB3D9" opacity=".55"/><ellipse cx="82" cy="77" rx="5" ry="2.7" fill="#FFB3D9" opacity=".55"/>`,
+  ojos: ojoNi(48) + ojoNi(72),
+  boca: `<path d="M56.6 77Q60 81 63.4 77" stroke="#1C1A4A" stroke-width="1.6" fill="none" stroke-linecap="round"/>`,
+}
+const CENTELLA = {
+  evoAtras: `<g class="evo-p" ${org(60, 66)}><path d="${festoneado(60, 58, 40, 27, 15, 2.6)}" fill="url(#gNiTorm)" stroke="#A8A4E0" stroke-width="1.2" stroke-linejoin="round"/></g>`
+    + `<g class="evo-p" ${org(86, 90, 1)}><path d="M84 86L103 79L98 88.5L116 84L96 99L100.5 91L84 95Z" fill="url(#gNiRayo)" stroke="#E0A800" stroke-width=".8" stroke-linejoin="round"/></g>`,
+  evoFrente: `<g class="evo-p evo-fino" ${org(60, 64, 2)}><g class="orb-ni">${[0, 120, 240].map(g => { const a = (g - 90) * Math.PI / 180; return `<path d="${estrella4(f(60 + Math.cos(a) * 46), f(64 + Math.sin(a) * 46), 3.2)}" fill="#FFE53D"/>` }).join('')}</g></g>`,
+  fx: `<circle class="destello" cx="60" cy="66" r="42" fill="#FFF8C0" opacity="0" ${org(60, 66)}/><path class="descarga" d="M70 4L60 18H66L55 34" stroke="#FFE53D" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>`
+    + Array.from({ length: 10 }, (_, i) => `<ellipse class="pt gota" cx="${f(30 + i * 6.6)}" cy="${88 + (i % 3) * 3}" rx="1.3" ry="2.4" fill="#9AD4FF" opacity="0"/>`).join(''),
+}
+const GOTA_NI = `<path d="M60 22Q66 32 66 37A6 6 0 0 1 54 37Q54 32 60 22Z" fill="#7FC4FF" stroke="#E8F4FF" stroke-width=".8"/>`
+const SOL_NI = `<path d="M60 22v-5M48.7 26.7l-3.5-3.5M71.3 26.7l3.5-3.5M44 38h-5M76 38h5" stroke="#FFC46B" stroke-width="2.2" stroke-linecap="round"/><circle cx="60" cy="38" r="9" fill="#FFC46B"/>`
+const ARCO_NI = `<path d="M46 44A14 14 0 0 1 74 44" stroke="#FF7A6B" stroke-width="3" fill="none"/><path d="M49 44A11 11 0 0 1 71 44" stroke="#FFE08A" stroke-width="3" fill="none"/><path d="M52 44A8 8 0 0 1 68 44" stroke="#7FB3FF" stroke-width="3" fill="none"/>`
+const VAR_NIMBO = [
+  { nombre: 'Llovizna', rasgo: 'gris azulado, con una gota en la coronilla', c: '#7FC4FF', mano: '#D6E0EA', trazo: '#1F2C3D',
+    reemplazos: [[RAYO_NI, GOTA_NI], ['url(#gNiPiel)', 'url(#gNiGris)'], ['#B9B6EA', '#9FB2C8'], ['#F7F6FF', '#EEF3F8'], ['#CFCDF5', '#C6D2DE'], ['#D2D0F5', '#C6D2DE'], ['#9C99D8', '#6C7E94'], ['#FFB3D9', '#A9D4FF'], ['#FFE53D', '#7FC4FF'], ['#1C1A4A', '#1F2C3D']] },
+  { nombre: 'Celaje', rasgo: 'nube de atardecer con un sol chico', c: '#FF9EB8', mano: '#FFD6D6', trazo: '#4A1A2C',
+    reemplazos: [[RAYO_NI, SOL_NI], ['url(#gNiPiel)', 'url(#gNiCelaje)'], ['#B9B6EA', '#E8A0B4'], ['#F7F6FF', '#FFF1EE'], ['#CFCDF5', '#F5C6CF'], ['#D2D0F5', '#F5C6CF'], ['#9C99D8', '#C27090'], ['#FFE53D', '#FFC46B'], ['#1C1A4A', '#4A1A2C']] },
+  { nombre: 'Niebla', rasgo: 'chica y pálida, sin coronilla, con jirones', c: '#C9D2DC', mano: '#E6E8EC', trazo: '#2A2E38', talla: .9,
+    mas: `<path d="M16 93Q28 89 38 93T60 93M62 97Q74 93 86 97T106 97" stroke="#E6E8EC" stroke-width="2.4" fill="none" stroke-linecap="round" opacity=".85"/>`,
+    reemplazos: [[RAYO_NI, ''], ['url(#gNiPiel)', 'url(#gNiNiebla)'], ['#B9B6EA', '#C2C6CE'], ['#F7F6FF', '#F4F5F7'], ['#CFCDF5', '#DADDE3'], ['#D2D0F5', '#DADDE3'], ['#9C99D8', '#9AA0AC'], ['#FFB3D9', '#D9DCE2'], ['#FFE53D', '#C9D2DC'], ['#1C1A4A', '#2A2E38']] },
+  { nombre: 'Iris', rasgo: 'blanca con un arcoíris chico', c: '#8FE3A0', mano: '#F6F8FF', trazo: '#1C2240',
+    reemplazos: [[RAYO_NI, ARCO_NI], ['url(#gNiPiel)', 'url(#gNiIris)'], ['#FFE53D', '#8FE3A0'], ['#1C1A4A', '#1C2240']] },
+]
+
+// ------------------------------------------------------------------ los actos (8.2 y 8.3), con la línea de tiempo de evolucionMotion.js
+const C = { inOut: cubicBezier(.45, 0, .55, 1), out: cubicBezier(.16, 1, .3, 1), in: cubicBezier(.5, 0, .75, 0), lin: t => t }
+const T = (x = 0, y = 0, sx = 1, sy = sx, r = 0) => ({ translateX: x, translateY: y, scaleX: sx, scaleY: sy, rotate: r })
+const pct = kf => Object.fromEntries(Object.entries(kf).map(([p, v]) => [`${p}%`, v]))
+function P(tl, el, d, en, kf, curva = C.inOut) {
+  if (!el) return
+  tl.add(el, { keyframes: pct(kf), duration: d, ease: 'linear', playbackEase: curva }, en)
+}
+const q = (s, sel) => s.querySelector(sel), qa = (s, sel) => [...s.querySelectorAll(sel)]
+const orejas = (tl, s, d, en, kf) => { for (const [sel, k] of [['.ala-s.ai', 1], ['.ala-s.ad', -1]]) P(tl, q(s, sel), d, en, Object.fromEntries(Object.entries(kf).map(([p, r]) => [p, { rotate: r * k }]))) }
+
+const ACTOS = {
+  brio: {
+    dur: 2300, revela: 900,
+    // Toma carrera: se agacha, aletea con las orejas y salta a planear; la bufanda latiguea y estalla una ráfaga
+    transformacion(tl, s) {
+      P(tl, q(s, '.trans'), 2300, 0, { 0: T(), 14: T(0, 2, 1.1, .88), 34: T(0, -16, .92, 1.1), 52: T(0, -18, 1, 1), 70: T(0, -6, 1.02, .98), 84: T(0, 1, 1.06, .94), 100: T() })
+      orejas(tl, s, 1300, 250, { 0: 0, 10: 26, 22: -8, 34: 26, 46: -8, 58: 26, 72: -6, 86: 12, 100: 0 })
+      P(tl, q(s, '.punta-b'), 1700, 250, { 0: { rotate: 0 }, 25: { rotate: -22 }, 50: { rotate: 12 }, 75: { rotate: -8 }, 100: { rotate: 0 } })
+      P(tl, q(s, '.insig'), 2000, 200, { 0: { scale: 1 }, 40: { scale: 1.9 }, 100: { scale: 1 } })
+      P(tl, q(s, '.anillo-b'), 900, 820, { 0: { opacity: .9, scale: .2 }, 100: { opacity: 0, scale: 3.2 } }, C.out)
+      qa(s, '.racha').forEach((r, i) => P(tl, r, 700, 840 + i * 20, { 0: { opacity: 0, translateX: 0 }, 25: { opacity: 1, translateX: 6 }, 100: { opacity: 0, translateX: 26 } }, C.out))
+      qa(s, '.chis').forEach((c, i) => { const dx = (i - 2.5) * 14; P(tl, c, 1300, 900 + i * 60, { 0: { opacity: 0, translateX: 0, translateY: 0, scale: .4 }, 30: { opacity: 1, translateX: f(dx * .6), translateY: -10, scale: 1.1 }, 100: { opacity: 0, translateX: dx, translateY: 40, scale: .6 } }, C.out) })
+    },
+    vuelta: (tl, s) => qa(s, '.chis').forEach((c, i) => { const dx = (i - 2.5) * 10; P(tl, c, 1100, 150 + i * 50, { 0: { opacity: 0, translateX: 0, translateY: -24, scale: 1 }, 25: { opacity: 1, translateX: f(dx * .3), translateY: -14, scale: 1 }, 100: { opacity: 0, translateX: dx, translateY: 24, scale: .6 } }, C.in) }),
+  },
+  cometa: {
+    dur: 2500, revela: 1050,
+    // Se inclina contra el viento, el hilo lo tira hacia arriba y da una vuelta carnero en el aire
+    transformacion(tl, s) {
+      const t = q(s, '.trans'); if (t) t.style.transformOrigin = '60px 70px'
+      P(tl, t, 2500, 0, { 0: T(), 12: T(-2, 2, 1.05, .94, -8), 30: T(0, -16, .96, 1.06, 6), 44: T(0, -22, 1, 1, 0), 70: T(0, -22, 1, 1, 360), 86: T(0, 2, 1.06, .94, 360), 100: T(0, 0, 1, 1, 360) })
+      orejas(tl, s, 2300, 0, { 0: 0, 12: -10, 30: 20, 48: -6, 70: 16, 100: 0 })
+      P(tl, q(s, '.cola-c'), 2400, 0, { 0: { rotate: 0 }, 20: { rotate: 14 }, 45: { rotate: -18 }, 70: { rotate: 10 }, 100: { rotate: 0 } })
+      P(tl, q(s, '.rombo-f'), 2200, 200, { 0: { opacity: 0, scale: .6 }, 40: { opacity: .9, scale: 1.6 }, 100: { opacity: 0, scale: 1 } })
+      qa(s, '.rafaga').forEach((r, i) => P(tl, r, 900, 150 + i * 120, { 0: { opacity: 0, translateX: -20 }, 30: { opacity: .9, translateX: 0 }, 100: { opacity: 0, translateX: 40 } }, C.out))
+      qa(s, '.est').forEach((e, i) => { const a = i / 10 * Math.PI * 2, R = 34 + (i % 3) * 8; P(tl, e, 1100, 1000 + i * 25, { 0: { opacity: 0, translateX: 0, translateY: 0, scale: .3, rotate: 0 }, 25: { opacity: 1, translateX: f(Math.cos(a) * R * .5), translateY: f(Math.sin(a) * R * .5), scale: 1.2, rotate: 45 }, 100: { opacity: 0, translateX: f(Math.cos(a) * R), translateY: f(Math.sin(a) * R), scale: .5, rotate: 90 } }, C.out) })
+    },
+    vuelta: (tl, s) => qa(s, '.est').forEach((e, i) => { const dx = (i - 4.5) * 7; P(tl, e, 1100, 150 + i * 40, { 0: { opacity: 0, translateX: 0, translateY: -20, scale: 1, rotate: 0 }, 25: { opacity: 1, translateX: f(dx * .3), translateY: -12, scale: 1, rotate: 30 }, 100: { opacity: 0, translateX: dx, translateY: 26, scale: .5, rotate: 120 } }, C.in) }),
+  },
+  nimbo: {
+    dur: 2300, revela: 900,
+    // Se infla, retumba, cae el rayo sobre su coronilla y el destello tapa el cambio; después, llueve
+    transformacion(tl, s) {
+      P(tl, q(s, '.trans'), 2300, 0, { 0: T(), 10: T(0, 1, 1.06, .94), 28: T(0, -3, 1.14, 1.1), 31: T(-2, -3, 1.14, 1.1), 34: T(2, -3, 1.14, 1.1), 37: T(-2, -3, 1.15, 1.11), 40: T(0, -3, 1.16, 1.12), 46: T(0, 2, .92, .92), 58: T(0, -4, 1.04, 1.04), 100: T() })
+      orejas(tl, s, 2000, 0, { 0: 0, 28: 14, 46: -8, 60: 6, 100: 0 })
+      P(tl, q(s, '.rayo-n'), 1400, 500, { 0: { opacity: 1 }, 20: { opacity: .25 }, 24: { opacity: 1 }, 28: { opacity: .25 }, 32: { opacity: 1 }, 100: { opacity: 1 } }, C.lin)
+      P(tl, q(s, '.descarga'), 380, 760, { 0: { opacity: 0 }, 15: { opacity: 1 }, 60: { opacity: 1 }, 100: { opacity: 0 } }, C.lin)
+      P(tl, q(s, '.destello'), 600, 830, { 0: { opacity: 0, scale: .6 }, 12: { opacity: .85, scale: 1 }, 100: { opacity: 0, scale: 1.35 } }, C.out)
+      qa(s, '.gota').forEach((g, i) => P(tl, g, 900, 950 + i * 55, { 0: { opacity: 0, translateY: -4 }, 20: { opacity: .9, translateY: 2 }, 100: { opacity: 0, translateY: 30 } }, C.in))
+    },
+    vuelta: (tl, s) => qa(s, '.gota').forEach((g, i) => P(tl, g, 800, 200 + i * 40, { 0: { opacity: 0, translateY: -6 }, 25: { opacity: .7, translateY: 0 }, 100: { opacity: 0, translateY: 22 } }, C.in)),
+  },
+}
+
+// ------------------------------------------------------------------ las tres, inyectadas en el sistema real
+const PROPS = [
+  { id: 'brio', reco: true, datos: { nombre: 'Brío', evoNombre: 'Gesta', c: '#FF5247', mano: '#5583F2', trazo: '#0E1638', tipo: 'Planeador · coraje',
+      concepto: 'El más chico del equipo y el primero en saltar: abre las orejas y planea hasta donde haga falta.',
+      ojo: { x1: 48, x2: 72, y: 63, r: 4.6 }, emisor: [60, 20], firma: 'pelaje cobalto, orejas-ala de membrana limón y bufanda bermellón con insignia', piezas: BRIO, evo: GESTA },
+    variantes: VAR_BRIO,
+    propio: '<b>Lo propio:</b> pelaje cobalto, orejas lisas en forma de hoja con membrana limón (no festoneadas), un mechón y una bufanda bermellón con insignia. Sin hocico ni dientes. Evoluciona ganando un estandarte y una pluma, nunca alas extra, casco ni aureola.',
+    paleta: [['cobalto', '#2E52C8'], ['noche', '#172B73'], ['membrana', '#FFE45C'], ['bufanda', '#FF5247'], ['panza', '#FFF1DA']],
+    canales: { ant: 'Las orejas se levantan como cuando planea; los pares giran espejados.', luz: ['.insig'], apaga: ['.insig'], luzTexto: 'La insignia de la bufanda crece y brilla; con error, se apaga.', boca: { y: 75, color: '#0E1638' } } },
+  { id: 'cometa', datos: { nombre: 'Cometa', evoNombre: 'Estela', c: '#FF7A9A', mano: '#5AD9BC', trazo: '#0B2E2A', tipo: 'Barrilete · viento',
+      concepto: 'Un barrilete que se escapó del hilo: sus orejas son velas y vuela mejor cuanto más sopla el trabajo.',
+      ojo: { x1: 48, x2: 72, y: 66, r: 4.6 }, emisor: [60, 30], firma: 'velas en rombo crema y rosa, cola de moños y rombo en la frente', piezas: COMETA, evo: ESTELA },
+    variantes: VAR_COMETA,
+    propio: '<b>Lo propio:</b> las orejas son barriletes de verdad (rombo, varillas en cruz, cola de moños): planea porque es un barrilete. Jade y rosa. Evoluciona a piloto, con antiparras y estela, y su acto es una vuelta carnero en el aire.',
+    paleta: [['jade', '#1F9C88'], ['abismo', '#0E5048'], ['vela', '#FFF6E8'], ['rosa', '#FF7A9A'], ['agua', '#B4F7E6']],
+    canales: { ant: 'Las velas toman viento y se inclinan, espejadas.', luz: ['.rombo-f'], apaga: ['.rombo'], luzTexto: 'El rombo de la frente se enciende; con error, se apaga.', boca: { y: 77, color: '#0B2E2A' } } },
+  { id: 'nimbo', datos: { nombre: 'Nimbo', evoNombre: 'Centella', c: '#FFE53D', mano: '#F2F1FF', trazo: '#1C1A4A', tipo: 'Nube · tormenta',
+      concepto: 'Una nube de bolsillo que flota sobre el escritorio: tranquila hasta que algo importa, y entonces truena.',
+      ojo: { x1: 48, x2: 72, y: 68, r: 4.6 }, emisor: [59, 24], firma: 'nube lila y blanca con un rayo limón de coronilla', flota: true, piezas: NIMBO, evo: CENTELLA },
+    variantes: VAR_NIMBO,
+    propio: '<b>Lo propio:</b> una nube con orejas de nube que planea porque es aire, y no camina: flota. Blanco lila con un rayo limón en la coronilla. Evoluciona a nubarrón de tormenta con cola de rayo.',
+    paleta: [['nube', '#F2F1FF'], ['lila', '#9C99D8'], ['tormenta', '#3A366E'], ['rayo', '#FFE53D'], ['rubor', '#FFB3D9']],
+    canales: { ant: 'Las orejas de nube se levantan y se inflan, espejadas.', luz: ['.rayo-f'], apaga: ['.rayo-n'], luzTexto: 'El rayo de la coronilla se carga; con error, se apaga.', boca: { y: 78, color: '#1C1A4A' } } },
+]
+for (const p of PROPS) {
+  ESPECIES[p.id] = p.datos
+  if (!NOMBRES_ESPECIES.includes(p.id)) NOMBRES_ESPECIES.push(p.id)
+  VARIANTES[p.id] = p.variantes
+  ACTOS_EVOLUCION[p.id] = ACTOS[p.id]
+}
+document.getElementById('defs').innerHTML = defsAvis()
+document.getElementById('defs-nuevas').innerHTML = `<svg width="0" height="0" aria-hidden="true" focusable="false"><defs>${DEGRADES}</defs></svg>`
+
+// ------------------------------------------------------------------ armado de la página
+const POSES = [['esperando', 'esperando'], ['escribiendo', 'trabajando'], ['listo', 'feliz'], ['teEspera', 'pregunta'], ['durmiendo', 'durmiendo']]
+const claude = id => claudeDe(id)
+
+document.getElementById('desfile').innerHTML = PROPS.map((p, i) => `<figure>${avi(claude(p.id), 'esperando', 84, { indice: i, alt: p.datos.nombre })}<figcaption>${p.datos.nombre}</figcaption></figure>`).join('')
+document.getElementById('indice').innerHTML = PROPS.map(p => `<a href="#p-${p.id}" style="--pc:${p.datos.c}"><i aria-hidden="true"></i>${p.datos.nombre}${p.reco ? ' · recomendada' : ''}</a>`).join('')
+
+function htmlProp(p, n) {
+  const d = p.datos
+  const poses = (evol) => `<span class="rot forma">${evol ? d.evoNombre : d.nombre}</span>` + POSES.map(([pose], i) => `<span class="celda">${avi(claude(p.id), pose, 72, { indice: i, evolucionada: evol })}</span>`).join('')
+  return `<article class="prop${p.reco ? ' reco' : ''} entra" id="p-${p.id}" style="--pc:${d.c}" aria-labelledby="t-${p.id}">
+    <div class="izq">
+      <header class="cab">
+        <div class="fila1"><span class="num">0${n + 1}</span><span class="kicker">${d.tipo}</span>${p.reco ? '<span class="sello-reco">Recomendada</span>' : ''}</div>
+        <h2 id="t-${p.id}">${d.nombre} <span class="evo-n">› ${d.evoNombre}</span></h2>
+        <p class="concepto">${d.concepto}</p>
+        <p class="propio">${p.propio}</p>
+        <div class="paleta" aria-label="Paleta">${p.paleta.map(([nm, c]) => `<span><i style="background:${c}"></i>${nm}</span>`).join('')}</div>
+      </header>
+      <div class="escena">
+        <p class="nombre" aria-live="polite"><span class="nm">Claude (${d.nombre})</span><small>coordinando · acto de evolución</small></p>
+        ${avi(claude(p.id), 'coordinando', 176, { claveEvo: 'h', alt: `Claude (${d.nombre})` })}
+        <button class="btn btn-evo" aria-pressed="false" data-evolucion="${p.id}">Evolucionar a ${d.evoNombre}</button>
+      </div>
+    </div>
+    <div class="bloques">
+      <section class="bloque" aria-labelledby="t-${p.id}-poses">
+        <h3 id="t-${p.id}-poses">Poses · base y ${d.evoNombre}</h3>
+        <div class="poses">
+          <span class="vacio"></span>${POSES.map(([, nm]) => `<span class="rot col">${nm}</span>`).join('')}
+          ${poses(false)}${poses(true)}
+        </div>
+      </section>
+      <section class="bloque" aria-labelledby="t-${p.id}-can">
+        <h3 id="t-${p.id}-can">Canales de la marca (10)</h3>
+        <div class="canales">
+          <div class="fig" data-canal-fig="${p.id}">${avi(claude(p.id), 'esperando', 112, { claveEvo: 'c' })}</div>
+          <ul>
+            <li><button class="btn" data-canal="ant" data-de="${p.id}"><i aria-hidden="true"></i>Orejas</button><span>${p.canales.ant}</span></li>
+            <li><button class="btn" data-canal="luz" data-de="${p.id}"><i aria-hidden="true"></i>Luz</button><span>${p.canales.luzTexto}</span></li>
+            <li><button class="btn" data-canal="boca" data-de="${p.id}"><i aria-hidden="true"></i>Boca</button><span>Habla con una boca que se abre en y ${p.canales.boca.y}, color de su trazo.</span></li>
+          </ul>
+        </div>
+      </section>
+      <section class="bloque" aria-labelledby="t-${p.id}-var">
+        <h3 id="t-${p.id}-var">Subagentes · 4 variantes (nombres internos)</h3>
+        <div class="variantes">${p.variantes.map((v, i) => `<div class="ficha">${avi({ ...claude(p.id), variante: i }, 'escribiendo', 54, { indice: i })}<div><b>${v.nombre}</b><span>${v.rasgo}</span></div></div>`).join('')}</div>
+        <p class="nota">Ninguna lleva el rasgo firma (${d.firma}): ese queda solo para Claude.</p>
+      </section>
+      <section class="bloque" aria-labelledby="t-${p.id}-tam">
+        <h3 id="t-${p.id}-tam">Tamaños y la marca en la barra</h3>
+        <div class="tamanos">
+          <div class="tam">${avi(claude(p.id), 'esperando', 112)}<small>marca · 112</small></div>
+          <div class="tam">${avi(claude(p.id), 'escribiendo', 54)}<small>ficha · 54</small></div>
+          <div class="tam">${avi(claude(p.id), 'esperando', 44)}<small>44 · base</small></div>
+          <div class="tam">${avi(claude(p.id), 'esperando', 44, { evolucionada: true })}<small>44 · ${d.evoNombre} chica</small></div>
+          <div class="tam"><div class="muesca">${avi(claude(p.id), 'coordinando', 44, { evolucionada: true })}<b>3 trabajando<small>${d.evoNombre}</small></b></div><small>muesca</small></div>
+        </div>
+        <div class="marcos" style="margin-top:16px">
+          ${[188, 208].map(w => `<div><div class="lado-mock" style="--w:${w}px"><div class="marca-mock">${avi(claude(p.id), 'coordinando', 112, { evolucionada: true })}<span class="marca-n">Claude (${d.evoNombre})</span><span class="estado">coordinando · 3</span></div></div>
+            <p class="lado-cap" data-medir="${p.id}">barra ${w} px${w === 208 ? ' (nueva)' : ' (hoy)'} · <b>…</b></p></div>`).join('')}
+        </div>
+      </section>
+    </div>
+  </article>`
+}
+document.getElementById('props').innerHTML = PROPS.map(htmlProp).join('')
+
+// ------------------------------------------------------------------ acto de evolución (evolucionMotion.js real)
+document.querySelectorAll('button[data-evolucion]').forEach(b => b.addEventListener('click', () => {
+  const id = b.dataset.evolucion, p = PROPS.find(x => x.id === id), svg = b.closest('.escena').querySelector('.avi svg')
+  const nm = b.closest('.escena').querySelector('.nm')
+  const evol = b.getAttribute('aria-pressed') !== 'true'
+  b.setAttribute('aria-pressed', String(evol))
+  b.textContent = evol ? `Volver a ${p.datos.nombre}` : `Evolucionar a ${p.datos.evoNombre}`
+  nm.textContent = `Claude (${evol ? p.datos.evoNombre : p.datos.nombre})`
+  b.closest('.escena').querySelector('.avi').setAttribute('aria-label', nm.textContent)
+  if (reducido()) { formaAlInstante(svg, evol); return }
+  evol ? evolucionar(svg, id) : devolver(svg, id)
+}))
+
+// ------------------------------------------------------------------ canales de la marca (vista previa con anime.js)
+function canal(id, tipo) {
+  const p = PROPS.find(x => x.id === id)
+  const svg = document.querySelector(`[data-canal-fig="${id}"] svg`)
+  if (!svg || reducido()) return
+  const corre = (el, kf, d, dl = 0) => el && animate(el, { keyframes: pct(kf), duration: d, delay: dl, ease: 'linear', playbackEase: C.inOut, onComplete: a => a.revert() })
+  if (tipo === 'ant') svg.querySelectorAll('.ala-s').forEach(el => { const s = el.classList.contains('ai') ? 1 : -1; corre(el, { 0: { rotate: 0 }, 25: { rotate: 24 * s }, 50: { rotate: -6 * s }, 75: { rotate: 16 * s }, 100: { rotate: 0 } }, 1400) })
+  if (tipo === 'luz') {
+    svg.classList.add('luz-sube')
+    p.canales.luz.forEach(sel => svg.querySelectorAll(sel).forEach(el => { const o = +getComputedStyle(el).opacity; corre(el, { 0: { opacity: o, scale: 1 }, 35: { opacity: 1, scale: 1.5 }, 60: { opacity: 1, scale: 1.5 }, 100: { opacity: o, scale: 1 } }, 1300) }))
+    p.canales.apaga.forEach(sel => svg.querySelectorAll(sel).forEach(el => corre(el, { 0: { opacity: 1 }, 30: { opacity: .3 }, 70: { opacity: .3 }, 100: { opacity: 1 } }, 1100, 1400)))
+    setTimeout(() => svg.classList.remove('luz-sube'), 2600)
+  }
+  if (tipo === 'boca') {
+    let b = svg.querySelector('.boca-dem')
+    if (!b) {
+      const { y, color } = p.canales.boca
+      svg.querySelector('.cuerpo').insertAdjacentHTML('beforeend', `<ellipse class="boca-dem" cx="60" cy="${y + 1}" rx="3.4" ry="3.6" fill="${color}" style="transform:scaleY(0)"/>`)
+      b = svg.querySelector('.boca-dem')
+    }
+    corre(b, { 0: { scaleY: 0 }, 15: { scaleY: 1 }, 30: { scaleY: .35 }, 45: { scaleY: .9 }, 60: { scaleY: .2 }, 78: { scaleY: .8 }, 100: { scaleY: 0 } }, 1500)
+  }
+}
+document.querySelectorAll('[data-canal]').forEach(b => b.addEventListener('click', () => canal(b.dataset.de, b.dataset.canal)))
+
+// ------------------------------------------------------------------ pausa
+const pausa = document.getElementById('pausa')
+pausa.addEventListener('click', () => { const on = pausa.getAttribute('aria-pressed') !== 'true'; pausa.setAttribute('aria-pressed', String(on)); document.body.classList.toggle('pausa', on) })
+
+// ------------------------------------------------------------------ altura: tope medido del dibujo visible
+function invisible(el, svg) {
+  for (let n = el; n && n !== svg; n = n.parentElement) { const cs = getComputedStyle(n); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) return true }
+  return false
+}
+function tope(svg) {
+  const base = svg.getBoundingClientRect().top
+  let t = Infinity
+  for (const el of svg.querySelectorAll('.cambio :is(path,circle,ellipse,rect,polygon)')) {
+    if (invisible(el, svg)) continue
+    const r = el.getBoundingClientRect()
+    if (r.width * r.height > 0) t = Math.min(t, r.top)
+  }
+  return t - base
+}
+const NOMBRES = { avi: 'Faro (Avi)', ascua: 'Pira (Ascua)', escarcha: 'Glaciar (Escarcha)', nodo: 'Nodo Ω (Nodo)', bruma: 'Regia (Bruma)', morro: 'Monolito (Morro)', lumen: 'Aurora (Lumen)' }
+function medir() {
+  // Las marcas de cada propuesta dentro del marco de la barra
+  document.querySelectorAll('[data-medir]').forEach(cap => {
+    const svg = cap.previousElementSibling.querySelector('.avi svg')
+    const sobra = 6 + tope(svg)
+    cap.querySelector('b').textContent = sobra >= 0 ? `sobran ${Math.round(sobra)} px arriba` : `se corta ${Math.round(-sobra)} px`
+    cap.querySelector('b').classList.toggle('mal', sobra < 0)
+  })
+  // La tabla: las siete de hoy y las tres nuevas, cada una a 112 px
+  const caja = document.createElement('div')
+  caja.style.cssText = 'position:absolute;left:-9999px;top:0;display:flex'
+  const ids = ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen', ...PROPS.map(p => p.id)]
+  caja.innerHTML = ids.map(id => avi(claude(id), 'esperando', 112, { evolucionada: true })).join('')
+  document.body.append(caja)
+  requestAnimationFrame(() => {
+    const filas = ids.map((id, i) => ({ id, t: tope(caja.children[i].querySelector('svg')) })).sort((a, b) => a.t - b.t)
+    caja.remove()
+    document.getElementById('tabla-alto').innerHTML = filas.map(({ id, t }) => {
+      const p = PROPS.find(x => x.id === id), sobra = 6 + t
+      return `<tr class="${p ? 'nueva' : ''}" style="${p ? `--pc:${p.datos.c}` : ''}"><td>${avi(claude(id), 'esperando', 30, { evolucionada: true })}${p ? `${p.datos.evoNombre} (${p.datos.nombre})` : NOMBRES[id]}</td><td class="n">${t >= 0 ? '+' : '−'}${Math.abs(t).toFixed(1)} px</td><td class="n">${sobra >= 0 ? `entra · sobran ${Math.round(sobra)}` : `se corta ${Math.round(-sobra)} px`}</td></tr>`
+    }).join('')
+  })
+}
+document.fonts.ready.then(() => setTimeout(medir, 120))
+
+// ------------------------------------------------------------------ entrada orquestada
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  animate('.desfile figure', { opacity: [0, 1], translateY: [14, 0], duration: 700, delay: stagger(110, { start: 150 }), ease: 'outExpo' })
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return
+    io.unobserve(e.target)
+    animate(e.target, { opacity: [0, 1], translateY: [18, 0], duration: 800, ease: 'outExpo' })
+    const celdas = e.target.querySelectorAll('.poses .celda, .ficha')
+    if (celdas.length) animate(celdas, { opacity: [0, 1], scale: [.92, 1], duration: 500, delay: stagger(35, { start: 200 }), ease: 'outBack(1.6)' })
+  }), { threshold: .12 })
+  document.querySelectorAll('.entra').forEach(el => io.observe(el))
+} else {
+  document.querySelectorAll('.desfile figure').forEach(el => { el.style.opacity = 1; el.style.transform = 'none' })
+}
+</script>
+</body>
+</html>
