@@ -4,7 +4,11 @@
 //! Reglas firmes (7.1, 7.2 y 11):
 //! - Los argumentos son fijos (`argumentos_chat`) y los fijan los tests: `--permission-mode manual`
 //!   y `--tools Read,Glob,Grep` son la barrera real (el usuario tiene `bypassPermissions`), sin los MCP
-//!   del usuario (`--strict-mcp-config`), sin hooks, sin plugins del usuario y con `--safe-mode`.
+//!   del usuario (`--strict-mcp-config`), sin hooks, sin plugins del usuario y con `--restricted`.
+//!   `--restricted` reemplazó a `--safe-mode` en #43: `--safe-mode` apaga también `--mcp-config` (M-H2).
+//!   Además encierra Read, Glob y Grep en la carpeta de trabajo: lo de afuera da `permission_denied`
+//!   («--restricted: path outside the working directory»), medido el 25/11. Los adjuntos no pasan por
+//!   ahí (Rust los lee y los manda como bloques).
 //!   Cualquier herramienta nueva vuelve a diseño: la única vuelta fue #43 (docs/diseno/chat-herramientas-ux.md),
 //!   que suma el servidor de Avis (`mcp_avis.rs`) con sus cinco herramientas de tareas, por nombre
 //!   exacto en `--allowedTools` y con un token por lanzamiento (`Mcp`).
@@ -137,7 +141,7 @@ pub fn argumentos_chat(p: &Pedido) -> Vec<String> {
         "--include-partial-messages", "--replay-user-messages",
         "--permission-mode", "manual",
         "--tools", HERRAMIENTAS, "--allowedTools", &permitidas,
-        "--permission-prompts", "none", "--safe-mode", "--strict-mcp-config",
+        "--permission-prompts", "none", "--restricted", "--strict-mcp-config",
     ]
     .iter()
     .map(|s| s.to_string())

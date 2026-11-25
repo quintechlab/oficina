@@ -84,7 +84,7 @@ fn argumentos_exactos_de_7_1_la_primera_vez() {
         "--include-partial-messages", "--replay-user-messages",
         "--permission-mode", "manual",
         "--tools", "Read,Glob,Grep", "--allowedTools", "Read,Glob,Grep",
-        "--permission-prompts", "none", "--safe-mode", "--strict-mcp-config",
+        "--permission-prompts", "none", "--restricted", "--strict-mcp-config",
         "--settings", r"C:\config\chat\ajustes.json",
         "--append-system-prompt", &instruccion_chat("Ascua"),
         "--max-budget-usd", "2",
@@ -107,7 +107,9 @@ fn argumentos_con_las_barreras_de_seguridad() {
             assert!(a.iter().all(|x| !x.contains(prohibido)), "aparece {prohibido} en {a:?}");
         }
         // E0 (D34): las tres juntas
-        assert!(a.contains(&String::from("--safe-mode")));
+        assert!(a.contains(&String::from("--restricted")));
+        // #43 (M-H2): --safe-mode apaga --mcp-config; nunca vuelve
+        assert!(!a.contains(&String::from("--safe-mode")));
         assert!(a.contains(&String::from("--strict-mcp-config")));
         assert_eq!(valor(&a, "--settings"), Some(r"C:\config\chat\ajustes.json"));
         assert_eq!(valor(&a, "--max-budget-usd"), Some("2"));
@@ -345,7 +347,7 @@ fn hooks_ui_status_post_turn_y_control_response_se_ignoran() {
     assert_eq!(evento_de_linea(&post), None);
     let control = linea(FRENADA, |v| v["type"] == "control_response");
     assert_eq!(evento_de_linea(&control), None);
-    // Sin fixture (con --safe-mode y --settings no aparecen): se prueban como desconocidas
+    // Sin fixture (con --safe-mode y --settings no aparecen, medido en E0): se prueban como desconocidas
     for v in [
         json!({ "type": "system", "subtype": "hook_started", "hook_name": "SessionStart" }),
         json!({ "type": "system", "subtype": "hook_response", "output": "x" }),
@@ -1379,7 +1381,7 @@ fn argumentos_exactos_de_11_2_con_el_servidor_de_avis() {
         "--permission-mode", "manual",
         "--tools", "Read,Glob,Grep",
         "--allowedTools", "Read,Glob,Grep,mcp__avis__tareas_ver,mcp__avis__tarea_crear,mcp__avis__tarea_editar,mcp__avis__tarea_tildar,mcp__avis__tarea_mostrar",
-        "--permission-prompts", "none", "--safe-mode", "--strict-mcp-config",
+        "--permission-prompts", "none", "--restricted", "--strict-mcp-config",
         "--mcp-config", &config,
         "--settings", r"C:\config\chat\ajustes.json",
         "--append-system-prompt", &instruccion_chat("Ascua"),
@@ -1412,7 +1414,7 @@ fn con_el_servidor_siguen_las_barreras_de_seguridad() {
         let a = args_con_mcp(&s);
         assert_eq!(valor(&a, "--permission-mode"), Some("manual"));
         assert_eq!(valor(&a, "--tools"), Some("Read,Glob,Grep"));
-        for bandera in ["--safe-mode", "--strict-mcp-config", "--mcp-config"] {
+        for bandera in ["--restricted", "--strict-mcp-config", "--mcp-config"] {
             assert_eq!(a.iter().filter(|x| *x == bandera).count(), 1, "{bandera}");
         }
         for prohibido in ["bypassPermissions", "skip-permissions", "Bash", "Write", "Edit", "WebFetch"] {
