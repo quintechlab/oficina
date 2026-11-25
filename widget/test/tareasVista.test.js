@@ -95,7 +95,7 @@ test('filas: el tilde es un checkbox con "Hecha: {título}", la fecha corta con 
   assert.match(html, /<span class="de-l" style="--c:var\(--celeste\)"><i class="pt" aria-hidden="true"><\/i>Trabajo<\/span>/)
   assert.match(html, /<span class="subc" style="--p:33.3%"><i aria-hidden="true"><\/i><span aria-hidden="true">1\/3<\/span><span class="oculto">, 1 de 3 subtareas hechas<\/span><\/span>/)
   // El cuerpo abre la tarea (4.5, entrega 2): un botón con el título y lo demás en su nombre
-  assert.match(html, /<button type="button" class="f-cuerpo" data-accion="tar-abrir-tarea" data-valor="t-pr" data-k="ab-t-pr"><span class="tit">Revisar el PR #36<\/span><span class="oculto">, importante<\/span>/)
+  assert.match(html, /<button type="button" class="f-cuerpo" data-accion="tar-abrir-tarea" data-valor="t-pr" data-k="ab-t-pr"><span class="tit"><span class="tit-t">Revisar el PR #36<\/span><\/span><span class="oculto">, importante<\/span>/)
   assert.match(html, /<span class="oculto">, con notas<\/span>/)
   assert.match(html, /<span class="oculto">, importante<\/span>/)
   assert.match(html, /<span class="imp-b" aria-hidden="true">!<\/span>/)
@@ -247,7 +247,7 @@ test('globoMarca (8.3): dos botones hermanos, el texto de 5.4 con los números e
   assert.match(globoMarca(textoGlobo({ hoy: 1, vencidas: 0 }, '14:00')), /¡Buenas tardes! Tenés <b>1 tarea para hoy<\/b>\./)
 })
 
-test('globoMuesca (8.5): el contenido del botón #muesca-tareas, «Ver →» y el nombre con el texto entero', () => {
+test('globoMuesca (8.5): el contenido del botón #muesca-globo, «Ver →» y el nombre con el texto entero', () => {
   const t = textoGlobo({ hoy: 2, vencidas: 2 }, '21:00')
   const g = globoMuesca(t)
   assert.equal(g.html, '<span class="mt-t">2 para hoy · <b class="r">2 vencidas</b></span><span class="mt-c">Ver <span aria-hidden="true">→</span></span>')

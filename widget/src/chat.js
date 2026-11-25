@@ -17,7 +17,7 @@ export const ANCHO_HOJA = 420
 export const HUECO_HOJA = 14
 
 /**
- * De qué lado del tablero va la hoja (px de pantalla, `z` el zoom). Flotando: a la derecha si entra,
+ * De qué lado del tablero va la hoja (px de pantalla, `z` la escala: 1 desde #47). Flotando: a la derecha si entra,
  * si no a la izquierda, si no encima. Acoplada, lejos del borde: a la derecha de la muesca va a la
  * izquierda y viceversa; arriba y abajo, como flotando. Sin lugar, `'encima'` (D1).
  */
@@ -51,7 +51,7 @@ export function rectHoja(tablero, lado, z = 1, barra = 0) {
   return { x: tablero.x + tablero.ancho + hueco, y, ancho, alto }
 }
 
-/** ¿La hoja es baja? `alto` en px CSS (sin el zoom). */
+/** ¿La hoja es baja? `alto` en px CSS (sin escala). */
 export const hojaBaja = alto => alto < ALTO_HOJA_BAJA
 
 /** El anuncio de los archivos de una misma soltada (12, uno solo por cambio). */
@@ -585,6 +585,21 @@ export function transicionChat(c, ev, ctx = {}) {
       const chat = { ...cambiarConversacion(c, nueva), borrador: c.borrador, adjuntos: c.adjuntos }
       return { chat, efectos: [efectoAbrir(nueva), { tipo: 'foco', a: 'campo' }] }
     }
+    case 'semana': {
+      // El clic en el resumen semanal de Hábitos (habitos-ux.md 8.4): una charla nueva del motor local,
+      // sea cual sea la preferencia (que no cambia, decisión de Quintana del 24/11), que empieza con un
+      // mensaje de la mascota (la frase y los números) y su título. Se guarda ya en la PC (no espera a un
+      // turno). Sin el modelo, la hoja muestra la descarga de siempre (4.1), que solo baja con el clic
+      const texto = String(ev.texto ?? '').trim()
+      if (!texto) return NADA(c)
+      const ahora = ctx.ahoraMs
+      const nueva = {
+        ...conversacionNueva(ctx.id, 'local', null, ahora), titulo: String(ev.titulo ?? '').trim() || null,
+        mensajes: [{ rol: 'mascota', texto, cuando: ahora, estado: 'ok', herramientas: [], turno: 0, avis: false, ms: null }],
+      }
+      const chat = { ...cambiarConversacion({ ...c, abierta: true }, nueva), borrador: c.borrador, adjuntos: c.adjuntos }
+      return { chat, efectos: [efectoAbrir(nueva), { tipo: 'guardar', conversacion: nueva }, { tipo: 'foco', a: 'campo' }] }
+    }
     case 'retomar': {
       if (conv && conv.id === ev.id) return { chat: { ...c, cajon: false, menuCharla: null }, efectos: [{ tipo: 'foco', a: 'campo' }] }
       let otra = c.charlas.find(x => x.id === ev.id && Array.isArray(x.mensajes)) ?? null
@@ -948,7 +963,7 @@ export function detalleAdjunto({ tipo, bytes, paginas } = {}) {
 /**
  * ¿La posición de un arrastre cae sobre la hoja? (10, D26). `posicion`: px físicos relativos a la
  * ventana (`onDragDropEvent`); `dpr`: `devicePixelRatio`; `hoja`: su rectángulo en px CSS de la
- * ventana sin el zoom (`d.local.hoja`); `z`: el zoom de `<html>`. Sin hoja (cerrada o plegada), nunca.
+ * ventana (`d.local.hoja`); `z`: la escala (1 desde #47). Sin hoja (cerrada o plegada), nunca.
  */
 export function sobreHoja(posicion, dpr, hoja, z = 1) {
   if (!posicion || !hoja || !(dpr > 0)) return false
@@ -1187,7 +1202,7 @@ export const PISTA_CHIP = Object.freeze({ dura: 420, escala: 0.6, capa: 300 })
 
 /**
  * De dónde arranca el chip (6.2): del centro de la capa (`desde`, px de la ventana) a su lugar (`chip`,
- * su `getBoundingClientRect`). `k`: px CSS del documento por px de la ventana (1 / zoom).
+ * su `getBoundingClientRect`). `k`: px CSS del documento por px de la ventana (1 sin transformaciones).
  */
 export function pistaChip(desde, chip, k = 1) {
   const cx = chip.left + chip.width / 2, cy = chip.top + chip.height / 2

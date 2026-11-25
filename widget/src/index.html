@@ -46,10 +46,14 @@
               <span class="mod-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="3.2"/><path class="tilde-p" d="M5.3 8.2l1.9 1.9 3.6-4"/></svg></span>
               <span class="mod-n">Tareas</span><span class="mod-ct tar-ct" id="tar-fila-ct"><kbd aria-hidden="true">Ctrl T</kbd></span>
             </button>
-            <!-- Hábitos (#41, docs/diseno/habitos-ux.md): su fila #hab-fila va acá, con su anillo o la pista "Ctrl H" -->
+            <!-- Hábitos (#41, docs/diseno/habitos-ux.md 4.1): la pista "Ctrl H", «—» o el anillo de hoy con «{h}/{t}» (#hab-fila-ct, habitosVista.js) -->
+            <button type="button" class="mod hab" id="hab-fila" data-accion="mod" data-mod="habitos" aria-keyshortcuts="Control+H" title="Hábitos (Ctrl H)" aria-label="Hábitos">
+              <span class="mod-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path class="arco" d="M13.2 8.6A5.2 5.2 0 1 1 11.6 4.2"/><path d="M12.2 1.8v2.8H9.4"/><circle cx="8" cy="8.3" r="1.5" fill="currentColor" stroke="none"/></svg></span>
+              <span class="mod-n">Hábitos</span><span class="mod-ct hab-ct" id="hab-fila-ct"><kbd aria-hidden="true">Ctrl H</kbd></span>
+            </button>
           </nav>
           <!-- Configuración (docs/diseno/configuracion-ux.md 4.1, modulos-ux.md 3.3): sola y aparte, pegada al pie de lo que se
-               ve: con zoom alto la barra desplaza y la fila no se pierde (16, D-g). La píldora no baja hasta acá: abierta, pone su fondo -->
+               ve: en una pantalla baja la barra desplaza y la fila no se pierde (16, D-g). La píldora no baja hasta acá: abierta, pone su fondo -->
           <div class="lado-cfg">
             <button type="button" class="mod engr" id="cfg-fila" data-accion="mod" data-mod="config" aria-keyshortcuts="Control+Comma" title="Configuración (Ctrl ,)" aria-label="Configuración">
               <span class="mod-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M13.14 6.72L14.93 7.01L14.93 8.99L13.14 9.28L12.54 10.73L13.60 12.20L12.20 13.60L10.73 12.54L9.28 13.14L8.99 14.93L7.01 14.93L6.72 13.14L5.27 12.54L3.80 13.60L2.40 12.20L3.46 10.73L2.86 9.28L1.07 8.99L1.07 7.01L2.86 6.72L3.46 5.27L2.40 3.80L3.80 2.40L5.27 3.46L6.72 2.86L7.01 1.07L8.99 1.07L9.28 2.86L10.73 3.46L12.20 2.40L13.60 3.80L12.54 5.27Z"/><circle cx="8" cy="8" r="2.1"/></svg></span>
@@ -71,6 +75,8 @@
               <span class="cfg-mini" id="cfg-mini" aria-hidden="true"></span>
               <!-- La mascota de 40 junto al título con la hoja de Tareas abierta (tareas-ux.md 4.10): festeja cada tilde -->
               <span class="tar-mini" id="tar-mini" aria-hidden="true"></span>
+              <!-- La mascota de 40 junto al título con la hoja de Hábitos abierta (habitos-ux.md 4.13): festeja cada marca -->
+              <span class="hab-mini" id="hab-mini" aria-hidden="true"></span>
               <h1 id="titulo" tabindex="-1"></h1>
               <p id="subtitulo"></p>
             </div>
@@ -98,6 +104,8 @@
           <div id="cfg"></div>
           <!-- Tareas (docs/diseno/tareas-ux.md 3.2): hermana de #cfg, una hoja por vez en la columna -->
           <div id="tar"></div>
+          <!-- Hábitos (docs/diseno/habitos-ux.md 3.2): hermana de #cfg y #tar, una hoja por vez en la columna -->
+          <div id="hab"></div>
           <!-- La tira de repos (modulos-ux.md 4.4, #42 M2): un chip por proyecto, solo en Sesiones (tablero.js, tiraRepos).
                Se llama «Repos»: «Proyectos» es un módulo nuevo (#44) -->
           <nav class="repos" id="repos" aria-label="Repos"></nav>
@@ -165,9 +173,10 @@
   <!-- Muesca acoplada (sección 7): el único control mientras está cerrada. El panel es #marco -->
   <!-- Muesca A "Asoma" (docs/diseno/muesca-avi-ux.md): main.js escribe su armazón una vez (contenidoMuesca) -->
   <button type="button" id="muesca" aria-expanded="false" aria-controls="marco" aria-label="Avis. Abrir"></button>
-  <!-- El aviso diario de tareas con la muesca plegada (tareas-ux.md 8.5): un botón hermano (#muesca ya es un botón);
-       main.js lo ubica del lado de adentro (lugarGloboMuesca) y suma su rectángulo a la zona interactiva -->
-  <button type="button" id="muesca-tareas" data-accion="tar-globo" hidden></button>
+  <!-- El globo con la muesca plegada (tareas-ux.md 8.5 y habitos-ux.md 8.2): uno solo para el aviso de tareas y el
+       recordatorio de un hábito, un botón hermano (#muesca ya es un botón). main.js le pone su acción (data-accion),
+       lo ubica del lado de adentro (lugarGloboMuesca) y suma su rectángulo a la zona interactiva -->
+  <button type="button" id="muesca-globo" data-accion="tar-globo" hidden></button>
   <div id="luz" aria-hidden="true"></div>
   <!-- Píldora al arrastrar la muesca lejos de los bordes, y aviso del imán al arrastrar el tablero (7.3) -->
   <div id="pildora" aria-hidden="true"></div>

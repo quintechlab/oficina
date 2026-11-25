@@ -13,6 +13,7 @@ import { avisoPreguntaHtml, cuentasMiniHtml } from '../src/modulosVista.js'
 import { agruparPorProyecto } from '../src/logica.js'
 import { ladoFilaTareas } from '../src/tareasVista.js'
 import { nombreFilaTareas } from '../src/tareas.js'
+import { ladoFilaHabitos, cuentaMiniHabitos } from '../src/habitosVista.js'
 
 const AHORA = Date.parse('2026-11-25T15:00:00Z')
 const hace = min => new Date(AHORA - min * 60000).toISOString()
@@ -26,8 +27,8 @@ test('MODULOS: Sesiones, Tareas, Hábitos y Configuración, en ese orden; Config
   assert.deepEqual(MODULOS.map(m => m.nombre), ['Sesiones', 'Tareas', 'Hábitos', 'Configuración'])
   assert.deepEqual(MODULOS.map(m => m.atajo), ['Escape', 'Control+T', 'Control+H', 'Control+Comma'])
   assert.deepEqual(MODULOS.filter(m => m.pie).map(m => m.id), ['config'])
-  // Hábitos (#41) tiene su lugar previsto, pero todavía no se puede abrir
-  assert.deepEqual(MODULOS_ACTIVOS, ['sesiones', 'tareas', 'config'])
+  // Hábitos (#41, H1) ya se puede abrir
+  assert.deepEqual(MODULOS_ACTIVOS, ['sesiones', 'tareas', 'habitos', 'config'])
 })
 
 test('tituloModulo: el title de cada fila, «{Módulo} ({atajo})» (5)', () => {
@@ -60,12 +61,20 @@ test('irModulo: el mismo módulo no cierra ni abre nada, solo lleva el foco al h
   assert.deepEqual(irModulo({ modulo: 'sesiones' }, 'sesiones', { repo: 'q/x' }), { modulo: 'sesiones', cerrar: [], abrir: null, repo: 'q/x', foco: 'h1' })
 })
 
-test('irModulo: un id desconocido (o Hábitos, que todavía no existe) no cambia nada', () => {
+test('irModulo: un id desconocido no cambia nada; uno que no está activo, tampoco', () => {
   assert.equal(irModulo({ modulo: 'sesiones' }, 'proyectos'), null)
   assert.equal(irModulo({ modulo: 'tareas' }, undefined), null)
-  assert.equal(irModulo({ modulo: 'sesiones' }, 'habitos'), null)
-  // Con #41 el módulo se activa sin tocar la función
-  assert.deepEqual(irModulo({ modulo: 'sesiones', activos: [...MODULOS_ACTIVOS, 'habitos'] }, 'habitos'), { modulo: 'habitos', cerrar: [], abrir: 'habitos', repo: null })
+  assert.equal(irModulo({ modulo: 'sesiones', activos: ['sesiones', 'tareas', 'config'] }, 'habitos'), null)
+})
+
+test('irModulo con Hábitos (#41): abre su hoja; desde Tareas cierra Tareas; a Sesiones la cierra; otra vez, el foco al h1', () => {
+  assert.deepEqual(irModulo({ modulo: 'sesiones' }, 'habitos'), { modulo: 'habitos', cerrar: [], abrir: 'habitos', repo: null })
+  assert.deepEqual(irModulo({ modulo: 'tareas' }, 'habitos'), { modulo: 'habitos', cerrar: ['tareas'], abrir: 'habitos', repo: null })
+  assert.deepEqual(irModulo({ modulo: 'habitos' }, 'config'), { modulo: 'config', cerrar: ['habitos'], abrir: 'config', repo: null })
+  assert.deepEqual(irModulo({ modulo: 'habitos' }, 'sesiones'), { modulo: 'sesiones', cerrar: ['habitos'], abrir: null, repo: null })
+  assert.deepEqual(irModulo({ modulo: 'habitos' }, 'habitos'), { modulo: 'habitos', cerrar: [], abrir: null, repo: null, foco: 'h1' })
+  // Tareas sigue igual
+  assert.deepEqual(irModulo({ modulo: 'sesiones' }, 'tareas'), { modulo: 'tareas', cerrar: [], abrir: 'tareas', repo: null })
 })
 
 // ------------------------------------------------------------------ alEscModulo (9.1)
@@ -80,6 +89,9 @@ test('alEscModulo: Tareas con una capa → capa; sin capas → sesiones; en Sesi
   assert.equal(alEscModulo('config', 'cerrar'), 'sesiones')
   assert.equal(alEscModulo('sesiones', 'cerrar'), 'nada')
   assert.equal(alEscModulo('sesiones', null), 'nada')
+  // Hábitos (habitos-ux.md 9.1): vaciar, desarmar, cancelar el formulario y cerrar el hábito son capas; cerrar, Sesiones
+  for (const capa of ['vaciar', 'desarmar', 'cancelar-nuevo', 'cerrar-habito']) assert.equal(alEscModulo('habitos', capa), 'capa', capa)
+  assert.equal(alEscModulo('habitos', 'cerrar'), 'sesiones')
 })
 
 // ------------------------------------------------------------------ cuentaModulo y nombreModulo (4.1, 4.2)
@@ -100,6 +112,9 @@ test('cuentaModulo de Tareas, Hábitos y Configuración: la pista del atajo sin 
   assert.equal(cuentaModulo('tareas', { hoy: 2, vencidas: 2 }), ladoFilaTareas({ hoy: 2, vencidas: 2 }))
   assert.equal(cuentaModulo('habitos', null), '<kbd aria-hidden="true">Ctrl H</kbd>')
   assert.equal(cuentaModulo('habitos', { hechos: 0, total: 0 }), '<kbd aria-hidden="true">Ctrl H</kbd>')
+  // Con hábitos (habitos-ux.md 4.1): la misma pieza que dibuja la fila («—» o el anillo)
+  assert.equal(cuentaModulo('habitos', { hechos: 0, total: 0, habitos: 2 }), ladoFilaHabitos({ hechos: 0, total: 0, habitos: 2 }))
+  assert.equal(cuentaModulo('habitos', { hechos: 2, total: 5, habitos: 5 }), ladoFilaHabitos({ hechos: 2, total: 5, habitos: 5 }))
   assert.equal(cuentaModulo('config', null), '<kbd aria-hidden="true">Ctrl ,</kbd>')
   // Con algo que mirar, el punto de pestaña (configuracion-ux.md 6.3)
   assert.equal(cuentaModulo('config', { punto: { tono: 'error', texto: ', una clave rechazada' } }), '<i class="pt t-error" aria-hidden="true"></i>')
@@ -117,6 +132,8 @@ test('nombreModulo: el nombre accesible de cada fila, en singular o plural y sin
   assert.equal(nombreModulo('tareas', null), 'Tareas')
   assert.equal(nombreModulo('habitos', { hechos: 2, total: 5 }), 'Hábitos, 2 de 5 hechos hoy')
   assert.equal(nombreModulo('habitos', null), 'Hábitos')
+  assert.equal(nombreModulo('habitos', { hechos: 0, total: 0, habitos: 2 }), 'Hábitos, hoy no toca ninguno')
+  assert.equal(nombreModulo('habitos', { hechos: 3, total: 3, habitos: 3 }), 'Hábitos, los 3 de hoy hechos')
   assert.equal(nombreModulo('config', null), 'Configuración')
   assert.equal(nombreModulo('config', { punto: { tono: 'aviso', texto: ', el mod necesita atención' } }), 'Configuración, el mod necesita atención')
 })
@@ -188,7 +205,7 @@ const H = { hechos: 2, total: 5 }
 
 test('cuentasModulosMini: con lugar entran las dos; si el resumen quedaría por debajo de 120, se va Hábitos y después Tareas', () => {
   assert.equal(RESUMEN_MINIMO_MINI, 120)
-  assert.deepEqual(cuentasModulosMini(T, H, 200), { tareas: true, habitos: true })
+  assert.deepEqual(cuentasModulosMini(T, H, 220), { tareas: true, habitos: true })
   assert.deepEqual(cuentasModulosMini(T, H, 160), { tareas: true, habitos: false })
   assert.deepEqual(cuentasModulosMini(T, H, 110), { tareas: false, habitos: false })
   // El borde: el resumen se queda con 120 justos
@@ -202,7 +219,7 @@ test('cuentasModulosMini: con lugar entran las dos; si el resumen quedaría por 
 test('cuentasModulosMini: sin nada que contar no ocupa lugar (sin pista de atajo en la tira)', () => {
   assert.deepEqual(cuentasModulosMini({ hoy: 0, vencidas: 0 }, H, 200), { tareas: false, habitos: true })
   assert.deepEqual(cuentasModulosMini(null, null, 400), { tareas: false, habitos: false })
-  // Hábitos todavía no existe (#41): solo Tareas, con su propio ancho
+  // Sin cuentas de Hábitos (todavía sin leer): solo Tareas, con su propio ancho
   assert.deepEqual(cuentasModulosMini({ hoy: 0, vencidas: 1 }, null, 120 + ANCHO_CUENTA_MINI.tareas), { tareas: true, habitos: false })
   assert.deepEqual(cuentasModulosMini(T, { hechos: 0, total: 0 }, 400), { tareas: true, habitos: false })
 })
@@ -216,6 +233,14 @@ test('cuentasMiniHtml: la cuenta chica de Tareas (la de su fila, sin la pista) c
   assert.equal(cuentasMiniHtml({ hoy: 0, vencidas: 0 }, null, { tareas: true, habitos: false }), '')
   assert.equal(cuentasMiniHtml(T, null, { tareas: true, habitos: false }), `${ladoFilaTareas(T)}<span class="oculto">Tareas, 2 para hoy</span>`)
   assert.equal(cuentasMiniHtml({ hoy: 1, vencidas: 2 }, null, { tareas: true, habitos: false }), '<span class="chip chip-venc" aria-hidden="true"><i></i>3</span><span class="oculto">Tareas, 1 para hoy, 2 vencidas</span>')
+})
+
+test('cuentasMiniHtml con Hábitos (#41): después de Tareas, el anillo con su nombre; nada si no entra o no hay de hoy', () => {
+  const Hab = { hechos: 2, total: 5, habitos: 5 }
+  assert.equal(cuentasMiniHtml(T, Hab, { tareas: true, habitos: true }), `${ladoFilaTareas(T)}<span class="oculto">Tareas, 2 para hoy</span>${cuentaMiniHabitos(Hab)}`)
+  assert.equal(cuentasMiniHtml(T, Hab, { tareas: false, habitos: true }), cuentaMiniHabitos(Hab))
+  assert.equal(cuentasMiniHtml(T, Hab, { tareas: true, habitos: false }), `${ladoFilaTareas(T)}<span class="oculto">Tareas, 2 para hoy</span>`)
+  assert.equal(cuentasMiniHtml(null, { hechos: 0, total: 0, habitos: 2 }, { tareas: false, habitos: true }), '')
 })
 
 // ------------------------------------------------------------------ desplazarTira (4.4: el chip elegido queda a la vista)
@@ -253,18 +278,23 @@ test('solo irModulo cambia st.modulo, y arranca en Sesiones (3.2, D-m8)', () => 
 })
 
 test('abrir y cerrar las hojas pasa solo por irModulo: ningún otro camino deja dos hojas o ninguna (14, Risk 3)', () => {
-  const resto = sin('irModulo', 'abrirConfig', 'cerrarConfig', 'abrirTareasHoja', 'cerrarTareasHoja')
-  for (const f of ['abrirConfig', 'cerrarConfig', 'abrirTareasHoja', 'cerrarTareasHoja']) {
+  const resto = sin('irModulo', 'abrirConfig', 'cerrarConfig', 'abrirTareasHoja', 'cerrarTareasHoja', 'abrirHabitosHoja', 'cerrarHabitosHoja')
+  for (const f of ['abrirConfig', 'cerrarConfig', 'abrirTareasHoja', 'cerrarTareasHoja', 'abrirHabitosHoja', 'cerrarHabitosHoja']) {
     assert.doesNotMatch(resto, new RegExp(`\\b${f}\\(`), `${f} se llama fuera de irModulo`)
   }
   // abrirConfiguracion/cerrarConfiguracion y abrirTareas/cerrarTareas (las que escriben `abierta`) solo en sus funciones
-  const resto2 = sin('abrirConfig', 'cerrarConfig', 'abrirTareasHoja', 'cerrarTareasHoja', 'escTareas')
-  assert.doesNotMatch(resto2, /\b(abrirConfiguracion|cerrarConfiguracion|abrirTareas|cerrarTareas)\(/)
+  const resto2 = sin('abrirConfig', 'cerrarConfig', 'abrirTareasHoja', 'cerrarTareasHoja', 'escTareas', 'abrirHabitosHoja', 'cerrarHabitosHoja')
+  assert.doesNotMatch(resto2, /\b(abrirConfiguracion|cerrarConfiguracion|abrirTareas|cerrarTareas|abrirHabitos|cerrarHabitos)\(/)
+  // irModulo cierra y abre Hábitos como las demás hojas
+  assert.match(cuerpo('irModulo'), /else if \(h === 'habitos'\) cerrarHabitosHoja\(\{ acto: !plan\.abrir \}\)/)
+  assert.match(cuerpo('irModulo'), /else if \(plan\.abrir === 'habitos'\) abrirHabitosHoja\(\{ ver, foco: enfocarTitulo \}\)/)
 })
 
 test('cada camino de hoy abre su módulo por irModulo: filas, atajos, bandeja, globo de Tareas, aviso, tira, muesca y primeros pasos', () => {
   assert.match(main, /esAtajoConfiguracion\(e\)\) \{[\s\S]{0,200}irModulo\('config'\)/)
   assert.match(main, /esAtajoTareas\(e\)\) \{[\s\S]{0,200}irModulo\('tareas'\)/)
+  assert.match(main, /esAtajoHabitos\(e\)\) \{[\s\S]{0,200}irModulo\('habitos'\)/)
+  assert.match(cuerpo('escHabitos'), /alEscModulo\('habitos', accion\) === 'sesiones'\) \{ irModulo\('sesiones', \{ foco: 'fila' \}\)/)
   assert.match(main, /oficina:\/\/configuracion', ev => \{ if \(ev\.payload\?\.abrir\) irModulo\('config', \{ tab: ev\.payload\.tab \}\)/)
   assert.match(main, /case 'tar-globo': if \(!justoArrastro\) await irModulo\('tareas', \{ ver: 'hoy' \}\)/)
   assert.match(main, /case 'tar-abrir': await irModulo\('tareas'\)/)
@@ -295,9 +325,14 @@ test('index.html: el menú de módulos con la píldora, Tareas sube al menú, Co
   assert.match(html, /<button type="button" class="mod" id="mod-sesiones" data-accion="mod" data-mod="sesiones" aria-keyshortcuts="Escape" title="Sesiones \(Esc\)"/)
   assert.match(html, /<button type="button" class="mod tar" id="tar-fila" data-accion="mod" data-mod="tareas" aria-keyshortcuts="Control\+T" title="Tareas \(Ctrl T\)"/)
   assert.match(html, /<div class="lado-cfg">\s*(<!--[\s\S]*?-->\s*)?<button type="button" class="mod engr" id="cfg-fila" data-accion="mod" data-mod="config" aria-keyshortcuts="Control\+Comma" title="Configuración \(Ctrl ,\)"/)
-  // Tareas ya no está en .lado-cfg; el lugar de Hábitos queda previsto sin fila
-  assert.doesNotMatch(html.slice(html.indexOf('<div class="lado-cfg">'), html.indexOf('</div>', html.indexOf('<div class="lado-cfg">'))), /tar-fila/)
-  assert.doesNotMatch(html, /id="hab-fila"/)
+  // Tareas ya no está en .lado-cfg; Hábitos (#41) va en el menú, después de Tareas
+  assert.doesNotMatch(html.slice(html.indexOf('<div class="lado-cfg">'), html.indexOf('</div>', html.indexOf('<div class="lado-cfg">'))), /tar-fila|hab-fila/)
+  assert.match(html, /<button type="button" class="mod hab" id="hab-fila" data-accion="mod" data-mod="habitos" aria-keyshortcuts="Control\+H" title="Hábitos \(Ctrl H\)" aria-label="Hábitos">/)
+  assert.ok(html.indexOf('id="tar-fila"') < html.indexOf('id="hab-fila"') && html.indexOf('id="hab-fila"') < html.indexOf('</nav>', html.indexOf('<nav class="mods"')))
+  assert.match(html, /<path class="arco" d="M13\.2 8\.6A5\.2 5\.2 0 1 1 11\.6 4\.2"\/><path d="M12\.2 1\.8v2\.8H9\.4"\/>/)
+  // La hoja #hab es hermana de #cfg y #tar; la mascota de 40 junto al título
+  assert.match(html, /<div id="tar"><\/div>[\s\S]*<div id="hab"><\/div>/)
+  assert.match(html, /<span class="hab-mini" id="hab-mini" aria-hidden="true"><\/span>/)
   assert.doesNotMatch(html, /cfg-volver|tar-volver|‹ Tablero/)
   // `#volver` es la salida de la dividida: se queda
   assert.match(html, /id="volver" data-accion="volver"/)
@@ -371,6 +406,9 @@ test('la tira mini (8, M2): caras, resumen e insignia como siempre; después, la
   assert.match(f, /poner\('#tira-pend', insignia\(r\.pendientes\)\)/)
   assert.match(f, /cuentasModulosMini\(/)
   assert.match(f, /poner\('#tira-mods', cuentasMiniHtml\(/)
+  // Hábitos suma su cuenta (#41): la de hoy, ya leída
+  assert.match(f, /const habitos = st\.habitos\.leido \? cuentasHoy\(st\.habitos\.lista, hoyHabitos\(\)\) : null/)
+  assert.match(f, /cuentasMiniHtml\(tareas, habitos, cuentasModulosMini\(tareas, habitos, libre\)\)/)
   // La insignia se pone antes y sin condición: nunca se esconde
   assert.ok(f.indexOf("poner('#tira-pend'") < f.indexOf('cuentasModulosMini('))
 })
@@ -404,7 +442,7 @@ test('cerrar una hoja sigue igual: guarda lo diferido de Tareas y el tablero vue
 
 test('abrir una hoja sigue saliendo de la dividida y de la tira; los atajos solo con el panel a la vista', () => {
   assert.match(cuerpo('irModulo'), /if \(plan\.abrir\) \{\n {4}if \(st\.dividida\.clave\) await cerrarConversacion\(\{ descartar: true \}\)\n {4}if \(st\.mini\) await ponerMini\(false\)/)
-  assert.equal((main.match(/if \(!st\.mini && \(!st\.acople \|\| st\.vista\)\) irModulo\('(config|tareas)'\)/g) ?? []).length, 2)
+  assert.equal((main.match(/if \(!st\.mini && \(!st\.acople \|\| st\.vista\)\) irModulo\('(config|tareas|habitos)'\)/g) ?? []).length, 3)
 })
 
 test('elegir un proyecto en Sesiones y la dividida siguen igual', () => {

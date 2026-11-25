@@ -8,7 +8,7 @@ import {
   ANCHO_HOJA, HUECO_HOJA, ladoHoja, rectHoja, hojaBaja, anuncioAdjuntos,chatInicial, transicionChat, pasoEspera, relojEspera, markdownSeguro,
   partirBloques, textoHerramientas, grupoDeFecha, tituloConversacion, sugerencias, validarAdjunto, coincideBusqueda,
   animoChat, datosAvis, firmaDatos, cifrasDescarga, formatoGB, duracionContando, contarPalabras, actividadParaAvis,
-  ACTIVIDAD_QUIETA, TOPES_DATOS, formatoReloj, nombreCarpeta, listaCharlas, mensajesVisibles, TARDA_MS, SIN_NOTICIAS_MS,
+  ACTIVIDAD_QUIETA, TOPES_DATOS, formatoReloj, nombreCarpeta, listaCharlas, mensajesVisibles, TARDA_MS, SIN_NOTICIAS_MS, aArchivo,
 } from '../src/chat.js'
 import { hilo, escena, cabecera, composer, menuCarpeta, cajon, capaSoltar, textoError } from '../src/chatVista.js'
 import { guardadosPendientes, scrollHilo } from '../src/chat.js'
@@ -815,4 +815,64 @@ test('scrollHilo: una bienvenida (charla sin mensajes) abre con el hilo arriba; 
   assert.equal(scrollHilo(con, true), 'abajo')
   assert.equal(scrollHilo(con, false), null)
   assert.equal(scrollHilo(chatInicial(), true), 'arriba')
+})
+
+// ------------------------------------------------------------------ la charla del resumen semanal (habitos-ux.md 8.4, H3)
+
+test('semana: una charla nueva del motor local, abierta, con el mensaje de la mascota y su título; la preferencia no cambia', () => {
+  const c = { ...chatInicial(), motor: 'claude', carpeta: 'C:\\Desktop\\catalogo', modelo: 'sonnet' }
+  const texto = 'Caminaste 5 de 7 días.\n\n- Caminar: 5 de 7 días'
+  const { chat, efectos } = transicionChat(c, { tipo: 'semana', titulo: 'Tu semana · 16/11 al 22/11', texto }, { ...CTX, id: 'c-9' })
+  assert.equal(chat.abierta, true)
+  assert.equal(chat.estado, 'listo')
+  assert.equal(chat.conversacion.id, 'c-9')
+  assert.equal(chat.conversacion.motor, 'local')
+  assert.equal(chat.conversacion.carpeta, null)
+  assert.equal(chat.conversacion.modelo, null)
+  assert.equal(chat.conversacion.titulo, 'Tu semana · 16/11 al 22/11')
+  assert.deepEqual(chat.conversacion.mensajes.map(m => [m.rol, m.texto, m.estado]), [['mascota', texto, 'ok']])
+  // La preferencia (motor, carpeta y modelo de las charlas nuevas) queda como estaba (decisión de Quintana del 24/11)
+  assert.equal(chat.motor, 'claude')
+  assert.equal(chat.carpeta, 'C:\\Desktop\\catalogo')
+  assert.equal(chat.modelo, 'sonnet')
+  assert.ok(!tipos(efectos).includes('preferencias'))
+  assert.ok(!tipos(efectos).includes('enviar'))
+  // Precalienta el local (y lee el modelo), la guarda en la PC y lleva el foco al campo
+  assert.deepEqual(efectos.find(e => e.tipo === 'abrir'), { tipo: 'abrir', conversacion: 'c-9', motor: 'local', carpeta: null, sesionClaude: null, modelo: null })
+  assert.equal(efectos.find(e => e.tipo === 'guardar')?.conversacion.id, 'c-9')
+  assert.deepEqual(efectos.find(e => e.tipo === 'foco'), { tipo: 'foco', a: 'campo' })
+  // La próxima charla nueva sigue con la preferencia
+  assert.equal(transicionChat(chat, { tipo: 'nueva' }, { ...CTX, id: 'c-10' }).chat.conversacion.motor, 'claude')
+})
+
+test('semana: la charla de antes queda en el cajón; con la hoja abierta, cambia de charla en su lugar; sin texto, nada', () => {
+  let c = abierta()
+  c = enviar(c).chat
+  c = evento(c, 'texto', { texto: 'hola' }).chat
+  c = evento(c, 'fin', {}).chat
+  const { chat } = transicionChat(c, { tipo: 'semana', titulo: 'Tu semana · 16/11 al 22/11', texto: 'Bien.' }, { ...CTX, id: 'c-9' })
+  assert.equal(chat.abierta, true)
+  assert.equal(chat.conversacion.id, 'c-9')
+  assert.ok(chat.charlas.some(x => x.id === 'c-1'))
+  assert.equal(transicionChat(c, { tipo: 'semana', titulo: 'x', texto: '  ' }, { ...CTX, id: 'c-9' }).chat, c)
+})
+
+test('semana: el mensaje de la mascota viaja como historia del motor local y se guarda en el formato v1', () => {
+  const { chat } = transicionChat(chatInicial(), { tipo: 'semana', titulo: 'Tu semana · 16/11 al 22/11', texto: 'Bien.' }, { ...CTX, id: 'c-9' })
+  const listo = { ...chat, local: 'instalado' }
+  const { efectos } = transicionChat({ ...listo, borrador: '¿y el agua?' }, { tipo: 'enviar', texto: '¿y el agua?', campo: true }, CTX)
+  assert.deepEqual(efectos.find(e => e.tipo === 'enviar').historia, [{ rol: 'mascota', texto: 'Bien.' }])
+  const doc = aArchivo(chat.conversacion)
+  assert.equal(doc.motor, 'local')
+  assert.equal(doc.titulo, 'Tu semana · 16/11 al 22/11')
+  assert.deepEqual(doc.mensajes.map(m => [m.rol, m.texto, m.estado]), [['mascota', 'Bien.', 'ok']])
+})
+
+test('sin zoom (#47): la hoja al costado sin escala es la del 100 %', () => {
+  const t = { x: 100, y: 200, ancho: 676, alto: 640 }
+  const area = { x: 0, y: 0, ancho: 1920, alto: 1040 }
+  for (const [modo, borde] of [['flotante', null], ['acoplada', 'arriba'], ['acoplada', 'derecha'], ['acoplada', 'izquierda']]) {
+    assert.equal(ladoHoja(t, area, modo, borde), ladoHoja(t, area, modo, borde, 1))
+  }
+  assert.deepEqual(rectHoja(t, 'derecha', 1, 208), { x: 100 + 676 + HUECO_HOJA, y: 200, ancho: ANCHO_HOJA, alto: 640 })
 })

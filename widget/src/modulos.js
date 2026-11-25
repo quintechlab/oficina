@@ -1,6 +1,6 @@
 // La barra como menú de módulos (#42, docs/diseno/modulos-ux.md, opción A "Menú"): lógica pura.
 // Sesiones es la portada (abre ahí y Esc vuelve ahí); Tareas y Configuración son hojas de la columna;
-// Hábitos (#41) tiene su lugar previsto y entra después. `st.modulo` (main.js) es la única fuente de
+// Hábitos (#41) entra con su entrega H1 (habitos-ux.md 14). `st.modulo` (main.js) es la única fuente de
 // qué se ve, y `irModulo` (main.js), la única entrada: este archivo decide qué cerrar, qué abrir y a
 // qué proyecto ir; main.js hace los actos, la lectura y el foco. Sin DOM: se prueba en node.
 // Entrega M1: el menú, la píldora, `#aviso-p` y Esc → Sesiones. La tira de proyectos es M2.
@@ -9,6 +9,8 @@ import { escapar, plural, preguntasPendientes, tiempoRelativo } from './logica.j
 import { quienPregunta } from './pregunta.js'
 import { ladoFilaTareas } from './tareasVista.js'
 import { nombreFilaTareas } from './tareas.js'
+import { ladoFilaHabitos } from './habitosVista.js'
+import { nombreFilaHabitos } from './habitos.js'
 
 /** Los módulos, en el orden del menú (3.1). `pie`: va aparte, abajo (`.lado-cfg`). `tecla`: la pista visible. */
 export const MODULOS = [
@@ -18,8 +20,8 @@ export const MODULOS = [
   { id: 'config', nombre: 'Configuración', atajo: 'Control+Comma', tecla: 'Ctrl ,', pie: true },
 ]
 
-/** Los que se pueden abrir hoy. Hábitos se suma con #41 (`habitos-ux.md` 14). */
-export const MODULOS_ACTIVOS = ['sesiones', 'tareas', 'config']
+/** Los que se pueden abrir hoy. Hábitos se sumó con #41 (`habitos-ux.md` 14, H1). */
+export const MODULOS_ACTIVOS = ['sesiones', 'tareas', 'habitos', 'config']
 
 const modulo = id => MODULOS.find(m => m.id === id)
 
@@ -60,7 +62,7 @@ const pista = id => `<kbd aria-hidden="true">${escapar(modulo(id)?.tecla ?? '')}
 /**
  * La cuenta de una fila (4.2), `aria-hidden` (el texto va en el nombre de la fila). Sesiones: el número
  * de sesiones (0 también; null = cargando, «…») y, con preguntas, el chip ámbar «1 ?». Tareas: la de hoy
- * (`ladoFilaTareas`, tareas-ux.md 4.1). Hábitos: la pista hasta #41. Configuración: el punto de
+ * (`ladoFilaTareas`, tareas-ux.md 4.1). Hábitos: la pista, «—» o el anillo (`ladoFilaHabitos`, habitos-ux.md 4.1). Configuración: el punto de
  * pestaña (`puntoPestana`) si hay algo que mirar, o la pista.
  */
 export function cuentaModulo(id, datos) {
@@ -70,7 +72,7 @@ export function cuentaModulo(id, datos) {
     return `<span class="cuentas" aria-hidden="true"><span class="chip">${n == null ? '…' : n}</span>${preg}</span>`
   }
   if (id === 'tareas') return ladoFilaTareas(datos ?? { hoy: 0, vencidas: 0 })
-  if (id === 'habitos') return pista('habitos')
+  if (id === 'habitos') return ladoFilaHabitos(datos)
   if (id === 'config') return datos?.punto ? `<i class="pt t-${escapar(datos.punto.tono)}" aria-hidden="true"></i>` : pista('config')
   return ''
 }
@@ -88,7 +90,7 @@ export function nombreModulo(id, datos) {
     return partes.join(', ')
   }
   if (id === 'tareas') return nombreFilaTareas(datos ?? { hoy: 0, vencidas: 0 })
-  if (id === 'habitos') return datos?.total ? `Hábitos, ${datos.hechos ?? 0} de ${datos.total} hechos hoy` : 'Hábitos'
+  if (id === 'habitos') return nombreFilaHabitos(datos)
   if (id === 'config') return `Configuración${datos?.punto?.texto ?? ''}`
   return ''
 }
@@ -121,8 +123,8 @@ export function moduloAlExpandir({ modulo, repo, preguntas } = {}) {
 
 /** La tira mini (8, M2): el resumen nunca queda más angosto que esto por las cuentas de los módulos. */
 export const RESUMEN_MINIMO_MINI = 120
-/** Lo que ocupa cada cuenta chica en la tira con su separación: Tareas medida con Playwright (27 a 33 px el chip, 4 de separación; se toma el de dos cifras); Hábitos estimada hasta #41. */
-export const ANCHO_CUENTA_MINI = { tareas: 36, habitos: 44 }
+/** Lo que ocupa cada cuenta chica en la tira con su separación, medida con Playwright y tomando el de dos cifras: Tareas (27 a 33 px el chip, 4 de separación) y Hábitos (#41: el anillo con «1/4», 37 px; con «10/12», 49; más 4). */
+export const ANCHO_CUENTA_MINI = { tareas: 36, habitos: 53 }
 
 /**
  * Qué cuentas de módulos entran en la tira mini (8): `{ tareas, habitos }`. `anchoLibre` es lo que tendría

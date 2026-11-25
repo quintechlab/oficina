@@ -7,7 +7,8 @@
 // Sin DOM: lo dibuja tareasVista.js, lo mueve tareasMotion.js y lo conecta main.js (que guarda con
 // `tareas_guardar`). Confirmar en el mismo botón es `clicBorrar` de configuracion.js, sobre `armado`.
 
-import { hoyArgentina, diasEntre, sumarDias, fechaValida, DESFASE_AR } from './fechas.js'
+import { hoyArgentina, diasEntre, sumarDias, fechaValida, horaArgentina } from './fechas.js'
+import { lugarGlobo } from './globos.js'
 
 export { hoyArgentina, diasEntre }
 
@@ -163,24 +164,20 @@ export function soltarAviso(a) {
 
 /**
  * Dónde se ve el aviso pendiente (8.2), o null si espera: 'marca' (el panel con la barra lateral),
- * 'dividida' (el riel en lugar de la barra) o 'muesca' (acoplada y plegada; una pregunta pendiente la
- * tapa). Espera en la tira, en la bandeja o escondida, con la charla abierta, a mitad de un arrastre y
- * sin barra (el vacío o primeros pasos). Con la hoja de Tareas abierta, o sin nada que contar, nada.
+ * 'dividida' (el riel en lugar de la barra) o 'muesca' (acoplada y plegada). Espera en la tira, en la
+ * bandeja o escondida, con la charla abierta, a mitad de un arrastre y sin barra (el vacío o primeros
+ * pasos). Con la hoja de Tareas abierta, o sin nada que contar, nada. Con una pregunta pendiente, en
+ * ningún lugar (D-m4 de modulos-ux.md y D-h5 de habitos-ux.md: antes solo la tapaba en la muesca).
+ * Es una envoltura: el «dónde» es `lugarGlobo` de globos.js (habitos-ux.md 8.2), el mismo de la cola.
  * `f`: `{ cuentas, hoja, fuera, mini, chat, arrastrando, acoplada, abierta, dividida, barra, pregunta }`.
  */
 export function lugarAviso(a, f) {
   if (!a?.pendiente || f.hoja || (f.cuentas?.hoy ?? 0) + (f.cuentas?.vencidas ?? 0) <= 0) return null
-  if (f.fuera || f.mini || f.chat || f.arrastrando) return null
-  if (f.acoplada && !f.abierta) return f.pregunta ? null : 'muesca'
-  if (f.dividida) return 'dividida'
-  return f.barra ? 'marca' : null
+  return f.pregunta ? null : lugarGlobo(f)
 }
 
-/** "HH:MM" en Argentina de un instante en ms (la hora del saludo, D-n1). */
-export function horaGlobo(ms) {
-  const d = new Date(ms - DESFASE_AR)
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
-}
+/** "HH:MM" en Argentina de un instante en ms (la hora del saludo, D-n1): vive en fechas.js (habitos-ux.md 11.2). */
+export { horaArgentina as horaGlobo }
 
 /** El saludo según la hora de Argentina (5.4, D-n1): antes de las 13, día; hasta las 19:59, tarde; después, noche. */
 function saludo(horaAr) {
@@ -243,8 +240,8 @@ export function subtituloTareas(c, hoy, hayListas) {
 
 // ------------------------------------------------------------------ nombres y títulos (D-n4, 11.1)
 
-/** Para comparar nombres: sin espacios en los bordes, sin mayúsculas ni tildes. */
-const clave = s => String(s ?? '').trim().normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+/** Para comparar nombres: sin espacios en los bordes, sin mayúsculas ni tildes (también los de hábitos). */
+export const claveNombre = s => String(s ?? '').trim().normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 
 /**
  * Un nombre de lista (7): `{ ok: true, nombre }` sin los espacios de los bordes, o `{ ok: false,
@@ -255,7 +252,7 @@ export function validarNombreLista(nombre, listas, propioId = null) {
   const n = String(nombre ?? '').trim()
   if (!n) return { ok: false, motivo: 'vacio' }
   if ([...n].length > MAX_NOMBRE_LISTA) return { ok: false, motivo: 'largo' }
-  const otra = listas.find(l => l.id !== propioId && clave(l.nombre) === clave(n))
+  const otra = listas.find(l => l.id !== propioId && claveNombre(l.nombre) === claveNombre(n))
   if (otra) return { ok: false, motivo: 'duplicada', existente: otra.nombre }
   return { ok: true, nombre: n }
 }

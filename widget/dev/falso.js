@@ -5,7 +5,6 @@
 // Parámetros de la URL de vista.html:
 //   ?vacio        sin sesiones (estado vacío)
 //   ?cargando     la primera lectura no termina nunca ("Buscando sesiones…")
-//   ?zoom=150     tamaño inicial (100, 125, 150, 175 o 200), como el de la bandeja
 //   ?sinequipo    gh falla: "Equipo sin datos: …"
 //   ?error        leer_sesiones falla después de la primera lectura
 //   ?preguntas=varias  catalogo pregunta dos cosas en una llamada (varias + una) y Camila pregunta otra
@@ -79,7 +78,47 @@
 //   &globo=muesca    el globo que cuelga de la muesca plegada; sin ?acople, arriba, y sin ?estado ni ?muesca, en
 //                    reposo (sin la pregunta de catalogo, que lo taparía). Con ?muesca=pregunta, la pregunta lo tapa
 //   &globo=dividida  la fila de aviso arriba de las mitades; sin ?dividida, ?dividida=pregunta
-//   &tapa            la pregunta de catalogo llega a los 4 s y se va a los 10 s: tapa el globo de la muesca y vuelve
+//   &tapa            la pregunta de catalogo llega a los 4 s y se va a los 10 s: tapa el globo (desde H2, en los tres
+//                    lugares: la marca, la dividida y la muesca) y vuelve
+//   Desde H2 (habitos-ux.md 8.1, D-m4) una pregunta pendiente tapa todos los globos: con &globo o &rec, catalogo no
+//   pregunta (?estado=reposo) salvo que el caso lo pida (?estado, ?muesca, &tapa o ?pregunta).
+// Recordatorio de un hábito (#41, entrega H2, habitos-ux.md 8.3): la cola de globos (globos.js), uno por vez.
+//   Sin &rec, preferencias.json ya dice que hoy se recordaron todos (habitosRecordados) y no sale ninguno.
+//   &rec=agua        el aviso de Agua pasa a 10 min antes de ahora (Argentina): sale su globo (cantidad: «+1 vaso»)
+//                    y la notificación de Windows (falsa: window.__notificaciones y la consola). Varios con comas:
+//                    &rec=agua,caminar (el de hora más temprana primero). caminar y leer son sí/no, correr es por
+//                    semana; gimnasio hoy no toca (no sale nada). Lo guardado queda en window.__ajustes.habitosRecordados
+//   &tarde           con &rec, 2 h antes: el globo sale igual, sin notificación (más de 60 min tarde, D-h12)
+//   &recordado       con &rec, ya se recordó hoy (un reinicio el mismo día): no sale nada
+//   &globo=marca&rec=agua  los dos en la cola: primero el recordatorio; al irse, el aviso de tareas
+//   Con ?acople=arriba|derecha|abajo|izquierda (sin ?estado), el globo cuelga de la muesca; con ?dividida, en la fila
+// Hábitos (#41, docs/diseno/habitos-ux.md, entrega H1): la fila «Hábitos» del menú, Ctrl H o ?habitos=… abren la hoja.
+//   Sin ?habitos, los cinco hábitos del boceto (Agua, Caminar, Gimnasio, Correr y Leer 20 minutos, con el registro
+//   contado desde hoy en Argentina; Gimnasio va los días que hoy no toca, así se ve «Hoy no toca») y la hoja cerrada:
+//   la fila muestra el anillo de hoy. Con ?habitos, la hoja se abre sola a los 0,9 s por el clic en su fila y va a:
+//   ?habitos=hoy           Hoy: las filas de hoy, «Hoy no toca» abajo y el avance
+//   ?habitos=semana        Semana: la grilla de lunes a domingo con la franja de hoy, la leyenda y la pista
+//   ?habitos=nuevo         el formulario de un hábito nuevo (4.11)
+//   ?habitos=vacio         sin hábitos: el primer uso («Armá tu primer hábito» y las cuatro sugeridas)
+//   ?habitos=roto          un archivo que no se pudo leer (7.6): su fila en el índice y su error con «Abrir la carpeta»
+//   ?habitos=guardarfalla  habitos_guardar falla siempre: la primera marca muestra «No se guardó el último cambio.» (7.4)
+//   ?habitos=carpeta       habitos_leer falla: «No se pudo abrir la carpeta de hábitos.» con «Volver a leer» (5.2)
+//   ?habitos=agua|caminar|gimnasio|correr|leer  ese hábito abierto (4.10), desde Hoy
+//   &habitoslento          habitos_leer tarda 1,2 s (las filas fantasma de 7.1)
+// Resumen semanal de Hábitos (#41, entrega H3, habitos-ux.md 8.4): sin ?resumen, preferencias.json ya dice que se
+//   vio el de esta semana (habitosResumen) y no sale. Con ?resumen, nunca se vio: sale el de la semana pasada
+//   (o el de esta, un domingo desde las 18 de Argentina), con los cinco hábitos falsos. Sin la pregunta de catalogo.
+//   ?resumen=frase      habitos_frase responde en 1,2 s una frase que pasa fraseValida (y la charla, con &modelo=listo
+//                       puesto solo, responde con el modelo falso)
+//   ?resumen=plantilla  habitos_frase se pasa de los 45 s (falso, 0,3 s): la plantilla «Esta semana: …»
+//   ?resumen=sinmodelo  sin el modelo de esta PC: la plantilla, y «Charlemos la semana →» abre la charla con su «Descargar»
+//   ?resumen=invalida   la frase trae un número que no está en los datos: la plantilla
+//   ?resumen=guardada   la frase de la semana pasada ya se pidió en un arranque anterior (habitosFrase): sale esa,
+//                       sin pedirle nada al modelo (window.__frases queda vacío)
+//   Lo pedido se guarda en habitosFrase ({ lunes, frase }; "" si falló): window.__ajustes.habitosFrase
+//   Con ?acople=arriba|… el globo cuelga de la muesca («Tu semana: …» · «Ver →»); con ?dividida=pregunta, en la fila.
+//   Lo guardado queda en window.__ajustes.habitosResumen; cada pedido de frase, en window.__frases
+//   Lo guardado queda en window.__habitos (un Map por id); cada guardado se anota en window.__guardadosHabitos.
 //   Las cuentas son las de las listas falsas (2 para hoy y 2 vencidas, con ?tareas=… las de cada caso)
 //   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
 //                 docs/diseno/mascotas-avi-ux.md 9.1), con su forma evolucionada, sus bucles y sus actos;
@@ -164,7 +203,7 @@
 //   ?chat=adjuntos     se sueltan un PDF y unas notas sobre la hoja: los dos chips (el PDF con sus páginas)
 //   ?chat=error-adjunto se suelta una planilla .xlsx: la tarjeta "No puedo leer planilla.xlsx"
 //   &cancelaAdjunto    el clip se cancela (sin esto, elige presupuesto-2027.pdf de Descargas)
-//   ?chat=encima       al 200 % (si no hay ?zoom): la hoja no entra al costado y tapa la columna (D1)
+//   ?chat=encima       el tablero al medio: en una vista angosta la hoja no entra al costado y tapa la columna (D1)
 //   &motor=local       la próxima charla con el modelo local; &modelo=listo|bajando su estado (sin esto, falta).
 //                      Con &modelo=listo, ?chat=esperando|escribiendo|listo|frenada responde el modelo falso
 //                      (despierta en 1,2 s la primera vez, como "Despertando el modelo de esta PC")
@@ -200,14 +239,15 @@
   if (Number(url.get('reposo')) > 1) window.__escalaReposo = Number(url.get('reposo'))
   // &globo (tareas-ux.md 11.6): cada forma con lo que necesita para verse
   const globoTar = url.get('globo')
-  if (globoTar === 'muesca') {
-    if (!url.has('acople')) url.set('acople', 'arriba')
-    if (!url.has('estado') && !url.has('muesca') && !url.has('tapa')) url.set('estado', 'reposo')
-  }
+  // Desde H2 (habitos-ux.md 8.1, D-m4) una pregunta pendiente tapa el globo en la marca, la dividida y la
+  // muesca: con &globo o &rec, sin pregunta de catalogo salvo que el caso la pida (?estado, ?muesca, &tapa, ?pregunta)
+  if ((globoTar || url.has('rec') || url.has('resumen')) && !url.has('estado') && !url.has('muesca') && !url.has('tapa') && !url.has('pregunta')) url.set('estado', 'reposo')
+  // ?resumen=frase: el modelo de esta PC está, así la charla que abre el resumen responde con el modelo falso
+  if (['frase', 'plantilla', 'invalida'].includes(url.get('resumen')) && !url.has('modelo')) url.set('modelo', 'listo')
+  if (globoTar === 'muesca' && !url.has('acople')) url.set('acople', 'arriba')
   if (globoTar === 'dividida' && !url.has('dividida')) url.set('dividida', 'pregunta')
   const ahora = Date.now()
   const hace = min => new Date(ahora - min * 60000).toISOString()
-  const PASOS = [100, 125, 150, 175, 200]
 
   const sub = (id, nombre, tarea, estado, extra = {}) => ({
     id, nombre, inventado: false, tipo: 'general-purpose', tarea, desde: hace(9), estado,
@@ -531,7 +571,6 @@
     return lista
   }
 
-  let paso = PASOS.includes(Number(url.get('zoom'))) ? Number(url.get('zoom')) : chatEsc === 'encima' ? 200 : 100
   /** El iframe que hace de ventana (dev/vista.html); abierta sola, no hay. */
   const marco = window.frameElement
   if (marco) document.documentElement.classList.add('en-iframe')
@@ -656,6 +695,106 @@
     },
     tareas_abrir_carpeta: () => console.info('[explorador] <config>\tareas'),
   }
+  // ---- Hábitos (#41, docs/diseno/habitos-ux.md 11.1): los del boceto, en memoria, con el registro contado
+  // desde hoy en Argentina (`diaAr`), como habitos.rs los guarda
+  const modoHabitos = url.get('habitos')
+  /** El día de la semana de Argentina de hace `n` días (lunes = 0). */
+  const semanaAr = n => (new Date(`${diaAr(n)}T12:00:00Z`).getUTCDay() + 6) % 7
+  const hoySem = semanaAr(0)
+  const habF = (id, nombre, extra) => ({
+    v: 1, id, nombre, tipo: 'diario', meta: 8, unidad: 'vasos', dias: [0, 2, 4], veces: 3, aviso: null, color: 'celeste', orden: 0,
+    creado: ahora - 60 * 86400000, inicio: diaAr(-60), mejor: 0, registro: {}, ...extra,
+  })
+  /** Un registro con `f(n)` en cada día de hace `n` (de `desde` a `hasta`, los dos hace n días); 0 no se guarda. */
+  const regF = (desde, hasta, f) => {
+    const r = {}
+    for (let n = desde; n >= hasta; n--) { const v = f(n); if (v > 0) r[diaAr(-n)] = v }
+    return r
+  }
+  // Gimnasio va tres días que hoy no toca (con el boceto, jueves: lun, mié y vie)
+  const diasGym = [1, 3, 5].map(d => (hoySem + d) % 7).sort((a, b) => a - b)
+  const AGUA_SEM = [8, 6, 8, 3, 8, 8, 5, 8, 8, 7, 8, 8, 9]
+  const HABITOS_FALSOS = [
+    habF('h-agua', 'Agua', { tipo: 'cantidad', meta: 8, unidad: 'vasos', color: 'celeste', aviso: '16:00', orden: 0, mejor: 9,
+      registro: { ...regF(13, 1, n => AGUA_SEM[n - 1]), [diaAr(0)]: 3 } }),
+    habF('h-caminar', 'Caminar', { color: 'verde', aviso: '19:00', orden: 1, mejor: 21, registro: regF(30, 1, n => (n === 7 ? 0 : 1)) }),
+    habF('h-gimnasio', 'Gimnasio', { tipo: 'dias', dias: diasGym, color: 'rosa', aviso: '07:30', orden: 2, mejor: 9,
+      registro: regF(26, 1, n => (diasGym.includes(semanaAr(-n)) ? 1 : 0)) }),
+    habF('h-correr', 'Correr', { tipo: 'semana', veces: 3, color: 'violeta', orden: 3, mejor: 6,
+      // Las cuatro semanas pasadas, tres salidas cada una (lunes, miércoles y viernes); esta, una (ayer, si es de esta semana)
+      registro: regF(hoySem + 28, 1, n => { const d = semanaAr(-n); return n > hoySem ? ([0, 2, 4].includes(d) ? 1 : 0) : (n === 1 ? 1 : 0) }) }),
+    habF('h-leer', 'Leer 20 minutos', { color: 'ambar', aviso: '23:00', orden: 4, mejor: 14, creado: ahora - 16 * 86400000, inicio: diaAr(-16),
+      registro: regF(16, 1, n => (n === 2 || n === 4 ? 0 : 1)) }),
+  ]
+  // &rec=agua (o agua,caminar…): el aviso de ese hábito pasa a 10 min antes de ahora en Argentina (con
+  // &tarde, 2 h antes: solo el globo). Los demás ya se recordaron hoy (habitosRecordados), así la vista no
+  // cambia con la hora real; sin &rec, todos (o, con &recordado, también los de &rec: un reinicio el mismo día)
+  const recFalsos = (url.get('rec') ?? '').split(',').filter(Boolean).map(n => `h-${n}`)
+  const horaArF = ms => new Date(ms - 3 * 3600000).toISOString().slice(11, 16)
+  const minDelDia = Number(horaArF(ahora).slice(0, 2)) * 60 + Number(horaArF(ahora).slice(3, 5))
+  const atraso = url.has('tarde') ? 120 : 10
+  for (const h of HABITOS_FALSOS) if (recFalsos.includes(h.id)) h.aviso = minDelDia >= atraso ? horaArF(ahora - atraso * 60000) : '00:00'
+  let recordadosHab = { dia: diaAr(0), ids: HABITOS_FALSOS.map(h => h.id).filter(id => url.has('recordado') || !recFalsos.includes(id)) }
+  window.__notificaciones = []
+  // El resumen semanal (H3): sin ?resumen ya se vio el de esta semana (el lunes de hoy en Argentina)
+  let resumenVisto = url.has('resumen') ? null : diaAr(-hoySem)
+  // La frase ya pedida (habitosFrase, 8.4): con ?resumen=guardada, la de la semana pasada
+  let fraseSemana = url.get('resumen') === 'guardada'
+    ? { lunes: diaAr(-hoySem - 7), frase: 'Leer 20 minutos salió bien: lo mejor de la semana.' }
+    : null
+  window.__frases = []
+  const habitosFalsos = new Map((modoHabitos === 'vacio' ? [] : HABITOS_FALSOS).map(h => [h.id, h]))
+  const rotasHabitos = modoHabitos === 'roto' ? [{ archivo: 'h-mf3k2a9x1b.json', motivo: 'no es JSON: EOF while parsing a value at line 9 column 0' }] : []
+  window.__habitos = habitosFalsos
+  window.__guardadosHabitos = []
+  const idHabito = id => /^h-[a-z0-9-]{1,38}$/.test(id ?? '')
+  const comandosHabitos = {
+    // Como habitos.rs: los hábitos por orden y los archivos rotos (&habitoslento tarda 1,2 s: las filas fantasma)
+    habitos_leer: () => new Promise((r, no) => setTimeout(() => {
+      if (modoHabitos === 'carpeta') { no('No se pudo abrir la carpeta de hábitos.'); return }
+      r({ habitos: [...habitosFalsos.values()].sort((a, b) => a.orden - b.orden || a.creado - b.creado).map(h => structuredClone(h)), rotas: rotasHabitos })
+    }, url.has('habitoslento') ? 1200 : 120)),
+    // ?habitos=guardarfalla: Rust no pudo escribir (7.4); lo de la pantalla queda y reintenta a los 5 s
+    habitos_guardar: ({ habito }) => {
+      if (!idHabito(habito?.id)) return { ok: false, error: 'id de hábito inválido' }
+      if (modoHabitos === 'guardarfalla') return { ok: false, error: 'acceso denegado (falso)' }
+      window.__guardadosHabitos.push([habito.id, Object.keys(habito.registro ?? {}).length])
+      habitosFalsos.set(habito.id, structuredClone(habito))
+      console.info('[hábitos] guardado', habito.id, habito.registro)
+      return { ok: true, habito }
+    },
+    habitos_borrar: ({ id }) => {
+      if (!idHabito(id)) return { ok: false, error: 'id de hábito inválido' }
+      habitosFalsos.delete(id)
+      console.info('[hábitos] borrado', id)
+      return { ok: true }
+    },
+    habitos_abrir_carpeta: () => console.info('[explorador] <config>\\habitos'),
+    // Como habitos.rs (11.7): la frase del modelo local, o un error (la ventana usa la plantilla)
+    habitos_frase: ({ datos }) => new Promise((r, no) => {
+      const modo = url.get('resumen')
+      window.__frases.push(datos)
+      if (modo === 'sinmodelo') { no('falta descargar el modelo de esta PC'); return }
+      if (modo === 'plantilla') { setTimeout(() => no('la frase tardó más de 45 s (falso)'), 300); return }
+      const lista = datos?.habitos ?? []
+      const m = lista.reduce((a, h) => (!a || h.hechos / h.tocaban > a.hechos / a.tocaban ? h : a), null)
+      if (!m) { no('no hay hábitos para resumir'); return }
+      const frase = modo === 'invalida'
+        ? 'Cumpliste el 87 % de lo que tocaba: una semana redonda.'
+        : `${m.nombre}: ${m.hechos} de ${m.tocaban}, lo mejor de la semana. Lo demás quedó un poco atrás.`
+      setTimeout(() => r({ frase }), 1200)
+    }),
+  }
+  // ?habitos=…: abre la hoja como el usuario (el clic en la fila «Hábitos») y va a la vista de cada caso
+  if (modoHabitos !== null) {
+    setTimeout(() => {
+      document.querySelector('#hab-fila')?.click()
+      const ver = { semana: 'ix-semana', nuevo: 'nuevo-b', roto: 'ix-rota:h-mf3k2a9x1b.json' }[modoHabitos]
+        ?? (habitosFalsos.has(`h-${modoHabitos}`) ? `nom-h-${modoHabitos}` : null)
+      if (ver) setTimeout(() => document.querySelector(`#hab [data-k="${CSS.escape(ver)}"]`)?.click(), 400)
+    }, 900)
+  }
+
   // ?modulo=…: abre el módulo como el usuario, con el clic en su fila del menú (modulos-ux.md 4.1)
   const modulo = url.get('modulo')
   if (modulo && modulo !== 'sesiones') setTimeout(() => document.querySelector(`.mod[data-mod="${CSS.escape(modulo)}"]`)?.click(), 900)
@@ -704,7 +843,7 @@
     }
   }
   if (marco) {
-    // La "pantalla" son los px del escritorio (vista.html). screenX no cambia con el zoom del widget:
+    // La "pantalla" son los px del escritorio (vista.html):
     // el desfase entre screenX y clientX del escritorio pasa los puntos del iframe a la pantalla
     parent.document.addEventListener('pointermove', e => {
       zonaSt.desfase = { x: e.screenX - e.clientX, y: e.screenY - e.clientY }
@@ -1251,6 +1390,7 @@
   const comandos = {
     ...comandosChat,
     ...comandosTareas,
+    ...comandosHabitos,
     registrar: ({ linea }) => console.debug('[widget.log]', linea),
     revisar_primeros_pasos: () => new Promise(r => setTimeout(() => r(revisionFalsa()), url.has('pplento') ? 2000 : 600)),
     // Como Rust (estado_mod): la lectura del mod y la última revisión guardada, solo lectura
@@ -1278,17 +1418,46 @@
     // Como Rust (leer_configuracion): la mascota que no es una especie es el Avi (la ventana la valida
     // otra vez); los interruptores, lo guardado con guardar_ajuste; el arranque, el "sistema" falso
     leer_configuracion: () => ({
-      tamano: paso, acople, flotante, ...ajustes, arranque: arranqueFalso, version: '0.10.0', chat: prefsChat, tareasAvisado: avisadoTar,
+      acople, flotante, ...ajustes, arranque: arranqueFalso, version: '0.10.0', chat: prefsChat, tareasAvisado: avisadoTar,
+      habitosRecordados: recordadosHab, habitosResumen: resumenVisto, habitosFrase: fraseSemana,
     }),
     // Como `ajuste_valido` de preferencias.rs; ?cfgfalla hace fallar el guardado (la fila vuelve y lo dice)
     guardar_ajuste: ({ clave, valor }) => {
       // tareasAvisado: un día "AAAA-MM-DD" que existe, o vacío (11.4); Rust lo guarda en "tareas": { "avisado" }
       const dia = v => v === '' || (/^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v)
+      // habitosRecordados (habitos-ux.md 11.5): { dia, ids } con solo esas claves, hasta 100 ids de hábito
+      const recordadosOk = v => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 2 && typeof v.dia === 'string' && dia(v.dia) && v.dia !== ''
+        && Array.isArray(v.ids) && v.ids.length <= 100 && v.ids.every(id => idHabito(id))
+      const lunesOk = (v, vacio) => typeof v === 'string' && (v === '' ? vacio : dia(v) && new Date(`${v}T12:00:00Z`).getUTCDay() === 1)
       const valido = clave === 'mascota' ? ESPECIES.includes(valor)
         : clave === 'tareasAvisado' ? typeof valor === 'string' && dia(valor)
-          : ['arriba', 'avisar', 'pausa'].includes(clave) && typeof valor === 'boolean'
+          : clave === 'habitosRecordados' ? recordadosOk(valor)
+            // habitosResumen (8.4): un lunes que existe, o vacío (como preferencias.rs)
+            : clave === 'habitosResumen' ? lunesOk(valor, true)
+              // habitosFrase (8.4): { lunes, frase } con un lunes y una frase de una línea de 0 a 160
+              : clave === 'habitosFrase' ? !!valor && typeof valor === 'object' && !Array.isArray(valor) && Object.keys(valor).length === 2
+                && lunesOk(valor.lunes, false) && typeof valor.frase === 'string' && !/[\r\n]/.test(valor.frase) && [...valor.frase].length <= 160
+            : ['arriba', 'avisar', 'pausa'].includes(clave) && typeof valor === 'boolean'
       if (!valido) throw new Error(`ajuste inválido: ${clave}`)
       if (url.has('cfgfalla')) throw new Error('no se pudo escribir preferencias.json (falso)')
+      if (clave === 'habitosFrase') {
+        fraseSemana = structuredClone(valor)
+        window.__ajustes = { ...ajustes, habitosFrase: fraseSemana }
+        console.info('[preferencias] habitosFrase', JSON.stringify(valor))
+        return { ok: true, valor }
+      }
+      if (clave === 'habitosResumen') {
+        resumenVisto = valor || null
+        window.__ajustes = { ...ajustes, habitosResumen: resumenVisto }
+        console.info('[preferencias] habitosResumen', valor)
+        return { ok: true, valor }
+      }
+      if (clave === 'habitosRecordados') {
+        recordadosHab = structuredClone(valor)
+        window.__ajustes = { ...ajustes, habitosRecordados: recordadosHab }
+        console.info('[preferencias] habitosRecordados', JSON.stringify(valor))
+        return { ok: true, valor }
+      }
       if (clave === 'tareasAvisado') {
         avisadoTar = valor || null
         window.__ajustes = { ...ajustes, tareas: { avisado: valor } }
@@ -1373,11 +1542,6 @@
       setTimeout(evaluarZona, 0)
       return d
     },
-    cambiar_tamano: ({ direccion }) => {
-      const k = PASOS.indexOf(paso)
-      paso = direccion === 0 ? 100 : PASOS[Math.max(0, Math.min(PASOS.length - 1, k + direccion))]
-      for (const f of oyentes['oficina://tamano'] ?? []) f({ payload: paso })
-    },
     // La tira es un elemento adentro de la ventana: Rust solo anota el modo (segundo arranque)
     modo_mini: args => {
       mini = !!args.mini
@@ -1385,7 +1549,8 @@
       console.info('[tira]', mini)
     },
     esconder: () => console.info('[ventana] escondida en la bandeja'),
-    avisar: () => null,
+    // La notificación de Windows (preguntas y recordatorios, habitos-ux.md 5.5): queda en window.__notificaciones
+    avisar: ({ titulo, cuerpo }) => { window.__notificaciones.push({ titulo, cuerpo }); console.info('[notificación]', titulo, '·', cuerpo); return null },
     // Responder: según ?envio, la sesión toma la respuesta, la pregunta se va sola o el comando falla
     responder: args => {
       console.info('[responder]', JSON.stringify(args))

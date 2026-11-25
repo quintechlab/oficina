@@ -51,8 +51,8 @@
   --e-1: 2px; --e-2: 4px; --e-3: 6px; --e-4: 8px; --e-5: 10px; --e-6: 12px; --e-7: 14px;
   --e-8: 16px; --e-9: 18px; --e-10: 20px; --e-11: 28px;
   /* Tamaño del tablero (9.2): ancho y alto fijos, iguales en todos los proyectos; lo que no entra se
-     ve con scroll adentro de cada columna. Crece con el zoom y se topa al 90 % del área */
-  --ancho-lado: 188px; --ancho-principal: 460px; --alto-tablero: 640px;
+     ve con scroll adentro de cada columna. Se topa al 90 % del área */
+  --ancho-lado: 208px; --ancho-principal: 500px; --alto-tablero: 680px;
   /* El menú de módulos (modulos-ux.md 6): alto de cada fila y de la píldora que viaja */
   --alto-modulo: 40px;
   /* Primeros pasos (bienvenida-ux.md 5): el escenario tiene alto fijo, como el tablero */
@@ -66,7 +66,7 @@
   --celeste-osc: #0B1524; --celeste-velo: rgba(127, 179, 255, .14); --celeste-velo-f: rgba(127, 179, 255, .18);
   --celeste-borde-t: rgba(127, 179, 255, .22); --celeste-borde-s: rgba(127, 179, 255, .30);
   --celeste-borde: rgba(127, 179, 255, .40); --celeste-borde-f: rgba(127, 179, 255, .45);
-  --ancho-riel: 56px; --ancho-principal-d: 592px; --mitad: 272px; --costura: 26px; --alto-esc-d: 218px;
+  --ancho-riel: 56px; --ancho-principal-d: 652px; --mitad: 272px; --costura: 26px; --alto-esc-d: 218px;
   --d-cruza: 1680ms; --d-anillo: 1230ms; --d-cose: 500ms; --d-riel: 450ms; --espera-vuelta: 60s;
   /* Configuración (configuracion-ux.md 6): el escenario de la mascota */
   --alto-escena-cfg: 176px;
@@ -143,7 +143,8 @@ h1, h2, h3 { font: inherit }
 /* Scroll discreto: fino, sin pista y la barra visible solo con el mouse encima */
 .desplaza, .lado, .principal { scrollbar-width: thin; scrollbar-color: transparent transparent }
 .desplaza:hover, .lado:hover, .principal:hover { scrollbar-color: var(--linea-hover) transparent }
-/* El ancho lo dan la barra (188) y la columna principal (460); el alto, el del tablero */
+/* El ancho lo dan la barra (208) y la columna principal (500); el alto, el del tablero (pedido del
+   usuario del 25/11: más lugar para los módulos y para las mascotas evolucionadas, antes 188 + 460 × 640) */
 #contenido { flex: 1; min-height: 0; display: flex; gap: var(--e-8); width: max-content }
 
 /* ------------------------------------------------------------------ barra lateral (4.2) */
@@ -156,8 +157,10 @@ h1, h2, h3 { font: inherit }
 .lado :focus-visible { outline-offset: -2px }
 /* Marca "Escenario" (docs/diseno/marca-avi-ux.md 5.1): columna centrada con el Avi de 112 sobre su luz
    ámbar (un degradado, sin filtro), "Avis" y el estado en píldora. Sigue siendo la zona de arrastre */
-.marca { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 6px 4px 4px; cursor: grab; user-select: none }
-.marca::before { content: ""; position: absolute; left: 50%; top: 8px; width: 150px; height: 120px; transform: translateX(-50%); background: radial-gradient(50% 50% at 50% 62%, rgba(242, 182, 50, .13), transparent 70%); pointer-events: none }
+/* 36 px arriba: las formas evolucionadas (antenas, crestas) salen de la caja de 112 y la barra, que
+   desplaza, las recortaba en su borde (25/11) */
+.marca { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 36px 4px 4px; cursor: grab; user-select: none }
+.marca::before { content: ""; position: absolute; left: 50%; top: 38px; width: 150px; height: 120px; transform: translateX(-50%); background: radial-gradient(50% 50% at 50% 62%, rgba(242, 182, 50, .13), transparent 70%); pointer-events: none }
 /* Tauri arrastra solo si el clic cae en el elemento marcado: los hijos dejan pasar el clic */
 .marca > *, .cab-t > * { pointer-events: none }
 #marca-avi { position: relative; display: block; width: 112px; height: 112px; flex: none }
@@ -187,7 +190,7 @@ h1, h2, h3 { font: inherit }
 .mod:active { transform: scale(.97) }
 .mod-ic { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: var(--r-icono); background: var(--s2); color: var(--crema2); transition: background var(--d-color) ease, color var(--d-color) ease }
 .mod-ic svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round }
-/* Entre el nombre y la cuenta, 6 (no 10): así «Configuración» y «Ctrl ,» entran enteros con zoom de 175 y 200 % */
+/* Entre el nombre y la cuenta, 6 (no 10): así «Configuración» y «Ctrl ,» entran enteros (medido con zoom de 175 y 200 %, antes de #47) */
 .mod-n { flex: 1; min-width: 0; margin-right: -4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 /* La cuenta (4.2): aria-hidden, a la derecha; el número va en el nombre de la fila */
 .mod-ct { display: contents }
@@ -205,7 +208,7 @@ h1, h2, h3 { font: inherit }
   background: var(--ambar-osc); overflow: hidden; pointer-events: none; transition: opacity var(--d-color) ease;
 }
 /* La marca de 3 px a la izquierda (4.3): una franja recortada por el radio, no `box-shadow: inset`, que en
-   posiciones fraccionarias (zoom, barra que desplaza) deja un filo ámbar alrededor de toda la píldora */
+   posiciones fraccionarias (barra que desplaza) deja un filo ámbar alrededor de toda la píldora */
 .ind-mod::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--ambar) }
 #marco.mod-config .ind-mod { opacity: 0 }
 /* La tira de repos (4.4, M2): una sola fila arriba de las sesiones, con scroll horizontal sin barra y la
@@ -1498,7 +1501,7 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .enviar:active { transform: no
 
 /* Las dos mitades y la costura (5.5 y 5.6): 272 + 26 + 272 */
 #marco.dividida .split { display: block; position: relative }
-.split-g { display: grid; grid-template-columns: var(--mitad) var(--costura) var(--mitad) }
+.split-g { display: grid; grid-template-columns: var(--mitad) var(--costura) var(--mitad); justify-content: center }
 .mitad { position: relative; min-width: 0 }
 .mh { height: 66px; padding: 0 2px }
 .mh-p { display: flex; align-items: center; gap: 8px; min-width: 0; font: 800 17px/1.1 var(--f); letter-spacing: -.02em }
@@ -1865,17 +1868,6 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .seg > button:active { transform: scale(.97) }
 #cfg .seg > button[aria-checked="true"] { background: var(--crema); color: var(--tinta) }
 
-/* Tamaño (6.1): − / % / +, redondos de 32; en la punta, aria-disabled (sigue enfocable) */
-#cfg .paso { display: inline-flex; align-items: center; gap: var(--e-2) }
-#cfg .pb {
-  width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--s3); color: var(--crema);
-  font: 800 15px/1 var(--f); cursor: pointer; transition: transform var(--d-presion) ease, background var(--d-color) ease;
-}
-#cfg .pb:hover { background: #27272C }
-#cfg .pb:active { transform: scale(.92) }
-#cfg .pb[aria-disabled="true"] { opacity: .38; cursor: not-allowed; transform: none }
-#cfg .pv { min-width: 58px; text-align: center; font: 600 12px/1 var(--m); font-variant-numeric: tabular-nums }
-
 /* Mascota (6.1): el escenario con la luz de la especie y las siete fichas. La luz (--cc) la pone
    main.js en #cfg, que no se redibuja; registrada como color, cambia con su transición (8) */
 @property --cc { syntax: '<color>'; inherits: true; initial-value: #F2B632 }
@@ -1929,11 +1921,11 @@ p.det-rot { margin-top: var(--e-5) }
 
 /* Modelos e Instalación (6.1, entrega 3): píldoras de estado con su texto siempre, tarjetas del
    modelo local y del mod, y el "¿Borrar? Sí" que confirma en el mismo botón (D5) */
-:is(#cfg, #tar) .t-ok { --c: var(--verde) }
-:is(#cfg, #tar) .t-aviso { --c: var(--ambar) }
-:is(#cfg, #tar) .t-proc { --c: var(--celeste) }
-:is(#cfg, #tar) .t-error { --c: var(--rojo) }
-:is(#cfg, #tar) .t-nada { --c: var(--tenue) }
+:is(#cfg, #tar, #hab) .t-ok { --c: var(--verde) }
+:is(#cfg, #tar, #hab) .t-aviso { --c: var(--ambar) }
+:is(#cfg, #tar, #hab) .t-proc { --c: var(--celeste) }
+:is(#cfg, #tar, #hab) .t-error { --c: var(--rojo) }
+:is(#cfg, #tar, #hab) .t-nada { --c: var(--tenue) }
 /* El punto de estado de una pestaña (6.3): el texto va oculto al lado, el color nunca solo */
 #cfg .pes .pt { width: 6px; height: 6px; box-shadow: none }
 #cfg .pill {
@@ -1953,26 +1945,26 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .barra { background: var(--s3) }
 #cfg .barra i { background: linear-gradient(90deg, var(--celeste), #B5D3FF); transition: transform .4s var(--ease) }
 #cfg .barra i::after { display: none }
-:is(#cfg, #tar) .cifras { font: var(--t-mono-s); color: var(--tenue); font-variant-numeric: tabular-nums }
-:is(#cfg, #tar) .lnk {
+:is(#cfg, #tar, #hab) .cifras { font: var(--t-mono-s); color: var(--tenue); font-variant-numeric: tabular-nums }
+:is(#cfg, #tar, #hab) .lnk {
   min-height: 32px; padding: 0 var(--e-3); border: 0; border-radius: var(--r-tag); background: none; color: var(--crema2);
   font: 700 12px/1 var(--f); cursor: pointer; transition: color var(--d-color) ease, transform var(--d-presion) ease;
 }
-:is(#cfg, #tar) .lnk:hover { color: var(--crema); text-decoration: underline }
-:is(#cfg, #tar) .lnk:active { transform: scale(.97) }
-:is(#cfg, #tar) .lnk.peligro { color: var(--rojo) }
-:is(#cfg, #tar) .armado {
+:is(#cfg, #tar, #hab) .lnk:hover { color: var(--crema); text-decoration: underline }
+:is(#cfg, #tar, #hab) .lnk:active { transform: scale(.97) }
+:is(#cfg, #tar, #hab) .lnk.peligro { color: var(--rojo) }
+:is(#cfg, #tar, #hab) .armado {
   position: relative; overflow: hidden; min-height: 32px; padding: 0 var(--e-6); border: 0; border-radius: var(--r-pildora);
   background: var(--rojo); color: var(--negro); font: 800 12px/1 var(--f); white-space: nowrap; cursor: pointer;
 }
-:is(#cfg, #tar) .armado:focus-visible { outline-color: var(--crema) }
+:is(#cfg, #tar, #hab) .armado:focus-visible { outline-color: var(--crema) }
 /* La línea que se vacía en los 3 s (`--ya` la retoma donde iba si la sección se redibuja) */
-:is(#cfg, #tar) .armado::after {
+:is(#cfg, #tar, #hab) .armado::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--negro); opacity: .45;
   transform-origin: 0 50%; animation: drena var(--d-confirma) linear var(--ya, 0ms) both;
 }
 #cfg .ver-avis { margin: var(--e-7) 0 0; font: var(--t-mono-s); color: var(--tenue) }
-:is(#cfg, #tar) .lnk[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none; transform: none }
+:is(#cfg, #tar, #hab) .lnk[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none; transform: none }
 
 /* Claves de API (6.1 y 7.1, entrega 4): el candado, una fila por proveedor con su inicial (sin logos,
    D11), el estado con la máscara del final y, editando, el campo de contraseña con su ayuda */
@@ -1994,14 +1986,14 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .cl > .acc, #cfg .cl > .aj-error { grid-column: 2 }
 #cfg .cl > .aj-error { margin: 0 }
 #cfg .cl-form { grid-column: 2; display: grid; gap: 6px; margin-top: 6px }
-:is(#cfg, #tar) .campo {
+:is(#cfg, #tar, #hab) .campo {
   display: flex; align-items: center; gap: var(--e-2); padding: 0 var(--e-2) 0 12px; min-height: 38px; border: 1px solid var(--linea);
   border-radius: var(--r-campo); background: var(--s1); transition: border-color var(--d-color) ease, box-shadow var(--d-color) ease;
 }
-:is(#cfg, #tar) .campo:focus-within { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
-:is(#cfg, #tar) .campo.mal { border-color: rgba(255, 122, 107, .7) }
-:is(#cfg, #tar) .campo input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--crema); font: var(--t-mono); letter-spacing: .03em }
-:is(#cfg, #tar) .campo input::placeholder { color: var(--tenue) }
+:is(#cfg, #tar, #hab) .campo:focus-within { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
+:is(#cfg, #tar, #hab) .campo.mal { border-color: rgba(255, 122, 107, .7) }
+:is(#cfg, #tar, #hab) .campo input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--crema); font: var(--t-mono); letter-spacing: .03em }
+:is(#cfg, #tar, #hab) .campo input::placeholder { color: var(--tenue) }
 #cfg .cl-ayuda { margin: 0; font: var(--t-chico); color: var(--tenue) }
 #cfg .cl-ayuda.mal { color: var(--rojo) }
 #cfg .cl-ayuda.aviso { color: var(--ambar) }
@@ -2012,18 +2004,18 @@ p.det-rot { margin-top: var(--e-5) }
   body:not(.pausa) #cfg .cl.recien { animation: cfgRecien 1.2s var(--ease) }
 }
 @media (prefers-reduced-motion: reduce) {
-  :is(#cfg, #tar) .campo { transition: none }
+  :is(#cfg, #tar, #hab) .campo { transition: none }
 }
 @keyframes cfgLate { 50% { opacity: .35 } }
 @media (prefers-reduced-motion: no-preference) {
-  body:not(.pausa) :is(#cfg, #tar) .t-proc .pt { animation: cfgLate 1.2s ease-in-out infinite }
+  body:not(.pausa) :is(#cfg, #tar, #hab) .t-proc .pt { animation: cfgLate 1.2s ease-in-out infinite }
 }
 @media (prefers-reduced-motion: reduce) {
-  #cfg .barra i, :is(#cfg, #tar) .lnk { transition: none }
-  :is(#cfg, #tar) .armado::after { animation: none }
+  #cfg .barra i, :is(#cfg, #tar, #hab) .lnk { transition: none }
+  :is(#cfg, #tar, #hab) .armado::after { animation: none }
 }
 body.pausa #cfg .barra i { transition: none }
-body.pausa :is(#cfg, #tar) .armado::after { animation: none }
+body.pausa :is(#cfg, #tar, #hab) .armado::after { animation: none }
 
 /* El Avi de 40 junto al título, fuera de Mascota (6.1 `.mini`) */
 .cfg-mini { display: none }
@@ -2038,7 +2030,7 @@ body.pausa :is(#cfg, #tar) .armado::after { animation: none }
   body:not(.pausa) .mod.engr:not([aria-current]):hover svg { transform: rotate(45deg) }
 }
 @media (prefers-reduced-motion: reduce) {
-  #cfg .pes, #cfg .sw, #cfg .sw i, #cfg .seg > button, #cfg .pb, #cfg .esc-m, #cfg .esp, #cfg .esp .avi { transition: none }
+  #cfg .pes, #cfg .sw, #cfg .sw i, #cfg .seg > button, #cfg .esc-m, #cfg .esp, #cfg .esp .avi { transition: none }
   #cfg .esp:hover .avi { transform: none }
 }
 body.pausa #cfg .sw i, body.pausa #cfg .esc-m, body.pausa #cfg .esp .avi { transition: none }
@@ -2063,12 +2055,12 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 /* «‹ Tablero» se fue con el menú de módulos (modulos-ux.md 3.2): Esc o la fila de Sesiones vuelven. La bajada
    "martes 24/11 · 2 para hoy · 2 vencidas" va en una línea; si una más larga no entra, se corta con "…" (las
    cuentas siguen a la vista en el índice) */
-#marco.con-tar .controles { align-items: center }
-#marco.con-tar #subtitulo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-#marco.con-tar #vacio-avi, #marco.con-tar #otro, #marco.con-tar #pestanas, #marco.con-tar .split, #marco.con-tar .ficha-u,
-#marco.con-tar #w-globo, #marco.con-tar #pp, #marco.con-tar .conteos, #marco.con-tar .sesiones { display: none }
-#marco.con-tar .principal { overflow: hidden }
-#marco.con-tar.bajo #subtitulo { display: none }
+:is(#marco.con-tar, #marco.con-hab) .controles { align-items: center }
+:is(#marco.con-tar, #marco.con-hab) #subtitulo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+:is(#marco.con-tar, #marco.con-hab) #vacio-avi, :is(#marco.con-tar, #marco.con-hab) #otro, :is(#marco.con-tar, #marco.con-hab) #pestanas, :is(#marco.con-tar, #marco.con-hab) .split, :is(#marco.con-tar, #marco.con-hab) .ficha-u,
+:is(#marco.con-tar, #marco.con-hab) #w-globo, :is(#marco.con-tar, #marco.con-hab) #pp, :is(#marco.con-tar, #marco.con-hab) .conteos, :is(#marco.con-tar, #marco.con-hab) .sesiones { display: none }
+:is(#marco.con-tar, #marco.con-hab) .principal { overflow: hidden }
+:is(#marco.con-tar, #marco.con-hab).bajo #subtitulo { display: none }
 #marco.con-tar #tar { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
 #tar > * { flex: none }
 #tar-aviso { margin-bottom: var(--e-5) }
@@ -2076,88 +2068,91 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 
 /* La mascota de 40 junto al título (4.10) */
 .tar-mini { display: none }
-#marco.con-tar .cab-t { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: var(--e-5); align-items: center }
+:is(#marco.con-tar, #marco.con-hab) .cab-t { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: var(--e-5); align-items: center }
 #marco.con-tar .tar-mini { display: grid; place-items: center; grid-row: 1 / span 2; width: 40px; height: 40px }
-#marco.con-tar .cab-t > h1, #marco.con-tar .cab-t > p { grid-column: 2 }
+:is(#marco.con-tar, #marco.con-hab) .cab-t > h1, :is(#marco.con-tar, #marco.con-hab) .cab-t > p { grid-column: 2 }
 
 /* La carpeta (3.3 y 4.2): el índice desplaza solo (sin barra visible); el panel desplaza en su lista */
-#tar .carpeta { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--ancho-indice) minmax(0, 1fr); gap: 0 14px }
-#tar .idx { display: flex; flex-direction: column; gap: var(--e-1); min-height: 0; padding-right: var(--e-5); border-right: 1px solid var(--linea); overflow-y: auto; scrollbar-width: none }
-#tar .ix-b {
+:is(#tar, #hab) .carpeta { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--ancho-indice) minmax(0, 1fr); gap: 0 14px }
+:is(#tar, #hab) .idx { display: flex; flex-direction: column; gap: var(--e-1); min-height: 0; padding-right: var(--e-5); border-right: 1px solid var(--linea); overflow-y: auto; scrollbar-width: none }
+:is(#tar, #hab) .ix-b {
   flex: none; display: flex; align-items: center; gap: var(--e-4); width: 100%; min-height: 34px; padding: 0 var(--e-4) 0 var(--e-3);
   border: 0; border-radius: var(--r-fila); background: none; color: var(--crema2); font: 700 12px/1.1 var(--f); text-align: left; cursor: pointer;
   transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
 }
-#tar .ix-b:hover { background: var(--s2); color: var(--crema) }
-#tar .ix-b:active { transform: scale(.97) }
-#tar .ix-b[aria-current="page"] { background: var(--ambar-osc); color: var(--ambar) }
-#tar .ix-b .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-#tar .ix-b .ct { flex: none; font: 500 10px/1 var(--m); font-stretch: 75%; color: var(--tenue) }
-#tar .ix-b .ct.t-aviso { color: var(--ambar) }
-#tar .ix-b .ct.t-error { color: var(--rojo) }
-#tar .ix-ic { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: var(--r-tag); background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c) }
-#tar .ix-ic svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round }
-#tar .ix-ic.punto::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c) }
-#tar .ix-b.rota .n { font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
-#tar .ix-mas { color: var(--tenue); font-weight: 600 }
-#tar .ix-mas .ix-ic { background: none; border: 1px dashed var(--linea-hover); color: var(--tenue) }
-#tar .rot-i { margin: var(--e-6) 0 var(--e-2) var(--e-4); font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+:is(#tar, #hab) .ix-b:hover { background: var(--s2); color: var(--crema) }
+:is(#tar, #hab) .ix-b:active { transform: scale(.97) }
+:is(#tar, #hab) .ix-b[aria-current="page"] { background: var(--ambar-osc); color: var(--ambar) }
+:is(#tar, #hab) .ix-b .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+:is(#tar, #hab) .ix-b .ct { flex: none; font: 500 10px/1 var(--m); font-stretch: 75%; color: var(--tenue) }
+:is(#tar, #hab) .ix-b .ct.t-aviso { color: var(--ambar) }
+:is(#tar, #hab) .ix-b .ct.t-error { color: var(--rojo) }
+:is(#tar, #hab) .ix-ic { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: var(--r-tag); background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c) }
+:is(#tar, #hab) .ix-ic svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round }
+:is(#tar, #hab) .ix-ic.punto::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c) }
+:is(#tar, #hab) .ix-b.rota .n { font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
+:is(#tar, #hab) .ix-mas { color: var(--tenue); font-weight: 600 }
+:is(#tar, #hab) .ix-mas .ix-ic { background: none; border: 1px dashed var(--linea-hover); color: var(--tenue) }
+:is(#tar, #hab) .rot-i { margin: var(--e-6) 0 var(--e-2) var(--e-4); font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
 #tar .ix-campo { flex: none; min-height: 34px; padding: 0 var(--e-3) 0 var(--e-4) }
 #tar .ix-campo input { font: 700 12px/1 var(--f) }
 #tar .ix-campo > svg { display: none }
 #tar .ix-err { margin: var(--e-2) var(--e-2) var(--e-2) var(--e-4); font: var(--t-chico); color: var(--rojo) }
 
 /* El panel (4.3): el encabezado y el campo quedan fijos; la lista desplaza */
-#tar .pane { min-width: 0; min-height: 0; display: flex; flex-direction: column }
-#tar .pane > [data-parte] { flex: none }
-#tar .pane-h { display: grid; gap: var(--e-1); margin: 0 0 var(--e-4) var(--e-1) }
-#tar .pane-h h2 { display: flex; align-items: center; gap: var(--e-4); min-width: 0; font: 800 19px/1.15 var(--f); letter-spacing: -.03em; overflow-wrap: anywhere }
-#tar .pane-h h2 .pt { width: 8px; height: 8px }
-#tar .pane-s { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--e-3); min-height: 32px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
-#tar .pane-s > span:first-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-#tar .pane-s .acc { flex: none; display: flex; align-items: center; gap: 0; margin-left: auto; margin-right: calc(-1 * var(--e-2)) }
-#tar .pane-s .lnk, #tar .pane-s .armado { white-space: nowrap }
-#tar .pane-s .lnk { padding: 0 var(--e-3) }
-#tar .prog { display: block; width: 90px; height: 4px; border-radius: 2px; background: var(--s3); overflow: hidden }
-#tar .prog i { display: block; height: 100%; width: var(--p); border-radius: 2px; background: var(--ambar) }
-#tar .pane > .tar-desplaza {
+:is(#tar, #hab) .pane { min-width: 0; min-height: 0; display: flex; flex-direction: column }
+:is(#tar, #hab) .pane > [data-parte] { flex: none }
+:is(#tar, #hab) .pane-h { display: grid; gap: var(--e-1); margin: 0 0 var(--e-4) var(--e-1) }
+:is(#tar, #hab) .pane-h h2 { display: flex; align-items: center; gap: var(--e-4); min-width: 0; font: 800 19px/1.15 var(--f); letter-spacing: -.03em; overflow-wrap: anywhere }
+:is(#tar, #hab) .pane-h h2 .pt { width: 8px; height: 8px }
+:is(#tar, #hab) .pane-s { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--e-3); min-height: 32px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+:is(#tar, #hab) .pane-s > span:first-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+:is(#tar, #hab) .pane-s .acc { flex: none; display: flex; align-items: center; gap: 0; margin-left: auto; margin-right: calc(-1 * var(--e-2)) }
+:is(#tar, #hab) .pane-s .lnk, :is(#tar, #hab) .pane-s .armado { white-space: nowrap }
+:is(#tar, #hab) .pane-s .lnk { padding: 0 var(--e-3) }
+:is(#tar, #hab) .prog { display: block; width: 90px; height: 4px; border-radius: 2px; background: var(--s3); overflow: hidden }
+:is(#tar, #hab) .prog i { display: block; height: 100%; width: var(--p); border-radius: 2px; background: var(--ambar) }
+:is(#tar, #hab) .pane > .tar-desplaza {
   flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
   scrollbar-width: thin; scrollbar-color: var(--linea-hover) transparent; padding: 0 var(--e-1) var(--e-4) var(--e-1); margin-left: calc(-1 * var(--e-1))
 }
 
 /* El campo de nueva tarea (4.4): el "+" y la pista "Enter", que aparece con foco */
-#tar .campo { padding: 0 var(--e-3) 0 var(--e-5) }
-#tar .campo input { font: var(--t-cuerpo); letter-spacing: 0 }
-#tar .campo > svg { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--tenue); stroke-width: 1.6; stroke-linecap: round }
-#tar .campo:focus-within > svg { stroke: var(--ambar) }
-#tar .campo kbd { flex: none; padding: 3px 5px; border: 1px solid var(--linea); border-radius: 5px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue); opacity: 0 }
-#tar .campo:focus-within kbd { opacity: 1 }
+:is(#tar, #hab) .campo { padding: 0 var(--e-3) 0 var(--e-5) }
+:is(#tar, #hab) .campo input { font: var(--t-cuerpo); letter-spacing: 0 }
+:is(#tar, #hab) .campo > svg { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--tenue); stroke-width: 1.6; stroke-linecap: round }
+:is(#tar, #hab) .campo:focus-within > svg { stroke: var(--ambar) }
+:is(#tar, #hab) .campo kbd { flex: none; padding: 3px 5px; border: 1px solid var(--linea); border-radius: 5px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue); opacity: 0 }
+:is(#tar, #hab) .campo:focus-within kbd { opacity: 1 }
 #tar .nueva { margin: 0 0 var(--e-3) }
-#tar .pista { margin: 0 0 var(--e-4) var(--e-1); font: var(--t-chico); color: var(--tenue) }
+:is(#tar, #hab) .pista { margin: 0 0 var(--e-4) var(--e-1); font: var(--t-chico); color: var(--tenue) }
 
 /* La fila (4.5): tilde, cuerpo e insignia; filete de 38 a la derecha que se esconde con hover */
 #tar .filas { list-style: none; display: grid; margin: 0; padding: 0 }
-#tar .fila {
+:is(#tar, #hab) .fila {
   position: relative; display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: start; gap: 0;
   margin: 0; padding: 0 var(--e-3) 0 0; border: 0; border-radius: var(--r-fila); background: none; transition: background var(--d-color) ease
 }
-#tar .fila::before { content: ""; position: absolute; left: 38px; right: 8px; top: 0; height: 1px; background: var(--linea); transition: opacity var(--d-color) ease }
-#tar .fila:first-child::before, #tar .fila:hover::before, #tar .fila:hover + .fila::before { opacity: 0 }
-#tar .fila:hover { background: var(--s1) }
-#tar .ck { position: relative; width: 36px; height: 38px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer }
-#tar .ck::before { content: ""; grid-area: 1 / 1; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--linea-hover); box-sizing: border-box; transition: border-color var(--d-color) ease, background var(--d-color) ease }
-#tar .ck svg { grid-area: 1 / 1; position: relative; width: 12px; height: 12px; fill: none; stroke: var(--negro); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 14; stroke-dashoffset: 14 }
-#tar .ck:hover::before { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent) }
-#tar .fila.imp > .ck::before { border-color: color-mix(in srgb, var(--ambar) 75%, transparent) }
-#tar .ck[aria-checked="true"]::before { border-color: var(--ambar); background: var(--ambar) }
-#tar .ck[aria-checked="true"] svg { stroke-dashoffset: 0 }
-#tar .ck:focus-visible { outline-offset: -4px }
+:is(#tar, #hab) .fila::before { content: ""; position: absolute; left: 38px; right: 8px; top: 0; height: 1px; background: var(--linea); transition: opacity var(--d-color) ease }
+:is(#tar, #hab) .fila:first-child::before, :is(#tar, #hab) .fila:hover::before, :is(#tar, #hab) .fila:hover + .fila::before { opacity: 0 }
+:is(#tar, #hab) .fila:hover { background: var(--s1) }
+:is(#tar, #hab) .ck { position: relative; width: 36px; height: 38px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer }
+:is(#tar, #hab) .ck::before { content: ""; grid-area: 1 / 1; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--linea-hover); box-sizing: border-box; transition: border-color var(--d-color) ease, background var(--d-color) ease }
+:is(#tar, #hab) .ck svg { grid-area: 1 / 1; position: relative; width: 12px; height: 12px; fill: none; stroke: var(--negro); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 14; stroke-dashoffset: 14 }
+:is(#tar, #hab) .ck:hover::before { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent) }
+:is(#tar, #hab) .fila.imp > .ck::before { border-color: color-mix(in srgb, var(--ambar) 75%, transparent) }
+:is(#tar, #hab) .ck[aria-checked="true"]::before { border-color: var(--ambar); background: var(--ambar) }
+:is(#tar, #hab) .ck[aria-checked="true"] svg { stroke-dashoffset: 0 }
+:is(#tar, #hab) .ck:focus-visible { outline-offset: -4px }
 #tar .f-cuerpo { min-width: 0; display: grid; gap: var(--e-2); justify-items: start; padding: var(--e-5) var(--e-2) var(--e-5) var(--e-1) }
-#tar .tit {
-  font: var(--t-cuerpo-f); color: var(--crema); overflow-wrap: anywhere;
-  background: linear-gradient(var(--crema2), var(--crema2)) 0 58% / 0% 1.5px no-repeat
+#tar .tit { font: var(--t-cuerpo-f); color: var(--crema); overflow-wrap: anywhere }
+/* La raya va en el texto en línea (no en el bloque): con `clone` cada renglón lleva la suya */
+#tar .tit-t {
+  background: linear-gradient(var(--crema2), var(--crema2)) 0 58% / 0% 1.5px no-repeat;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone
 }
-#tar .fila.hecha .tit, #tar .fila.tildando .tit { background-size: 100% 1.5px; color: var(--tenue) }
+:is(#tar, #hab) .fila.hecha .tit, :is(#tar, #hab) .fila.tildando .tit { color: var(--tenue) }
+:is(#tar, #hab) .fila.hecha .tit-t, :is(#tar, #hab) .fila.tildando .tit-t { background-size: 100% 1.5px }
 #tar .meta { display: flex; flex-wrap: wrap; gap: 3px var(--e-5); align-items: center; max-width: 75% }
 #tar .tag { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 0; border-radius: 0; background: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--c, var(--tenue)) }
 #tar .tag.t-nada { --c: var(--tenue) }
@@ -2168,9 +2163,9 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 #tar .subc i { width: 20px; height: 3px; border-radius: 2px; background: linear-gradient(var(--crema2), var(--crema2)) 0 0 / var(--p) 100% no-repeat, var(--s3) }
 #tar .ic-nota { width: 12px; height: 12px; fill: none; stroke: var(--tenue); stroke-width: 1.5; stroke-linecap: round }
 #tar .imp-b { align-self: center; width: 20px; height: 20px; display: grid; place-items: center; border-radius: var(--r-tag); background: var(--ambar-osc); color: var(--ambar); font: 600 11px/1 var(--m) }
-#tar .fila.hecha .imp-b { opacity: .4 }
-#tar .chispa { position: absolute; left: 18px; top: 19px; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--c); pointer-events: none; opacity: 0 }
-#tar .chispa:nth-of-type(even) { background: var(--ambar) }
+:is(#tar, #hab) .fila.hecha .imp-b { opacity: .4 }
+:is(#tar, #hab) .chispa { position: absolute; left: 18px; top: 19px; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--c); pointer-events: none; opacity: 0 }
+:is(#tar, #hab) .chispa:nth-of-type(even) { background: var(--ambar) }
 
 /* "Hechas · n" (4.9) */
 #tar .pleg {
@@ -2184,59 +2179,59 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 #tar .hechas-l .fila { opacity: .85 }
 
 /* Leyendo (7.1): tres filas fantasma de 38, sin brillo */
-#tar .fantasmas { gap: var(--e-2) }
-#tar .fantasmas li { height: 38px; border-radius: var(--r-fila); background: var(--s1) }
+:is(#tar, #hab) .fantasmas { gap: var(--e-2) }
+:is(#tar, #hab) .fantasmas li { height: 38px; border-radius: var(--r-fila); background: var(--s1) }
 
 /* Vacíos, primer uso y errores (7.2 a 7.6) */
-#tar .vac { display: grid; justify-items: center; text-align: center; gap: var(--e-3); padding: 26px var(--e-8) var(--e-9) }
-#tar .vac b { font: var(--t-titulo) }
-#tar .vac p { max-width: 32ch; font: var(--t-chico); color: var(--crema2) }
-#tar .primer {
+:is(#tar, #hab) .vac { display: grid; justify-items: center; text-align: center; gap: var(--e-3); padding: 26px var(--e-8) var(--e-9) }
+:is(#tar, #hab) .vac b { font: var(--t-titulo) }
+:is(#tar, #hab) .vac p { max-width: 32ch; font: var(--t-chico); color: var(--crema2) }
+:is(#tar, #hab) .primer {
   display: grid; justify-items: center; text-align: center; gap: var(--e-4); margin-top: var(--e-3); padding: 26px var(--e-10) 22px;
   border: 1px dashed var(--linea-hover); border-radius: var(--r-tarjeta);
   background: radial-gradient(180px 70px at 50% 108px, rgba(242, 182, 50, .16), transparent 72%)
 }
-#tar .primer b { font: 800 18px/1.2 var(--f); letter-spacing: -.02em }
-#tar .primer p { max-width: 36ch; font: var(--t-chico); color: var(--crema2) }
-#tar .primer .sug { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--e-3); margin-top: var(--e-3) }
-#tar .primer .campo { width: 100%; max-width: 280px; margin-top: var(--e-1) }
-#tar .fc {
+:is(#tar, #hab) .primer b { font: 800 18px/1.2 var(--f); letter-spacing: -.02em }
+:is(#tar, #hab) .primer p { max-width: 36ch; font: var(--t-chico); color: var(--crema2) }
+:is(#tar, #hab) .primer .sug { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--e-3); margin-top: var(--e-3) }
+:is(#tar, #hab) .primer .campo { width: 100%; max-width: 280px; margin-top: var(--e-1) }
+:is(#tar, #hab) .fc {
   display: inline-flex; align-items: center; gap: var(--e-3); min-height: 32px; padding: 0 11px 0 var(--e-4); border: 1px solid var(--linea); border-radius: var(--r-pildora);
   background: none; color: var(--crema2); font: 700 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
   transition: color var(--d-color) ease, border-color var(--d-color) ease, transform var(--d-presion) ease
 }
-#tar .fc:hover { color: var(--crema); border-color: var(--linea-hover) }
-#tar .fc:active { transform: scale(.96) }
-#tar .err {
+:is(#tar, #hab) .fc:hover { color: var(--crema); border-color: var(--linea-hover) }
+:is(#tar, #hab) .fc:active { transform: scale(.96) }
+:is(#tar, #hab) .err {
   display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--e-2) var(--e-5); align-items: start; margin: 0 0 var(--e-4); padding: var(--e-5) var(--e-6);
   border: 1px solid rgba(255, 122, 107, .35); border-radius: var(--r-cuadro); background: color-mix(in srgb, var(--rojo) 6%, var(--s1)); font: var(--t-chico); color: var(--crema2)
 }
-#tar .err b { display: block; font: var(--t-cuerpo-f); color: var(--crema) }
-#tar .err > .pt { margin-top: 5px }
-#tar .err .acc { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--e-1) var(--e-2); margin-left: calc(-1 * var(--e-3)) }
+:is(#tar, #hab) .err b { display: block; font: var(--t-cuerpo-f); color: var(--crema) }
+:is(#tar, #hab) .err > .pt { margin-top: 5px }
+:is(#tar, #hab) .err .acc { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--e-1) var(--e-2); margin-left: calc(-1 * var(--e-3)) }
 
 /* La tarea abierta (4.7): entra en el lugar de la lista, con "‹ {vista}" arriba. El cuerpo de la fila
    ahora es un botón (la abre) */
 #tar .f-cuerpo { border: 0; background: none; color: inherit; text-align: left; cursor: pointer; border-radius: var(--e-4) }
 #tar .f-cuerpo:focus-visible { outline-offset: -2px }
-#tar .atras { justify-self: start; margin: 0 0 var(--e-2) calc(-1 * var(--e-3)) }
-#tar .det { --c: var(--ambar); display: grid; gap: var(--e-5); padding-top: var(--e-1) }
+:is(#tar, #hab) .atras { justify-self: start; margin: 0 0 var(--e-2) calc(-1 * var(--e-3)) }
+:is(#tar, #hab) .det { --c: var(--ambar); display: grid; gap: var(--e-5); padding-top: var(--e-1) }
 #tar .det-tit { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center }
-#tar .tit-in {
+:is(#tar, #hab) .tit-in {
   display: block; width: 100%; min-height: 36px; padding: var(--e-2) var(--e-3); resize: none; field-sizing: content; overflow: hidden;
   border: 0; border-radius: var(--e-4); background: none; outline: none; color: var(--crema); font: 800 16px/1.25 var(--f); letter-spacing: -.015em;
   transition: background var(--d-color) ease, color .3s ease
 }
-#tar .tit-in:hover { background: var(--s2) }
+:is(#tar, #hab) .tit-in:hover { background: var(--s2) }
 /* El foco del título es su anillo interior (sin el contorno de 2, 12) */
-#tar .tit-in:focus, #tar .tit-in:focus-visible { outline: none; background: var(--s2); box-shadow: 0 0 0 1.5px var(--ambar) inset }
-#tar .tit-in.hecha { color: var(--tenue); text-decoration: line-through; text-decoration-thickness: 1.5px }
-#tar .det-g {
+:is(#tar, #hab) .tit-in:focus, :is(#tar, #hab) .tit-in:focus-visible { outline: none; background: var(--s2); box-shadow: 0 0 0 1.5px var(--ambar) inset }
+:is(#tar, #hab) .tit-in.hecha { color: var(--tenue); text-decoration: line-through; text-decoration-thickness: 1.5px }
+:is(#tar, #hab) .det-g {
   display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: var(--e-4) var(--e-5); align-items: center;
   padding: var(--e-5) 0; border-top: 1px solid var(--linea); border-bottom: 1px solid var(--linea)
 }
-#tar .det-l { font: var(--t-rotulo); letter-spacing: .1em; text-transform: uppercase; color: var(--tenue) }
-#tar .det-f { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-3); min-width: 0 }
+:is(#tar, #hab) .det-l { font: var(--t-rotulo); letter-spacing: .1em; text-transform: uppercase; color: var(--tenue) }
+:is(#tar, #hab) .det-f { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-3); min-width: 0 }
 /* Segmentos (radiogroup, foco itinerante): opciones de 28; Importante elegida, en ámbar */
 #tar .seg { display: inline-flex; gap: var(--e-1); padding: 2px; border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s2) }
 #tar .seg > button {
@@ -2251,22 +2246,22 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 /* Sobre crema el foco es tinta; sobre ámbar, crema (12) */
 #tar .seg > button[aria-checked="true"]:focus-visible { outline-color: var(--tinta) }
 #tar .seg.prio > button[data-valor="imp"][aria-checked="true"]:focus-visible { outline-color: var(--crema) }
-#tar .fecha-in, #tar .sel {
+:is(#tar, #hab) .fecha-in, #tar .sel {
   min-height: 30px; padding: 0 var(--e-4); border: 1px solid var(--linea); border-radius: var(--r-campo); background: var(--s1);
   color: var(--crema2); font: var(--t-mono-s); color-scheme: dark; cursor: pointer
 }
 #tar .sel { max-width: 100%; font: 700 12px/1 var(--f) }
-#tar .fecha-in:focus-visible, #tar .sel:focus-visible { outline: 0; border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
+:is(#tar, #hab) .fecha-in:focus-visible, #tar .sel:focus-visible { outline: 0; border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
 #tar .vence { display: inline-flex; align-items: center; gap: 5px; font: var(--t-mono-s); color: var(--c, var(--tenue)) }
 #tar .vence.t-nada { --c: var(--tenue) }
 #tar .vence.t-error::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor }
-#tar .det .sub { margin: var(--e-1) 0 0; font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+:is(#tar, #hab) .det .sub { margin: var(--e-1) 0 0; font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
 #tar .det-subs, #tar .det-notas { display: grid; gap: var(--e-3) }
 #tar .subs { list-style: none; display: grid; margin: 0; padding: 0 }
 #tar .subs li { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center }
-#tar .ck.chico { width: 32px; height: 30px; border-radius: var(--e-4) }
-#tar .ck.chico::before { width: 15px; height: 15px; border-radius: 5px }
-#tar .ck.chico svg { width: 10px; height: 10px }
+:is(#tar, #hab) .ck.chico { width: 32px; height: 30px; border-radius: var(--e-4) }
+:is(#tar, #hab) .ck.chico::before { width: 15px; height: 15px; border-radius: 5px }
+:is(#tar, #hab) .ck.chico svg { width: 10px; height: 10px }
 #tar .subs li:hover > .ck.chico::before { border-color: var(--ambar) }
 #tar .sub-t {
   min-height: 30px; padding: 0 var(--e-3); border: 0; border-radius: var(--e-3); background: none; color: var(--crema);
@@ -2278,7 +2273,7 @@ body.pausa #cfg .esp:hover .avi { transform: none }
   width: 100%; min-height: 30px; padding: 0 var(--e-3); border: 1px solid var(--ambar); border-radius: var(--e-3); background: var(--s1);
   color: var(--crema); font: var(--t-cuerpo); outline: none; box-shadow: 0 0 0 3px rgba(242, 182, 50, .14)
 }
-#tar .campo.chico { min-height: 32px; margin-left: 32px }
+:is(#tar, #hab) .campo.chico { min-height: 32px; margin-left: 32px }
 #tar .notas {
   display: block; width: 100%; min-height: 64px; padding: var(--e-4) var(--e-5); resize: vertical; border: 1px solid var(--linea);
   border-radius: var(--r-campo); background: var(--s1); color: var(--crema); font: var(--t-cuerpo); outline: none;
@@ -2286,8 +2281,8 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 }
 #tar .notas::placeholder { color: var(--tenue) }
 #tar .notas:focus { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
-#tar .det-pie { display: flex; justify-content: space-between; align-items: center; gap: var(--e-4); padding-top: var(--e-1) }
-#tar .det-pie .lnk { margin-right: calc(-1 * var(--e-3)) }
+:is(#tar, #hab) .det-pie { display: flex; justify-content: space-between; align-items: center; gap: var(--e-4); padding-top: var(--e-1) }
+:is(#tar, #hab) .det-pie .lnk { margin-right: calc(-1 * var(--e-3)) }
 
 /* Movimiento (10): el círculo se hunde y rebota, el visto se dibuja, la raya tacha, la fila nueva
    destella, el chip late y el visto de la fila de la barra se redibuja. Con movimiento reducido o pausa,
@@ -2301,21 +2296,266 @@ body.pausa #cfg .esp:hover .avi { transform: none }
   /* La tarea abierta y sus subtareas se redibujan al tildar: el rebote y el visto van por animación */
   body:not(.pausa) #tar .det-tit.tildando > .ck::before, body:not(.pausa) #tar .subs li.tildando > .ck::before { animation: tarHunde .42s var(--rebote) }
   body:not(.pausa) #tar .det-tit.tildando > .ck svg, body:not(.pausa) #tar .subs li.tildando > .ck svg { animation: tarVisto .26s var(--ease) .08s both }
-  body:not(.pausa) #tar .ck svg { transition: stroke-dashoffset .26s var(--ease) .08s }
-  body:not(.pausa) #tar .tit { transition: background-size .34s var(--ease) .12s, color .3s ease .12s }
-  body:not(.pausa) #tar .fila.tildando .ck::before { animation: tarHunde .42s var(--rebote) }
-  body:not(.pausa) #tar .fila.recien { animation: tarRecien 1.2s var(--ease) }
+  body:not(.pausa) :is(#tar, #hab) .ck svg { transition: stroke-dashoffset .26s var(--ease) .08s }
+  body:not(.pausa) #tar .tit { transition: color .3s ease .12s }
+  body:not(.pausa) #tar .tit-t { transition: background-size .34s var(--ease) .12s }
+  body:not(.pausa) :is(#tar, #hab) .fila.tildando .ck::before { animation: tarHunde .42s var(--rebote) }
+  body:not(.pausa) :is(#tar, #hab) .fila.recien { animation: tarRecien 1.2s var(--ease) }
   body:not(.pausa) #tar .pleg svg { transition: transform .3s var(--ease) }
-  body:not(.pausa) #tar .prog i { transition: width .5s var(--ease) }
-  body:not(.pausa) #tar .campo kbd { transition: opacity var(--d-color) ease }
+  body:not(.pausa) :is(#tar, #hab) .prog i { transition: width .5s var(--ease) }
+  body:not(.pausa) :is(#tar, #hab) .campo kbd { transition: opacity var(--d-color) ease }
   body:not(.pausa) .mod.tar .chip.late { animation: tarLate .5s var(--rebote) }
   body:not(.pausa) .mod.tar:not([aria-current]):hover .tilde-p { animation: tarRetilde .6s var(--ease) }
 }
 @media (prefers-reduced-motion: reduce) {
-  #tar .ix-b, #tar .fila, #tar .fila::before, #tar .ck::before, #tar .fc, #tar .tit-in, #tar .seg > button, #tar .sub-t, #tar .notas { transition: none }
+  :is(#tar, #hab) .ix-b, :is(#tar, #hab) .fila, :is(#tar, #hab) .fila::before, :is(#tar, #hab) .ck::before, :is(#tar, #hab) .fc, :is(#tar, #hab) .tit-in, #tar .seg > button, #tar .sub-t, #tar .notas { transition: none }
 }
-body.pausa #tar .ix-b, body.pausa #tar .fila, body.pausa #tar .fila::before, body.pausa #tar .ck::before, body.pausa #tar .fc,
-body.pausa #tar .tit-in, body.pausa #tar .seg > button, body.pausa #tar .sub-t, body.pausa #tar .notas { transition: none }
+body.pausa :is(#tar, #hab) .ix-b, body.pausa :is(#tar, #hab) .fila, body.pausa :is(#tar, #hab) .fila::before, body.pausa :is(#tar, #hab) .ck::before, body.pausa :is(#tar, #hab) .fc,
+body.pausa :is(#tar, #hab) .tit-in, body.pausa #tar .seg > button, body.pausa #tar .sub-t, body.pausa #tar .notas { transition: none }
+
+/* ------------------------------------------------------------------ hábitos (docs/diseno/habitos-ux.md, opción B "Carpeta")
+   La hoja vive en la columna principal (#hab, hermana de #tar y #cfg, 3.2) y reusa las piezas de Tareas
+   (`:is(#tar, #hab)` arriba: la carpeta, el índice, el panel, la fila, el tilde, los vacíos, los errores y
+   el formulario). Lo propio va bajo #hab o .mod.hab: `.sub`, `.chip`, `.err` y `.racha` existen en otros
+   lugares y no se pisan. Hecho siempre es ámbar; el color del hábito (`--c`) solo pinta punto, borde y chispas (6.1) */
+#hab { --cel: 16px; --brasa: rgba(242, 182, 50, .055) }
+
+/* La fila del menú (4.1): la flecha circular con punto; el anillo de hoy con «{h}/{t}», «—» o la pista */
+.mod.hab .mod-ic svg { stroke-width: 1.5 }
+.mod.hab .arco { stroke-dasharray: 30; stroke-dashoffset: 0 }
+.anillo-c { flex: none; display: inline-flex; align-items: center; gap: 5px; font: 500 10px/1 var(--m); color: var(--crema2); font-variant-numeric: tabular-nums }
+.anillo-c svg { width: 14px; height: 14px; transform: rotate(-90deg); fill: none; stroke-width: 2.6 }
+.anillo-c .a-f { stroke: var(--linea-hover) }
+.anillo-c .a-l { stroke: var(--ambar); stroke-linecap: round }
+.anillo-c.completo { color: var(--ambar) }
+.anillo-c.nada { color: var(--tenue) }
+
+/* La columna con la hoja abierta: lo de Tareas (`.con-hab` arriba) y la mascota de 40 junto al título (4.13) */
+#hab:empty { display: none }
+#marco.con-hab #hab { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
+#hab > * { flex: none }
+#hab > #hab-cuerpo { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
+.hab-mini { display: none }
+#marco.con-hab .cab-t { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: var(--e-5); align-items: center }
+#marco.con-hab .hab-mini { display: grid; place-items: center; grid-row: 1 / span 2; width: 40px; height: 40px }
+#marco.con-hab .cab-t > h1, #marco.con-hab .cab-t > p { grid-column: 2 }
+
+/* El panel (3.3): la vista desplaza; el encabezado de Tareas, con «¡Día completo!» en ámbar */
+#hab .pane > .hab-desplaza {
+  flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--linea-hover) transparent; padding: 0 var(--e-1) var(--e-4) var(--e-1); margin-left: calc(-1 * var(--e-1))
+}
+#hab .completo-t { color: var(--ambar); font-weight: 600 }
+#hab .ix-b .racha { flex: none }
+
+/* La fila de Hoy (4.4): control, cuerpo y racha, centrados; hecho no se tacha, se enciende el control */
+#hab .fila { align-items: center; gap: 0 6px; padding-right: var(--e-3) }
+#hab .cuerpo { min-width: 0; display: grid; gap: 4px; justify-items: start; padding: 7px 0 }
+#hab .nom {
+  max-width: 100%; padding: 2px 4px; margin-left: -4px; border: 0; border-radius: 6px; background: none; color: var(--crema);
+  font: var(--t-cuerpo-f); text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap
+}
+#hab .nom:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--linea-hover) }
+#hab .nom:focus-visible { outline-offset: 0 }
+#hab .meta { display: flex; flex-wrap: wrap; gap: 3px 10px; align-items: center }
+#hab .tag { display: inline-flex; align-items: center; gap: 5px; padding: 0; border-radius: 0; background: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hab .tag.t-aviso { color: var(--ambar) }
+#hab .tag svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round }
+#hab .menos {
+  min-height: 22px; padding: 0 7px; margin-left: -4px; border: 1px solid var(--linea); border-radius: var(--r-pildora); background: none;
+  color: var(--crema2); font: 500 10px/1 var(--m); cursor: pointer; transition: border-color var(--d-color) ease, color var(--d-color) ease
+}
+#hab .menos:hover { border-color: var(--linea-hover); color: var(--crema) }
+#hab .libre-c { width: 36px; height: 38px; display: grid; place-items: center; color: var(--linea-hover); font: 600 14px/1 var(--m) }
+#hab .rot-p { display: flex; gap: var(--e-4); align-items: center; margin: 14px 0 2px var(--e-3); font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+#hab .rot-p::after { content: ""; flex: 1; height: 1px; background: var(--linea) }
+#hab .fuera-l .fila { opacity: .7 }
+#hab .fantasmas li { height: 44px }
+/* Las chispas salen del centro del control (habitosMotion.js) */
+#hab .chispa { left: 50%; top: 50% }
+
+/* El sumador (4.6): un anillo de 30 partido en tramos, el número de hoy y el «+» */
+#hab .sum { position: relative; width: 36px; height: 38px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--crema); cursor: pointer }
+#hab .sum > svg { grid-area: 1 / 1; width: 30px; height: 30px; transform: rotate(-90deg); fill: none; stroke-width: 3; overflow: visible }
+#hab .sum .sg { stroke: var(--s3) }
+#hab .sum .sg.on { stroke: var(--ambar) }
+#hab .sum:hover .sg:not(.on) { stroke: color-mix(in srgb, var(--c) 45%, var(--s3)) }
+#hab .sum .num { grid-area: 1 / 1; display: grid; place-items: center; font: 800 11px/1 var(--f); font-variant-numeric: tabular-nums }
+#hab .sum .num svg { width: 12px; height: 12px; fill: none; stroke: var(--ambar); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round }
+#hab .sum .mas {
+  position: absolute; right: 0; bottom: 3px; width: 13px; height: 13px; border-radius: 50%; background: var(--ambar); color: var(--negro);
+  font: 700 10px/13px var(--m); font-style: normal; text-align: center; box-shadow: 0 0 0 2px var(--negro); transition: transform var(--d-presion) ease
+}
+#hab .sum:active .mas { transform: scale(.75) }
+#hab .sum.lleno .mas { background: var(--s3); color: var(--crema2) }
+#hab .sum.llega::before { content: ""; grid-area: 1 / 1; width: 30px; height: 30px; border-radius: 50% }
+#hab .sum:focus-visible { outline-offset: -4px }
+#hab .gota { position: absolute; left: 50%; top: 50%; width: 6px; height: 8px; margin: -4px 0 0 -3px; border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%; background: var(--c); pointer-events: none; opacity: 0; font-style: normal }
+#hab .onda { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; border: 1.5px solid var(--c); pointer-events: none; opacity: 0; font-style: normal }
+
+/* La racha (4.7): una brasa y el número; 0 tenue, 1–6 --pico, 7+ ámbar con brillo, 30+ titila */
+#hab .racha { display: inline-flex; align-items: center; gap: 4px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue); white-space: nowrap }
+#hab .racha svg { width: 9px; height: 11px; fill: currentColor; transform-origin: 50% 90% }
+#hab .racha b { display: inline-block; font-weight: 600; font-variant-numeric: tabular-nums }
+#hab .racha.r1 { color: var(--pico) }
+#hab .racha.r2, #hab .racha.r3 { color: var(--ambar) }
+#hab .racha.r2 svg { filter: drop-shadow(0 0 3px rgba(242, 182, 50, .55)) }
+#hab .racha.r3 svg { width: 11px; height: 13px; filter: drop-shadow(0 0 5px rgba(242, 182, 50, .85)) }
+
+/* Las celdas (4.8): hecho ámbar, en parte se llena desde abajo, y cada estado con su marca */
+#hab .sem { --gap: 3px; --fondo-cel: var(--negro); display: grid; grid-template-columns: repeat(7, var(--cel)); gap: var(--gap); flex: none }
+#hab .cel { position: relative; width: var(--cel); height: var(--cel); display: grid; place-items: center; padding: 0; border: 0; border-radius: calc(var(--cel) * .32); background: none; color: inherit }
+#hab .cel::after { content: "" }
+#hab .cel.s-hecho { background: var(--ambar) }
+#hab .cel.s-parcial { background: linear-gradient(to top, var(--ambar) var(--p), var(--s3) 0) }
+#hab .cel.s-falta, #hab .cel.s-pend { box-shadow: inset 0 0 0 1.5px var(--linea-hover) }
+#hab .cel.s-libre::after { width: 6px; height: 1.5px; border-radius: 1px; background: var(--linea-hover) }
+#hab .cel.s-nada::after { width: 3px; height: 3px; border-radius: 50%; background: var(--linea-hover) }
+#hab .cel.s-antes::after { width: 2px; height: 2px; border-radius: 50%; background: var(--linea) }
+#hab .cel.s-futuro { box-shadow: inset 0 0 0 1px var(--linea) }
+#hab .cel.hoy.s-pend { box-shadow: inset 0 0 0 1.5px var(--crema2) }
+#hab .cel.hoy:not(.s-pend) { box-shadow: 0 0 0 1.5px var(--fondo-cel), 0 0 0 3px var(--crema2) }
+#hab .cel.hoy.s-parcial, #hab .cel.hoy.s-hecho { box-shadow: 0 0 0 1.5px var(--fondo-cel), 0 0 0 3px var(--ambar) }
+#hab button.cel { cursor: pointer; transition: transform var(--d-presion) ease, background var(--d-color) ease }
+#hab button.cel:is(.s-falta, .s-pend, .s-nada):hover { box-shadow: inset 0 0 0 1.5px var(--c, var(--crema2)); background: color-mix(in srgb, var(--c, var(--crema2)) 16%, transparent) }
+#hab button.cel.s-hecho:hover { filter: brightness(1.12) }
+#hab button.cel:active { transform: scale(.86) }
+#hab button.cel:focus-visible { outline-offset: 2px }
+#hab .letras { display: grid; grid-template-columns: repeat(7, var(--cel)); gap: var(--gap, 3px); font: 500 9px/1 var(--m); color: var(--tenue); text-align: center }
+#hab .letras .hoy { color: var(--ambar); font-weight: 600 }
+#hab .letras small { display: block; margin-top: 3px; font-size: 8px; font-weight: 500; color: var(--tenue) }
+#hab .letras .hoy small { color: var(--ambar) }
+
+/* La vista Semana (4.9): una fila por hábito con sus 7 celdas de 20 y la franja --brasa de hoy */
+#hab .mat { display: grid }
+#hab .mat-r { position: relative; --cel: 20px; --gap: 6px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--e-4); min-height: 40px; padding: 0 4px 0 0; border-top: 1px solid var(--linea) }
+#hab .mat-r .sem { --gap: 6px }
+#hab .mat-r.mat-cab { min-height: 32px; align-items: end; padding-bottom: 7px; border-top: 0 }
+#hab .mat-r::after { content: ""; position: absolute; top: 0; bottom: 0; right: calc(4px + (6 - var(--hoy)) * 26px - 3px); width: 26px; background: var(--brasa); pointer-events: none }
+#hab .mat { --hoy: 0 }
+#hab .mat-r.mat-cab::after { border-radius: 8px 8px 0 0 }
+#hab .mat-r > * { position: relative; z-index: 1 }
+#hab .rot-m { padding-left: 4px; font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+#hab .mat-n { display: flex; align-items: center; gap: var(--e-4); min-width: 0; padding: 6px 4px; border: 0; border-radius: 6px; background: none; color: var(--crema); font: 700 12px/1.2 var(--f); text-align: left; cursor: pointer }
+#hab .mat-n span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+#hab .mat-n .pt { width: 6px; height: 6px; flex: none; box-shadow: none; background: var(--c) }
+#hab .mat-n:hover span { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--linea-hover) }
+#hab .leyenda { --cel: 12px; --fondo-cel: var(--negro); display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font: var(--t-mono-s); color: var(--tenue) }
+#hab .leyenda span { display: inline-flex; gap: 6px; align-items: center }
+#hab .leyenda .cel { flex: none }
+#hab .pista { margin: var(--e-5) 0 0 var(--e-1) }
+
+/* El hábito abierto (4.10): el nombre, la racha grande, las últimas 5 semanas, la configuración y el pie */
+#hab .det { gap: 12px }
+#hab .hb-tit { display: grid; grid-template-columns: 14px minmax(0, 1fr); align-items: center; gap: 6px }
+#hab .hb-tit .pt { width: 8px; height: 8px; background: var(--c) }
+#hab .racha-g {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--linea); border-radius: var(--r-cuadro);
+  background: radial-gradient(130px 70px at 28px 50%, rgba(242, 182, 50, .15), transparent 72%), var(--s1)
+}
+#hab .racha-g svg { width: 22px; height: 27px; flex: none; fill: var(--ambar); filter: drop-shadow(0 0 8px rgba(242, 182, 50, .6)); transform-origin: 50% 90% }
+#hab .racha-g.r0 svg { fill: var(--s3); filter: none }
+#hab .racha-g.r1 svg { fill: var(--pico); filter: none }
+#hab .racha-g b { display: inline-block; font: 800 34px/1 var(--f); letter-spacing: -.05em; font-variant-numeric: tabular-nums }
+#hab .racha-g span { font: 700 12px/1.3 var(--f); color: var(--crema2) }
+#hab .racha-g small { display: block; margin-top: 3px; font: var(--t-mono-s); color: var(--tenue) }
+#hab .cal { display: grid; gap: 6px }
+#hab .cal .sub { margin: 0 }
+#hab .cal-g { --cel: 14px; --gap: 5px; display: grid; gap: 5px; width: max-content }
+#hab .cal-g .sem { --gap: 5px }
+
+/* El formulario (4.11): Tipo y Color con foco itinerante, el paso, los días, el interruptor y la frase */
+#hab .frm { display: grid; gap: 10px }
+#hab .det-g { grid-template-columns: 62px minmax(0, 1fr); gap: 9px 10px; padding: 10px 0 }
+#hab .det-f .fc { min-height: 30px }
+#hab .fc[aria-checked="true"] { background: var(--crema); color: var(--tinta); border-color: var(--crema) }
+#hab .fc[aria-checked="true"]:focus-visible, #hab .dsem button[aria-pressed="true"]:focus-visible { outline-color: var(--tinta) }
+#hab .paso { display: inline-flex; align-items: center; border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s1) }
+#hab .paso button { width: 30px; height: 28px; border: 0; border-radius: var(--r-pildora); background: none; color: var(--crema2); font: 600 14px/1 var(--m); cursor: pointer; transition: color var(--d-color) ease, background var(--d-color) ease }
+#hab .paso button:hover { color: var(--crema); background: var(--s2) }
+#hab .paso b { min-width: 24px; text-align: center; font: 600 12px/1 var(--m); font-variant-numeric: tabular-nums }
+#hab .campo.mini { width: 92px; min-height: 30px; padding: 0 var(--e-4) }
+#hab .campo.mini input { font: var(--t-mono-s) }
+#hab .dsem { gap: 4px }
+#hab .dsem button {
+  width: 30px; height: 30px; border: 1px solid var(--linea); border-radius: 9px; background: none; color: var(--crema2); font: 700 11px/1 var(--f); cursor: pointer;
+  transition: background var(--d-color) ease, color var(--d-color) ease, border-color var(--d-color) ease, transform var(--d-presion) ease
+}
+#hab .dsem button:hover { border-color: var(--linea-hover); color: var(--crema) }
+#hab .dsem button:active { transform: scale(.92) }
+#hab .dsem button[aria-pressed="true"] { background: var(--crema); color: var(--tinta); border-color: var(--crema) }
+#hab .sw { position: relative; width: 36px; height: 22px; flex: none; padding: 0; border: 0; border-radius: var(--r-pildora); background: var(--s3); cursor: pointer; transition: background var(--d-color) ease }
+#hab .sw::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--crema2); transition: transform .3s var(--rebote), background var(--d-color) ease }
+#hab .sw[aria-checked="true"] { background: var(--ambar) }
+#hab .sw[aria-checked="true"]::after { transform: translateX(14px); background: var(--negro) }
+#hab .sw[aria-checked="true"]:focus-visible { outline-color: var(--crema) }
+#hab .colores { gap: 2px }
+#hab .col { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer }
+#hab .col::after { content: ""; width: 14px; height: 14px; border-radius: 50%; background: var(--c); transition: transform .2s var(--rebote) }
+#hab .col[aria-checked="true"] { box-shadow: inset 0 0 0 1.5px var(--c) }
+#hab .col:hover::after { transform: scale(1.18) }
+#hab .frase { margin: 0; padding: 9px 12px; border-radius: var(--r-campo); background: var(--s2); font: var(--t-mono-s); color: var(--crema2); overflow-wrap: anywhere }
+#hab .frase b { color: var(--crema); font-weight: 600 }
+#hab .e-form { display: flex; gap: 7px; align-items: center; margin: 0; font: var(--t-chico); color: var(--rojo) }
+#hab .e-form::before { content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor }
+#hab .acc-c { display: flex; gap: 6px; align-items: center }
+#hab .det-pie .lnk { margin-right: calc(-1 * var(--e-3)) }
+/* «Guardar» del hábito abierto y su «Guardado» (la región status existe siempre, así se oye) */
+#hab .hb-acc { display: flex; align-items: center; gap: var(--e-4) }
+#hab .hb-ok { font: var(--t-mono-s); color: var(--ambar) }
+#hab .hb-ok:not(:empty)::before { content: "✓ " }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) #hab .hb-ok:not(:empty) { animation: hbOk .3s var(--ease) both }
+}
+@keyframes hbOk { from { opacity: 0; transform: translateX(-4px) } }
+
+/* El primer uso (7.2): las sugeridas con su punto y su detalle */
+#hab .primer .fc .pt { width: 6px; height: 6px; box-shadow: none; background: var(--c) }
+#hab .primer .fc .ct { font: 500 10px/1 var(--m); font-stretch: 75%; color: var(--tenue) }
+
+/* La píldora del hito (4.14): centrada arriba de la columna, aria-hidden */
+#hab .hito {
+  position: absolute; left: 0; right: 0; top: 4px; z-index: 6; width: max-content; max-width: 92%; margin: 0 auto; display: flex; gap: 7px; align-items: center;
+  padding: 8px 13px 8px 10px; border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro); font: 800 12px/1 var(--f); white-space: nowrap;
+  box-shadow: 0 12px 30px -8px rgba(242, 182, 50, .6); pointer-events: none
+}
+#hab .hito svg { width: 11px; height: 13px; flex: none; fill: currentColor }
+
+/* Movimiento (10): el tilde (los keyframes de Tareas), el tramo nuevo, el número que rueda, la onda de la
+   meta, la celda que salta, la brasa que crece y titila, la franja del día completo, la barra que destella,
+   el arco de la fila del menú y el anillo que late. Con movimiento reducido o pausa, al instante */
+@keyframes habSeg { 0% { stroke-width: 0; stroke: var(--crema) } 55% { stroke-width: 6 } }
+@keyframes habRueda { from { transform: translateY(7px); opacity: 0 } }
+@keyframes habLlega { from { box-shadow: 0 0 0 0 rgba(242, 182, 50, .6) } to { box-shadow: 0 0 0 14px rgba(242, 182, 50, 0) } }
+@keyframes habCel { 0% { transform: scale(.35) } }
+@keyframes habTitila { 50% { transform: scale(1.06, .9) } }
+@keyframes habBrasa { 40% { transform: scale(1.55) translateY(-1px) } }
+@keyframes habBarre { 35% { background: rgba(242, 182, 50, .34) } }
+@keyframes habDestella { 50% { box-shadow: 0 0 0 3px rgba(242, 182, 50, .35) } }
+@keyframes habArco { 0% { stroke-dashoffset: 30 } 100% { stroke-dashoffset: 0 } }
+@keyframes habLate { 40% { transform: scale(1.25) } }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) #hab .ck.tildando::before { animation: tarHunde .42s var(--rebote) }
+  body:not(.pausa) #hab .ck.tildando svg { animation: tarVisto .26s var(--ease) .08s both }
+  body:not(.pausa) #hab .sum .sg { transition: stroke var(--d-color) ease }
+  body:not(.pausa) #hab .sum .sg.nv { animation: habSeg .5s var(--rebote) }
+  body:not(.pausa) #hab .sum .num.rueda { animation: habRueda .36s var(--ease) }
+  body:not(.pausa) #hab .sum.llega::before { animation: habLlega .9s var(--ease) }
+  body:not(.pausa) #hab .cel.enciende { animation: habCel .55s var(--rebote) }
+  body:not(.pausa) #hab .racha.r3 svg, body:not(.pausa) #hab .racha-g.r3 svg { animation: habTitila 2.4s ease-in-out infinite }
+  body:not(.pausa) #hab .racha.sube b, body:not(.pausa) #hab .racha-g.sube b { animation: habRueda .42s var(--rebote) }
+  body:not(.pausa) #hab .racha.sube svg, body:not(.pausa) #hab .racha-g.sube svg { animation: habBrasa .62s var(--rebote) }
+  body:not(.pausa) #hab .mat.completo .mat-r::after { animation: habBarre 1.1s var(--ease) calc(var(--i, 0) * 70ms) }
+  body:not(.pausa) #hab .prog.destella { animation: habDestella 1s var(--ease) }
+  body:not(.pausa) .mod.hab:not([aria-current]):hover .arco { animation: habArco .7s var(--ease) }
+  body:not(.pausa) .anillo-c.late { animation: habLate .5s var(--rebote) }
+  body:not(.pausa) .anillo-c .a-l { transition: stroke-dasharray .5s var(--ease) }
+}
+@media (prefers-reduced-motion: reduce) {
+  #hab .menos, #hab .sum .mas, #hab button.cel, #hab .paso button, #hab .dsem button, #hab .sw, #hab .sw::after, #hab .col::after { transition: none }
+}
+body.pausa #hab .menos, body.pausa #hab .sum .mas, body.pausa #hab button.cel, body.pausa #hab .paso button, body.pausa #hab .dsem button,
+body.pausa #hab .sw, body.pausa #hab .sw::after, body.pausa #hab .col::after { transition: none }
 
 /* ------------------------------------------------------------------ aviso diario de tareas (tareas-ux.md 8, entrega 3)
    Una vez por día de Argentina, donde esté la mascota: el globo de la marca (8.3), la fila de la
@@ -2335,7 +2575,7 @@ body.pausa #tar .tit-in, body.pausa #tar .seg > button, body.pausa #tar .sub-t, 
 }
 .globo-tar .globo-t { font: 600 12px/1.35 var(--f) }
 .globo-tar .globo-t b { font-weight: 800 }
-.globo-tar b.r, #muesca-tareas b.r { color: var(--rojo-tinta) }
+.globo-tar b.r, #muesca-globo b.r { color: var(--rojo-tinta) }
 .globo-tar .globo-c { font: 600 10px/1 var(--m); letter-spacing: .03em; color: var(--ambar-tinta) }
 .globo-tar .globo-b:hover .globo-c { text-decoration: underline; text-underline-offset: 3px }
 .globo-tar .globo-x {
@@ -2345,7 +2585,7 @@ body.pausa #tar .tit-in, body.pausa #tar .seg > button, body.pausa #tar .sub-t, 
 .globo-tar .globo-x:hover { color: var(--tinta) }
 .globo-tar .globo-x svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round }
 /* Foco sobre el crema: --tinta (12) */
-.globo-tar :focus-visible, #muesca-tareas:focus-visible { outline: 2px solid var(--tinta); outline-offset: -3px }
+.globo-tar :focus-visible, #muesca-globo:focus-visible { outline: 2px solid var(--tinta); outline-offset: -3px }
 
 /* La fila de la dividida (8.4): la forma de `avisoOtroProyecto`, con «Ver →» y la ×; no es un botón entero */
 #aviso-tar:empty { display: none }
@@ -2370,26 +2610,83 @@ body.pausa #tar .tit-in, body.pausa #tar .seg > button, body.pausa #tar .sub-t, 
 /* El globo de la muesca (8.5): un botón hermano de #muesca, que main.js ubica del lado de adentro
    (lugarGloboMuesca: left/top y --cola, desde donde sale la cola de 10 hacia la muesca). Se ve solo
    acoplada y plegada, nunca durante el arrastre de la píldora */
-#muesca-tareas { display: none }
-body.acoplada:not(.abierta):not(.pildora) #muesca-tareas:not([hidden]) {
+#muesca-globo { display: none }
+body.acoplada:not(.abierta):not(.pildora) #muesca-globo:not([hidden]) {
   position: fixed; z-index: 2; display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 8px 12px; border: 0; border-radius: 12px;
   background: var(--crema); color: var(--tinta); font: 700 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
   box-shadow: 0 10px 24px -10px rgba(0, 0, 0, .6);
 }
-#muesca-tareas::before { content: ""; position: absolute; width: 10px; height: 10px; border-radius: 2px; background: var(--crema); transform: rotate(45deg) }
-body[data-borde="arriba"] #muesca-tareas { transform-origin: var(--cola, 50%) 0 }
-body[data-borde="arriba"] #muesca-tareas::before { top: -4px; left: calc(var(--cola, 50%) - 5px) }
-body[data-borde="abajo"] #muesca-tareas { transform-origin: var(--cola, 50%) 100% }
-body[data-borde="abajo"] #muesca-tareas::before { bottom: -4px; left: calc(var(--cola, 50%) - 5px) }
-body[data-borde="izquierda"] #muesca-tareas { transform-origin: 0 var(--cola, 50%) }
-body[data-borde="izquierda"] #muesca-tareas::before { left: -4px; top: calc(var(--cola, 50%) - 5px) }
-body[data-borde="derecha"] #muesca-tareas { transform-origin: 100% var(--cola, 50%) }
-body[data-borde="derecha"] #muesca-tareas::before { right: -4px; top: calc(var(--cola, 50%) - 5px) }
-#muesca-tareas > * { pointer-events: none }
-#muesca-tareas .mt-c { font: 600 10px/1 var(--m); color: var(--ambar-tinta) }
-#muesca-tareas:hover .mt-c { text-decoration: underline; text-underline-offset: 3px }
-body:not(.colocada) #muesca-tareas, body.velada #muesca-tareas { visibility: hidden }
+#muesca-globo::before { content: ""; position: absolute; width: 10px; height: 10px; border-radius: 2px; background: var(--crema); transform: rotate(45deg) }
+body[data-borde="arriba"] #muesca-globo { transform-origin: var(--cola, 50%) 0 }
+body[data-borde="arriba"] #muesca-globo::before { top: -4px; left: calc(var(--cola, 50%) - 5px) }
+body[data-borde="abajo"] #muesca-globo { transform-origin: var(--cola, 50%) 100% }
+body[data-borde="abajo"] #muesca-globo::before { bottom: -4px; left: calc(var(--cola, 50%) - 5px) }
+body[data-borde="izquierda"] #muesca-globo { transform-origin: 0 var(--cola, 50%) }
+body[data-borde="izquierda"] #muesca-globo::before { left: -4px; top: calc(var(--cola, 50%) - 5px) }
+body[data-borde="derecha"] #muesca-globo { transform-origin: 100% var(--cola, 50%) }
+body[data-borde="derecha"] #muesca-globo::before { right: -4px; top: calc(var(--cola, 50%) - 5px) }
+#muesca-globo > * { pointer-events: none }
+#muesca-globo .mt-c { font: 600 10px/1 var(--m); color: var(--ambar-tinta) }
+#muesca-globo:hover .mt-c { text-decoration: underline; text-underline-offset: 3px }
+body:not(.colocada) #muesca-globo, body.velada #muesca-globo { visibility: hidden }
 @media (prefers-reduced-motion: reduce) {
   .globo-tar .globo-x { transition: none }
 }
 body.pausa .globo-tar .globo-x { transition: none }
+
+/* ------------------------------------------------------------------ el recordatorio de un hábito (habitos-ux.md 8.5, entrega H2)
+   `.globo-hab` va sobre la base de `.globo-tar` (ancho de la barra, crema, cola de 12 hacia el Avi,
+   sombra y halo ámbar), con dos filas: arriba el texto y la × de 28; abajo «+1 {unidad}» o «Hecho» (la
+   píldora --tinta con el punto del color del hábito) y «Ver hábitos →». Confirmando «Hecho», el visto
+   ámbar en un círculo --tinta de 16 delante del texto y sin acciones. Foco: contorno --tinta */
+.marca .globo-hab { display: grid; gap: 8px; padding: 11px 6px 11px 12px }
+.globo-hab .gh-arriba { display: flex; align-items: flex-start; gap: 4px }
+.globo-hab .globo-t { flex: 1; min-width: 0; margin: 0; padding-top: 3px; overflow-wrap: anywhere }
+.globo-hab .globo-x { width: 28px; height: 28px; padding: 0; place-items: center; border-radius: 8px; transition: color var(--d-color) ease, background var(--d-color) ease }
+.globo-hab .globo-x:hover { background: rgba(20, 17, 12, .06) }
+.globo-hab .gh-acc { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px }
+.globo-hab .g-hacer {
+  height: 28px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px 0 10px; border: 0; border-radius: 999px;
+  background: var(--tinta); color: var(--crema); font: 800 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
+  transition: transform var(--d-presion) ease;
+}
+.globo-hab .g-hacer:active { transform: scale(.96) }
+.globo-hab .g-hacer .pt { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--hc, var(--ambar)) }
+.globo-hab .g-ver { padding: 6px 2px; border: 0; background: none; color: var(--ambar-tinta); font: 600 10px/1 var(--m); letter-spacing: .03em; cursor: pointer }
+.globo-hab .g-ver:hover { text-decoration: underline; text-underline-offset: 3px }
+.globo-hab .gh-ok {
+  width: 16px; height: 16px; display: inline-grid; place-items: center; margin-right: 6px; vertical-align: -3px; border-radius: 50%;
+  background: var(--tinta); color: var(--ambar);
+}
+.globo-hab .gh-ok svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round }
+/* La fila de la dividida: la de Tareas con una acción más */
+.aviso-hab .lnk + .lnk { padding-left: 0 }
+/* El anillo de 14 de la muesca (cantidad): el de la fila del menú, sobre el crema */
+#muesca-globo .mt-a { display: inline-grid; width: 14px; height: 14px }
+#muesca-globo .mt-a svg { width: 14px; height: 14px; fill: none; stroke-width: 2.6; transform: rotate(-90deg) }
+#muesca-globo .mt-a .a-f { stroke: rgba(20, 17, 12, .16) }
+#muesca-globo .mt-a .a-l { stroke: var(--ambar-tinta); stroke-linecap: round }
+@media (prefers-reduced-motion: reduce) {
+  .globo-hab .globo-x, .globo-hab .g-hacer { transition: none }
+}
+body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: none }
+
+/* ------------------------------------------------------------------ el resumen semanal (habitos-ux.md 8.4 y 8.5, entrega H3)
+   Sobre `.globo-hab`: arriba el kicker (600 9px/1 var(--m), .12em, mayúsculas, #5c554a) y la × «Más tarde»;
+   abajo un solo button.globo-res con la frase (números en 800), las 7 barras (--tinta sobre el crema, alto
+   26 × fracción, mínimo 3, con la letra del día debajo) y «Charlemos la semana →». Las barras crecen desde
+   abajo, escalonadas 45 ms desde 260 (600 ms --ease); con movimiento reducido o en pausa, aparecen enteras */
+.globo-sem .gh-k { flex: 1; min-width: 0; padding-top: 7px; font: 600 9px/1.4 var(--m); letter-spacing: .12em; text-transform: uppercase; color: #5c554a }
+.globo-sem .globo-res {
+  display: grid; gap: 8px; width: 100%; margin: 0; padding: 0 6px 2px 0; border: 0; border-radius: 8px; background: none;
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.globo-sem .globo-res .globo-t { display: block; padding-top: 0 }
+.globo-sem .globo-res:hover .globo-c { text-decoration: underline; text-underline-offset: 3px }
+.globo-sem .barras { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; align-items: end }
+.globo-sem .barras > span { display: grid; grid-template-rows: 26px auto; gap: 3px; justify-items: center; align-items: end; font: 600 8.5px/1 var(--m); color: #5c554a }
+.globo-sem .barras i { display: block; width: 100%; height: var(--h); border-radius: 3px; background: var(--tinta); transform-origin: bottom }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) .globo-sem .barras i { animation: barra-sube .6s var(--ease) both; animation-delay: calc(var(--i) * 45ms + 260ms) }
+}
+@keyframes barra-sube { from { transform: scaleY(0) } }

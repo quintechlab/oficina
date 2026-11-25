@@ -7,6 +7,7 @@ import { avi } from './avis.js'
 import { escapar } from './logica.js'
 import { ladoFilaTareas } from './tareasVista.js'
 import { nombreFilaTareas } from './tareas.js'
+import { cuentaMiniHabitos } from './habitosVista.js'
 
 /**
  * `#aviso-p` (4.5, 5): la cara de quien pregunta (Avi de 30 en pose de pregunta, con la forma de su
@@ -24,10 +25,10 @@ export function avisoPreguntaHtml(aviso, formas = new Set()) {
  * Las cuentas chicas de los módulos en la tira mini (8, M2), después de la insignia de preguntas: la de
  * Tareas es la misma pieza de su fila (`ladoFilaTareas`: `.chip-venc` con punto o `.chip-preg`), sin la
  * pista del atajo, con su nombre para el lector (`nombreFilaTareas`). `entran`: lo que decidió
- * `cuentasModulosMini`. Hábitos suma su anillo con #41.
+ * `cuentasModulosMini`. Después, la de Hábitos (#41): su anillo con «{h}/{t}» (`cuentaMiniHabitos`).
  */
 export function cuentasMiniHtml(tareas, habitos, entran) {
   const n = (tareas?.hoy ?? 0) + (tareas?.vencidas ?? 0)
-  if (!entran?.tareas || !n) return ''
-  return `${ladoFilaTareas(tareas)}<span class="oculto">${escapar(nombreFilaTareas(tareas))}</span>`
+  const t = entran?.tareas && n ? `${ladoFilaTareas(tareas)}<span class="oculto">${escapar(nombreFilaTareas(tareas))}</span>` : ''
+  return t + (entran?.habitos ? cuentaMiniHabitos(habitos) : '')
 }
