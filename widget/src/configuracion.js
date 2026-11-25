@@ -44,14 +44,26 @@ export const INTERRUPTORES = { arriba: true, avisar: true, pausa: false }
 /**
  * ¿`valor` sirve para `clave`? `mascota`, una de las siete especies (texto exacto); `arriba`,
  * `avisar` y `pausa`, solo booleanos; `tareasAvisado` (el día del aviso diario de tareas,
- * tareas-ux.md 11.4), un día que existe `AAAA-MM-DD` o vacío; cualquier otra clave, no. `motor`
- * llega con el chat (D6).
+ * tareas-ux.md 11.4), un día que existe `AAAA-MM-DD` o vacío; `habitosRecordados` (los hábitos ya
+ * recordados hoy, habitos-ux.md 8.3 y 11.5), `{ dia, ids }` con solo esas dos claves, un día que existe
+ * y hasta 100 ids de hábito; cualquier otra clave, no. Las mismas reglas que `ajuste_valido` de
+ * preferencias.rs. `motor` llega con el chat (D6).
  */
 export function validarAjuste(clave, valor) {
   if (clave === 'mascota') return NOMBRES_ESPECIES.includes(valor)
   if (Object.hasOwn(INTERRUPTORES, clave ?? '')) return typeof valor === 'boolean'
   if (clave === 'tareasAvisado') return valor === '' || fechaValida(valor)
+  if (clave === 'habitosRecordados') return recordadosValidos(valor)
   return false
+}
+
+/** Un id de hábito (`id_valido` de habitos.rs): `h-` y de 1 a 38 minúsculas, dígitos o guiones. */
+const ID_HABITO = /^h-[a-z0-9-]{1,38}$/
+
+/** `{ dia, ids }` de los hábitos recordados (11.5), sin otras claves, con hasta 100 ids (`MAX_RECORDADOS`). */
+function recordadosValidos(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v) || Object.keys(v).length !== 2) return false
+  return fechaValida(v.dia) && Array.isArray(v.ids) && v.ids.length <= 100 && v.ids.every(id => typeof id === 'string' && ID_HABITO.test(id))
 }
 
 /** Un interruptor leído: lo que no es booleano vuelve al de fábrica. */

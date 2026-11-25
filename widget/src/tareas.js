@@ -8,6 +8,7 @@
 // `tareas_guardar`). Confirmar en el mismo botón es `clicBorrar` de configuracion.js, sobre `armado`.
 
 import { hoyArgentina, diasEntre, sumarDias, fechaValida, horaArgentina } from './fechas.js'
+import { lugarGlobo } from './globos.js'
 
 export { hoyArgentina, diasEntre }
 
@@ -163,17 +164,16 @@ export function soltarAviso(a) {
 
 /**
  * Dónde se ve el aviso pendiente (8.2), o null si espera: 'marca' (el panel con la barra lateral),
- * 'dividida' (el riel en lugar de la barra) o 'muesca' (acoplada y plegada; una pregunta pendiente la
- * tapa). Espera en la tira, en la bandeja o escondida, con la charla abierta, a mitad de un arrastre y
- * sin barra (el vacío o primeros pasos). Con la hoja de Tareas abierta, o sin nada que contar, nada.
+ * 'dividida' (el riel en lugar de la barra) o 'muesca' (acoplada y plegada). Espera en la tira, en la
+ * bandeja o escondida, con la charla abierta, a mitad de un arrastre y sin barra (el vacío o primeros
+ * pasos). Con la hoja de Tareas abierta, o sin nada que contar, nada. Con una pregunta pendiente, en
+ * ningún lugar (D-m4 de modulos-ux.md y D-h5 de habitos-ux.md: antes solo la tapaba en la muesca).
+ * Es una envoltura: el «dónde» es `lugarGlobo` de globos.js (habitos-ux.md 8.2), el mismo de la cola.
  * `f`: `{ cuentas, hoja, fuera, mini, chat, arrastrando, acoplada, abierta, dividida, barra, pregunta }`.
  */
 export function lugarAviso(a, f) {
   if (!a?.pendiente || f.hoja || (f.cuentas?.hoy ?? 0) + (f.cuentas?.vencidas ?? 0) <= 0) return null
-  if (f.fuera || f.mini || f.chat || f.arrastrando) return null
-  if (f.acoplada && !f.abierta) return f.pregunta ? null : 'muesca'
-  if (f.dividida) return 'dividida'
-  return f.barra ? 'marca' : null
+  return f.pregunta ? null : lugarGlobo(f)
 }
 
 /** "HH:MM" en Argentina de un instante en ms (la hora del saludo, D-n1): vive en fechas.js (habitos-ux.md 11.2). */

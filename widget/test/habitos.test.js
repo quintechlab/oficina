@@ -10,7 +10,9 @@ import {
   borradorNuevo, desdeSugerida, SUGERIDAS, textoBorrar, mananaHabitos, ultimasSemanas, rangoSemana, cabeceraSemana, editar,
   habitosInicial, abrirHabitos, cerrarHabitos, verHabitos, empezarNuevo, abrirHabito, cerrarHabito, ordenarHabitos,
   anuncioTilde, anuncioSuma, anuncioDiaCompleto, anuncioCorregido, anuncioCreado, anuncioBorrado, textoRachaGrande, desdeEl,
+  recordatoriosDebidos, recordar, recordatorioVigente, textosGlobo, textoHechoGlobo,
 } from '../src/habitos.js'
+import { plano } from '../src/tareas.js'
 
 // Hoy: jueves 26/11/2026; la semana va del lunes 23 al domingo 29
 const HOY = '2026-11-26'
@@ -451,4 +453,151 @@ test('esAtajoHabitos: Ctrl H sí; con Shift, Alt o Meta no', () => {
   assert.equal(esAtajoHabitos({ key: 'h', ctrlKey: true, metaKey: true }), false)
   assert.equal(esAtajoHabitos({ key: 'h' }), false)
   assert.equal(esAtajoHabitos({ key: 't', ctrlKey: true }), false)
+})
+
+// ------------------------------------------------------------------ el recordatorio (H2: 8.3, 5.4, 5.5 y 11.6)
+
+/** Un instante en ms a la hora de Argentina `hm` ("HH:MM") del día `d` (UTC−3 todo el año). */
+const a = (hm, d = HOY) => Date.parse(`${d}T${hm}:00-03:00`)
+const ids = debidos => debidos.map(r => r.id)
+
+test('recordatoriosDebidos: antes de la hora nada; a la hora, el hábito (con su hora y el día)', () => {
+  const agua = hab({ id: 'h-agua', tipo: 'cantidad', aviso: '16:00', registro: { [HOY]: 3 } })
+  assert.deepEqual(recordatoriosDebidos([agua], a('15:59'), null), [])
+  assert.deepEqual(recordatoriosDebidos([agua], a('16:00'), null), [{ id: 'h-agua', hora: '16:00', dia: HOY, tarde: false }])
+  // Sin aviso, o con un aviso que no es una hora, nunca
+  assert.deepEqual(recordatoriosDebidos([hab({ aviso: null })], a('23:59'), null), [])
+  assert.deepEqual(recordatoriosDebidos([hab({ aviso: '25:00' })], a('23:59'), null), [])
+})
+
+test('recordatoriosDebidos: ya hecho hoy, nada (cantidad con la meta; sí/no con 1)', () => {
+  assert.deepEqual(recordatoriosDebidos([hab({ aviso: '09:00', registro: reg(0) })], a('10:00'), null), [])
+  assert.deepEqual(recordatoriosDebidos([hab({ tipo: 'cantidad', meta: 8, aviso: '09:00', registro: { [HOY]: 8 } })], a('10:00'), null), [])
+  // Cantidad sin llegar a la meta: se debe
+  assert.equal(recordatoriosDebidos([hab({ tipo: 'cantidad', meta: 8, aviso: '09:00', registro: { [HOY]: 7 } })], a('10:00'), null).length, 1)
+})
+
+test('recordatoriosDebidos: ya recordado hoy, nada; otro día en recordados, vuelve', () => {
+  const h = hab({ aviso: '09:00' })
+  assert.deepEqual(recordatoriosDebidos([h], a('10:00'), { dia: HOY, ids: ['h-x'] }), [])
+  assert.deepEqual(ids(recordatoriosDebidos([h], a('10:00'), { dia: dia(-1), ids: ['h-x'] })), ['h-x'])
+  // Recordado hoy otro hábito: este sale igual
+  assert.deepEqual(ids(recordatoriosDebidos([h], a('10:00'), { dia: HOY, ids: ['h-otro'] })), ['h-x'])
+})
+
+test('recordatoriosDebidos: algunos días que hoy no toca, nada; por semana cumplida, nada', () => {
+  // HOY es jueves (3): lun, mié y vie no lo incluyen
+  assert.deepEqual(recordatoriosDebidos([hab({ tipo: 'dias', dias: [0, 2, 4], aviso: '07:30' })], a('09:00'), null), [])
+  assert.equal(recordatoriosDebidos([hab({ tipo: 'dias', dias: [3], aviso: '07:30' })], a('09:00'), null).length, 1)
+  // Por semana: 3 de 3 esta semana (lunes 23, martes 24 y miércoles 25) y hoy sin marcar: no hace falta
+  const correr = hab({ tipo: 'semana', veces: 3, aviso: '18:00', registro: reg(-3, -2, -1) })
+  assert.deepEqual(recordatoriosDebidos([correr], a('19:00'), null), [])
+  // 1 de 3 y hoy sin marcar: se debe
+  assert.equal(recordatoriosDebidos([hab({ tipo: 'semana', veces: 3, aviso: '18:00', registro: reg(-1) })], a('19:00'), null).length, 1)
+})
+
+test('recordatoriosDebidos: dos debidos, ordenados por hora (el más temprano primero)', () => {
+  const tarde = hab({ id: 'h-caminar', aviso: '19:00' })
+  const temprano = hab({ id: 'h-agua', aviso: '16:00' })
+  assert.deepEqual(ids(recordatoriosDebidos([tarde, temprano], a('19:30'), null)), ['h-agua', 'h-caminar'])
+})
+
+test('recordatoriosDebidos: más de 60 min después de la hora sale con tarde: true (solo globo, D-h12)', () => {
+  const h = hab({ aviso: '16:00' })
+  assert.equal(recordatoriosDebidos([h], a('17:00'), null)[0].tarde, false)
+  assert.equal(recordatoriosDebidos([h], a('17:01'), null)[0].tarde, true)
+  // Arrancar a la noche: sale igual, una sola vez, tarde
+  assert.deepEqual(recordatoriosDebidos([h], a('23:30'), null), [{ id: 'h-x', hora: '16:00', dia: HOY, tarde: true }])
+})
+
+test('recordatoriosDebidos: el día es el de Argentina (23:30 del 26 en Argentina ya es el 27 en UTC)', () => {
+  const h = hab({ aviso: '23:00' })
+  const r = recordatoriosDebidos([h], Date.parse('2026-11-27T02:30:00Z'), { dia: '2026-11-27', ids: ['h-x'] })
+  assert.deepEqual(r, [{ id: 'h-x', hora: '23:00', dia: HOY, tarde: false }])
+})
+
+test('recordar: suma los ids del día; otro día empieza de cero; sin repetir y hasta 100', () => {
+  assert.deepEqual(recordar(null, ['h-a'], HOY), { dia: HOY, ids: ['h-a'] })
+  assert.deepEqual(recordar({ dia: HOY, ids: ['h-a'] }, ['h-b', 'h-a'], HOY), { dia: HOY, ids: ['h-a', 'h-b'] })
+  assert.deepEqual(recordar({ dia: dia(-1), ids: ['h-a'] }, ['h-b'], HOY), { dia: HOY, ids: ['h-b'] })
+  const muchos = Array.from({ length: 105 }, (_, i) => `h-${i}`)
+  const r = recordar(null, muchos, HOY)
+  assert.equal(r.ids.length, 100)
+  assert.deepEqual(r.ids.slice(-1), ['h-104'])
+})
+
+test('recordatorioVigente: se va al cumplir el hábito, si el hábito ya no está o a la medianoche', () => {
+  const h = hab({ tipo: 'cantidad', meta: 8, aviso: '16:00', registro: { [HOY]: 3 } })
+  const aviso = { tipo: 'rec', id: 'h-x', dia: HOY, hora: '16:00' }
+  assert.equal(recordatorioVigente(aviso, h, HOY), true)
+  // Un +1 que no llega a la meta: sigue
+  assert.equal(recordatorioVigente(aviso, sumar(h, HOY, 1), HOY), true)
+  // Hecho por cualquier camino (la hoja, el globo): se va
+  assert.equal(recordatorioVigente(aviso, { ...h, registro: { [HOY]: 8 } }, HOY), false)
+  // El hábito se borró
+  assert.equal(recordatorioVigente(aviso, undefined, HOY), false)
+  // Medianoche: el de ayer se va
+  assert.equal(recordatorioVigente(aviso, h, dia(1)), false)
+  // Por semana: la semana quedó cumplida
+  const correr = hab({ tipo: 'semana', veces: 2, registro: reg(-1) })
+  assert.equal(recordatorioVigente(aviso, correr, HOY), true)
+  assert.equal(recordatorioVigente(aviso, marcar(correr, HOY, true), HOY), false)
+})
+
+test('textosGlobo: cantidad (5.4 y 5.5): marca, muesca, fila, acciones y notificación', () => {
+  const agua = hab({ nombre: 'Agua', tipo: 'cantidad', meta: 8, unidad: 'vasos', aviso: '16:00', registro: { [HOY]: 3 } })
+  const t = textosGlobo({ tipo: 'rec', id: 'h-x', dia: HOY, hora: '16:00' }, agua)
+  assert.equal(plano(t.globo), '16:00 · Agua: van 3 de 8 vasos. ¿Uno más?')
+  // En negrita, la hora y los números
+  assert.deepEqual(t.globo.filter(s => s.fuerte).map(s => s.t), ['16:00', '3 de 8 vasos'])
+  assert.equal(t.texto, '16:00 · Agua: van 3 de 8 vasos. ¿Uno más?')
+  assert.equal(t.hacer, '+1 vaso')
+  assert.equal(t.ver, 'Ver hábitos →')
+  assert.equal(plano(t.muesca), '16:00 · Agua 3 de 8')
+  assert.deepEqual(t.progreso, { hechos: 3, total: 8 })
+  assert.equal(plano(t.fila), '16:00 · Agua: 3 de 8.')
+  assert.equal(t.hacerFila, '+1')
+  assert.deepEqual(t.notificacion, { titulo: 'Agua · 16:00', cuerpo: 'Van 3 de 8 vasos. ¿Uno más?' })
+  assert.deepEqual(t.x, { nombre: 'Ahora no: no te recuerdo Agua hasta mañana', titulo: 'Ahora no' })
+  // Sin unidad: sin el espacio de más
+  assert.equal(plano(textosGlobo({ dia: HOY, hora: '16:00' }, { ...agua, unidad: '' }).globo), '16:00 · Agua: van 3 de 8. ¿Uno más?')
+})
+
+test('textosGlobo: sí/no y algunos días (5.4 y 5.5)', () => {
+  for (const extra of [{}, { tipo: 'dias', dias: [3] }]) {
+    const t = textosGlobo({ dia: HOY, hora: '19:00' }, hab({ nombre: 'Caminar', aviso: '19:00', ...extra }))
+    assert.equal(plano(t.globo), '19:00 · Te toca Caminar.')
+    assert.deepEqual(t.globo.filter(s => s.fuerte).map(s => s.t), ['19:00', 'Caminar'])
+    assert.equal(t.hacer, 'Hecho')
+    assert.equal(plano(t.muesca), '19:00 · Caminar')
+    assert.equal(t.progreso, null)
+    assert.equal(plano(t.fila), '19:00 · Te toca Caminar.')
+    assert.equal(t.hacerFila, 'Hecho')
+    assert.deepEqual(t.notificacion, { titulo: 'Caminar · 19:00', cuerpo: 'Te toca Caminar.' })
+  }
+})
+
+test('textosGlobo: por semana (5.4 y 5.5): lo que lleva esta semana', () => {
+  const correr = hab({ nombre: 'Correr', tipo: 'semana', veces: 3, aviso: '18:00', registro: reg(-2) })
+  const t = textosGlobo({ dia: HOY, hora: '18:00' }, correr)
+  assert.equal(plano(t.globo), '18:00 · Te toca Correr: llevás 1 de 3 esta semana.')
+  assert.equal(t.hacer, 'Hecho')
+  assert.equal(plano(t.muesca), '18:00 · Correr')
+  assert.equal(plano(t.fila), '18:00 · Te toca Correr.')
+  assert.deepEqual(t.notificacion, { titulo: 'Correr · 18:00', cuerpo: 'Llevás 1 de 3 esta semana.' })
+})
+
+test('textoHechoGlobo: cantidad «Listo: {v} de {meta} {unidad}.» (+ « ¡Meta del día!»); sí/no con la racha', () => {
+  const agua = hab({ nombre: 'Agua', tipo: 'cantidad', meta: 8, unidad: 'vasos', registro: { [HOY]: 4 } })
+  assert.equal(plano(textoHechoGlobo(agua, HOY)), 'Listo: 4 de 8 vasos.')
+  assert.deepEqual(textoHechoGlobo(agua, HOY).filter(s => s.fuerte).map(s => s.t), ['4 de 8 vasos'])
+  assert.equal(plano(textoHechoGlobo({ ...agua, registro: { [HOY]: 8 } }, HOY)), 'Listo: 8 de 8 vasos. ¡Meta del día!')
+  // Sí/no: 6 seguidos + hoy = 7
+  const caminar = hab({ nombre: 'Caminar', registro: reg(-6, -5, -4, -3, -2, -1, 0) })
+  assert.equal(plano(textoHechoGlobo(caminar, HOY)), '¡Hecho! Caminar: 7 días seguidos.')
+  assert.deepEqual(textoHechoGlobo(caminar, HOY).filter(s => s.fuerte).map(s => s.t), ['Caminar'])
+  assert.equal(plano(textoHechoGlobo(hab({ nombre: 'Leer', registro: reg(0) }), HOY)), '¡Hecho! Leer: 1 día seguido.')
+  // Por semana: en semanas
+  const correr = hab({ nombre: 'Correr', tipo: 'semana', veces: 1, registro: reg(0) })
+  assert.equal(plano(textoHechoGlobo(correr, HOY)), '¡Hecho! Correr: 1 semana seguida.')
 })

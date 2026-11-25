@@ -4,13 +4,14 @@
 // confirmar en el mismo botón, la tarjeta de error y los íconos comunes): los datos llegan armados
 // desde main.js y nada de acá toca el DOM. main.js redibuja por partes (`data-parte`) y nunca pisa un
 // campo mientras se escribe en él (`ponerParteConCampo`).
-// Entrega H1. Los globos del recordatorio y del resumen (H2, H3) no están.
+// Entrega H1, y en H2 el globo del recordatorio (la marca, la muesca y la fila de la dividida). El del
+// resumen (H3) no está.
 
 import { escapar } from './logica.js'
 import { avi, claudeDe } from './avis.js'
 import { especieValida } from './especies.js'
 import { colorDe } from './tareas.js'
-import { ICONO as ICONO_TAREAS, botonIndice, confirmable, err, boton } from './tareasVista.js'
+import { ICONO as ICONO_TAREAS, botonIndice, confirmable, err, boton, tramos, X } from './tareasVista.js'
 import { lunesDe, sumarDias, diaSemana } from './fechas.js'
 import {
   toca, hecho, deHoy, valor, racha, mejorRacha, nivelRacha, textoRachaGrande, estadoCelda, textoCelda, corregible,
@@ -391,4 +392,47 @@ export function errorCarpetaHab(detalle) {
 /** La píldora del hito (4.14): `aria-hidden`; el texto va al anuncio. */
 export function hitoHtml(texto) {
   return `<div class="hito" aria-hidden="true">${ICONO.brasa}${escapar(texto)}</div>`
+}
+
+// ------------------------------------------------------------------ el globo del recordatorio (H2: 8.2, 8.5 y 5.4)
+
+const atrX = (t, id) => `data-valor="${escapar(id)}" aria-label="${escapar(t.x.nombre)}" title="${escapar(t.x.titulo)}"`
+/** El visto ámbar en un círculo `--tinta` de 16 delante del texto de «Hecho» (8.5). */
+const OK = `<span class="gh-ok" aria-hidden="true">${ICONO.visto}</span>`
+
+/**
+ * El globo de la marca para Hábitos (8.5, `.globo-hab` sobre la base de `.globo-tar`): arriba el texto
+ * de 5.4 y la × («Ahora no»); abajo «+1 {unidad}» o «Hecho» (la píldora con el punto del color del
+ * hábito) y «Ver hábitos →». `t`: lo de `textosGlobo`. Con `confirma` (los tramos de `textoHechoGlobo`)
+ * es la confirmación de 1,8 s: el visto y ese texto, sin las acciones; la × sigue (ahí queda el foco).
+ */
+export function globoHab(t, { id, color: tono, confirma = null }) {
+  const v = `data-valor="${escapar(id)}"`
+  const texto = confirma ? `${OK}${tramos(confirma)}` : tramos(t.globo)
+  const acciones = confirma ? '' : `<div class="gh-acc"><button type="button" class="g-hacer" data-accion="hab-globo-hacer" ${v}>`
+    + `<span class="pt" style="--hc: ${color(tono)}" aria-hidden="true"></span>${escapar(t.hacer)}</button>`
+    + `<button type="button" class="g-ver" data-accion="hab-globo-ver" ${v}>${escapar(t.ver)}</button></div>`
+  return `<div class="globo-tar globo-hab${confirma ? ' confirma' : ''}" data-globo-hab ${v}><div class="gh-arriba"><p class="globo-t">${texto}</p>`
+    + `<button type="button" class="globo-x" data-accion="hab-globo-x" ${atrX(t, id)}>${X}</button></div>${acciones}</div>`
+}
+
+/**
+ * Lo de adentro del globo de la muesca (`#muesca-globo`, 5.4) para un recordatorio: «16:00 · {nombre}
+ * {v} de {meta}» con el anillo de 14 (cantidad) o «19:00 · {nombre}», y «Ver →»; `nombre`, el del botón.
+ */
+export function globoMuescaHab(t) {
+  const anillo = t.progreso ? `<span class="mt-a" aria-hidden="true">${anilloMini(t.progreso.hechos, t.progreso.total)}</span>` : ''
+  return { html: `<span class="mt-t">${tramos(t.muesca)}</span>${anillo}<span class="mt-c">Ver <span aria-hidden="true">→</span></span>`, nombre: `${t.texto} Ver hábitos` }
+}
+
+/**
+ * La fila de la dividida para un recordatorio (5.4; la de `filaAviso` de Tareas): el texto corto, «+1» o
+ * «Hecho», «Ver →» y la ×. Con `confirma`, el texto de «Hecho» y solo la ×.
+ */
+export function filaAvisoHab(t, { id, confirma = null }) {
+  const v = `data-valor="${escapar(id)}"`
+  const acciones = confirma ? '' : `<button type="button" class="lnk" data-accion="hab-globo-hacer" ${v}>${escapar(t.hacerFila)}</button>`
+    + `<button type="button" class="lnk" data-accion="hab-globo-ver" ${v}>Ver →</button>`
+  return `<div class="aviso aviso-tar aviso-hab" data-globo-hab ${v}><span class="at-t">${tramos(confirma ?? t.fila)}</span>${acciones}`
+    + `<button type="button" class="tb" data-accion="hab-globo-x" ${atrX(t, id)}>${X}</button></div>`
 }

@@ -125,15 +125,21 @@ pub fn leer_interruptores(ruta: &Path) -> Interruptores {
 /// Las claves que escribe `guardar_ajuste` (el tamaño y el acople tienen sus comandos propios). Las
 /// mismas que `validarAjuste` de configuracion.js; `motor` llega con el chat. `tareasAvisado` es el
 /// día del aviso diario de tareas (tareas-ux.md 11.4) y se guarda adentro de `"tareas"`.
-const AJUSTES: [&str; 5] = ["mascota", "arriba", "avisar", "pausa", "tareasAvisado"];
+/// `habitosRecordados` son los hábitos ya recordados hoy (habitos-ux.md 8.3 y 11.5), tal cual.
+const AJUSTES: [&str; 6] = ["mascota", "arriba", "avisar", "pausa", "tareasAvisado", "habitosRecordados"];
+
+/// Cuántos hábitos recordados se guardan como mucho (habitos-ux.md 11.5; `MAX_RECORDADOS` de habitos.js).
+const MAX_RECORDADOS: usize = 100;
 
 /// ¿`valor` sirve para `clave`? La mascota, una de `ESPECIES` (texto exacto); los interruptores,
-/// solo booleanos; el aviso de tareas, un día que existe `AAAA-MM-DD` o vacío. Cualquier otra clave, no.
+/// solo booleanos; el aviso de tareas, un día que existe `AAAA-MM-DD` o vacío; los hábitos recordados,
+/// `{ dia, ids }` (`recordados_validos`). Cualquier otra clave, no.
 pub fn ajuste_valido(clave: &str, valor: &Value) -> bool {
     match clave {
         "mascota" => valor.as_str().is_some_and(|m| ESPECIES.contains(&m)),
         "arriba" | "avisar" | "pausa" => valor.is_boolean(),
         "tareasAvisado" => valor.as_str().is_some_and(|d| d.is_empty() || dia_valido(d)),
+        "habitosRecordados" => recordados_validos(valor),
         _ => false,
     }
 }
@@ -144,6 +150,18 @@ fn dia_valido(d: &str) -> bool {
     b.len() == 10
         && b.iter().enumerate().all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() })
         && chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok()
+}
+
+/// Los hábitos recordados (habitos-ux.md 11.5): un objeto con solo `dia` (un día que existe) e `ids`
+/// (hasta 100 ids de hábito válidos, `habitos::id_valido`). Así un reinicio el mismo día no repite el
+/// recordatorio (8.3).
+fn recordados_validos(valor: &Value) -> bool {
+    let Some(o) = valor.as_object() else { return false };
+    let dia = o.get("dia").and_then(Value::as_str).is_some_and(dia_valido);
+    let ids = o.get("ids").and_then(Value::as_array).is_some_and(|ids| {
+        ids.len() <= MAX_RECORDADOS && ids.iter().all(|id| id.as_str().is_some_and(crate::habitos::id_valido))
+    });
+    o.len() == 2 && dia && ids
 }
 
 /// Guarda un ajuste de la configuración y conserva lo demás. Uno inválido no toca el archivo. El aviso
@@ -164,6 +182,12 @@ pub fn guardar_ajuste(ruta: &Path, clave: &str, valor: &Value) -> Result<(), Str
         (clave, valor.clone())
     };
     escribir(ruta, Preferencias { ajustes: vec![ajuste], ..leer_todo(ruta) })
+}
+
+/// Los hábitos ya recordados (`habitosRecordados`, habitos-ux.md 8.3), o `None` si no hay o no sirven
+/// (lo escrito a mano que no pasa `recordados_validos` se lee como nada recordado).
+pub fn leer_habitos_recordados(ruta: &Path) -> Option<Value> {
+    leer_valor(ruta).and_then(|v| v.get("habitosRecordados").cloned()).filter(recordados_validos)
 }
 
 /// El día del último aviso diario de tareas (`tareas.avisado`, 11.4). Sin archivo, sin la clave,
@@ -863,6 +887,52 @@ mod tests {
         assert_eq!(leer_tareas_avisado(&r), None);
         guardar_ajuste(&r, "tareasAvisado", &json!("2026-11-25")).unwrap();
         assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-25"));
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn los_habitos_recordados_aceptan_un_dia_y_ids_de_habito_hasta_100() {
+        // habitos-ux.md 8.3 y 11.5: `{ dia, ids }`, el día de Argentina y los hábitos ya recordados ese día
+        let cien: Vec<String> = (0..100).map(|i| format!("h-{i}")).collect();
+        for bueno in [json!({ "dia": "2026-11-26", "ids": [] }), json!({ "dia": "2026-11-26", "ids": ["h-agua", "h-mf3k-2a"] }), json!({ "dia": "2024-02-29", "ids": cien })] {
+            assert!(ajuste_valido("habitosRecordados", &bueno), "{bueno}");
+        }
+        let ciento_uno: Vec<String> = (0..101).map(|i| format!("h-{i}")).collect();
+        for malo in [
+            json!({ "dia": "2026-02-30", "ids": [] }), json!({ "dia": "", "ids": [] }), json!({ "ids": [] }), json!({ "dia": "2026-11-26" }),
+            json!({ "dia": "2026-11-26", "ids": ["l-trabajo"] }), json!({ "dia": "2026-11-26", "ids": ["h-../x"] }), json!({ "dia": "2026-11-26", "ids": ["h-A"] }),
+            json!({ "dia": "2026-11-26", "ids": [3] }), json!({ "dia": "2026-11-26", "ids": "h-agua" }), json!({ "dia": "2026-11-26", "ids": ciento_uno }),
+            json!({ "dia": "2026-11-26", "ids": [], "otra": 1 }), json!("2026-11-26"), Value::Null, json!(true), json!([]),
+        ] {
+            assert!(!ajuste_valido("habitosRecordados", &malo), "{malo}");
+        }
+    }
+
+    #[test]
+    fn los_habitos_recordados_se_guardan_sin_borrar_lo_demas_y_se_leen_validados() {
+        let r = ruta_temporal("habitos-recordados");
+        assert_eq!(leer_habitos_recordados(&r), None);
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        fs::write(&r, r#"{"tareas":{"avisado":"2026-11-26"},"futura":[1],"mascota":"ascua"}"#).unwrap();
+        let valor = json!({ "dia": "2026-11-26", "ids": ["h-agua", "h-caminar"] });
+        guardar_ajuste(&r, "habitosRecordados", &valor).unwrap();
+        let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+        assert_eq!(guardado["habitosRecordados"], valor);
+        // Lo demás del archivo sigue: el aviso de tareas, la mascota y una clave que esta versión no conoce
+        assert_eq!(guardado["tareas"], json!({ "avisado": "2026-11-26" }));
+        assert_eq!(guardado["futura"], json!([1]));
+        assert_eq!(leer_mascota(&r), "ascua");
+        assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-26"));
+        assert_eq!(leer_habitos_recordados(&r), Some(valor.clone()));
+        // Uno inválido no toca el archivo
+        assert!(guardar_ajuste(&r, "habitosRecordados", &json!({ "dia": "ayer", "ids": [] })).is_err());
+        assert_eq!(leer_habitos_recordados(&r), Some(valor));
+        // Guardar otro ajuste no lo borra
+        guardar_ajuste(&r, "tareasAvisado", &json!("2026-11-27")).unwrap();
+        assert!(leer_habitos_recordados(&r).is_some());
+        // Lo escrito a mano que no sirve se lee como nada recordado
+        fs::write(&r, r#"{"habitosRecordados":{"dia":"2026-11-26","ids":["../x"]}}"#).unwrap();
+        assert_eq!(leer_habitos_recordados(&r), None);
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 

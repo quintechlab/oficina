@@ -1070,7 +1070,8 @@ async fn elegir_carpeta(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 /// Todo lo que la ventana necesita al arrancar y para la configuración (configuracion-ux.md 9.2):
-/// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version, chat, tareasAvisado }`.
+/// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version, chat, tareasAvisado,
+/// habitosRecordados }`.
 /// `arranque` sale del sistema, no del archivo. Sin carpeta de configuración, los valores de fábrica.
 #[tauri::command]
 fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
@@ -1089,6 +1090,8 @@ fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::
         "chat": valor_chat(ruta.as_deref().map(preferencias::leer_chat).unwrap_or_default()),
         // El día del último aviso diario de tareas (tareas-ux.md 11.4), o null
         "tareasAvisado": ruta.as_deref().and_then(preferencias::leer_tareas_avisado),
+        // Los hábitos ya recordados hoy (habitos-ux.md 8.3): `{ dia, ids }`, o null
+        "habitosRecordados": ruta.as_deref().and_then(preferencias::leer_habitos_recordados),
     })
 }
 
@@ -1105,9 +1108,10 @@ fn valor_chat(c: preferencias::Chat) -> serde_json::Value {
 }
 
 /// Guarda un ajuste de la configuración (`mascota`, `arriba`, `avisar` o `pausa`; configuracion-ux.md
-/// 9.2; y `tareasAvisado`, el día del aviso diario de tareas, tareas-ux.md 11.4) y aplica su
+/// 9.2; `tareasAvisado`, el día del aviso diario de tareas, tareas-ux.md 11.4; y `habitosRecordados`,
+/// los hábitos ya recordados hoy, habitos-ux.md 8.3) y aplica su
 /// efecto: "Siempre arriba" a la ventana, la pausa a la marca de la bandeja y a la ventana
-/// (`oficina://pausa`), la mascota a la ventana (`oficina://mascota`); el aviso, ninguno. Si no se
+/// (`oficina://pausa`), la mascota a la ventana (`oficina://mascota`); el aviso y los recordados, ninguno. Si no se
 /// pudo guardar, no aplica nada y la ventana vuelve el control a su valor de antes.
 #[tauri::command]
 fn guardar_ajuste(app: AppHandle, estado: State<'_, Estado>, clave: String, valor: serde_json::Value) -> Result<serde_json::Value, String> {
@@ -1392,7 +1396,8 @@ fn registrar(linea: String) {
     }
 }
 
-/// Notificación de Windows con una pregunta nueva.
+/// Notificación de Windows: una pregunta nueva o el recordatorio de un hábito (habitos-ux.md 8.3 y 5.5,
+/// título y cuerpo, sin botones). Falta medir con el `.msi` el clic, cuál se tocó, imagen y botones (11.9).
 #[tauri::command]
 fn avisar(app: AppHandle, titulo: String, cuerpo: String) -> Result<(), String> {
     app.notification().builder().title(titulo).body(cuerpo).show().map_err(|e| e.to_string())

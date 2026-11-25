@@ -173,9 +173,10 @@
   <!-- Muesca acoplada (sección 7): el único control mientras está cerrada. El panel es #marco -->
   <!-- Muesca A "Asoma" (docs/diseno/muesca-avi-ux.md): main.js escribe su armazón una vez (contenidoMuesca) -->
   <button type="button" id="muesca" aria-expanded="false" aria-controls="marco" aria-label="Avis. Abrir"></button>
-  <!-- El aviso diario de tareas con la muesca plegada (tareas-ux.md 8.5): un botón hermano (#muesca ya es un botón);
-       main.js lo ubica del lado de adentro (lugarGloboMuesca) y suma su rectángulo a la zona interactiva -->
-  <button type="button" id="muesca-tareas" data-accion="tar-globo" hidden></button>
+  <!-- El globo con la muesca plegada (tareas-ux.md 8.5 y habitos-ux.md 8.2): uno solo para el aviso de tareas y el
+       recordatorio de un hábito, un botón hermano (#muesca ya es un botón). main.js le pone su acción (data-accion),
+       lo ubica del lado de adentro (lugarGloboMuesca) y suma su rectángulo a la zona interactiva -->
+  <button type="button" id="muesca-globo" data-accion="tar-globo" hidden></button>
   <div id="luz" aria-hidden="true"></div>
   <!-- Píldora al arrastrar la muesca lejos de los bordes, y aviso del imán al arrastrar el tablero (7.3) -->
   <div id="pildora" aria-hidden="true"></div>

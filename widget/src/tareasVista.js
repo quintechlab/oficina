@@ -291,11 +291,12 @@ export function errorCarpeta(detalle) {
 
 // ------------------------------------------------------------------ el aviso diario (8 y 5.4)
 
-const X = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
+/** La × de los globos (también la del recordatorio de Hábitos, habitosVista.js). */
+export const X = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
 const MAS_TARDE = 'aria-label="Más tarde: avisame mañana" title="Más tarde"'
 
-/** Los tramos de `textoGlobo` en HTML: lo fuerte en `<b>`, las vencidas con la clase `r` (en rojo). */
-const tramos = segs => segs.map(s => (s.fuerte || s.venc ? `<b${s.venc ? ' class="r"' : ''}>${escapar(s.t)}</b>` : escapar(s.t))).join('')
+/** Los tramos de `textoGlobo` en HTML: lo fuerte en `<b>`, las vencidas con la clase `r` (en rojo). También los del recordatorio. */
+export const tramos = segs => segs.map(s => (s.fuerte || s.venc ? `<b${s.venc ? ' class="r"' : ''}>${escapar(s.t)}</b>` : escapar(s.t))).join('')
 
 /**
  * El globo de la marca (8.3; `.globo-tar`, porque `.globo` ya es el del SVG del Avi): hermano del
@@ -308,7 +309,7 @@ export function globoMarca(t) {
 }
 
 /**
- * Lo de adentro de `#muesca-tareas` (8.5), un botón hermano de `#muesca`: "{h} para hoy · {v} vencidas"
+ * Lo de adentro de `#muesca-globo` (8.5), un botón hermano de `#muesca`: "{h} para hoy · {v} vencidas"
  * y "Ver →"; `nombre`, el del botón (el texto entero del globo, que la muesca abrevia).
  */
 export function globoMuesca(t) {

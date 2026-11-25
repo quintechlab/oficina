@@ -74,8 +74,9 @@ import {
   mezclarLectura, anuncioAgregada, anuncioBorradaLista, tiempoTilde, focoTrasTildar, hoyArgentina,
   buscarTarea, editarTarea, agregarSubtarea, tildarSubtarea, editarSubtarea, borrarTarea, moverTarea, listaParaGuardar,
   nuevaMudanza, soltarMudanzas, olvidarMudanzas, fechaDeOpcion, abrirDetalle, cerrarDetalle, diferirGuardado, nombreVista,
-  MAX_SUBTAREAS, AVISO_INICIAL, evaluarAviso, verAviso, soltarAviso, lugarAviso, textoGlobo, horaGlobo, anuncioGlobo,
+  MAX_SUBTAREAS, AVISO_INICIAL, evaluarAviso, verAviso, soltarAviso, textoGlobo, horaGlobo, anuncioGlobo, plano,
 } from './tareas.js'
+import { encolar, quitar, actual as globoActual, claveRec } from './globos.js'
 import {
   ladoFilaTareas, esqueletoTareas, CARPETA, miniTareas, indiceTareas, cabeceraPanel, campoNueva, cuerpoLista,
   primerUso, errorGuardar, errorRota, errorCarpeta, atrasTarea, esqueletoDetalle, partesDetalle, globoMarca, globoMuesca, filaAviso,
@@ -87,8 +88,12 @@ import {
   toca as tocaHabito, hecho as hechoHabito, valor as valorHabito, racha as rachaHabito, marcar as marcarHabito, sumar as sumarHabito,
   corregir as corregirHabito, editar as editarHabito, conMejor, hitoNuevo, textoHito, AVISO_POR_DEFECTO,
   anuncioTilde, anuncioSuma, anuncioDiaCompleto, anuncioCorregido, anuncioCreado, anuncioBorrado,
+  recordatoriosDebidos, recordar, recordatorioVigente, textosGlobo, textoHechoGlobo,
 } from './habitos.js'
-import { ladoFilaHabitos, esqueletoHabitos, CARPETA_HAB, partesHoja, primerUsoHabitos, errorCarpetaHab, fraseHtml, hitoHtml } from './habitosVista.js'
+import {
+  ladoFilaHabitos, esqueletoHabitos, CARPETA_HAB, partesHoja, primerUsoHabitos, errorCarpetaHab, fraseHtml, hitoHtml,
+  globoHab, globoMuescaHab, filaAvisoHab,
+} from './habitosVista.js'
 import * as movimientoHabitos from './habitosMotion.js'
 import { MODULOS, irModulo as planModulo, alEscModulo, cuentaModulo, nombreModulo, avisoPregunta, moduloAlExpandir, cuentasModulosMini, desplazarTira } from './modulos.js'
 import { avisoPreguntaHtml, cuentasMiniHtml } from './modulosVista.js'
@@ -194,15 +199,26 @@ const st = {
   habFirmas: {},
   /**
    * El aviso diario de tareas (tareas-ux.md 8 y 11.4): `avisoTar` (`evaluarAviso`, una vez por
-   * ejecución), `avisadoTar` (`tareas.avisado` de preferencias.json, leído al arrancar), dónde se ve
-   * ahora (`lugarAvisoTar`: marca, dividida, muesca o null), lo dibujado (`firmaAvisoTar`) y el
-   * rectángulo del globo de la muesca en px de pantalla, para la zona interactiva (`globoMuescaTar`).
+   * ejecución) y `avisadoTar` (`tareas.avisado` de preferencias.json, leído al arrancar).
    */
   avisoTar: AVISO_INICIAL,
   avisadoTar: null,
-  lugarAvisoTar: null,
-  firmaAvisoTar: null,
-  globoMuescaTar: null,
+  /**
+   * Los globos (habitos-ux.md 8.1 y 8.2): la cola (`globos.js`; un globo por vez, pregunta ›
+   * recordatorio › tareas › resumen), dónde se ve ahora el de arriba (`lugarGlobo`: marca, dividida,
+   * muesca o null), cuál (`claveGlobo`), lo dibujado (`firmaGlobo`), el rectángulo del globo de la muesca
+   * en px de pantalla, para la zona interactiva (`rectGloboMuesca`), los recordatorios ya anunciados
+   * (`anunciados`) y el que confirma «Hecho» durante 1,8 s (`confirmaGlobo`: `{ clave, id }`).
+   */
+  globos: [],
+  lugarGlobo: null,
+  claveGlobo: null,
+  firmaGlobo: null,
+  rectGloboMuesca: null,
+  anunciados: new Set(),
+  confirmaGlobo: null,
+  /** Los hábitos ya recordados hoy (`habitosRecordados` de preferencias.json, habitos-ux.md 8.3): `{ dia, ids }` o null. */
+  habRecordados: null,
   mini: false,
   /** La ventana está escondida en la bandeja o minimizada: los Avis se pausan (6.5). */
   fuera: false,
@@ -884,8 +900,8 @@ const muescaAvi = montarMarca($('#muesca-avi'), { escala: Number(window.__escala
  * Si cambia cuál quiere el puntero, la zona se vuelve a mandar (`mirada`, 9).
  */
 function verAvis() {
-  // El aviso diario de tareas va donde esté la mascota a la vista (tareas-ux.md 8.2)
-  pintarAvisoTareas()
+  // El globo de arriba de la cola (recordatorio, aviso de tareas) va donde esté la mascota a la vista (habitos-ux.md 8.1)
+  pintarGlobos()
   // En la pantalla dividida el riel lleva a Claude de 34 sin juegos: el motor de la marca no corre (5.1).
   // Con la hoja de la charla abierta, la mascota se mudó a su escenario: la marca queda quieta (chat-avis-ux.md 3.2)
   marca.visible(!st.fuera && !st.mini && (!st.acople || st.vista) && !st.dividida.clave && !st.chat.abierta && !hojaCerrando, !!st.acople)
@@ -2000,6 +2016,8 @@ async function leerEquipo() {
 }
 
 async function ciclo() {
+  // Los recordatorios de los hábitos se revisan acá, nunca con un temporizador por hábito (habitos-ux.md 8.3)
+  revisarRecordatorios()
   await leer()
   ponerFuera(await fueraDeVista())
   // Si el área de trabajo o el monitor cambiaron, la ventana vuelve a ser el área (9.7)
@@ -2342,6 +2360,13 @@ document.addEventListener('compositionend', () => { st.componiendo = false })
 document.addEventListener('keydown', e => {
   // Las teclas de la hoja de la charla (chat-avis-ux.md 3.5): van antes que el Esc de la pregunta y el de la muesca
   if (teclaChat(e)) return
+  // Esc con el foco en el globo de un recordatorio: es su × («Ahora no», habitos-ux.md 9.1)
+  const globoHabEl = e.key === 'Escape' && e.target.closest?.('[data-globo-hab]')
+  if (globoHabEl) {
+    e.preventDefault()
+    descartarRecordatorio(globoHabEl.dataset.valor)
+    return
+  }
   // Esc con el foco en el globo del aviso diario y la hoja de Tareas cerrada: es la × (tareas-ux.md 9.1)
   if (e.key === 'Escape' && e.target.closest?.('[data-globo-tar]') && alEscTareas(st.tareas, { globo: true }).accion === 'globo-x') {
     e.preventDefault()
@@ -2646,7 +2671,7 @@ function colocar(d) {
   colocarHoja(d, poner)
   st.disp = d
   st.ventana = { ...d.ventana }
-  if (st.lugarAvisoTar === 'muesca') ubicarGloboMuesca()
+  if (st.lugarGlobo === 'muesca') ubicarGloboMuesca()
   // La primera vez: hasta acá el tablero no tenía lugar y no se veía; flotando, entra (6.1)
   if (!document.body.classList.contains('colocada')) {
     document.body.classList.add('colocada')
@@ -2724,8 +2749,8 @@ async function colocarEnArea(g) {
  */
 async function enviarZona(forzar = false) {
   if (!st.disp || !tauri?.core) return null
-  // El globo de tareas de la muesca suma su rectángulo: si no, su clic pasaría a la app de abajo (tareas-ux.md 8.5)
-  const globo = st.lugarAvisoTar === 'muesca' ? st.globoMuescaTar : null
+  // El globo de la muesca (tareas o recordatorio) suma su rectángulo: si no, su clic pasaría a la app de abajo (tareas-ux.md 8.5)
+  const globo = st.lugarGlobo === 'muesca' ? st.rectGloboMuesca : null
   const zona = zonaInteractiva(st.disp, { abierta: st.vista, arrastrando: !!st.arrastre?.activo, hoja: hojaSeVe() ? st.disp.hoja : null, globo }, zoom())
   // `mirada`: acoplada, el Avi a la vista (la marca abierta o el de la muesca cerrada) quiere el
   // puntero; entonces Rust manda su posición global (muesca-avi-ux.md 9). Flotando, la marca mira
@@ -3041,7 +3066,7 @@ muescaEl.addEventListener('pointerenter', e => {
 $('#marco').addEventListener('pointerenter', e => {
   if (e.pointerType === 'mouse' && st.muesca.abierta) ponerDentro(true)
 })
-$('#muesca-tareas').addEventListener('pointerenter', e => {
+$('#muesca-globo').addEventListener('pointerenter', e => {
   if (e.pointerType === 'mouse' && !st.muesca.abierta) ponerDentro(true)
 })
 $('#hoja').addEventListener('pointerenter', e => {
@@ -4523,80 +4548,145 @@ function evaluarAvisoTareas() {
 }
 
 /**
- * Dibuja el aviso donde esté la mascota a la vista (8.2): el globo de la marca, la fila de la dividida
- * o el globo de la muesca; en la tira, la bandeja, con la charla abierta o con una pregunta en la muesca,
- * espera. La primera vez que se ve guarda `tareas.avisado` (8.1) y lo anuncia (5.4). Nada de esto abre
- * nada: solo dibuja. Lo llama `verAvis` (cada pintada y cada cambio de forma).
+ * La forma de la ventana para la cola de globos (habitos-ux.md 8.2): la de `lugarGlobo` (globos.js), la
+ * pregunta pendiente (tapa todos los globos, D-h5 y D-m4) y el módulo a la vista (con su hoja abierta,
+ * el aviso de Tareas no hace falta; el recordatorio se ve igual).
  */
-function pintarAvisoTareas() {
-  const hoy = hoyTareas()
-  const c = cuentas(st.tareas.listas, hoy)
-  const lugar = lugarAviso(st.avisoTar, {
-    cuentas: c, hoja: st.tareas.abierta, fuera: st.fuera, mini: st.mini, chat: st.chat.abierta || hojaCerrando,
+function formaGlobos() {
+  return {
+    fuera: st.fuera, mini: st.mini, chat: st.chat.abierta || hojaCerrando,
     arrastrando: !!st.arrastre?.activo || document.body.classList.contains('pildora'), acoplada: !!st.acople, abierta: st.vista,
     dividida: !!st.dividida.clave, barra: st.proyectos.length > 0 || st.modulo !== 'sesiones',
-    pregunta: st.proyectos.some(p => preguntasPendientes(p).length > 0),
-  })
-  const t = lugar ? textoGlobo(c, horaGlobo(Date.now())) : null
-  const firma = lugar ? `${lugar}|${JSON.stringify(t)}` : null
-  const antes = st.lugarAvisoTar
-  if (firma !== st.firmaAvisoTar) {
-    st.firmaAvisoTar = firma
-    st.lugarAvisoTar = lugar
-    const marcaG = $('.marca .globo-tar')
-    const muescaG = $('#muesca-tareas')
-    // Lo que deja de verse se va sin acto (la × hace el suyo antes, `descartarAvisoTareas`)
-    if (lugar !== 'marca') marcaG?.remove()
-    if (lugar !== 'dividida' && $('#aviso-tar').firstChild) $('#aviso-tar').innerHTML = ''
-    if (lugar !== 'muesca') { muescaG.hidden = true; muescaG.innerHTML = ''; st.globoMuescaTar = null }
-    if (lugar === 'marca') {
-      const nuevo = !marcaG
-      if (nuevo) $('.marca').insertAdjacentHTML('beforeend', globoMarca(t))
-      else marcaG.outerHTML = globoMarca(t)
-      if (nuevo) movimientoTareas.entraGlobo($('.marca .globo-tar'))
-    } else if (lugar === 'dividida') {
-      const nuevo = !$('#aviso-tar').firstChild
-      $('#aviso-tar').innerHTML = filaAviso(t)
-      if (nuevo) movimientoTareas.entraGlobo($('#aviso-tar .aviso-tar'))
-    } else if (lugar === 'muesca') {
-      const g = globoMuesca(t)
-      const nuevo = muescaG.hidden
-      muescaG.innerHTML = g.html
-      muescaG.setAttribute('aria-label', g.nombre)
-      muescaG.hidden = false
-      ubicarGloboMuesca()
-      if (nuevo) movimientoTareas.entraGlobo(muescaG, st.acople?.borde)
-    }
-    if (lugar) {
-      // La primera vez que se ve: `tareas.avisado` = hoy (un reinicio el mismo día no lo repite) y el anuncio
-      const { aviso, guardar } = verAviso(st.avisoTar)
-      st.avisoTar = aviso
-      if (guardar) {
-        st.avisadoTar = guardar
-        anunciar(anuncioGlobo(datosEspecie(st.mascota).nombre, t))
-        invocar('guardar_ajuste', { clave: 'tareasAvisado', valor: guardar }).catch(e => registrar(`tareas: no se guardó el aviso: ${e}`))
-      }
-    }
-    if ((antes === 'marca') !== (lugar === 'marca')) pintarMarca()
-  } else if (lugar === 'muesca') {
-    ubicarGloboMuesca()
+    pregunta: st.proyectos.some(p => preguntasPendientes(p).length > 0), hojaAbierta: st.modulo,
   }
 }
 
 /**
- * Ubica `#muesca-tareas` del lado de adentro de la muesca (`lugarGloboMuesca`) y guarda su rectángulo
- * en px de pantalla para la zona interactiva (8.5): el tamaño se mide (depende del texto).
+ * Pone al día la cola antes de dibujar (8.1): el aviso de Tareas está mientras siga pendiente y haya
+ * algo que contar (lo de siempre de `lugarAviso`); cada recordatorio se va si su hábito quedó hecho por
+ * cualquier camino, si se borró o a la medianoche (`recordatorioVigente`), salvo el que confirma «Hecho».
+ */
+function ordenarCola() {
+  const hoy = hoyArgentina(Date.now())
+  const c = cuentas(st.tareas.listas, hoy)
+  st.globos = st.avisoTar.pendiente && c.hoy + c.vencidas > 0 ? encolar(st.globos, { tipo: 'tareas', clave: 'tareas' }) : quitar(st.globos, 'tareas')
+  for (const a of st.globos) {
+    if (a.tipo !== 'rec' || a.clave === st.confirmaGlobo?.clave) continue
+    if (!recordatorioVigente(a, st.habitos.lista.find(h => h.id === a.id), hoy)) st.globos = quitar(st.globos, a.clave)
+  }
+}
+
+/**
+ * Lo que dibuja cada tipo en cada lugar (8.2): el aviso de Tareas con sus vistas de siempre (`globoMarca`,
+ * `filaAviso`, `globoMuesca`) y el recordatorio con las suyas (`globoHab`, `filaAvisoHab`,
+ * `globoMuescaHab`), con la confirmación de «Hecho» si es el que confirma. `accion` y `valor` son los del
+ * botón de la muesca (uno solo para los dos: `#muesca-globo`). Sin datos (un hábito que ya no está), null.
+ */
+function vistaGlobo(aviso) {
+  if (aviso.tipo === 'tareas') {
+    const t = textoGlobo(cuentas(st.tareas.listas, hoyTareas()), horaGlobo(Date.now()))
+    return t && { firma: JSON.stringify(t), marca: globoMarca(t), fila: filaAviso(t), muesca: globoMuesca(t), accion: 'tar-globo', valor: null, texto: t }
+  }
+  const h = aviso.tipo === 'rec' && st.habitos.lista.find(x => x.id === aviso.id)
+  if (!h) return null
+  const t = textosGlobo(aviso, h)
+  const confirma = st.confirmaGlobo?.clave === aviso.clave ? textoHechoGlobo(h, aviso.dia) : null
+  return {
+    firma: JSON.stringify([t.globo, t.fila, t.muesca, t.progreso, confirma, h.color]), accion: 'hab-globo-ver', valor: h.id, texto: t,
+    marca: globoHab(t, { id: h.id, color: h.color, confirma }), fila: filaAvisoHab(t, { id: h.id, confirma }), muesca: globoMuescaHab(t),
+  }
+}
+
+/**
+ * Dibuja el globo de arriba de la cola donde esté la mascota a la vista (habitos-ux.md 8.1 y 8.2): el
+ * globo de la marca, la fila de la dividida o el globo de la muesca; en la tira, la bandeja, con la charla
+ * abierta o con una pregunta pendiente, espera. Uno por vez: si llega uno de más prioridad, el que estaba
+ * se va sin acto (vuelve después) y el nuevo entra con el suyo. La primera vez que se ve cada uno, el
+ * anuncio (5.4) y, el de Tareas, `tareas.avisado` (8.1). Nada de esto abre nada: solo dibuja. Lo llama
+ * `verAvis` (cada pintada y cada cambio de forma).
+ */
+function pintarGlobos() {
+  ordenarCola()
+  const a = globoActual(st.globos, formaGlobos())
+  const v = a && vistaGlobo(a.aviso)
+  const lugar = v ? a.lugar : null
+  const clave = v ? a.aviso.clave : null
+  const firma = v ? `${lugar}|${clave}|${v.firma}` : null
+  const antes = st.lugarGlobo
+  if (firma === st.firmaGlobo) {
+    if (lugar === 'muesca') ubicarGloboMuesca()
+    return
+  }
+  // Otro globo, o el mismo en otro lugar: entra con su acto. El mismo que cambia de texto, sin acto
+  const entra = lugar !== antes || clave !== st.claveGlobo
+  st.firmaGlobo = firma
+  st.lugarGlobo = lugar
+  st.claveGlobo = clave
+  const marcaG = $('.marca .globo-tar')
+  const filaG = $('#aviso-tar')
+  const muescaG = $('#muesca-globo')
+  // Lo que deja de verse se va sin acto (la ×, «Ver» y el fin de «Hecho» hacen el suyo antes, `sacarGlobo`)
+  if (lugar !== 'marca' || entra) marcaG?.remove()
+  if ((lugar !== 'dividida' || entra) && filaG.firstChild) filaG.innerHTML = ''
+  if (lugar !== 'muesca') { muescaG.hidden = true; muescaG.innerHTML = ''; st.rectGloboMuesca = null }
+  if (lugar === 'marca') {
+    const el = $('.marca .globo-tar')
+    if (el) el.outerHTML = v.marca
+    else $('.marca').insertAdjacentHTML('beforeend', v.marca)
+    if (entra) movimientoTareas.entraGlobo($('.marca .globo-tar'))
+  } else if (lugar === 'dividida') {
+    filaG.innerHTML = v.fila
+    if (entra) movimientoTareas.entraGlobo(filaG.firstElementChild)
+  } else if (lugar === 'muesca') {
+    const nuevo = muescaG.hidden || entra
+    muescaG.innerHTML = v.muesca.html
+    muescaG.setAttribute('aria-label', v.muesca.nombre)
+    muescaG.dataset.accion = v.accion
+    if (v.valor) muescaG.dataset.valor = v.valor
+    else delete muescaG.dataset.valor
+    muescaG.hidden = false
+    ubicarGloboMuesca()
+    if (nuevo) movimientoTareas.entraGlobo(muescaG, st.acople?.borde)
+  }
+  if (lugar) verGlobo(a.aviso, v)
+  if (antes === 'marca' || lugar === 'marca') pintarMarca()
+}
+
+/**
+ * Un globo se ve: la primera vez, el anuncio «{mascota}: {texto}» (5.4). El de Tareas, además, guarda
+ * `tareas.avisado` = hoy (un reinicio el mismo día no lo repite, 8.1); el recordatorio ya quedó en
+ * `habitosRecordados` al salir (8.3).
+ */
+function verGlobo(aviso, v) {
+  const nombre = datosEspecie(st.mascota).nombre
+  if (aviso.tipo === 'tareas') {
+    const { aviso: a, guardar } = verAviso(st.avisoTar)
+    st.avisoTar = a
+    if (guardar) {
+      st.avisadoTar = guardar
+      anunciar(anuncioGlobo(nombre, v.texto))
+      invocar('guardar_ajuste', { clave: 'tareasAvisado', valor: guardar }).catch(e => registrar(`tareas: no se guardó el aviso: ${e}`))
+    }
+  } else if (!st.anunciados.has(aviso.clave)) {
+    st.anunciados.add(aviso.clave)
+    anunciar(anuncioGlobo(nombre, v.texto))
+  }
+}
+
+/**
+ * Ubica `#muesca-globo` del lado de adentro de la muesca (`lugarGloboMuesca`) y guarda su rectángulo
+ * en px de pantalla para la zona interactiva (tareas-ux.md 8.5): el tamaño se mide (depende del texto).
  */
 function ubicarGloboMuesca() {
-  const el = $('#muesca-tareas')
+  const el = $('#muesca-globo')
   const d = st.disp
-  if (el.hidden || !st.acople || d?.modo !== 'acoplada') { st.globoMuescaTar = null; return }
+  if (el.hidden || !st.acople || d?.modo !== 'acoplada') { st.rectGloboMuesca = null; return }
   const z = zoom()
   const local = lugarGloboMuesca(st.acople.borde, d.local.muesca, { ancho: el.offsetWidth, alto: el.offsetHeight }, { ancho: d.ventana.ancho / z, alto: d.ventana.alto / z })
   el.style.left = `${local.x}px`
   el.style.top = `${local.y}px`
   el.style.setProperty('--cola', `${local.cola}px`)
-  st.globoMuescaTar = absoluto(local, d.ventana, z)
+  st.rectGloboMuesca = absoluto(local, d.ventana, z)
 }
 
 /**
@@ -4606,7 +4696,7 @@ function ubicarGloboMuesca() {
  */
 async function descartarAvisoTareas() {
   if (!st.avisoTar.pendiente) return
-  const el = $('.marca .globo-tar') ?? $('#aviso-tar .aviso-tar')
+  const el = $('.marca [data-globo-tar]') ?? $('#aviso-tar [data-globo-tar]')
   const tenia = el?.contains(document.activeElement)
   st.avisoTar = soltarAviso(st.avisoTar)
   if (el) await movimientoTareas.saleGlobo(el)
@@ -4617,6 +4707,101 @@ async function descartarAvisoTareas() {
     if (fila.offsetParent) fila.focus()
     else $('#riel button')?.focus()
   }
+}
+
+// ---- el recordatorio de un hábito (habitos-ux.md 8.3, entrega H2)
+
+/** Lo que dura la confirmación de «+1» o «Hecho» en el globo antes de irse sola (8.3). */
+const CONFIRMA_GLOBO_MS = 1800
+let relojConfirmaGlobo = null
+
+/**
+ * El ciclo de 1,5 s revisa los recordatorios (8.3), nunca un temporizador por hábito: cada hábito con
+ * aviso que toca, no está hecho y ya pasó su hora entra a la cola una sola vez por día
+ * (`habitosRecordados` en preferencias.json, así un reinicio el mismo día no lo repite). A la vez sale la
+ * notificación de Windows (`avisar`, textos de 5.5) si «Avisar» está prendido (D-h13) y no llegó más de
+ * 60 min tarde (D-h12: entonces solo el globo). Nada se abre solo.
+ */
+function revisarRecordatorios(ahora = Date.now()) {
+  if (!st.habitos.leido) return
+  const debidos = recordatoriosDebidos(st.habitos.lista, ahora, st.habRecordados)
+  if (!debidos.length) return
+  st.habRecordados = recordar(st.habRecordados, debidos.map(d => d.id), debidos[0].dia)
+  if (validarAjuste('habitosRecordados', st.habRecordados)) {
+    invocar('guardar_ajuste', { clave: 'habitosRecordados', valor: st.habRecordados }).catch(e => registrar(`hábitos: no se guardaron los recordados: ${e}`))
+  }
+  for (const d of debidos) {
+    const aviso = { tipo: 'rec', clave: claveRec(d.id, d.dia), id: d.id, dia: d.dia, hora: d.hora }
+    st.globos = encolar(st.globos, aviso)
+    const h = st.habitos.lista.find(x => x.id === d.id)
+    if (st.avisar && !d.tarde && h) {
+      const n = textosGlobo(aviso, h).notificacion
+      invocar('avisar', { titulo: n.titulo, cuerpo: n.cuerpo }).catch(e => registrar(`hábitos: no salió la notificación: ${e}`))
+    }
+  }
+  verAvis()
+}
+
+/**
+ * «+1 {unidad}» o «Hecho» del globo o de la fila (8.3): marca hoy sin abrir nada, como la hoja
+ * (`cambiarHabito`, que guarda). El globo confirma con el texto de 5.4 durante 1,8 s (la mascota feliz) y
+ * se va solo, aunque el «+1» no llegue a la meta (ya respondiste). El foco va a la × del globo (9.4).
+ */
+function hacerDesdeGlobo(id) {
+  const hoy = hoyHabitos()
+  const aviso = st.globos.find(a => a.tipo === 'rec' && a.id === id && a.dia === hoy)
+  const h = st.habitos.lista.find(x => x.id === id)
+  if (!aviso || !h || st.confirmaGlobo) return
+  const cantidad = h.tipo === 'cantidad'
+  // Antes de marcar: el globo que confirma no se va aunque el hábito ya esté hecho (`ordenarCola`)
+  st.confirmaGlobo = { clave: aviso.clave, id }
+  const fx = st.habitos.abierta ? (cantidad ? { tipo: 'suma', d: 1, dia: hoy } : { tipo: 'tilde', dia: hoy }) : null
+  const r = cambiarHabito(id, x => (cantidad ? sumarHabito(x, hoy, 1) : marcarHabito(x, hoy, true)), fx)
+  if (!r) { st.confirmaGlobo = null; verAvis(); return }
+  anunciar(plano(textoHechoGlobo(r.despues, hoy)))
+  if (st.habitos.abierta) trasMarcarHoy(r, () => $(`#hab [data-k="${cantidad ? 'sum' : 'ck'}-${CSS.escape(id)}"]`))
+  $('[data-globo-hab] [data-accion="hab-globo-x"]')?.focus()
+  clearTimeout(relojConfirmaGlobo)
+  relojConfirmaGlobo = setTimeout(() => { if (st.confirmaGlobo?.clave === aviso.clave) sacarGlobo(aviso.clave) }, CONFIRMA_GLOBO_MS)
+}
+
+/**
+ * Saca un globo de la cola (la ×, el fin de «Hecho»), con su acto de salida si está a la vista en la
+ * marca o en la dividida. Si el foco estaba en él (o en ningún lado), va al siguiente globo o, si no hay,
+ * a la fila «Hábitos» del menú; en la dividida, sin barra, al primer botón del riel (9.4).
+ */
+async function sacarGlobo(clave) {
+  const el = st.claveGlobo === clave ? ($('.marca [data-globo-hab]') ?? $('#aviso-tar [data-globo-hab]')) : null
+  const tenia = !!el?.contains(document.activeElement)
+  if (st.confirmaGlobo?.clave === clave) { st.confirmaGlobo = null; clearTimeout(relojConfirmaGlobo) }
+  st.globos = quitar(st.globos, clave)
+  if (el) await movimientoTareas.saleGlobo(el)
+  verAvis()
+  if (tenia || !document.activeElement || document.activeElement === document.body) {
+    const siguiente = $('.marca .globo-tar button, #aviso-tar button')
+    const fila = $('#hab-fila')
+    if (siguiente) siguiente.focus()
+    else if (fila?.offsetParent) fila.focus()
+    else $('#riel button')?.focus()
+  }
+}
+
+/** La × del recordatorio, o Esc en su globo (9.1): «Ahora no», no vuelve hasta mañana (ya está en `habitosRecordados`). */
+function descartarRecordatorio(id) {
+  const a = st.globos.find(x => x.tipo === 'rec' && x.id === id)
+  if (a) sacarGlobo(a.clave)
+}
+
+/** «Ver hábitos →» (o el globo de la muesca): el recordatorio se va y solo el clic abre la hoja en Hoy (8.3). */
+async function verDesdeGlobo(id) {
+  const a = st.globos.find(x => x.tipo === 'rec' && x.id === id)
+  if (a) {
+    if (st.confirmaGlobo?.clave === a.clave) { st.confirmaGlobo = null; clearTimeout(relojConfirmaGlobo) }
+    st.globos = quitar(st.globos, a.clave)
+  }
+  if (st.habitos.abierta && st.habitos.ver !== 'hoy') verHabitosEnHoja('hoy')
+  await irModulo('habitos', { ver: 'hoy' })
+  verAvis()
 }
 
 // ---- leer y guardar (11.3)
@@ -5877,6 +6062,12 @@ async function accionHabitos(a, b) {
     pintarHabitos()
   }
   switch (a) {
+    // El globo del recordatorio (8.3): «+1»/«Hecho» marca sin abrir nada, «Ver hábitos →» (o el de la muesca)
+    // abre la hoja en Hoy y la × lo deja para mañana. En la marca el globo es parte de lo que se arrastra:
+    // después de un arrastre real, el clic no cuenta
+    case 'hab-globo-hacer': if (!justoArrastro) hacerDesdeGlobo(b.dataset.valor); break
+    case 'hab-globo-ver': if (!justoArrastro) await verDesdeGlobo(b.dataset.valor); break
+    case 'hab-globo-x': if (!justoArrastro) descartarRecordatorio(b.dataset.valor); break
     case 'hab-ver': verHabitosEnHoja(b.dataset.valor); break
     case 'hab-nuevo': empezarNuevoHabito(); break
     case 'hab-cancelar': cancelarNuevoHabito(); break
@@ -6611,10 +6802,12 @@ document.addEventListener('contextmenu', e => {
 
 /** Pinta la marca: su ánimo real y la descripción del Avi-botón. Con la hoja abierta, su motor está quieto (3.2). */
 function pintarMarca(ahora = Date.now()) {
-  // Con el globo del aviso diario a la vista, el Avi de la marca saluda (tareas-ux.md 8.2) y no juega
-  const saluda = st.lugarAvisoTar === 'marca'
-  const animo = saluda ? 'saluda' : animoMarca(st.proyectos, ahora)
-  marca.animo(animo, !saluda && reposoPermitido(st.proyectos, ahora))
+  // Con un globo a la vista (el aviso de tareas o un recordatorio), el Avi de la marca saluda y no juega;
+  // mientras el globo confirma «Hecho», está feliz (habitos-ux.md 8.2)
+  const conGlobo = st.lugarGlobo === 'marca'
+  const feliz = conGlobo && st.confirmaGlobo?.clave === st.claveGlobo
+  const animo = feliz ? 'feliz' : conGlobo ? 'saluda' : animoMarca(st.proyectos, ahora)
+  marca.animo(animo, !conGlobo && reposoPermitido(st.proyectos, ahora))
   texto('#marca-animo', animoTexto(animo))
 }
 
@@ -6649,6 +6842,8 @@ async function iniciar() {
       st.version = typeof m.version === 'string' ? m.version : null
       // El día del último aviso diario de tareas (tareas-ux.md 11.4)
       st.avisadoTar = typeof m.tareasAvisado === 'string' ? m.tareasAvisado : null
+      // Los hábitos ya recordados hoy (habitos-ux.md 8.3): un reinicio el mismo día no los repite
+      st.habRecordados = validarAjuste('habitosRecordados', m.habitosRecordados) ? m.habitosRecordados : null
       // Dónde quedó el tablero flotante la última vez (fracciones del área, 9.7)
       if (m.flotante && typeof m.flotante === 'object') st.fraccion = { x: Number(m.flotante.x), y: Number(m.flotante.y) }
       // El motor, la carpeta y el modelo (#35) de la próxima charla, y las recientes (chat-avis-ux.md 3.4, D11)

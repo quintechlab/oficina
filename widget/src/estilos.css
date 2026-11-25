@@ -2474,7 +2474,7 @@ body.pausa #hab .sw, body.pausa #hab .sw::after, body.pausa #hab .col::after { t
 }
 .globo-tar .globo-t { font: 600 12px/1.35 var(--f) }
 .globo-tar .globo-t b { font-weight: 800 }
-.globo-tar b.r, #muesca-tareas b.r { color: var(--rojo-tinta) }
+.globo-tar b.r, #muesca-globo b.r { color: var(--rojo-tinta) }
 .globo-tar .globo-c { font: 600 10px/1 var(--m); letter-spacing: .03em; color: var(--ambar-tinta) }
 .globo-tar .globo-b:hover .globo-c { text-decoration: underline; text-underline-offset: 3px }
 .globo-tar .globo-x {
@@ -2484,7 +2484,7 @@ body.pausa #hab .sw, body.pausa #hab .sw::after, body.pausa #hab .col::after { t
 .globo-tar .globo-x:hover { color: var(--tinta) }
 .globo-tar .globo-x svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round }
 /* Foco sobre el crema: --tinta (12) */
-.globo-tar :focus-visible, #muesca-tareas:focus-visible { outline: 2px solid var(--tinta); outline-offset: -3px }
+.globo-tar :focus-visible, #muesca-globo:focus-visible { outline: 2px solid var(--tinta); outline-offset: -3px }
 
 /* La fila de la dividida (8.4): la forma de `avisoOtroProyecto`, con «Ver →» y la ×; no es un botón entero */
 #aviso-tar:empty { display: none }
@@ -2509,26 +2509,63 @@ body.pausa #hab .sw, body.pausa #hab .sw::after, body.pausa #hab .col::after { t
 /* El globo de la muesca (8.5): un botón hermano de #muesca, que main.js ubica del lado de adentro
    (lugarGloboMuesca: left/top y --cola, desde donde sale la cola de 10 hacia la muesca). Se ve solo
    acoplada y plegada, nunca durante el arrastre de la píldora */
-#muesca-tareas { display: none }
-body.acoplada:not(.abierta):not(.pildora) #muesca-tareas:not([hidden]) {
+#muesca-globo { display: none }
+body.acoplada:not(.abierta):not(.pildora) #muesca-globo:not([hidden]) {
   position: fixed; z-index: 2; display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 8px 12px; border: 0; border-radius: 12px;
   background: var(--crema); color: var(--tinta); font: 700 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
   box-shadow: 0 10px 24px -10px rgba(0, 0, 0, .6);
 }
-#muesca-tareas::before { content: ""; position: absolute; width: 10px; height: 10px; border-radius: 2px; background: var(--crema); transform: rotate(45deg) }
-body[data-borde="arriba"] #muesca-tareas { transform-origin: var(--cola, 50%) 0 }
-body[data-borde="arriba"] #muesca-tareas::before { top: -4px; left: calc(var(--cola, 50%) - 5px) }
-body[data-borde="abajo"] #muesca-tareas { transform-origin: var(--cola, 50%) 100% }
-body[data-borde="abajo"] #muesca-tareas::before { bottom: -4px; left: calc(var(--cola, 50%) - 5px) }
-body[data-borde="izquierda"] #muesca-tareas { transform-origin: 0 var(--cola, 50%) }
-body[data-borde="izquierda"] #muesca-tareas::before { left: -4px; top: calc(var(--cola, 50%) - 5px) }
-body[data-borde="derecha"] #muesca-tareas { transform-origin: 100% var(--cola, 50%) }
-body[data-borde="derecha"] #muesca-tareas::before { right: -4px; top: calc(var(--cola, 50%) - 5px) }
-#muesca-tareas > * { pointer-events: none }
-#muesca-tareas .mt-c { font: 600 10px/1 var(--m); color: var(--ambar-tinta) }
-#muesca-tareas:hover .mt-c { text-decoration: underline; text-underline-offset: 3px }
-body:not(.colocada) #muesca-tareas, body.velada #muesca-tareas { visibility: hidden }
+#muesca-globo::before { content: ""; position: absolute; width: 10px; height: 10px; border-radius: 2px; background: var(--crema); transform: rotate(45deg) }
+body[data-borde="arriba"] #muesca-globo { transform-origin: var(--cola, 50%) 0 }
+body[data-borde="arriba"] #muesca-globo::before { top: -4px; left: calc(var(--cola, 50%) - 5px) }
+body[data-borde="abajo"] #muesca-globo { transform-origin: var(--cola, 50%) 100% }
+body[data-borde="abajo"] #muesca-globo::before { bottom: -4px; left: calc(var(--cola, 50%) - 5px) }
+body[data-borde="izquierda"] #muesca-globo { transform-origin: 0 var(--cola, 50%) }
+body[data-borde="izquierda"] #muesca-globo::before { left: -4px; top: calc(var(--cola, 50%) - 5px) }
+body[data-borde="derecha"] #muesca-globo { transform-origin: 100% var(--cola, 50%) }
+body[data-borde="derecha"] #muesca-globo::before { right: -4px; top: calc(var(--cola, 50%) - 5px) }
+#muesca-globo > * { pointer-events: none }
+#muesca-globo .mt-c { font: 600 10px/1 var(--m); color: var(--ambar-tinta) }
+#muesca-globo:hover .mt-c { text-decoration: underline; text-underline-offset: 3px }
+body:not(.colocada) #muesca-globo, body.velada #muesca-globo { visibility: hidden }
 @media (prefers-reduced-motion: reduce) {
   .globo-tar .globo-x { transition: none }
 }
 body.pausa .globo-tar .globo-x { transition: none }
+
+/* ------------------------------------------------------------------ el recordatorio de un hábito (habitos-ux.md 8.5, entrega H2)
+   `.globo-hab` va sobre la base de `.globo-tar` (ancho de la barra, crema, cola de 12 hacia el Avi,
+   sombra y halo ámbar), con dos filas: arriba el texto y la × de 28; abajo «+1 {unidad}» o «Hecho» (la
+   píldora --tinta con el punto del color del hábito) y «Ver hábitos →». Confirmando «Hecho», el visto
+   ámbar en un círculo --tinta de 16 delante del texto y sin acciones. Foco: contorno --tinta */
+.marca .globo-hab { display: grid; gap: 8px; padding: 11px 6px 11px 12px }
+.globo-hab .gh-arriba { display: flex; align-items: flex-start; gap: 4px }
+.globo-hab .globo-t { flex: 1; min-width: 0; margin: 0; padding-top: 3px; overflow-wrap: anywhere }
+.globo-hab .globo-x { width: 28px; height: 28px; padding: 0; place-items: center; border-radius: 8px; transition: color var(--d-color) ease, background var(--d-color) ease }
+.globo-hab .globo-x:hover { background: rgba(20, 17, 12, .06) }
+.globo-hab .gh-acc { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px }
+.globo-hab .g-hacer {
+  height: 28px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px 0 10px; border: 0; border-radius: 999px;
+  background: var(--tinta); color: var(--crema); font: 800 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
+  transition: transform var(--d-presion) ease;
+}
+.globo-hab .g-hacer:active { transform: scale(.96) }
+.globo-hab .g-hacer .pt { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--hc, var(--ambar)) }
+.globo-hab .g-ver { padding: 6px 2px; border: 0; background: none; color: var(--ambar-tinta); font: 600 10px/1 var(--m); letter-spacing: .03em; cursor: pointer }
+.globo-hab .g-ver:hover { text-decoration: underline; text-underline-offset: 3px }
+.globo-hab .gh-ok {
+  width: 16px; height: 16px; display: inline-grid; place-items: center; margin-right: 6px; vertical-align: -3px; border-radius: 50%;
+  background: var(--tinta); color: var(--ambar);
+}
+.globo-hab .gh-ok svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round }
+/* La fila de la dividida: la de Tareas con una acción más */
+.aviso-hab .lnk + .lnk { padding-left: 0 }
+/* El anillo de 14 de la muesca (cantidad): el de la fila del menú, sobre el crema */
+#muesca-globo .mt-a { display: inline-grid; width: 14px; height: 14px }
+#muesca-globo .mt-a svg { width: 14px; height: 14px; fill: none; stroke-width: 2.6; transform: rotate(-90deg) }
+#muesca-globo .mt-a .a-f { stroke: rgba(20, 17, 12, .16) }
+#muesca-globo .mt-a .a-l { stroke: var(--ambar-tinta); stroke-linecap: round }
+@media (prefers-reduced-motion: reduce) {
+  .globo-hab .globo-x, .globo-hab .g-hacer { transition: none }
+}
+body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: none }

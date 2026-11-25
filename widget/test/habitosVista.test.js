@@ -6,8 +6,9 @@ import assert from 'node:assert/strict'
 import {
   ladoFilaHabitos, cuentaMiniHabitos, indiceHabitos, filaHabito, sumador, celdas, rachaHtml, formulario, partesHoja,
   primerUsoHabitos, errorGuardarHab, errorRotaHab, errorCarpetaHab, hitoHtml, esqueletoHabitos, CARPETA_HAB,
+  globoHab, globoMuescaHab, filaAvisoHab,
 } from '../src/habitosVista.js'
-import { borradorNuevo } from '../src/habitos.js'
+import { borradorNuevo, textosGlobo, textoHechoGlobo } from '../src/habitos.js'
 
 const HOY = '2026-11-26'
 const dia = n => new Date(Date.UTC(2026, 10, 26 + n)).toISOString().slice(0, 10)
@@ -236,4 +237,57 @@ test('hitoHtml, esqueleto y carpeta: la píldora aria-hidden con la brasa; la re
   assert.equal(esqueletoHabitos(), '<div id="hab-cuerpo"></div><p class="oculto" role="status" id="hab-vivo"></p>')
   for (const p of ['idx', 'pane-h', 'err', 'cuerpo']) assert.ok(CARPETA_HAB.includes(`data-parte="${p}"`), p)
   assert.match(CARPETA_HAB, /<nav class="idx" aria-label="Vistas y hábitos"/)
+})
+
+// ------------------------------------------------------------------ el globo del recordatorio (H2: 8.2, 8.5 y 5.4)
+
+const REC = { tipo: 'rec', id: 'h-agua', dia: HOY, hora: '16:00' }
+
+test('globoHab (8.5): `.globo-hab` sobre la base de `.globo-tar`; el texto, la ×, «+1 vaso» con el punto del color y «Ver hábitos →»', () => {
+  const html = globoHab(textosGlobo(REC, AGUA), { id: 'h-agua', color: 'celeste' })
+  assert.match(html, /^<div class="globo-tar globo-hab" data-globo-hab data-valor="h-agua">/)
+  assert.match(html, /<p class="globo-t"><b>16:00<\/b> · Agua: van <b>3 de 8 vasos<\/b>\. ¿Uno más\?<\/p>/)
+  // La × lo deja para mañana; el foco queda en ella después de «+1» o «Hecho» (9.4)
+  assert.match(html, /<button type="button" class="globo-x" data-accion="hab-globo-x" data-valor="h-agua" aria-label="Ahora no: no te recuerdo Agua hasta mañana" title="Ahora no">/)
+  assert.match(html, /<button type="button" class="g-hacer" data-accion="hab-globo-hacer" data-valor="h-agua"><span class="pt" style="--hc: var\(--celeste\)" aria-hidden="true"><\/span>\+1 vaso<\/button>/)
+  assert.match(html, /<button type="button" class="g-ver" data-accion="hab-globo-ver" data-valor="h-agua">Ver hábitos →<\/button>/)
+  // La hora va en negrita (5.4)
+  assert.match(html, /<b>16:00<\/b>/)
+})
+
+test('globoHab confirmando (5.4): el visto y el texto de «Hecho», sin las acciones; la × sigue', () => {
+  const caminar = hab({ id: 'h-c', nombre: 'Caminar', registro: reg(-1, 0) })
+  const html = globoHab(textosGlobo({ ...REC, id: 'h-c' }, caminar), { id: 'h-c', color: 'verde', confirma: textoHechoGlobo(caminar, HOY) })
+  assert.match(html, /<p class="globo-t"><span class="gh-ok" aria-hidden="true"><svg[^>]*>.*?<\/svg><\/span>¡Hecho! <b>Caminar<\/b>: 2 días seguidos\.<\/p>/)
+  assert.doesNotMatch(html, /g-hacer|g-ver/)
+  assert.match(html, /data-accion="hab-globo-x"/)
+  assert.match(html, /^<div class="globo-tar globo-hab confirma"/)
+})
+
+test('globoMuescaHab (5.4): «16:00 · Agua 3 de 8» con el anillo de 14 y «Ver →»; sí/no sin anillo; el nombre con el texto entero', () => {
+  const g = globoMuescaHab(textosGlobo(REC, AGUA))
+  assert.match(g.html, /^<span class="mt-t">16:00 · Agua 3 de 8<\/span><span class="mt-a" aria-hidden="true"><svg viewBox="0 0 14 14">/)
+  assert.match(g.html, /<span class="mt-c">Ver <span aria-hidden="true">→<\/span><\/span>$/)
+  assert.equal(g.nombre, '16:00 · Agua: van 3 de 8 vasos. ¿Uno más? Ver hábitos')
+  const s = globoMuescaHab(textosGlobo({ ...REC, hora: '19:00' }, hab({ nombre: 'Caminar' })))
+  assert.equal(s.html, '<span class="mt-t">19:00 · Caminar</span><span class="mt-c">Ver <span aria-hidden="true">→</span></span>')
+})
+
+test('filaAvisoHab (5.4): la fila de la dividida con «+1» o «Hecho», «Ver →» y la ×', () => {
+  const html = filaAvisoHab(textosGlobo(REC, AGUA), { id: 'h-agua' })
+  assert.match(html, /^<div class="aviso aviso-tar aviso-hab" data-globo-hab data-valor="h-agua">/)
+  assert.match(html, /<span class="at-t">16:00 · Agua: 3 de 8\.<\/span>/)
+  assert.match(html, /<button type="button" class="lnk" data-accion="hab-globo-hacer" data-valor="h-agua">\+1<\/button>/)
+  assert.match(html, /<button type="button" class="lnk" data-accion="hab-globo-ver" data-valor="h-agua">Ver →<\/button>/)
+  assert.match(html, /<button type="button" class="tb" data-accion="hab-globo-x" data-valor="h-agua" aria-label="Ahora no: no te recuerdo Agua hasta mañana" title="Ahora no">/)
+  assert.match(filaAvisoHab(textosGlobo({ ...REC, hora: '19:00' }, hab({ nombre: 'Caminar' })), { id: 'h-x' }), /<span class="at-t">19:00 · Te toca Caminar\.<\/span><button type="button" class="lnk" data-accion="hab-globo-hacer" data-valor="h-x">Hecho<\/button>/)
+  // Confirmando: el texto de «Hecho», sin «+1» ni «Ver →»
+  const conf = filaAvisoHab(textosGlobo(REC, AGUA), { id: 'h-agua', confirma: [{ t: 'Listo: ' }, { t: '4 de 8 vasos', fuerte: true }, { t: '.' }] })
+  assert.match(conf, /<span class="at-t">Listo: <b>4 de 8 vasos<\/b>\.<\/span><button type="button" class="tb"/)
+})
+
+test('los textos del globo se escapan', () => {
+  const raro = hab({ id: 'h-r', nombre: '<b>x</b>' })
+  assert.doesNotMatch(globoHab(textosGlobo(REC, raro), { id: 'h-r', color: 'rojo' }), /<b><b>x/)
+  assert.match(filaAvisoHab(textosGlobo(REC, raro), { id: 'h-r' }), /&lt;b&gt;x&lt;\/b&gt;/)
 })

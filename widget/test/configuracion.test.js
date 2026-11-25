@@ -81,6 +81,23 @@ test('validarAjuste: tareasAvisado acepta un día que existe o vacío, como pref
   assert.equal(validarAjuste('pausa', '2026-11-24'), false)
 })
 
+test('validarAjuste: habitosRecordados acepta { dia, ids } con ids de hábito, hasta 100, como preferencias.rs (habitos-ux.md 11.5)', () => {
+  const cien = Array.from({ length: 100 }, (_, i) => `h-${i}`)
+  for (const bueno of [{ dia: '2026-11-26', ids: [] }, { dia: '2026-11-26', ids: ['h-agua', 'h-mf3k-2a'] }, { dia: '2024-02-29', ids: cien }]) {
+    assert.equal(validarAjuste('habitosRecordados', bueno), true, JSON.stringify(bueno))
+  }
+  for (const malo of [
+    { dia: '2026-02-30', ids: [] }, { dia: '', ids: [] }, { ids: [] }, { dia: '2026-11-26' }, { dia: '2026-11-26', ids: ['l-trabajo'] },
+    { dia: '2026-11-26', ids: ['h-../x'] }, { dia: '2026-11-26', ids: ['h-A'] }, { dia: '2026-11-26', ids: [3] }, { dia: '2026-11-26', ids: 'h-agua' },
+    { dia: '2026-11-26', ids: [...cien, 'h-100'] }, { dia: '2026-11-26', ids: [], otra: 1 }, '2026-11-26', null, true, [],
+  ]) {
+    assert.equal(validarAjuste('habitosRecordados', malo), false, JSON.stringify(malo))
+  }
+  // Las otras claves siguen igual: el aviso de tareas no acepta la forma de los recordados
+  assert.equal(validarAjuste('tareasAvisado', { dia: '2026-11-26', ids: [] }), false)
+  assert.equal(validarAjuste('tareasAvisado', '2026-11-26'), true)
+})
+
 test('validarAjuste: una clave desconocida se rechaza', () => {
   assert.equal(validarAjuste('tamano', 125), false)
   assert.equal(validarAjuste('clave', 'sk-falsa'), false)

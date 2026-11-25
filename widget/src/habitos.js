@@ -5,9 +5,10 @@
 // El formato es el v1 de habitos.rs (11.1): `creado` en ms, `inicio` y las claves de `registro`
 // "AAAA-MM-DD" (días de Argentina), lunes = 0 … domingo = 6 en `dias`. Sin DOM: lo dibuja habitosVista.js,
 // lo mueve habitosMotion.js y lo conecta main.js (que guarda con `habitos_guardar`).
-// Entrega H1: los datos y la hoja. Los globos y el recordatorio (H2) y el resumen semanal (H3) no están.
+// Entrega H1: los datos y la hoja. Entrega H2: el recordatorio (cuándo se debe, cuándo se va y sus
+// textos); la cola de globos es globos.js. El resumen semanal (H3) no está.
 
-import { sumarDias, diaSemana, lunesDe, hoyArgentina } from './fechas.js'
+import { sumarDias, diaSemana, lunesDe, hoyArgentina, diaArgentina, MS_DIA, DESFASE_AR } from './fechas.js'
 import { COLORES, colorDe, colorSiguiente, fechaCorta, claveNombre } from './tareas.js'
 
 export const TIPOS = ['diario', 'cantidad', 'dias', 'semana']
@@ -491,6 +492,100 @@ export const anuncioDiaCompleto = t => `Día completo: hiciste los ${t} de hoy.`
 export const anuncioCorregido = (h, dia, on) => `Corregido: ${h.nombre}, ${DIAS_LARGOS[diaSemana(dia)]} ${on ? 'hecho' : 'sin hacer'}`
 export const anuncioCreado = (nombre, sugerida) => `Hábito «${nombre}» creado${sugerida ? '. Tocá su nombre para ponerle un aviso.' : ''}`
 export const anuncioBorrado = nombre => `Borraste «${nombre}»`
+
+// ------------------------------------------------------------------ el recordatorio (H2: 8.3, 5.4 y 5.5)
+
+/** Un recordatorio que llega más de esto tarde sale solo como globo, sin notificación de Windows (D-h12). */
+export const MIN_TARDE = 60
+/** Cuántos ids guarda `habitosRecordados` como mucho (11.5, el mismo tope de preferencias.rs). */
+export const MAX_RECORDADOS = 100
+
+const esHora = hm => typeof hm === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(hm)
+/** El instante en ms de la hora de Argentina `hm` del día de Argentina de `ms`. */
+const instanteDe = (ms, hm) => diaArgentina(ms) * MS_DIA + DESFASE_AR + (Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5))) * 60000
+
+/** ¿Hace falta recordarlo hoy? Toca, no está hecho y, por semana, la semana no está cumplida (8.3). */
+const falta = (h, hoy) => toca(h, hoy) && !hecho(h, hoy) && !semanaCumplida(h, hoy)
+
+/**
+ * Los recordatorios que se deben ahora (8.3, 11.6): el hábito tiene `aviso` ("HH:MM"), toca hoy, no
+ * está hecho, la hora de Argentina ya la pasó y hoy todavía no se recordó (`recordados`: `{ dia, ids }`
+ * de `preferencias.json`; de otro día no cuenta). Cada uno `{ id, hora, dia, tarde }`, del más temprano
+ * al más tarde; `tarde` con más de 60 minutos de atraso (solo el globo). Lo revisa el ciclo de 1,5 s.
+ */
+export function recordatoriosDebidos(habitos, ahoraMs, recordados) {
+  const hoy = hoyArgentina(ahoraMs)
+  const ya = new Set(recordados?.dia === hoy && Array.isArray(recordados.ids) ? recordados.ids : [])
+  return habitos
+    .filter(h => esHora(h.aviso) && !ya.has(h.id) && instanteDe(ahoraMs, h.aviso) <= ahoraMs && falta(h, hoy))
+    .map(h => ({ id: h.id, hora: h.aviso, dia: hoy, tarde: ahoraMs - instanteDe(ahoraMs, h.aviso) > MIN_TARDE * 60000 }))
+    .sort((x, y) => (x.hora < y.hora ? -1 : x.hora > y.hora ? 1 : 0))
+}
+
+/** Suma `ids` a los recordados de `hoy` (de otro día, empieza de cero), sin repetir y hasta 100 (los últimos). */
+export function recordar(recordados, ids, hoy) {
+  const antes = recordados?.dia === hoy && Array.isArray(recordados.ids) ? recordados.ids : []
+  return { dia: hoy, ids: [...new Set([...antes, ...ids])].slice(-MAX_RECORDADOS) }
+}
+
+/**
+ * ¿El recordatorio sigue en la cola? Se va si el hábito queda hecho por cualquier camino (la hoja, el
+ * globo), si ya no está (se borró) o a la medianoche (`aviso.dia` ya no es hoy, 7.7). No se va solo con
+ * el tiempo. La × y «Ver hábitos →» lo sacan aparte.
+ */
+export function recordatorioVigente(aviso, h, hoy) {
+  return !!h && aviso.dia === hoy && falta(h, hoy)
+}
+
+const cuentaCantidad = (h, v) => `${v} de ${h.meta}${String(h.unidad ?? '').trim() ? ` ${String(h.unidad).trim()}` : ''}`
+
+/**
+ * Los textos del recordatorio (5.4 y 5.5) en tramos `{ t, fuerte? }`, como `textoGlobo` de Tareas:
+ * `globo` (la marca, con la hora y los números en negrita), `muesca` y `fila` (la de la dividida), `hacer`
+ * y `hacerFila` (el botón que marca), `ver`, `progreso` (el anillo de 14 de la muesca, solo cantidad),
+ * `x` (el nombre y el `title` de la ×), `notificacion` (la de Windows) y `texto` (el globo llano, para el
+ * anuncio). `aviso`: `{ dia, hora }` de la cola.
+ */
+export function textosGlobo(aviso, h) {
+  const hora = aviso.hora ?? h.aviso ?? ''
+  const base = { ver: 'Ver hábitos →', x: { nombre: `Ahora no: no te recuerdo ${h.nombre} hasta mañana`, titulo: 'Ahora no' } }
+  let r
+  if (h.tipo === 'cantidad') {
+    const v = valor(h, aviso.dia)
+    const cuenta = cuentaCantidad(h, v)
+    r = {
+      globo: [{ t: hora, fuerte: true }, { t: ` · ${h.nombre}: van ` }, { t: cuenta, fuerte: true }, { t: '. ¿Uno más?' }],
+      muesca: [{ t: `${hora} · ${h.nombre} ${v} de ${h.meta}` }],
+      fila: [{ t: `${hora} · ${h.nombre}: ${v} de ${h.meta}.` }],
+      hacer: `+1 ${unidadSingular(h.unidad)}`, hacerFila: '+1', progreso: { hechos: v, total: h.meta },
+      notificacion: { titulo: `${h.nombre} · ${hora}`, cuerpo: `Van ${cuenta}. ¿Uno más?` },
+    }
+  } else {
+    const semana = h.tipo === 'semana'
+    const lleva = semana ? `${hechosSemana(h, lunesDe(aviso.dia))} de ${h.veces ?? 1} esta semana.` : ''
+    r = {
+      globo: [{ t: hora, fuerte: true }, { t: ' · Te toca ' }, { t: h.nombre, fuerte: true }, { t: semana ? `: llevás ${lleva}` : '.' }],
+      muesca: [{ t: `${hora} · ${h.nombre}` }],
+      fila: [{ t: `${hora} · Te toca ${h.nombre}.` }],
+      hacer: 'Hecho', hacerFila: 'Hecho', progreso: null,
+      notificacion: { titulo: `${h.nombre} · ${hora}`, cuerpo: semana ? `Llevás ${lleva}` : `Te toca ${h.nombre}.` },
+    }
+  }
+  return { ...base, ...r, texto: r.globo.map(s => s.t).join('') }
+}
+
+/**
+ * Lo que dice el globo durante 1,8 s después de «+1» o «Hecho» (5.4): cantidad «Listo: {v} de {meta}
+ * {unidad}.» (con « ¡Meta del día!» si llegó); los demás «¡Hecho! {nombre}: {n} días seguidos.» (o
+ * semanas seguidas), con la racha ya contando hoy.
+ */
+export function textoHechoGlobo(h, dia) {
+  if (h.tipo === 'cantidad') {
+    return [{ t: 'Listo: ' }, { t: cuentaCantidad(h, valor(h, dia)), fuerte: true }, { t: '.' }, hecho(h, dia) && { t: ' ¡Meta del día!' }].filter(Boolean)
+  }
+  const n = racha(h, dia)
+  return [{ t: '¡Hecho! ' }, { t: h.nombre, fuerte: true }, { t: `: ${n} ${textoRachaGrande(h, n)}.` }]
+}
 
 // ------------------------------------------------------------------ la hoja (3.4, 3.5)
 

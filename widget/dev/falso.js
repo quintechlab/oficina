@@ -79,7 +79,20 @@
 //   &globo=muesca    el globo que cuelga de la muesca plegada; sin ?acople, arriba, y sin ?estado ni ?muesca, en
 //                    reposo (sin la pregunta de catalogo, que lo taparía). Con ?muesca=pregunta, la pregunta lo tapa
 //   &globo=dividida  la fila de aviso arriba de las mitades; sin ?dividida, ?dividida=pregunta
-//   &tapa            la pregunta de catalogo llega a los 4 s y se va a los 10 s: tapa el globo de la muesca y vuelve
+//   &tapa            la pregunta de catalogo llega a los 4 s y se va a los 10 s: tapa el globo (desde H2, en los tres
+//                    lugares: la marca, la dividida y la muesca) y vuelve
+//   Desde H2 (habitos-ux.md 8.1, D-m4) una pregunta pendiente tapa todos los globos: con &globo o &rec, catalogo no
+//   pregunta (?estado=reposo) salvo que el caso lo pida (?estado, ?muesca, &tapa o ?pregunta).
+// Recordatorio de un hábito (#41, entrega H2, habitos-ux.md 8.3): la cola de globos (globos.js), uno por vez.
+//   Sin &rec, preferencias.json ya dice que hoy se recordaron todos (habitosRecordados) y no sale ninguno.
+//   &rec=agua        el aviso de Agua pasa a 10 min antes de ahora (Argentina): sale su globo (cantidad: «+1 vaso»)
+//                    y la notificación de Windows (falsa: window.__notificaciones y la consola). Varios con comas:
+//                    &rec=agua,caminar (el de hora más temprana primero). caminar y leer son sí/no, correr es por
+//                    semana; gimnasio hoy no toca (no sale nada). Lo guardado queda en window.__ajustes.habitosRecordados
+//   &tarde           con &rec, 2 h antes: el globo sale igual, sin notificación (más de 60 min tarde, D-h12)
+//   &recordado       con &rec, ya se recordó hoy (un reinicio el mismo día): no sale nada
+//   &globo=marca&rec=agua  los dos en la cola: primero el recordatorio; al irse, el aviso de tareas
+//   Con ?acople=arriba|derecha|abajo|izquierda (sin ?estado), el globo cuelga de la muesca; con ?dividida, en la fila
 // Hábitos (#41, docs/diseno/habitos-ux.md, entrega H1): la fila «Hábitos» del menú, Ctrl H o ?habitos=… abren la hoja.
 //   Sin ?habitos, los cinco hábitos del boceto (Agua, Caminar, Gimnasio, Correr y Leer 20 minutos, con el registro
 //   contado desde hoy en Argentina; Gimnasio va los días que hoy no toca, así se ve «Hoy no toca») y la hoja cerrada:
@@ -202,10 +215,10 @@
   if (Number(url.get('reposo')) > 1) window.__escalaReposo = Number(url.get('reposo'))
   // &globo (tareas-ux.md 11.6): cada forma con lo que necesita para verse
   const globoTar = url.get('globo')
-  if (globoTar === 'muesca') {
-    if (!url.has('acople')) url.set('acople', 'arriba')
-    if (!url.has('estado') && !url.has('muesca') && !url.has('tapa')) url.set('estado', 'reposo')
-  }
+  // Desde H2 (habitos-ux.md 8.1, D-m4) una pregunta pendiente tapa el globo en la marca, la dividida y la
+  // muesca: con &globo o &rec, sin pregunta de catalogo salvo que el caso la pida (?estado, ?muesca, &tapa, ?pregunta)
+  if ((globoTar || url.has('rec')) && !url.has('estado') && !url.has('muesca') && !url.has('tapa') && !url.has('pregunta')) url.set('estado', 'reposo')
+  if (globoTar === 'muesca' && !url.has('acople')) url.set('acople', 'arriba')
   if (globoTar === 'dividida' && !url.has('dividida')) url.set('dividida', 'pregunta')
   const ahora = Date.now()
   const hace = min => new Date(ahora - min * 60000).toISOString()
@@ -679,6 +692,16 @@
     habF('h-leer', 'Leer 20 minutos', { color: 'ambar', aviso: '23:00', orden: 4, mejor: 14, creado: ahora - 16 * 86400000, inicio: diaAr(-16),
       registro: regF(16, 1, n => (n === 2 || n === 4 ? 0 : 1)) }),
   ]
+  // &rec=agua (o agua,caminar…): el aviso de ese hábito pasa a 10 min antes de ahora en Argentina (con
+  // &tarde, 2 h antes: solo el globo). Los demás ya se recordaron hoy (habitosRecordados), así la vista no
+  // cambia con la hora real; sin &rec, todos (o, con &recordado, también los de &rec: un reinicio el mismo día)
+  const recFalsos = (url.get('rec') ?? '').split(',').filter(Boolean).map(n => `h-${n}`)
+  const horaArF = ms => new Date(ms - 3 * 3600000).toISOString().slice(11, 16)
+  const minDelDia = Number(horaArF(ahora).slice(0, 2)) * 60 + Number(horaArF(ahora).slice(3, 5))
+  const atraso = url.has('tarde') ? 120 : 10
+  for (const h of HABITOS_FALSOS) if (recFalsos.includes(h.id)) h.aviso = minDelDia >= atraso ? horaArF(ahora - atraso * 60000) : '00:00'
+  let recordadosHab = { dia: diaAr(0), ids: HABITOS_FALSOS.map(h => h.id).filter(id => url.has('recordado') || !recFalsos.includes(id)) }
+  window.__notificaciones = []
   const habitosFalsos = new Map((modoHabitos === 'vacio' ? [] : HABITOS_FALSOS).map(h => [h.id, h]))
   const rotasHabitos = modoHabitos === 'roto' ? [{ archivo: 'h-mf3k2a9x1b.json', motivo: 'no es JSON: EOF while parsing a value at line 9 column 0' }] : []
   window.__habitos = habitosFalsos
@@ -1178,16 +1201,27 @@
     // otra vez); los interruptores, lo guardado con guardar_ajuste; el arranque, el "sistema" falso
     leer_configuracion: () => ({
       tamano: paso, acople, flotante, ...ajustes, arranque: arranqueFalso, version: '0.10.0', chat: prefsChat, tareasAvisado: avisadoTar,
+      habitosRecordados: recordadosHab,
     }),
     // Como `ajuste_valido` de preferencias.rs; ?cfgfalla hace fallar el guardado (la fila vuelve y lo dice)
     guardar_ajuste: ({ clave, valor }) => {
       // tareasAvisado: un día "AAAA-MM-DD" que existe, o vacío (11.4); Rust lo guarda en "tareas": { "avisado" }
       const dia = v => v === '' || (/^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v)
+      // habitosRecordados (habitos-ux.md 11.5): { dia, ids } con solo esas claves, hasta 100 ids de hábito
+      const recordadosOk = v => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 2 && typeof v.dia === 'string' && dia(v.dia) && v.dia !== ''
+        && Array.isArray(v.ids) && v.ids.length <= 100 && v.ids.every(id => idHabito(id))
       const valido = clave === 'mascota' ? ESPECIES.includes(valor)
         : clave === 'tareasAvisado' ? typeof valor === 'string' && dia(valor)
-          : ['arriba', 'avisar', 'pausa'].includes(clave) && typeof valor === 'boolean'
+          : clave === 'habitosRecordados' ? recordadosOk(valor)
+            : ['arriba', 'avisar', 'pausa'].includes(clave) && typeof valor === 'boolean'
       if (!valido) throw new Error(`ajuste inválido: ${clave}`)
       if (url.has('cfgfalla')) throw new Error('no se pudo escribir preferencias.json (falso)')
+      if (clave === 'habitosRecordados') {
+        recordadosHab = structuredClone(valor)
+        window.__ajustes = { ...ajustes, habitosRecordados: recordadosHab }
+        console.info('[preferencias] habitosRecordados', JSON.stringify(valor))
+        return { ok: true, valor }
+      }
       if (clave === 'tareasAvisado') {
         avisadoTar = valor || null
         window.__ajustes = { ...ajustes, tareas: { avisado: valor } }
@@ -1284,7 +1318,8 @@
       console.info('[tira]', mini)
     },
     esconder: () => console.info('[ventana] escondida en la bandeja'),
-    avisar: () => null,
+    // La notificación de Windows (preguntas y recordatorios, habitos-ux.md 5.5): queda en window.__notificaciones
+    avisar: ({ titulo, cuerpo }) => { window.__notificaciones.push({ titulo, cuerpo }); console.info('[notificación]', titulo, '·', cuerpo); return null },
     // Responder: según ?envio, la sesión toma la respuesta, la pregunta se va sola o el comando falla
     responder: args => {
       console.info('[responder]', JSON.stringify(args))
