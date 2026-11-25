@@ -7,6 +7,7 @@ mod claves;
 mod diagnostico;
 mod engram;
 mod equipo;
+mod habitos;
 mod historial;
 mod preferencias;
 mod modelo;
@@ -979,6 +980,66 @@ fn tareas_abrir_carpeta(app: AppHandle) -> Result<(), String> {
     std::process::Command::new("explorer").arg(&carpeta).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
+// ------------------------------------------------------------------ hábitos (#41)
+
+/// `<config>/habitos`: un archivo por hábito (`habitos.rs`).
+fn carpeta_habitos(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path().app_config_dir().map(|c| c.join("habitos")).map_err(|e| e.to_string())
+}
+
+/// Todos los hábitos, en orden, y los archivos rotos (habitos-ux.md 11.5): `{ habitos, rotas: [{ archivo, motivo }] }`.
+/// Una carpeta que existe y no se puede leer es un error, no "sin hábitos".
+#[tauri::command]
+async fn habitos_leer(app: AppHandle) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_habitos(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Err(e) = std::fs::read_dir(&carpeta) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                registrar(format!("hábitos: no se pudo leer la carpeta: {e}"));
+                return Err(String::from("No se pudo abrir la carpeta de hábitos."));
+            }
+        }
+        let l = habitos::listar(&carpeta);
+        Ok(serde_json::json!({ "habitos": l.habitos, "rotas": l.rotas }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Guarda un hábito entero (formato v1; lo que no sirve se rechaza sin tocar el archivo):
+/// `{ ok: true, habito }` con lo guardado, o `{ ok: false, error }` (la ventana lo anota).
+#[tauri::command]
+async fn habitos_guardar(app: AppHandle, habito: serde_json::Value) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_habitos(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || habitos::guardar(&carpeta, &habito)).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok(habito) => serde_json::json!({ "ok": true, "habito": habito }),
+        Err(error) => serde_json::json!({ "ok": false, "error": error }),
+    })
+}
+
+/// Borra un hábito (solo con el segundo clic de "¿Borrar? Sí"); nunca un archivo roto. `{ ok, error? }`.
+#[tauri::command]
+async fn habitos_borrar(app: AppHandle, id: String) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_habitos(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || habitos::borrar(&carpeta, &id)).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok(()) => serde_json::json!({ "ok": true }),
+        Err(error) => {
+            registrar(format!("hábitos: no se pudo borrar: {error}"));
+            serde_json::json!({ "ok": false, "error": error })
+        }
+    })
+}
+
+/// Abre `<config>/habitos/` en el Explorador (la ruta es siempre la de Avis).
+#[tauri::command]
+fn habitos_abrir_carpeta(app: AppHandle) -> Result<(), String> {
+    let carpeta = carpeta_habitos(&app)?;
+    std::fs::create_dir_all(&carpeta).map_err(|e| e.to_string())?;
+    std::process::Command::new("explorer").arg(&carpeta).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 /// El motor, la carpeta y el modelo de la charla (chat-avis-ux.md 3.4 y #35): quedan para la próxima
 /// charla nueva y la carpeta va primera en las recientes. `modelo`: uno de `chat::MODELOS` o `null`
 /// ("Por defecto"), guardado tal cual. Devuelve `{ motor, carpeta, recientes, modelo }` como el `chat`
@@ -1823,6 +1884,10 @@ pub fn run() {
             tareas_guardar,
             tareas_borrar_lista,
             tareas_abrir_carpeta,
+            habitos_leer,
+            habitos_guardar,
+            habitos_borrar,
+            habitos_abrir_carpeta,
             guardar_chat,
             elegir_carpeta,
             borrar_modelo,
