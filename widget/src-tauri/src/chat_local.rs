@@ -22,7 +22,8 @@ Respondés en español rioplatense, de vos, breve y concreto. \
 Solo respondés con lo que sabés: no leés archivos, ni carpetas, ni internet. \
 Los datos en vivo de las sesiones vienen en el bloque <avis>: usalos para responder sobre ellas, y si no sabés algo de las sesiones, decilo. \
 Lo único pendiente son las preguntas: una sesión quieta no espera nada, y \"abierta_hace\" es cuánto hace que se abrió, no cuánto hace que espera. \
-Usá Markdown simple (títulos, listas, código).";
+Usá Markdown simple (títulos, listas, código). \
+No podés tocar tareas ni hábitos: si te lo piden, decí que con el modelo local todavía no y que lo puede hacer en una charla con Claude Code.";
 /// Lo que va en el bloque `<avis>` sin sesiones (así no inventa ninguna).
 pub const SIN_SESIONES: &str = "No hay sesiones abiertas en Avis.";
 /// La entrada como mucho (D22), con el contexto de 4096 de `modelo::argumentos` y `MAX_TOKENS` de salida.

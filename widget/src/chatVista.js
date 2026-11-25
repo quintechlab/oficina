@@ -16,6 +16,8 @@ import {
   mensajesVisibles, listaCharlas, coincideBusqueda, grupoDeFecha, horaCharla, cifrasDescarga, formatoGB, detalleAdjunto,
   MODELOS, modeloValido, nombreModelo,
 } from './chat.js'
+import { recibosHtml } from './recibosVista.js'
+import { hoyArgentina } from './fechas.js'
 
 /** Los iconos de 5.4: SVG de 16, trazo de 1,4 a 1,9 y `currentColor`. */
 export const ICONOS = Object.freeze({
@@ -228,6 +230,18 @@ function usuario(msg, fallido) {
   return `<div class="m-u${fallido ? ' fallido' : ''}">${adj}<span class="t">${escapar(msg.texto)}</span>${fallido ? '<span class="tag-no">No se envió</span>' : ''}</div>`
 }
 
+/**
+ * Los recibos de un mensaje (#43, recibosVista.js). `m.recibos`: `{ listas, hoy, ui }` (las listas de
+ * Tareas en pantalla, el día de Argentina y el estado de «Deshacer» de esta ejecución); sin eso, sin
+ * chips de lista y con el día de `m.ahoraMs`. `enCurso`: el turno del mensaje sigue corriendo.
+ */
+export function recibosDe(m, msg, k, enCurso = false) {
+  // La firma del hilo va sin recibos: main.js los pone y los agrega aparte (11.11)
+  if (m.sinRecibos) return ''
+  const r = m.recibos ?? {}
+  return recibosHtml(msg, k, { listas: r.listas ?? [], hoy: r.hoy ?? hoyArgentina(m.ahoraMs ?? 0), ui: r.ui ?? new Map(), enCurso })
+}
+
 function mascota(m, msg, k, ultimo) {
   const c = m.chat
   const carpeta = nombreCarpeta(carpetaDe(m))
@@ -235,12 +249,14 @@ function mascota(m, msg, k, ultimo) {
   const partes = [quien(m)]
   if (herr) partes.push(`<div class="herr">↳ ${herr}</div>`)
   const enCurso = ultimo && msg.turno === c.turno && (c.estado === 'esperando' || c.estado === 'escribiendo')
+  // Los recibos de las tareas (#43, 3.2): después del texto (o de la espera); sin cambios, nada
+  const recibos = recibosDe(m, msg, k, enCurso)
   if (enCurso && !msg.texto) {
-    partes.push(espera(m))
+    partes.push(espera(m), recibos)
     return partes.join('')
   }
   if (enCurso) {
-    partes.push(`<div class="m-m vivo">${textoVivo(msg.texto, m.mostrado ?? msg.texto, m.animar !== false)}</div>`)
+    partes.push(`<div class="m-m vivo">${textoVivo(msg.texto, m.mostrado ?? msg.texto, m.animar !== false)}</div>`, recibos)
     return partes.join('')
   }
   const cortado = msg.estado === 'frenada' ? '<span class="cortado">■ frenaste acá</span>' : ''
@@ -250,7 +266,7 @@ function mascota(m, msg, k, ultimo) {
     const quienResponde = motorDe(m) === 'local' ? 'modelo local' : 'Claude Code'
     pie = `<div class="pie-m"><button type="button" data-accion="ch-copiar" data-i="${k}" aria-label="Copiar respuesta">Copiar</button><span>${Math.round((msg.ms ?? 0) / 1000)} s · ${quienResponde}</span></div>`
   }
-  partes.push(`<div class="m-m"><div class="txt">${txt}${cortado}</div>${pie}</div>`)
+  partes.push(`<div class="m-m"><div class="txt">${txt}${cortado}</div>${pie}</div>`, recibos)
   if (msg.estado === 'frenada' && ultimo && c.estado === 'frenada') partes.push(`<div class="acc">${boton('ch-volver-a-preguntar', 'Volver a preguntar')}</div>`)
   return partes.join('')
 }

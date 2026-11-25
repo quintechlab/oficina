@@ -282,3 +282,64 @@ test('el pie del cajón dice dónde quedó guardado: también en Engram, o Engra
   assert.match(cajon({ chat: { ...c, engram: 'si' }, especie: 'ascua', ahoraMs: AHORA }), /Guardado en esta PC · también en Engram/)
   assert.match(cajon({ chat: { ...c, engram: 'no' }, especie: 'ascua', ahoraMs: AHORA }), /Guardado en esta PC · Engram apagado/)
 })
+
+// ------------------------------------------------------------------ #43: los cambios de la charla (chat-herramientas-ux.md 11.6 y 11.8)
+
+const CAMBIO = {
+  id: 'c-7k2m9q', herramienta: 'tarea_crear', estado: 'hecho', lista: 'l-k3f9a2', tarea: 't-9x2b7q', titulo: 'Comprar pan',
+  antes: null, despues: { titulo: 'Comprar pan', fecha: '2026-11-26', hecha: false, importante: false, lista: 'l-k3f9a2' },
+  motivo: null, reintentable: false, args: null,
+}
+
+/** Una charla con un turno en curso (después del init). */
+function enCurso() {
+  let c = enviar(abierta(), 'Anotame pan')
+  c = evento(c.chat, 'listo', { sesion: SESION }).chat
+  return c
+}
+
+const mascotaDelTurno = c => c.conversacion.mensajes.findLast(m => m.rol === 'mascota' && m.turno === c.turno)
+
+test('transicionChat: un cambio se suma al mensaje de la mascota del turno', () => {
+  let c = enCurso()
+  c = evento(c, 'cambio', { cambio: CAMBIO }).chat
+  assert.deepEqual(mascotaDelTurno(c).cambios, [CAMBIO])
+  // La lectura y "para borrar" también (la ventana decide si se ven, 4.5 y 4.6)
+  const lectura = { ...CAMBIO, id: 'c-lee', herramienta: 'tareas_ver', estado: 'lectura', despues: null, resumen: { vista: 'hoy' } }
+  c = evento(c, 'lectura', { cambio: lectura }).chat
+  assert.deepEqual(mascotaDelTurno(c).cambios.map(x => x.id), ['c-7k2m9q', 'c-lee'])
+})
+
+test('transicionChat: un cambio de otro turno u otra conversación se descarta; dos con el mismo id, uno', () => {
+  let c = enCurso()
+  const ajeno = transicionChat(c, { tipo: 'backend', payload: { conversacion: 'c-9', turno: c.turno, tipo: 'cambio', cambio: CAMBIO } }, CTX).chat
+  assert.equal(mascotaDelTurno(ajeno).cambios, undefined)
+  const viejo = transicionChat(c, { tipo: 'backend', payload: { conversacion: c.conversacion.id, turno: c.turno - 1, tipo: 'cambio', cambio: CAMBIO } }, CTX).chat
+  assert.equal(mascotaDelTurno(viejo).cambios, undefined)
+  c = evento(c, 'cambio', { cambio: CAMBIO }).chat
+  c = evento(c, 'cambio', { cambio: CAMBIO }).chat
+  assert.equal(mascotaDelTurno(c).cambios.length, 1)
+  // Sin id no es un cambio
+  assert.equal(mascotaDelTurno(evento(c, 'cambio', { cambio: { estado: 'hecho' } }).chat).cambios.length, 1)
+})
+
+test('transicionChat: un cambio que llega después de frenar queda (pasó de verdad)', () => {
+  let c = enCurso()
+  c = transicionChat(c, { tipo: 'frenar' }, CTX).chat
+  c = evento(c, 'cambio', { cambio: CAMBIO }).chat
+  assert.deepEqual(mascotaDelTurno(c).cambios, [CAMBIO])
+})
+
+test('aArchivo y deArchivo: los cambios viajan con el mensaje de la mascota; sin cambios, como antes', () => {
+  let c = enCurso()
+  c = evento(c, 'cambio', { cambio: CAMBIO }).chat
+  c = evento(c, 'texto', { texto: 'Listo.' }).chat
+  c = evento(c, 'fin', { ms: 900 }).chat
+  const doc = aArchivo(c.conversacion)
+  assert.deepEqual(doc.mensajes[1].cambios, [CAMBIO])
+  assert.deepEqual(deArchivo(doc).mensajes[1].cambios, [CAMBIO])
+  // Lo de antes: una charla sin cambios no lleva la clave
+  const sin = aArchivo(conTurno().conversacion)
+  assert.ok(!('cambios' in sin.mensajes[1]))
+  assert.ok(!('cambios' in deArchivo(DOC).mensajes[1]))
+})

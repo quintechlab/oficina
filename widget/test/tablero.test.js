@@ -1,11 +1,11 @@
-// Tests del tablero (estilo Avis, F1 y F3; panel "Escenario + chips", panel-avis-ux.md): barra de
+// Tests del tablero (estilo Avis, F1 y F3; panel "Escenario + chips", panel-avis-ux.md): tira de
 // proyectos, encabezado, chips de conteo, tarjetas escenario con su elenco, equipo, vacío y tira.
 // Funciones puras de tablero.js.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   iniciales, colorProyecto, COLORES_PROYECTO, conteos, lineaEncabezado, subagentesVisibles, textoMas,
-  animoMarca, colorEstado, barraProyectos, sesiones, prepararProyecto, estadoMarca, animoTexto,
+  animoMarca, colorEstado, tiraRepos, encabezadoSesiones, sesiones, prepararProyecto, estadoMarca, animoTexto,
   MAX_SUBAGENTES_VISIBLES, firmaTablero, figuraMarca, figuraVacio, carasMini, companero, cifraConUnidades, chips, tiempoCorto,
   ESCENA, geometriaEscena, trazoHilo, estadoCorto, tiempoMini, ESTADO_CORTO, firmaEscenas,
 } from '../src/tablero.js'
@@ -100,14 +100,55 @@ test('el color de la línea de estado sigue la tabla de la dirección', () => {
   assert.equal(colorEstado('fallo'), 'var(--rojo)')
 })
 
-test('barra de proyectos: el activo lleva aria-current, la pregunta pasa el chip a "1 ?" con nombre en palabras', () => {
-  const s = (repo, extra = {}) => ({ sesion: repo, repo, inicio: hace(1), actualizado: hace(0), ...extra })
-  const proyectos = agruparPorProyecto([s('q/oficina'), s('q/catalogo', { preguntas: [{ id: 'p', agente: null, items: [{ pregunta: '¿?' }] }] })])
-  const h = barraProyectos(proyectos, proyectos.findIndex(p => p.nombre === 'oficina'))
-  assert.match(h, /<button type="button" class="pj activo" aria-current="true" data-accion="ir" data-proy="1" title="q\/oficina">/)
-  assert.match(h, /<span class="chip chip-preg" aria-label="1 pregunta pendiente">1 \?<\/span>/)
-  assert.match(h, /<span class="chip" aria-label="1 sesión">1<\/span>/)
+// ------------------------------------------------------------------ tira de repos (modulos-ux.md 4.4, #42 M2)
+
+const sr = (repo, extra = {}) => ({ sesion: `${repo}-${extra.k ?? 0}`, repo, inicio: hace(1), actualizado: hace(0), ...extra })
+const conPregunta = { preguntas: [{ id: 'p', agente: null, items: [{ pregunta: '¿?' }] }] }
+
+test('tira de repos: el elegido lleva aria-current="true" y «, elegido» en su nombre; uno solo', () => {
+  const proyectos = agruparPorProyecto([sr('q/oficina'), sr('q/oficina', { k: 1 }), sr('q/catalogo', conPregunta)])
+  const k = proyectos.findIndex(p => p.nombre === 'oficina')
+  const h = tiraRepos(proyectos, k)
+  assert.match(h, new RegExp(`<button type="button" class="rch" aria-current="true" data-accion="ir" data-proy="${k}" title="q/oficina" aria-label="oficina, 2 sesiones, elegido">`))
   assert.equal((h.match(/aria-current/g) ?? []).length, 1)
+  assert.equal((h.match(/, elegido"/g) ?? []).length, 1)
+  // Los mismos data-accion="ir" y data-proy de la barra de antes: el manejador de main.js no cambia (11.1)
+  assert.equal((h.match(/data-accion="ir" data-proy="\d+"/g) ?? []).length, 2)
+})
+
+test('tira de repos: cada chip lleva el ícono del proyecto, el nombre y la cuenta; con pregunta, «1 ?» en lugar de las sesiones', () => {
+  const proyectos = agruparPorProyecto([sr('q/oficina'), sr('q/catalogo', conPregunta)])
+  const k = proyectos.findIndex(p => p.nombre === 'catalogo')
+  const h = tiraRepos(proyectos, -1)
+  assert.match(h, new RegExp(`data-proy="${k}" title="q/catalogo" aria-label="catalogo, 1 pregunta pendiente"><span class="pj-ic" style="--c:${colorProyecto('catalogo').replace(/[()]/g, '\\$&')}" aria-hidden="true">c</span><span class="rch-n">catalogo</span><span class="chip chip-preg" aria-hidden="true">1 \\?</span></button>`))
+  assert.match(h, /aria-label="oficina, 1 sesión">.*<span class="chip" aria-hidden="true">1<\/span><\/button>/)
+  // Sin proyecto elegido (no pasa en Sesiones, pero no rompe): ningún aria-current
+  assert.doesNotMatch(h, /aria-current/)
+})
+
+test('tira de repos: nombres y repositorios escapados', () => {
+  const [p] = agruparPorProyecto([sr('q/<x>&"y"')])
+  const h = tiraRepos([{ ...p, nombre: '<x>&"y"' }], 0)
+  assert.doesNotMatch(h, /<x>/)
+  assert.match(h, /title="q\/&lt;x&gt;&amp;&quot;y&quot;"/)
+  assert.match(h, /aria-label="&lt;x&gt;&amp;&quot;y&quot;, 1 sesión, elegido"/)
+  assert.match(h, /<span class="rch-n">&lt;x&gt;&amp;&quot;y&quot;<\/span>/)
+})
+
+test('tira de repos: sin proyectos, nada', () => {
+  assert.equal(tiraRepos([], 0), '')
+})
+
+test('encabezado de Sesiones (M2, 5): h1 «Sesiones», title el repositorio y la bajada «{proyecto} · {lineaEncabezado}»', () => {
+  const [p] = agruparPorProyecto([sr('q/catalogo', conPregunta)])
+  const preparadas = prepararProyecto(p, AHORA)
+  const c = conteos(preparadas, AHORA)
+  assert.deepEqual(encabezadoSesiones(p, preparadas, c), { titulo: 'Sesiones', title: 'q/catalogo', subtitulo: 'catalogo · 1 sesión · te hace una pregunta' })
+  const [q] = agruparPorProyecto([sr('q/oficina'), sr('q/oficina', { k: 1 })])
+  const pq = prepararProyecto(q, AHORA)
+  assert.deepEqual(encabezadoSesiones(q, pq, conteos(pq, AHORA)), { titulo: 'Sesiones', title: 'q/oficina', subtitulo: 'oficina · 2 sesiones' })
+  // La bajada sigue siendo la línea de siempre después del nombre
+  assert.equal(encabezadoSesiones(q, pq, conteos(pq, AHORA)).subtitulo, `oficina · ${lineaEncabezado(pq, conteos(pq, AHORA))}`)
 })
 
 /** Las tarjetas escenario de una sola sesión con estos subagentes. */

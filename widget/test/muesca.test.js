@@ -9,6 +9,7 @@ import {
   estadoMuesca, ESTADO_INICIAL, siguiente, tocaGolpe, dentroDe, posicionFlotante, contenidoMuesca, contenidoPildora,
   disposicionAcoplada, ventanaDeArea, mismoRect, zonaInteractiva, MARGEN_ZONA, TAM_MUESCA, tamMuescaDe, figuraMuesca, planVentana, secuenciaVelo, ASIENTO_VELO_MS, REAPARECE_MS,
   disposicionFlotante, disposicionTira, transformEntre, plegadoHacia, anclaHacia, fueraDelBorde, estiloMuesca,
+  lugarGloboMuesca, absoluto, MARGEN_GLOBO, SEPARA_GLOBO,
 } from '../src/muesca.js'
 import { esquinaTira, tamanoMini } from '../src/tamano.js'
 import { agruparPorProyecto, reposoPermitido } from '../src/logica.js'
@@ -330,6 +331,62 @@ test('zona interactiva cerrada: la caja de la muesca + 4, sin hombros, contiene 
   }
 })
 
+// El globo del aviso diario de tareas (tareas-ux.md 8.5): cuelga 8 px del lado de adentro y la zona lo suma
+
+const GLOBO = { ancho: 168, alto: 32 }
+
+test('lugarGloboMuesca: cuelga 8 px del lado de adentro de la pantalla, centrado en la muesca', () => {
+  assert.equal(SEPARA_GLOBO, 8)
+  const ventana = { ancho: 1920, alto: 1040 }
+  const m = { x: 885, y: 0, ancho: 150, alto: 54 }
+  const centroX = m.x + m.ancho / 2
+  let g = lugarGloboMuesca('arriba', m, GLOBO, ventana)
+  assert.deepEqual(g, { x: centroX - 84, y: 62, ancho: 168, alto: 32, cola: 84 })
+  const ab = { x: 885, y: 986, ancho: 150, alto: 54 }
+  g = lugarGloboMuesca('abajo', ab, GLOBO, ventana)
+  assert.deepEqual(g, { x: centroX - 84, y: 986 - 8 - 32, ancho: 168, alto: 32, cola: 84 })
+  const iz = { x: 0, y: 450, ancho: 62, alto: 140 }
+  g = lugarGloboMuesca('izquierda', iz, GLOBO, ventana)
+  assert.deepEqual(g, { x: 62 + 8, y: 520 - 16, ancho: 168, alto: 32, cola: 16 })
+  const de = { x: 1858, y: 450, ancho: 62, alto: 140 }
+  g = lugarGloboMuesca('derecha', de, GLOBO, ventana)
+  assert.deepEqual(g, { x: 1858 - 8 - 168, y: 520 - 16, ancho: 168, alto: 32, cola: 16 })
+})
+
+test('lugarGloboMuesca: contra una esquina queda adentro de la ventana y la cola sigue apuntando a la muesca', () => {
+  const ventana = { ancho: 1366, alto: 728 }
+  const m = { x: 0, y: 0, ancho: 150, alto: 54 }
+  const g = lugarGloboMuesca('arriba', m, { ancho: 260, alto: 32 }, ventana)
+  assert.equal(g.x, MARGEN_GLOBO)
+  assert.equal(g.x + g.cola, 75)
+  const fin = lugarGloboMuesca('izquierda', { x: 0, y: 700, ancho: 62, alto: 28 }, GLOBO, ventana)
+  assert.equal(fin.y, 728 - MARGEN_GLOBO - 32)
+  assert.ok(fin.cola > 0 && fin.cola <= 32)
+})
+
+test('zonaInteractiva: cerrada y con el globo, la muesca + 4 unida al globo; sin globo, como siempre', () => {
+  for (const z of [1, 1.75, 2]) {
+    for (const borde of BORDES) {
+      const d = disposicionAcoplada({ borde, lugar: 0.5 }, tamMuescaDe(borde, z), TABLERO, AREA, z)
+      const local = lugarGloboMuesca(borde, d.local.muesca, GLOBO, { ancho: d.ventana.ancho / z, alto: d.ventana.alto / z })
+      const globo = absoluto(local, d.ventana, z)
+      // absoluto es la vuelta de relativo
+      const r6 = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.round(v * 1e6) / 1e6]))
+      assert.deepEqual(r6(relativo(globo, d.ventana, z)), r6({ x: local.x, y: local.y, ancho: local.ancho, alto: local.alto }))
+      const sin = zonaInteractiva(d, { abierta: false }, z)
+      assert.deepEqual(zonaInteractiva(d, { abierta: false, globo: null }, z), sin, `${borde} ${z}: sin globo`)
+      const zona = zonaInteractiva(d, { abierta: false, globo }, z)
+      // El clic en el globo cae en la ventana (no pasa a la app de abajo), y la muesca sigue adentro
+      assert.ok(contiene(zona, globo), `${borde} ${z}: el globo`)
+      assert.ok(contiene(zona, sin), `${borde} ${z}: la muesca`)
+      assert.equal(zona.toda, false)
+      // Abierta o arrastrando, el globo no cuenta (no se ve)
+      assert.deepEqual(zonaInteractiva(d, { abierta: true, globo }, z), zonaInteractiva(d, { abierta: true }, z))
+      assert.deepEqual(zonaInteractiva(d, { abierta: false, arrastrando: true, globo }, z), { ...d.ventana, toda: true })
+    }
+  }
+})
+
 test('tamaño de la muesca: 150 × 54 arriba y abajo, 62 × 140 a los costados, con el zoom', () => {
   assert.deepEqual(TAM_MUESCA, { horizontal: { largo: 150, grosor: 54 }, vertical: { largo: 140, grosor: 62 } })
   for (const borde of ['arriba', 'abajo']) {
@@ -593,15 +650,14 @@ test('flotando, la ventana es el área de trabajo entera y el tablero va adentro
 })
 
 test('en la tira, la ventana es el área de trabajo entera y la tira va abajo a la derecha (o donde se la soltó)', () => {
-  for (const z of [1, 1.5, 2]) {
-    const tam = tamanoMini(z)
-    const d = disposicionTira(null, tam, AREA, z)
-    assert.equal(d.modo, 'tira')
-    assert.deepEqual(d.ventana, ventanaDeArea(AREA))
-    assert.deepEqual(d.tira, { ...esquinaTira(AREA, tam), ...tam })
-    assert.deepEqual(d.local.tira, { x: d.tira.x / z, y: d.tira.y / z, ancho: 400, alto: 56 })
-  }
-  const suelta = disposicionTira({ x: 200, y: 300 }, tamanoMini(1), AREA)
+  // Siempre al 100 % (#47): la tira mide 400 × 56 en px de pantalla y en px CSS
+  const tam = tamanoMini()
+  const d = disposicionTira(null, tam, AREA)
+  assert.equal(d.modo, 'tira')
+  assert.deepEqual(d.ventana, ventanaDeArea(AREA))
+  assert.deepEqual(d.tira, { ...esquinaTira(AREA, tam), ...tam })
+  assert.deepEqual(d.local.tira, { x: d.tira.x, y: d.tira.y, ancho: 400, alto: 56 })
+  const suelta = disposicionTira({ x: 200, y: 300 }, tamanoMini(), AREA)
   assert.deepEqual(suelta.tira, { x: 200, y: 300, ancho: 400, alto: 56 })
 })
 
@@ -611,8 +667,8 @@ test('acoplada, flotando y en la tira la ventana es la misma: pasar de una forma
     disposicionAcoplada({ borde: 'derecha', lugar: 0.2 }, MUESCA_V, TABLERO, AREA).ventana,
     disposicionFlotante({ x: 300, y: 120 }, TAB, AREA).ventana,
     disposicionFlotante({ x: 1500, y: 900 }, TAB, AREA, 2).ventana,
-    disposicionTira(null, tamanoMini(1), AREA).ventana,
-    disposicionTira({ x: 10, y: 10 }, tamanoMini(2), AREA, 2).ventana,
+    disposicionTira(null, tamanoMini(), AREA).ventana,
+    disposicionTira({ x: 10, y: 10 }, tamanoMini(), AREA).ventana,
   ]
   for (const v of ventanas) {
     assert.ok(mismoRect(v, ventanas[0]))
@@ -626,12 +682,9 @@ test('zona interactiva por forma: flotando, el tablero; en la tira, la tira; arr
   const f = disposicionFlotante({ x: 300, y: 120 }, TAB, AREA)
   assert.deepEqual(zonaInteractiva(f, { abierta: false }), { x: 300, y: 120, ancho: 700, alto: 500, toda: false })
   assert.deepEqual(zonaInteractiva(f, { abierta: false, arrastrando: true }), { ...ventanaDeArea(AREA), toda: true })
-  const t = disposicionTira(null, tamanoMini(1), AREA)
+  const t = disposicionTira(null, tamanoMini(), AREA)
   assert.deepEqual(zonaInteractiva(t, { abierta: false }), { ...t.tira, toda: false })
   assert.deepEqual(zonaInteractiva(t, { abierta: false, arrastrando: true }), { ...ventanaDeArea(AREA), toda: true })
-  // Con zoom la zona sigue en px de pantalla (el tablero y la tira ya vienen con el zoom)
-  const t2 = disposicionTira(null, tamanoMini(2), AREA, 2)
-  assert.deepEqual(zonaInteractiva(t2, { abierta: false }, 2), { ...t2.tira, toda: false })
   // Acoplada sigue igual: la muesca + 4 cerrada, el tablero abierta
   const a = disposicionAcoplada({ borde: 'arriba', lugar: 0.5 }, MUESCA_H, TABLERO, AREA)
   assert.equal(a.modo, 'acoplada')
@@ -682,6 +735,25 @@ test('estiloMuesca: las manos del alféizar y la luz de cara, del color de la ma
   for (const e of ['ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']) {
     assert.deepEqual(estiloMuesca(e), { '--mano-muesca': datosEspecie(e).mano, '--c-muesca': datosEspecie(e).c }, e)
   }
+})
+
+test('sin zoom (#47): la ventana llama a la geometría sin escala y da lo mismo que al 100 %', () => {
+  // main.js dejó de pasar el zoom: cada función, sin `z`, tiene que ser la de z = 1 de siempre
+  for (const borde of BORDES) {
+    const tam = tamMuescaDe(borde)
+    assert.deepEqual(tam, tamMuescaDe(borde, 1))
+    const acople = { borde, lugar: 0.37 }
+    const d = disposicionAcoplada(acople, tam, TABLERO, AREA)
+    assert.deepEqual(d, disposicionAcoplada(acople, tam, TABLERO, AREA, 1))
+    assert.deepEqual(recorte(d.m.caja, d.p.tablero, borde), recorte(d.m.caja, d.p.tablero, borde, 1))
+    assert.equal(lugarAjustado(0.99, tam.largo, 1920), lugarAjustado(0.99, tam.largo, 1920, 1))
+    for (const abierta of [true, false]) assert.deepEqual(zonaInteractiva(d, { abierta }), zonaInteractiva(d, { abierta }, 1))
+  }
+  const r = { x: 110, y: 50, ancho: 20, alto: 10 }
+  assert.deepEqual(relativo(r, { x: 100, y: 40 }), { x: 10, y: 10, ancho: 20, alto: 10 })
+  assert.deepEqual(absoluto(relativo(r, { x: 100, y: 40 }), { x: 100, y: 40 }), r)
+  assert.deepEqual(disposicionFlotante({ x: 300, y: 120 }, TAB, AREA), disposicionFlotante({ x: 300, y: 120 }, TAB, AREA, 1))
+  assert.deepEqual(disposicionTira(null, tamanoMini(), AREA), disposicionTira(null, tamanoMini(), AREA, 1))
 })
 
 test('contenidoPildora: el título es el nombre de la mascota (#37), escapado; sin nombre, Avis', () => {

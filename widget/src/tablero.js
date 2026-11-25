@@ -1,4 +1,4 @@
-// Tablero del estilo Avis (docs/diseno/estilo-avis-ux.md, opción A): barra de proyectos,
+// Tablero del estilo Avis (docs/diseno/estilo-avis-ux.md, opción A): tira de repos (modulos-ux.md 4.4),
 // encabezado, chips de conteo y tarjetas escenario con su elenco (docs/diseno/panel-avis-ux.md,
 // "Escenario + chips"), equipo, vacío y tira mini. Arma texto HTML a partir de los datos reales;
 // todo texto que viene de una sesión se escapa.
@@ -175,16 +175,32 @@ export function figuraMarca(animo, mascota = 'avi', formas = new Set()) {
 const claudeEn = (mascota, clave, formas, animo, tamano, opciones = {}) =>
   avi(claudeDe(mascota), animo, tamano, { ...opciones, claveEvo: clave, evolucionada: clave != null && formas.has(clave) })
 
-/** Una fila por proyecto (reemplaza a ◀ ▶). `i`: el proyecto activo. */
-export function barraProyectos(proyectos, i) {
+/**
+ * La tira de repos arriba de las sesiones (modulos-ux.md 4.4, #42 M2; reemplaza a la barra de proyectos):
+ * un chip por proyecto con su ícono, su nombre y la cuenta de hoy (las sesiones, o «1 ?» con preguntas).
+ * Los mismos `data-accion="ir"` y `data-proy` de antes, así el manejador de main.js no cambia. `i`: el
+ * elegido (`aria-current="true"` y «, elegido» en el nombre). La cuenta va aria-hidden: el nombre la dice.
+ * Se llama «Repos» (decisión de Quintana del 25/11): «Proyectos» es un módulo nuevo (#44).
+ */
+export function tiraRepos(proyectos, i) {
   return proyectos.map((p, k) => {
     const pend = preguntasPendientes(p).length
     const chip = pend
-      ? `<span class="chip chip-preg" aria-label="${plural(pend, 'pregunta pendiente', 'preguntas pendientes')}">${pend} ?</span>`
-      : `<span class="chip" aria-label="${plural(p.sesiones.length, 'sesión', 'sesiones')}">${p.sesiones.length}</span>`
-    const activo = k === i
-    return `<button type="button" class="pj${activo ? ' activo' : ''}"${activo ? ' aria-current="true"' : ''} data-accion="ir" data-proy="${k}" title="${escapar(p.repo ?? p.nombre)}"><span class="pj-ic" style="--c:${colorProyecto(p.nombre)}" aria-hidden="true">${escapar(iniciales(p.nombre))}</span><span class="pj-n">${escapar(p.nombre)}</span>${chip}</button>`
+      ? `<span class="chip chip-preg" aria-hidden="true">${pend} ?</span>`
+      : `<span class="chip" aria-hidden="true">${p.sesiones.length}</span>`
+    const cuenta = pend ? plural(pend, 'pregunta pendiente', 'preguntas pendientes') : plural(p.sesiones.length, 'sesión', 'sesiones')
+    const elegido = k === i
+    const nombre = `${p.nombre}, ${cuenta}${elegido ? ', elegido' : ''}`
+    return `<button type="button" class="rch"${elegido ? ' aria-current="true"' : ''} data-accion="ir" data-proy="${k}" title="${escapar(p.repo ?? p.nombre)}" aria-label="${escapar(nombre)}"><span class="pj-ic" style="--c:${colorProyecto(p.nombre)}" aria-hidden="true">${escapar(iniciales(p.nombre))}</span><span class="rch-n">${escapar(p.nombre)}</span>${chip}</button>`
   }).join('')
+}
+
+/**
+ * El encabezado de Sesiones (modulos-ux.md 5 y 11.1, M2): el `h1` dice «Sesiones» (el proyecto está en la
+ * tira), su `title` el repositorio, y la bajada «{proyecto} · {lineaEncabezado}».
+ */
+export function encabezadoSesiones(proyecto, preparadas, c) {
+  return { titulo: 'Sesiones', title: proyecto.repo ?? proyecto.nombre, subtitulo: `${proyecto.nombre} · ${lineaEncabezado(preparadas, c)}` }
 }
 
 // ------------------------------------------------------------------ columna principal

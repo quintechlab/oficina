@@ -6,6 +6,8 @@
 
 import { NOMBRES_ESPECIES, datosEspecie, especieValida } from './especies.js'
 import { cifrasDescarga, formatoGB, MODELOS } from './chat.js'
+import { DESFASE_AR, diaArgentina, fechaValida } from './fechas.js'
+import { resumenGuardadoValido, fraseGuardadaValida } from './habitos.js'
 
 /** Orden fijo de las pestañas (4.4). */
 export const PESTANAS = [
@@ -72,14 +74,32 @@ export const subtituloConfiguracion = tab => (tab === 'mascota' ? 'Se guarda al 
 
 /**
  * ¿`valor` sirve para `clave`? `mascota`, una de las siete especies (texto exacto); `arriba`,
- * `avisar` y `pausa`, solo booleanos; los nombres (#37), `nombreValido`; cualquier otra clave, no.
- * `motor` llega con el chat (D6).
+ * `avisar` y `pausa`, solo booleanos; `tareasAvisado` (el día del aviso diario de tareas,
+ * tareas-ux.md 11.4), un día que existe `AAAA-MM-DD` o vacío; `habitosRecordados` (los hábitos ya
+ * recordados hoy, habitos-ux.md 8.3 y 11.5), `{ dia, ids }` con solo esas dos claves, un día que existe
+ * y hasta 100 ids de hábito; `habitosResumen` (8.4), un lunes que existe o vacío; `habitosFrase` (8.4),
+ * `{ lunes, frase }` (`fraseGuardadaValida` de habitos.js); los nombres (#37), `nombreValido`; cualquier otra clave, no. Las mismas reglas que `ajuste_valido` de
+ * preferencias.rs. `motor` llega con el chat (D6).
  */
 export function validarAjuste(clave, valor) {
   if (clave === 'mascota') return NOMBRES_ESPECIES.includes(valor)
   if (Object.hasOwn(INTERRUPTORES, clave ?? '')) return typeof valor === 'boolean'
+  if (clave === 'tareasAvisado') return valor === '' || fechaValida(valor)
+  if (clave === 'habitosRecordados') return recordadosValidos(valor)
+  // El resumen semanal de Hábitos (habitos-ux.md 8.4): el lunes visto y la frase de esa semana
+  if (clave === 'habitosResumen') return resumenGuardadoValido(valor)
+  if (clave === 'habitosFrase') return fraseGuardadaValida(valor)
   if (NOMBRES.includes(clave)) return nombreValido(valor)
   return false
+}
+
+/** Un id de hábito (`id_valido` de habitos.rs): `h-` y de 1 a 38 minúsculas, dígitos o guiones. */
+const ID_HABITO = /^h-[a-z0-9-]{1,38}$/
+
+/** `{ dia, ids }` de los hábitos recordados (11.5), sin otras claves, con hasta 100 ids (`MAX_RECORDADOS`). */
+function recordadosValidos(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v) || Object.keys(v).length !== 2) return false
+  return fechaValida(v.dia) && Array.isArray(v.ids) && v.ids.length <= 100 && v.ids.every(id => typeof id === 'string' && ID_HABITO.test(id))
 }
 
 /** Un interruptor leído: lo que no es booleano vuelve al de fábrica. */
@@ -100,11 +120,6 @@ export function ubicacionDe(acople) {
 export function bordeDeUbicacion(ubicacion) {
   if (ubicacion === 'flota') return null
   return UBICACIONES.some(([v]) => v === ubicacion) ? ubicacion : undefined
-}
-
-/** Los botones − y + del tamaño: se apagan en las puntas (100 y 200 %, los de preferencias.rs). */
-export function limitesTamano(tamano) {
-  return { achicar: tamano > 100, agrandar: tamano < 200 }
 }
 
 /**
@@ -272,12 +287,8 @@ export function textoHistorial({ resumen = null, borrando = false, fallidas = 0 
 
 // ------------------------------------------------------------------ Instalación y modelo local (7.2 y 7.3)
 
-const MS_HORA = 3600000
-const MS_DIA = 24 * MS_HORA
-/** Argentina es UTC−3 todo el año (sin horario de verano desde 2009): la hora no depende de la PC. */
-const DESFASE_AR = 3 * MS_HORA
+// El día y el desfase de Argentina (UTC−3 todo el año) viven en fechas.js: las tareas cuentan el día igual (tareas-ux.md 11.2)
 const dos = n => String(n).padStart(2, '0')
-const diaArgentina = ms => Math.floor((ms - DESFASE_AR) / MS_DIA)
 
 /** "10:33": la hora de Argentina, en 24 h (la regla del perfil: nunca UTC). */
 export function horaArgentina(ms) {
@@ -559,5 +570,5 @@ export function retieneConfig(config) {
 /** Con el tablero más bajo que esto (px CSS), la hoja compacta su encabezado (16, M4). */
 export const ALTO_MARCO_BAJO = 520
 
-/** ¿El tablero es bajo? `alto` en px CSS (sin el zoom), el de `d.local.tablero`. */
+/** ¿El tablero es bajo? `alto` en px CSS (sin escala), el de `d.local.tablero`. */
 export const marcoBajo = alto => Number(alto) < ALTO_MARCO_BAJO

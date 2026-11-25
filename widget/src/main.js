@@ -7,13 +7,13 @@ import { agruparPorProyecto, preguntasPendientes, preguntasNuevas, resumenMini, 
 import { companeros } from './equipo.js'
 import { iconoBandeja, textoInsignia } from './bandeja.js'
 import {
-  zoomDe, pasoQueEntra, direccionDeTecla, tamanoDeseado, fueraDeLugar, posicionEnPantalla, tamanoMini, medidaVentana, PASO_POR_DEFECTO,
+  tamanoDeseado, fueraDeLugar, posicionEnPantalla, tamanoMini, medidaVentana,
   fraccionFlotante, posicionDeFraccion,
 } from './tamano.js'
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
   prepararProyecto, firmaEscenas, sesiones, carasMini, companero, firmaCompanero,
-  barraProyectos, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, chips, lineaEncabezado, colorProyecto, animoTexto,
+  tiraRepos, encabezadoSesiones, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, chips, colorProyecto, animoTexto,
 } from './tablero.js'
 import {
   vistaBarra, clicFrenar, validarTexto, teclaControl, lineaResultado, lineaError, pasoOrden,
@@ -34,6 +34,7 @@ import {
   esHorizontal, bordeCercano, lugarDe, lugarAjustado, disposicionAcoplada, zonaInteractiva, recorte, cajaArrastre,
   posicionFlotante, dentroDe, ventanaDeArea, mismoRect, relativo, estadoMuesca, contenidoMuesca, contenidoPildora, estiloMuesca, ESTADO_INICIAL, siguiente, tocaGolpe, PILDORA,
   planVentana, tamMuescaDe, figuraMuesca, disposicionFlotante, disposicionTira, plegadoHacia, anclaHacia, fueraDelBorde, centroDe,
+  lugarGloboMuesca, absoluto,
 } from './muesca.js'
 import * as movimientoMuesca from './muescaMotion.js'
 import {
@@ -45,10 +46,13 @@ import * as movimientoPasos from './primerosPasosMotion.js'
 import {
   chatInicial, transicionChat, ocupado, datosAvis, relojEspera, tramoVivo, markdownSeguro, sugerencias, nombreCarpeta,
   carpetasDeProyectos, ladoHoja, rectHoja, hojaBaja, anuncioAdjuntos, SALUDA_MS, FELIZ_MS, ADELANTO_PLIEGUE_MS, aArchivo, guardadosPendientes, GUARDAR_CADA_MS,
-  sobreHoja, nombreArchivo, puedeVencer, modeloValido, nombreModelo,
+  sobreHoja, nombreArchivo, puedeVencer, modeloValido, nombreModelo, scrollHilo,
 } from './chat.js'
-import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, menuModelo, cajon, listaHistorial, capaSoltar, htmlPalabras, clipAdjuntar } from './chatVista.js'
+import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, menuModelo, cajon, listaHistorial, capaSoltar, htmlPalabras, clipAdjuntar, recibosDe } from './chatVista.js'
 import * as movimientoChat from './chatMotion.js'
+import { diferenciaRecibos, armarRecibos, ESCRIBEN, anuncioDeshacer, anuncioRecibo, encabezadoRecibo, pieDeshacer } from './recibos.js'
+import { lineaPuedeHtml, globoPuedeHtml, filaCambioHtml, pieCambiosHtml, reciboHtml } from './recibosVista.js'
+import * as movimientoRecibos from './recibosMotion.js'
 import {
   conversaciones, conversacionesNuevas, mensajesNuevos, convsVisibles, debeAbrirseSola, ladoIzquierdo, primeroDe, pausaVuelta, nombreLado, textoSub,
   geometriaDividida, cuentaVuelta, rastroConversa, anuncioEmpieza, anuncioTermina, esperaRespuesta, RECIEN_SOLA_MS, CONTESTO_MS, ESPERA_VUELTA_MS,
@@ -64,9 +68,40 @@ import {
   ANUNCIO_CLAVE_BORRADA, empezarClave, retieneConfig, detalleErrorClave, marcoBajo,
 } from './configuracion.js'
 import {
-  esqueletoConfiguracion, avisoPreguntaConfiguracion, seccionConfiguracion, partesMascota, partesModelos, miniConfiguracion, nombrePestana,
+  esqueletoConfiguracion, seccionConfiguracion, partesMascota, partesModelos, miniConfiguracion, nombrePestana,
 } from './configuracionVista.js'
 import * as movimientoConfig from './configuracionMotion.js'
+import {
+  tareasInicial, abrirTareas, cerrarTareas, cambiarVista, alEscTareas, esAtajoTareas, cuentas, nombreFilaTareas, subtituloTareas,
+  validarNombreLista, textoErrorLista, validarTitulo, nuevaLista, nuevoId, renombrarLista, agregarTarea, tildarTarea, listaParaHoy,
+  mezclarLectura, rebasarLista, anuncioAgregada, anuncioBorradaLista, tiempoTilde, focoTrasTildar, hoyArgentina,
+  buscarTarea, editarTarea, agregarSubtarea, tildarSubtarea, editarSubtarea, borrarTarea, moverTarea, listaParaGuardar,
+  nuevaMudanza, soltarMudanzas, olvidarMudanzas, fechaDeOpcion, abrirDetalle, cerrarDetalle, diferirGuardado, nombreVista,
+  MAX_SUBTAREAS, AVISO_INICIAL, evaluarAviso, verAviso, soltarAviso, textoGlobo, horaGlobo, anuncioGlobo, plano,
+} from './tareas.js'
+import { encolar, quitar, actual as globoActual, claveRec, claveResumen, conResumen } from './globos.js'
+import {
+  ladoFilaTareas, esqueletoTareas, CARPETA, miniTareas, indiceTareas, cabeceraPanel, campoNueva, cuerpoLista,
+  primerUso, errorGuardar, errorRota, errorCarpeta, atrasTarea, esqueletoDetalle, partesDetalle, globoMarca, globoMuesca, filaAviso,
+} from './tareasVista.js'
+import * as movimientoTareas from './tareasMotion.js'
+import {
+  habitosInicial, abrirHabitos, cerrarHabitos, verHabitos, empezarNuevo, abrirHabito, cerrarHabito, alEscHabitos, esAtajoHabitos,
+  cuentasHoy, nombreFilaHabitos, subtituloHabitos, ordenarHabitos, esHabito, validarHabito, nuevoHabito, desdeSugerida, SUGERIDAS,
+  toca as tocaHabito, hecho as hechoHabito, valor as valorHabito, racha as rachaHabito, marcar as marcarHabito, sumar as sumarHabito,
+  corregir as corregirHabito, editar as editarHabito, conMejor, hitoNuevo, textoHito, AVISO_POR_DEFECTO,
+  anuncioTilde, anuncioSuma, anuncioDiaCompleto, anuncioCorregido, anuncioCreado, anuncioBorrado,
+  recordatoriosDebidos, recordar, recordatorioVigente, textosGlobo, textoHechoGlobo,
+  resumenDebido, resumenSemana, plantillaResumen, fraseValida, textosResumen, tituloSemana, mensajeSemana, datosFrase, fraseGuardada,
+} from './habitos.js'
+import {
+  ladoFilaHabitos, esqueletoHabitos, CARPETA_HAB, partesHoja, primerUsoHabitos, errorCarpetaHab, fraseHtml, hitoHtml,
+  globoHab, globoMuescaHab, filaAvisoHab, globoResumen, globoMuescaResumen, filaAvisoResumen,
+} from './habitosVista.js'
+import * as movimientoHabitos from './habitosMotion.js'
+import { MODULOS, irModulo as planModulo, alEscModulo, cuentaModulo, nombreModulo, avisoPregunta, moduloAlExpandir, cuentasModulosMini, desplazarTira } from './modulos.js'
+import { avisoPreguntaHtml, cuentasMiniHtml } from './modulosVista.js'
+import * as movimientoModulos from './modulosMotion.js'
 
 const INTERVALO_MS = 1500
 const INTERVALO_EQUIPO_MS = 60000
@@ -111,6 +146,14 @@ const st = {
   avisar: true,
   pausa: false,
   /** "Arrancar con Windows": la marca real del sistema (`leer_configuracion`, `poner_arranque`). */
+  /**
+   * El módulo a la vista (#42, modulos-ux.md 3.5): 'sesiones' | 'tareas' | 'habitos' | 'config'. Es la
+   * única fuente de qué se ve y solo lo cambia `irModulo`; `config.abierta`, `tareas.abierta` y `habitos.abierta` son sus
+   * derivados (los escribe `irModulo` al abrir o cerrar la hoja). Al arrancar, Sesiones (D-m8).
+   */
+  modulo: 'sesiones',
+  /** Las preguntas pendientes de la última vez que se dibujó el menú: el chip de Sesiones late cuando suben (4.2). */
+  preguntasMenu: null,
   arranque: false,
   /**
    * La configuración dentro del panel (#23, configuracion-ux.md 4.6): abierta, la pestaña (la última
@@ -142,6 +185,52 @@ const st = {
   historialChat: { resumen: null, borrando: false, fallidas: 0 },
   /** Acoplada, el panel quedó fijado mientras se escribe una clave (4.1) y vuelve a su marca al terminar. */
   cfgRet: { retuvo: false, fijaAntes: false, fijaTocada: false },
+  /**
+   * Las listas de tareas y su hoja (#39, tareas-ux.md 3.5): abierta, la vista, lo leído de
+   * `tareas_leer` (`listas`, `rotas`), el borrado armado, la lista que se renombra o se crea, "Hechas"
+   * y los errores de 7.4 y 7.6. Los borradores viven en su `<input>`, nunca acá.
+   */
+  tareas: tareasInicial(),
+  /** Partes de la hoja de Tareas ya dibujadas (y la fila de la barra), para no redibujar lo que no cambió. */
+  tarFirmas: {},
+  /**
+   * Los hábitos y su hoja (#41, habitos-ux.md 3.5): abierta (la sigue `st.modulo`), la vista y a cuál
+   * vuelve «‹», lo leído de `habitos_leer` (`lista`, `rotas`), el borrado armado, el borrador del
+   * hábito nuevo y su error, y los errores de 7.4 y 5.2. Los textos que se escriben viven en su campo.
+   */
+  habitos: habitosInicial(),
+  /** Partes de la hoja de Hábitos ya dibujadas (y la fila del menú). */
+  habFirmas: {},
+  /**
+   * El aviso diario de tareas (tareas-ux.md 8 y 11.4): `avisoTar` (`evaluarAviso`, una vez por
+   * ejecución) y `avisadoTar` (`tareas.avisado` de preferencias.json, leído al arrancar).
+   */
+  avisoTar: AVISO_INICIAL,
+  avisadoTar: null,
+  /**
+   * Los globos (habitos-ux.md 8.1 y 8.2): la cola (`globos.js`; un globo por vez, pregunta ›
+   * recordatorio › tareas › resumen), dónde se ve ahora el de arriba (`lugarGlobo`: marca, dividida,
+   * muesca o null), cuál (`claveGlobo`), lo dibujado (`firmaGlobo`), el rectángulo del globo de la muesca
+   * en px de pantalla, para la zona interactiva (`rectGloboMuesca`), los recordatorios ya anunciados
+   * (`anunciados`) y el que confirma «Hecho» durante 1,8 s (`confirmaGlobo`: `{ clave, id }`).
+   */
+  globos: [],
+  lugarGlobo: null,
+  claveGlobo: null,
+  firmaGlobo: null,
+  rectGloboMuesca: null,
+  anunciados: new Set(),
+  confirmaGlobo: null,
+  /** Los hábitos ya recordados hoy (`habitosRecordados` de preferencias.json, habitos-ux.md 8.3): `{ dia, ids }` o null. */
+  habRecordados: null,
+  /**
+   * El resumen semanal (habitos-ux.md 8.4): el lunes de la semana del último que se vio (`habitosResumen`
+   * de preferencias.json, o null) y el lunes del que se está preparando (la frase del modelo), o null.
+   */
+  habResumen: null,
+  resumenPreparando: null,
+  /** La frase ya pedida de una semana (`habitosFrase` de preferencias.json, 8.4): `{ lunes, frase }` o null. */
+  habFrase: null,
   mini: false,
   /** La ventana está escondida en la bandeja o minimizada: los Avis se pausan (6.5). */
   fuera: false,
@@ -171,10 +260,6 @@ const st = {
   actosEvo: [],
   pendientesEvo: new Set(),
   temporizadorEvo: null,
-  /** Tamaño en porcentaje del original: 100, 125, 150, 175 o 200. */
-  tamano: PASO_POR_DEFECTO,
-  /** El paso aplicado: `tamano`, o menos si con él el panel no entra en el área (`pasoQueEntra`). */
-  paso: PASO_POR_DEFECTO,
   firmas: {},
   /** El último HTML de las escenas (con los tiempos) y sus subagentes, para los cambios en vivo (panel-avis-ux.md 8.4). */
   htmlEscenas: null,
@@ -422,7 +507,7 @@ async function despedirCerradas(nuevas) {
 function trasCierre(c) {
   anunciar(c.anuncio)
   if (!c.focoAdentro) return
-  const destino = (c.destino && botonHistorial(c.destino)) || $('#proyectos .pj.activo')
+  const destino = (c.destino && botonHistorial(c.destino)) || $('#repos [aria-current]')
   destino?.focus({ preventScroll: true })
 }
 
@@ -711,12 +796,35 @@ function pintarPie() {
   pie.textContent = `actualizado ${hora} · cada 1,5 s`
 }
 
-/** Tira mini: caras, resumen y cuenta de preguntas. */
+/**
+ * Tira mini: caras, resumen y cuenta de preguntas, que nunca se esconde; después, las cuentas chicas de
+ * los módulos que entran sin dejar el resumen por debajo de 120 (modulos-ux.md 8, M2).
+ */
 function pintarTira(ahora) {
   const r = resumenMini(st.proyectos, ahora, st.mascota)
   poner('#tira-caras', carasMini(r.caras, st.mascota, st.formas), r.caras.map(c => `${c.nombre}:${c.animo}:${c.variante ?? ''}`).join(','))
   poner('#tira-resumen', `<b>${escapar(r.titulo)}</b><span class="dim">${escapar(r.detalle)}</span>`)
   poner('#tira-pend', insignia(r.pendientes))
+  // Escondida no se mide: queda lo último (al mostrarse, el ciclo siguiente decide con la medida real)
+  const libre = anchoLibreTira()
+  if (libre == null) return
+  const tareas = st.tareas.leido ? cuentas(st.tareas.listas, hoyTareas()) : null
+  const habitos = st.habitos.leido ? cuentasHoy(st.habitos.lista, hoyHabitos()) : null
+  poner('#tira-mods', cuentasMiniHtml(tareas, habitos, cuentasModulosMini(tareas, habitos, libre)))
+}
+
+/**
+ * Lo que tendría `#tira-resumen` sin las cuentas de los módulos: el ancho de su caja (la que estira) menos
+ * las caras y su separación, más lo que hoy ocupan las cuentas. null si la tira no se ve.
+ */
+function anchoLibreTira() {
+  const arrastre = $('#tira .arrastre')
+  if (!arrastre?.clientWidth) return null
+  const mods = $('#tira-mods')
+  const estilo = getComputedStyle(arrastre)
+  const separacion = parseFloat(getComputedStyle($('#tira')).columnGap) || 0
+  const conMods = mods.offsetWidth ? mods.offsetWidth + separacion : 0
+  return arrastre.clientWidth - (parseFloat(estilo.paddingLeft) || 0) - $('#tira-caras').offsetWidth - (parseFloat(estilo.columnGap) || 0) + conMods
 }
 
 /** Ícono y texto de la bandeja: se mandan a Tauri solo cuando cambia la cuenta. */
@@ -807,6 +915,8 @@ const muescaAvi = montarMarca($('#muesca-avi'), { escala: Number(window.__escala
  * Si cambia cuál quiere el puntero, la zona se vuelve a mandar (`mirada`, 9).
  */
 function verAvis() {
+  // El globo de arriba de la cola (recordatorio, aviso de tareas) va donde esté la mascota a la vista (habitos-ux.md 8.1)
+  pintarGlobos()
   // En la pantalla dividida el riel lleva a Claude de 34 sin juegos: el motor de la marca no corre (5.1).
   // Con la hoja de la charla abierta, la mascota se mudó a su escenario: la marca queda quieta (chat-avis-ux.md 3.2)
   marca.visible(!st.fuera && !st.mini && (!st.acople || st.vista) && !st.dividida.clave && !st.chat.abierta && !hojaCerrando, !!st.acople)
@@ -979,19 +1089,32 @@ function pintar() {
   pintarMuesca(ahora, pp.faltan)
   // Sin sesiones no hay conversación que mirar: la dividida se suelta sin animación (8, vacío)
   if (!st.proyectos.length && st.dividida.clave) soltarDividida()
+  // La fila "Tareas" de la barra, con su cuenta (tareas-ux.md 4.1), siempre
+  pintarFilaTareas()
+  // La fila «Hábitos» del menú, con lo de hoy (habitos-ux.md 4.1), siempre
+  pintarFilaHabitos()
+  // El menú de módulos (modulos-ux.md 4, #42): la fila abierta, las cuentas, la píldora y la pregunta
+  // vista desde otro módulo (`#aviso-p`). `st.modulo` decide; `config.abierta` y `tareas.abierta` lo siguen
+  pintarModulos(ahora, totalPend)
   // La configuración (configuracion-ux.md 4.2): la hoja de la columna principal, también sin sesiones
   $('#marco').classList.toggle('con-cfg', st.config.abierta)
-  if (st.config.abierta) $('#cfg-fila').setAttribute('aria-current', 'page')
-  else $('#cfg-fila').removeAttribute('aria-current')
   if (st.config.abierta) { pintarHojaConfiguracion(); return }
   pintarConfiguracion()
+  // Tareas (tareas-ux.md 3.2): la otra hoja de la columna; una por vez (`irModulo` cierra la otra)
+  $('#marco').classList.toggle('con-tar', st.tareas.abierta)
+  if (st.tareas.abierta) { pintarHojaTareas(); return }
+  pintarTareas()
+  // Hábitos (habitos-ux.md 3.2): la hoja hermana de #tar y #cfg; una por vez (`irModulo` cierra la otra)
+  $('#marco').classList.toggle('con-hab', st.habitos.abierta)
+  if (st.habitos.abierta) { pintarHojaHabitos(); return }
+  pintarHabitos()
 
   if (!st.proyectos.length && forma === 'escenario') {
     // Sin tablero y con algo pendiente: el escenario de primeros pasos en lugar del vacío (3.2)
     modoMarco('escenario')
     texto('#titulo', 'Primeros pasos')
     texto('#subtitulo', '')
-    poner('#proyectos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
+    poner('#repos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
     pintarAsistente(pp, forma)
     return
   }
@@ -1003,7 +1126,7 @@ function pintar() {
     poner('#vacio-avi', figuraVacio(cargando ? 'esperando' : 'durmiendo', st.mascota), cargando ? 'cargando' : 'vacio')
     texto('#titulo', cargando ? 'Buscando sesiones…' : 'No hay sesiones de Claude Code abiertas.')
     texto('#subtitulo', cargando ? '' : 'Cuando abras una, aparece acá con sus subagentes.')
-    poner('#proyectos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
+    poner('#repos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
     return
   }
   modoMarco('tablero')
@@ -1013,10 +1136,11 @@ function pintar() {
   let i = st.proyectos.findIndex(p => p.repo === st.repo)
   if (i < 0) { i = 0; st.repo = st.proyectos[0].repo }
   const proyecto = st.proyectos[i]
-  const enfocado = document.activeElement?.closest?.('#proyectos [data-proy]')
-  if (poner('#proyectos', barraProyectos(st.proyectos, i)) && enfocado) {
-    // El redibujo no se lleva el foco: queda en el proyecto que lo tenía
-    $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
+  // La tira de repos arriba de las sesiones (modulos-ux.md 4.4, M2)
+  const enfocado = document.activeElement?.closest?.('#repos [data-proy]')
+  if (poner('#repos', tiraRepos(st.proyectos, i)) && enfocado) {
+    // El redibujo no se lleva el foco: queda en el proyecto que lo tenía (9.4)
+    $(`#repos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
   }
   // El aviso de primeros pasos va debajo del de pregunta; con la hoja abierta no hace falta (3.5)
   // En la dividida el aviso es de una pregunta en cualquier proyecto, también los dos que conversan (5.3)
@@ -1027,9 +1151,11 @@ function pintar() {
 
   const preparadas = prepararProyecto(proyecto, ahora, st.mascota)
   const c = conteos(preparadas, ahora)
-  texto('#titulo', proyecto.nombre)
-  $('#titulo').title = proyecto.repo ?? proyecto.nombre
-  texto('#subtitulo', lineaEncabezado(preparadas, c))
+  // El h1 es el del módulo, «Sesiones»; el proyecto va en la bajada (modulos-ux.md 5 y 11.1, M2)
+  const cab = encabezadoSesiones(proyecto, preparadas, c)
+  texto('#titulo', cab.titulo)
+  $('#titulo').title = cab.title
+  texto('#subtitulo', cab.subtitulo)
   poner('#conteos', chips(c))
   // El rastro de las sesiones que conversan con otra (dividida-ux.md 5.10)
   const pid = sesionesPorId()
@@ -1083,8 +1209,168 @@ function irAProyecto(repo, direccion) {
   st.activa = 0
   pintar()
   $('.principal').scrollTop = 0
+  verRepoElegido()
   cambioProyecto(direccion)
   entradaEscenas(document.querySelectorAll('#sesiones > .ses'))
+}
+
+/** Lo que tapa la máscara a la derecha de la tira de repos (el 12 % del ancho, `estilos.css`). */
+const MASCARA_REPOS = 0.12
+
+/**
+ * El chip elegido de la tira de repos queda a la vista (modulos-ux.md 4.4): corre solo la tira, en
+ * horizontal (`scrollIntoView` correría también la columna y el marco).
+ */
+function verRepoElegido() {
+  const tira = $('#repos')
+  const chip = tira?.querySelector('[aria-current]')
+  if (!chip || !tira.clientWidth) return
+  const x = desplazarTira({ izq: chip.offsetLeft, ancho: chip.offsetWidth }, { scroll: tira.scrollLeft, visible: tira.clientWidth }, tira.clientWidth * MASCARA_REPOS)
+  if (x !== tira.scrollLeft) tira.scrollLeft = x
+}
+
+// ------------------------------------------------------------------ módulos (#42, docs/diseno/modulos-ux.md)
+
+/** Las filas del menú, por módulo (Configuración está aparte, en `.lado-cfg`). */
+const FILAS_MODULO = { sesiones: '#mod-sesiones', tareas: '#tar-fila', habitos: '#hab-fila', config: '#cfg-fila' }
+
+/**
+ * La única entrada a un módulo (3.2 y 11.3): las filas del menú, Ctrl T, Ctrl ,, Esc, la bandeja, el globo
+ * de Tareas, `#aviso-p`, la tira, la muesca, primeros pasos y las fichas «Conversan» pasan por acá, y
+ * solo acá cambia `st.modulo`. Cierra la hoja que se deja y abre la nueva con sus actos de siempre
+ * (`abrirConfig`, `abrirTareasHoja`, `abrirHabitosHoja` y sus `cerrar…`); abrir una hoja sale antes de la
+ * dividida y de la tira, así `st.modulo` y la hoja abierta cambian juntos. El mismo módulo solo cambia la
+ * pestaña o el proyecto pedidos y lleva el foco al título (9.2).
+ * Opciones: `repo` (Sesiones en ese proyecto), `tab` (la pestaña de Configuración), `ver` (la vista de
+ * Tareas o de Hábitos) y `foco`: 'h1' (por defecto: el título del módulo, 9.4), 'fila' (la fila de Sesiones: volver
+ * con Esc) o false (lo pone quien llama). Devuelve si el id existía.
+ */
+async function irModulo(id, { repo, tab, ver, foco = 'h1' } = {}) {
+  const plan = planModulo({ modulo: st.modulo }, id, { repo })
+  if (!plan) return false
+  if (plan.foco) {
+    if (id === 'config' && tab && tab !== st.config.tab) cambiarPestanaConfig(tab)
+    if (plan.repo && plan.repo !== st.repo) irAProyecto(plan.repo, 1)
+    if (foco === 'h1') $('#titulo').focus()
+    else if (foco === 'fila') $(FILAS_MODULO[id])?.focus()
+    return true
+  }
+  // Abrir una hoja sale de la dividida y de la tira (lo de siempre de las hojas, 11.1)
+  if (plan.abrir) {
+    if (st.dividida.clave) await cerrarConversacion({ descartar: true })
+    if (st.mini) await ponerMini(false)
+  }
+  const nav = $('#mods')
+  const desde = movimientoModulos.posicionPildora(nav)
+  st.modulo = plan.modulo
+  // Entre dos hojas no hay acto de vuelta al tablero: la nueva trae el suyo
+  for (const h of plan.cerrar) {
+    if (h === 'config') cerrarConfig({ acto: !plan.abrir })
+    else if (h === 'tareas') cerrarTareasHoja({ acto: !plan.abrir })
+    else if (h === 'habitos') cerrarHabitosHoja({ acto: !plan.abrir })
+  }
+  const enfocarTitulo = foco === 'h1'
+  if (plan.abrir === 'config') abrirConfig({ tab, foco: enfocarTitulo })
+  else if (plan.abrir === 'tareas') abrirTareasHoja({ ver, foco: enfocarTitulo })
+  else if (plan.abrir === 'habitos') abrirHabitosHoja({ ver, foco: enfocarTitulo })
+  else if (plan.repo && plan.repo !== st.repo) irAProyecto(plan.repo, 1)
+  else pintar()
+  movimientoModulos.viajarPildora(nav, desde)
+  // El nombre del módulo, una vez (5); el foco, al título o a la fila
+  anunciar(MODULOS.find(m => m.id === plan.modulo)?.nombre)
+  if (!plan.abrir && enfocarTitulo) $('#titulo').focus()
+  else if (foco === 'fila') $(FILAS_MODULO[plan.modulo])?.focus()
+  return true
+}
+
+/**
+ * El menú (4.1 a 4.5) en cada redibujo: la clase `mod-<id>` del marco, la fila abierta, la cuenta y el
+ * nombre de Sesiones y de Configuración (la de Tareas la pone `pintarFilaTareas`), la píldora y
+ * `#aviso-p`. El chip «1 ?» late cuando suben las preguntas; `#aviso-p` baja al aparecer.
+ */
+function pintarModulos(ahora, totalPend) {
+  const marco = $('#marco')
+  for (const m of MODULOS) marco.classList.toggle(`mod-${m.id}`, st.modulo === m.id)
+  for (const [id, sel] of Object.entries(FILAS_MODULO)) {
+    const fila = $(sel)
+    if (st.modulo === id) { if (fila.getAttribute('aria-current') !== 'page') fila.setAttribute('aria-current', 'page') }
+    else if (fila.hasAttribute('aria-current')) fila.removeAttribute('aria-current')
+  }
+  // Sesiones: el número de sesiones (… antes de la primera lectura) y las preguntas
+  const cargando = !st.actualizado && !st.error
+  const datosSes = { sesiones: cargando ? null : st.proyectos.reduce((n, p) => n + p.sesiones.length, 0), preguntas: totalPend }
+  poner('#mod-sesiones-ct', cuentaModulo('sesiones', datosSes))
+  ponerNombre('#mod-sesiones', nombreModulo('sesiones', datosSes))
+  if (st.preguntasMenu != null && totalPend > st.preguntasMenu) movimientoModulos.latirPregunta($('#mod-sesiones .chip-preg'))
+  st.preguntasMenu = cargando ? null : totalPend
+  // Configuración: el punto de pestaña si hay algo que mirar (4.2)
+  const datosCfg = { punto: puntoConfiguracion() }
+  poner('#cfg-fila-ct', cuentaModulo('config', datosCfg))
+  ponerNombre('#cfg-fila', nombreModulo('config', datosCfg))
+  movimientoModulos.colocarPildora($('#mods'))
+  // La pregunta vista desde otro módulo (4.5); en Sesiones la de otro proyecto sigue en #otro (M1)
+  const aviso = st.modulo === 'sesiones' ? null : avisoPregunta(st.proyectos, st.modulo, st.repo, st.mascota, ahora)
+  const html = avisoPreguntaHtml(aviso, st.formas)
+  const habia = !!$('#aviso-p').firstChild
+  const enfocado = document.activeElement?.closest?.('#aviso-p') != null
+  // La firma no lleva la forma de Claude: cambia en su lugar (6.7)
+  if (poner('#aviso-p', html, html.replace(/ evol(?=[ "])/g, ''))) {
+    if (html && !habia) movimientoModulos.llegaAviso($('#aviso-p > .aviso-p'))
+    if (enfocado) $('#aviso-p > .aviso-p')?.focus()
+  }
+}
+
+/** Pone el nombre accesible de una fila solo si cambió. */
+function ponerNombre(sel, nombre) {
+  const el = $(sel)
+  if (el.getAttribute('aria-label') !== nombre) el.setAttribute('aria-label', nombre)
+}
+
+/**
+ * El punto de la fila de Configuración (4.2): el de la primera pestaña que pide mirarla (una clave
+ * rechazada, el modelo bajando, el mod que necesita atención), o null. Lo leído hasta ahora: el mod sale
+ * de primeros pasos hasta abrir la configuración.
+ */
+function puntoConfiguracion() {
+  try {
+    const datos = datosConfiguracion()
+    const puntos = { modelo: datos.modelo.estado, mod: datos.mod.estado, claves: datos.claves }
+    return IDS_PESTANAS.map(t => puntoPestana(puntos, t)).find(Boolean) ?? null
+  } catch (e) {
+    registrar(`módulos: punto de configuración: ${e}`)
+    return null
+  }
+}
+
+/**
+ * Al expandir la tira o abrir la muesca (8): el módulo actual o, con una pregunta pendiente, Sesiones
+ * en su proyecto. No toca el foco (lo pone quien abre el panel).
+ */
+async function abrirPanelAlModulo() {
+  const preguntas = st.proyectos.filter(p => preguntasPendientes(p).length)
+  const destino = moduloAlExpandir({ modulo: st.modulo, repo: st.repo, preguntas })
+  await irModulo(destino.modulo, { repo: destino.repo ?? undefined, foco: false })
+}
+
+/** «Expandir» de la tira (8): el tablero vuelve en el módulo actual o, con una pregunta, en Sesiones en esa pregunta. */
+async function expandir() {
+  if (!st.mini) return
+  await ponerMini(false)
+  if (!st.mini) await abrirPanelAlModulo()
+}
+
+/**
+ * `#aviso-p` (4.5): Sesiones en el proyecto de la pregunta, la pregunta desplegada (también si estaba
+ * la hoja de primeros pasos) y el foco en el primer control de su globo.
+ */
+async function responderDesdeAviso(proy) {
+  const p = st.proyectos[proy] ?? st.proyectos.find(x => preguntasPendientes(x).length)
+  st.plegado = false
+  st.pp.abierto = false
+  st.firmas.clavesGlobo = null
+  await irModulo('sesiones', { repo: p?.repo, foco: false })
+  pintar()
+  ;($('#w-globo button') ?? $('#otro .aviso') ?? $('#mod-sesiones'))?.focus()
 }
 
 /**
@@ -1188,7 +1474,8 @@ function aperturaSola(conv) {
   const proyecto = st.proyectos.find(p => p.repo === st.repo)
   const pend = proyecto ? pendientesVisibles(proyecto) : []
   return debeAbrirseSola(conv, {
-    nueva: true, panelVisible: panelSeVe(), proyectoVisto: st.repo, divididaAbierta: !!st.dividida.clave,
+    // La dividida es de Sesiones (modulos-ux.md 7): en otro módulo una conversación nueva solo late su ficha
+    nueva: true, panelVisible: panelSeVe(), proyectoVisto: st.modulo === 'sesiones' ? st.repo : null, divididaAbierta: !!st.dividida.clave,
     preguntaDesplegada: pend.length > 0 && !st.plegado,
     enviando: Object.values(st.envios).some(e => e.estado === 'enviando'),
     focoEnCampo: !!document.activeElement?.closest?.('input, textarea, select, [contenteditable="true"]'),
@@ -1359,7 +1646,7 @@ async function cerrarConversacion({ descartar = false, repo } = {}) {
       st.activa = 0
       pintar()
       $('.principal').scrollTop = repo === undefined ? (vista?.scroll ?? 0) : 0
-      if (focoAdentro) $('#proyectos .pj.activo')?.focus()
+      if (focoAdentro) $('#repos [aria-current]')?.focus()
     })
   } catch (e) {
     registrar(`dividida: ${e}`)
@@ -1744,6 +2031,10 @@ async function leerEquipo() {
 }
 
 async function ciclo() {
+  // Los recordatorios de los hábitos se revisan acá, nunca con un temporizador por hábito (habitos-ux.md 8.3);
+  // el resumen semanal también (8.4)
+  revisarRecordatorios()
+  revisarResumen()
   await leer()
   ponerFuera(await fueraDeVista())
   // Si el área de trabajo o el monitor cambiaron, la ventana vuelve a ser el área (9.7)
@@ -1869,8 +2160,29 @@ document.addEventListener('click', async e => {
     if (b.getAttribute('aria-disabled') !== 'true') await accionConfiguracion(a, b)
     return
   }
+  if (a.startsWith('tar-')) {
+    // Tareas (tareas-ux.md): cada botón hace solo lo suyo, y solo con el clic
+    await accionTareas(a, b)
+    return
+  }
+  if (a.startsWith('hab-')) {
+    // Hábitos (habitos-ux.md): cada botón hace solo lo suyo, y solo con el clic
+    await accionHabitos(a, b)
+    return
+  }
+  if (a === 'mod') {
+    // Una fila del menú de módulos (modulos-ux.md 4.1): su módulo, con el foco en su título
+    await irModulo(b.dataset.mod)
+    return
+  }
+  if (a === 'aviso-p') {
+    // La pregunta vista desde otro módulo (4.5): Sesiones en su proyecto, desplegada, con el foco en su globo
+    await responderDesdeAviso(+b.dataset.proy)
+    return
+  }
   if (a === 'conv') {
-    // Una ficha "Conversan" de la barra o del riel abre la dividida en esa conversación (3.4)
+    // Una ficha "Conversan" de la barra o del riel abre la dividida en esa conversación (3.4); antes, Sesiones (11.1)
+    await irModulo('sesiones', { foco: false })
     abrirConversacion(b.dataset.clave, 'clic')
     return
   }
@@ -1904,11 +2216,11 @@ document.addEventListener('click', async e => {
     if (b.closest('#otro')) st.pp.abierto = false
     // Un proyecto de la barra o el aviso de una pregunta en otro proyecto
     const p = st.proyectos[+b.dataset.proy]
-    // Con la configuración abierta, elegir un proyecto la cierra y lo muestra (configuracion-ux.md 4.1)
-    if (p && st.config.abierta) {
-      cerrarConfig({ foco: false })
-      if (p.repo !== st.repo) irAProyecto(p.repo, 1)
-      $(`#proyectos [data-proy="${b.dataset.proy}"]`)?.focus()
+    // Elegir un proyecto lleva a Sesiones en ese proyecto (modulos-ux.md 3.2 y 11.1): una sola rama para
+    // Tareas y Configuración. El foco se queda en el proyecto
+    if (p && st.modulo !== 'sesiones') {
+      await irModulo('sesiones', { repo: p.repo, foco: false })
+      $(`#repos [data-proy="${b.dataset.proy}"]`)?.focus()
       return
     }
     if (p) irAProyecto(p.repo, 1)
@@ -1967,7 +2279,7 @@ document.addEventListener('click', async e => {
   } else if (a === 'mini') {
     await ponerMini(true)
   } else if (a === 'expandir') {
-    await ponerMini(false)
+    await expandir()
   } else if (a === 'cerrar') {
     // La × esconde en la bandeja; "Salir" del menú de la bandeja cierra la aplicación
     await invocar('esconder').catch(() => {})
@@ -2000,25 +2312,98 @@ document.addEventListener('input', e => {
   st.config = { ...st.config, errorClave: null }
   pintarConfiguracion()
 })
+// Al escribir de nuevo en el campo de una lista, el error de nombre repetido se va (el texto queda)
+document.addEventListener('input', e => {
+  if (!st.tareas.errorLista || !e.target.matches?.('#tar input[data-campo="lista"], #tar input[data-campo="ren"]')) return
+  st.tareas = { ...st.tareas, errorLista: null }
+  pintarTareas()
+})
+// El título y las notas de la tarea abierta: a `st` en cada tecla y se guardan 600 ms después (tareas-ux.md 11.3)
+document.addEventListener('input', e => {
+  if (e.target.matches?.('#tar textarea[data-campo="titulo"], #tar textarea[data-campo="notas"]')) escribirDetalleTareas(e.target)
+})
+// Al salir del título o las notas se guarda lo pendiente ya; al salir del texto de una subtarea, se
+// confirma (salvo que el redibujo lo haya vuelto a enfocar: es el mismo campo)
+document.addEventListener('focusout', e => {
+  const campo = e.target
+  if (campo.matches?.('#tar textarea[data-campo="titulo"], #tar textarea[data-campo="notas"]')) { salirCampoDetalle(campo); return }
+  if (campo.matches?.('#tar input[data-campo="sub-ed"]')) {
+    const { valor, k } = campo.dataset
+    const texto = campo.value
+    setTimeout(() => {
+      if (document.activeElement?.dataset?.k !== k) confirmarSubEnHoja(valor, texto, { foco: false })
+    }, 0)
+  }
+})
+// La fecha del selector nativo y la lista (4.7): se guardan al elegir
+document.addEventListener('change', e => {
+  const c = e.target.closest?.('#tar [data-cambio]')
+  if (!c) return
+  if (c.dataset.cambio === 'tar-fecha-in') cambiarDetalleTareas({ fecha: c.value || null })
+  else if (c.dataset.cambio === 'tar-lista') moverEnHoja(c.value)
+})
+// Hábitos (habitos-ux.md 4.11): lo que se escribe en el nombre o la unidad vive en su campo; la frase
+// lo sigue al instante. El del hábito nuevo queda también en su borrador (sobrevive al cambiar el tipo)
+document.addEventListener('input', e => {
+  const c = e.target
+  if (!c.matches?.('#hab [data-campo="nombre"], #hab [data-campo="unidad"]')) return
+  const form = c.closest('[data-form]')
+  if (form?.dataset.form === 'nuevo' && st.habitos.borrador) {
+    st.habitos = { ...st.habitos, borrador: { ...st.habitos.borrador, [c.dataset.campo]: c.value } }
+    // El error del formulario se va al escribir de nuevo (el texto queda)
+    if (st.habitos.errForm) { st.habitos = { ...st.habitos, errForm: null }; pintarHabitos() }
+  }
+  refrescarFrase(form)
+})
+// El nombre y la unidad de un hábito que ya existe se guardan al salir del campo (3.5), salvo que el
+// redibujo lo haya vuelto a enfocar (es el mismo campo). Después del clic que sacó el foco, así ese clic
+// llega a su botón
+document.addEventListener('focusout', e => {
+  const c = e.target
+  if (!c.matches?.('#hab .det [data-campo="nombre"], #hab .det [data-campo="unidad"]')) return
+  const k = c.dataset.k
+  setTimeout(() => { if (document.activeElement?.dataset?.k !== k) confirmarTextoHabito(c) }, 0)
+})
+// La hora del aviso (4.11): se guarda al elegirla; vacía, vuelve la de antes
+document.addEventListener('change', e => {
+  const c = e.target.closest?.('#hab [data-cambio="hab-hora"]')
+  if (!c) return
+  if (/^\d{2}:\d{2}$/.test(c.value)) editarFormulario('aviso', c.value)
+  else c.value = formularioActual()?.h.aviso ?? ''
+})
 document.addEventListener('compositionstart', e => { if (e.target.matches?.('.ctl-in')) st.componiendo = true })
 document.addEventListener('compositionend', () => { st.componiendo = false })
 
 document.addEventListener('keydown', e => {
   // Las teclas de la hoja de la charla (chat-avis-ux.md 3.5): van antes que el Esc de la pregunta y el de la muesca
   if (teclaChat(e)) return
-  // Ctrl , con el panel a la vista abre la configuración (configuracion-ux.md 4.1); abierta, el foco va al título
-  if (esAtajoConfiguracion(e)) {
+  // Esc con el foco en el globo de un recordatorio o del resumen: es su × («Ahora no» o «Más tarde», habitos-ux.md 9.1)
+  const globoHabEl = e.key === 'Escape' && e.target.closest?.('[data-globo-hab]')
+  if (globoHabEl) {
     e.preventDefault()
-    if (!st.mini && (!st.acople || st.vista)) abrirConfig()
+    if (globoHabEl.hasAttribute('data-res')) descartarResumen()
+    else descartarRecordatorio(globoHabEl.dataset.valor)
     return
   }
-  // Esc con la configuración abierta, una capa por vez (4.1): la clave que se escribe, el "¿Borrar? Sí"
-  // y la hoja. Cerrada la hoja, el Esc siguiente es el de siempre (acoplada, pliega el panel)
+  // Esc con el foco en el globo del aviso diario y la hoja de Tareas cerrada: es la × (tareas-ux.md 9.1)
+  if (e.key === 'Escape' && e.target.closest?.('[data-globo-tar]') && alEscTareas(st.tareas, { globo: true }).accion === 'globo-x') {
+    e.preventDefault()
+    descartarAvisoTareas()
+    return
+  }
+  // Ctrl , con el panel a la vista abre Configuración (modulos-ux.md 9.2); abierta, el foco va al título
+  if (esAtajoConfiguracion(e)) {
+    e.preventDefault()
+    if (!st.mini && (!st.acople || st.vista)) irModulo('config')
+    return
+  }
+  // Esc con la configuración abierta, una capa por vez (4.1 y modulos-ux.md 9.1): la clave que se escribe,
+  // el "¿Borrar? Sí" y, sin capas, Sesiones con el foco en su fila. En Sesiones, el Esc de siempre
   if (e.key === 'Escape' && st.config.abierta) {
     e.preventDefault()
     const proveedor = st.config.editando
     const { config, accion } = alEsc(st.config)
-    if (accion === 'cerrar') cerrarConfig()
+    if (alEscModulo('config', accion) === 'sesiones') irModulo('sesiones', { foco: 'fila' })
     else {
       st.config = config
       pintarConfiguracion()
@@ -2027,6 +2412,62 @@ document.addEventListener('keydown', e => {
     }
     return
   }
+  // Ctrl T con el panel a la vista abre Tareas (tareas-ux.md 9.2, modulos-ux.md 9.2), también mientras se
+  // escribe en uno de sus campos; abierta, el foco va al título
+  if (esAtajoTareas(e)) {
+    e.preventDefault()
+    if (!st.mini && (!st.acople || st.vista)) irModulo('tareas')
+    return
+  }
+  // Esc con la hoja de Tareas abierta, una capa por vez (9.1)
+  if (e.key === 'Escape' && st.tareas.abierta) {
+    e.preventDefault()
+    escTareas(e.target)
+    return
+  }
+  // Ctrl H con el panel a la vista abre Hábitos (habitos-ux.md 9.2), también mientras se escribe en un
+  // campo; abierta, el foco va al título. Falta medirlo en WebView2 (11.9): si Edge se lo queda, Ctrl Shift H
+  if (esAtajoHabitos(e)) {
+    e.preventDefault()
+    if (!st.mini && (!st.acople || st.vista)) irModulo('habitos')
+    return
+  }
+  // Esc con la hoja de Hábitos abierta, una capa por vez (9.1)
+  if (e.key === 'Escape' && st.habitos.abierta) {
+    e.preventDefault()
+    escHabitos(e.target)
+    return
+  }
+  // Enter en el nombre del hábito nuevo lo crea (4.11); en el nombre o la unidad de uno que ya existe, los
+  // guarda y el foco queda (4.10)
+  if (e.key === 'Enter' && !e.isComposing && e.target.matches?.('#hab [data-campo="nombre"], #hab [data-campo="unidad"]')) {
+    e.preventDefault()
+    if (e.target.closest('[data-form]')?.dataset.form !== 'nuevo') confirmarTextoHabito(e.target)
+    else if (e.target.dataset.campo === 'nombre') crearHabitoEnHoja()
+    return
+  }
+  // Tipo y Color (4.11): un solo tope, foco itinerante con las flechas (9.3)
+  if (st.habitos.abierta && teclaRadios(e, '#hab')) return
+  // Enter en el título de la tarea abierta no hace salto de línea: confirma (4.7) y el foco queda
+  if (e.key === 'Enter' && e.target.matches?.('#tar textarea[data-campo="titulo"]')) {
+    e.preventDefault()
+    if (!e.isComposing) salirCampoDetalle(e.target)
+    return
+  }
+  // Enter en un campo de la hoja de Tareas: agrega la tarea, crea o renombra la lista (4.4, 5.1), agrega
+  // una subtarea o confirma el texto de una (4.7)
+  if (e.key === 'Enter' && !e.isComposing && e.target.matches?.('#tar input[data-campo]')) {
+    e.preventDefault()
+    const campo = e.target.dataset.campo
+    if (campo === 'nueva') agregarEnHoja(e.target)
+    else if (campo === 'lista') crearListaEnHoja(e.target.value)
+    else if (campo === 'ren') renombrarEnHoja(e.target.value)
+    else if (campo === 'subtarea') agregarSubEnHoja(e.target)
+    else if (campo === 'sub-ed') confirmarSubEnHoja(e.target.dataset.valor, e.target.value)
+    return
+  }
+  // Vence y Prioridad (4.7): un solo tope, foco itinerante con las flechas (9.3), como en la configuración
+  if (teclaTareas(e)) return
   // Enter en el campo de la clave la guarda (7.1); nada mientras compone el IME
   if (e.key === 'Enter' && e.target.id === 'cfg-clave-in' && !e.isComposing) {
     e.preventDefault()
@@ -2076,66 +2517,40 @@ document.addEventListener('keydown', e => {
   if (teclaDividida(e)) return
   // Fuera de la pregunta, Esc cierra la muesca aunque esté fijada y devuelve el foco a la muesca (7.2)
   if (e.key === 'Escape' && st.acople && st.muesca.abierta) { e.preventDefault(); evento({ tipo: 'esc' }); return }
-  if (st.mini || e.target.closest?.('input, textarea, summary, #pp, #hoja, #cfg')) return
-  // ↑ ↓ mueven el foco entre los proyectos de la barra (no cambian de proyecto)
-  const fila = e.target.closest?.('#proyectos [data-proy]')
+  if (st.mini || e.target.closest?.('input, textarea, summary, #pp, #hoja, #cfg, #tar')) return
+  // ↑ ↓ mueven el foco entre los repos de la tira (no cambian de proyecto), como en la barra de antes
+  const fila = e.target.closest?.('#repos [data-proy]')
   if (fila && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
     e.preventDefault()
-    const filas = [...document.querySelectorAll('#proyectos [data-proy]')]
+    const filas = [...document.querySelectorAll('#repos [data-proy]')]
     filas[(filas.indexOf(fila) + (e.key === 'ArrowDown' ? 1 : -1) + filas.length) % filas.length].focus()
     return
   }
-  // Con la configuración abierta no hay proyecto a la vista: ← → no cambian ninguno por detrás
-  if (st.config.abierta) return
-  if (e.key === 'ArrowLeft') { e.preventDefault(); moverProyecto(-1) }
-  if (e.key === 'ArrowRight') { e.preventDefault(); moverProyecto(1) }
+  // Con la configuración o las tareas abiertas no hay proyecto a la vista: ← → no cambian ninguno por detrás
+  if (st.modulo !== 'sesiones') return
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault()
+    // Con el foco en la tira de repos, el foco sigue al elegido (la tira se redibuja en el cambio)
+    const enTira = !!fila
+    moverProyecto(e.key === 'ArrowLeft' ? -1 : 1)
+    if (enTira) $('#repos [aria-current]')?.focus()
+  }
 })
 
 // ------------------------------------------------------------------ tamaño de la ventana
 
 /**
- * Tamaño elegido (Ctrl + / Ctrl − o el submenú "Tamaño"): todo, dibujo y texto, crece con el
- * mismo zoom. La ventana no cambia (es el área): en la misma tarea se vuelve a ubicar lo de adentro,
- * así nada salta de lugar por un cuadro.
+ * Al arrancar, con lo guardado ya leído: ubica lo de adentro, ajusta la ventana y pinta la
+ * configuración (lo que pasaba al aplicar el tamaño guardado antes de #47, sin el zoom).
  */
-async function aplicarTamano(porcentaje) {
-  st.tamano = porcentaje
-  ponerPaso(porcentaje)
+function ubicarAlArrancar() {
   recolocar()
   programarAjuste()
   pintarConfiguracion()
 }
 
-/** Aplica el paso `p` en `<html>` (todo crece junto). */
-function ponerPaso(p) {
-  st.paso = p
-  document.documentElement.style.zoom = String(zoomDe(p))
-}
-
 /**
- * El panel nunca más ancho que el área (`area`, px de pantalla): con el zoom elegido, o el paso más
- * grande que entra (`pasoQueEntra`). La preferencia guardada no cambia. El ancho del panel en px CSS
- * no depende del zoom (#contenido es `max-content`), así que medirlo de nuevo da el mismo paso. En
- * la tira mini el tablero no se ve: queda el paso de antes.
- */
-function topearPaso(area) {
-  if (!area || st.mini) return
-  const marco = $('#marco')
-  const f = marco.offsetWidth ? marco.getBoundingClientRect().width / marco.offsetWidth : zoomDe(st.paso)
-  const p = pasoQueEntra(st.tamano, medirContenido().ancho / f, area.ancho)
-  if (p !== st.paso) ponerPaso(p)
-}
-
-// Ctrl + / Ctrl − / Ctrl 0 con la ventana enfocada: el paso lo decide y lo guarda la app
-document.addEventListener('keydown', e => {
-  const direccion = direccionDeTecla(e)
-  if (direccion === null || !tauri?.core) return
-  e.preventDefault()
-  invocar('cambiar_tamano', { direccion }).catch(() => {})
-})
-
-/**
- * Tamaño del tablero en px de pantalla (ya con el zoom aplicado). El ancho es el de #contenido más
+ * Tamaño del tablero en px de pantalla (el panel va siempre al 100 %, #47). El ancho es el de #contenido más
  * el relleno del área que desplaza, su barra y el borde de #marco. El alto del tablero es fijo
  * (`--alto-tablero`, 9.2): no cambia de un proyecto a otro. En el vacío y la carga el alto sigue al
  * contenido. El body ya no tiene relleno (la ventana es el área: la sombra entra sobrada).
@@ -2143,7 +2558,7 @@ document.addEventListener('keydown', e => {
 function medirContenido() {
   const marco = $('#marco'), cuerpo = $('#cuerpo'), contenido = $('#contenido')
   const rMarco = marco.getBoundingClientRect(), rContenido = contenido.getBoundingClientRect()
-  // Relación entre px de la ventana y px del documento (el zoom), medida y no supuesta
+  // Relación entre px de la ventana y px del documento, medida y no supuesta (1 sin transformaciones)
   const f = marco.offsetWidth ? rMarco.width / marco.offsetWidth : 1
   const suma = (el, a, b) => { const cs = getComputedStyle(el); return parseFloat(cs[a]) + parseFloat(cs[b]) }
   const barra = cuerpo.offsetWidth - cuerpo.clientWidth
@@ -2181,25 +2596,23 @@ async function ajustarVentana() {
 // Escondida o minimizada (si el WebView lo informa): pausa al instante, sin esperar la lectura
 document.addEventListener('visibilitychange', () => ponerFuera(document.hidden))
 
-// El contenido cambia (otro proyecto, globo, compañero desplegado, tamaño elegido): el tablero lo
+// El contenido cambia (otro proyecto, globo, compañero desplegado): el tablero lo
 // sigue adentro de la ventana. La muesca tiene un tamaño fijo (TAM_MUESCA): no hace falta observarla
 const observador = new ResizeObserver(() => programarAjuste())
 observador.observe($('#contenido'))
 
 // ------------------------------------------------------------------ muesca acoplable (sección 7)
 
-const zoom = () => zoomDe(st.paso)
-/** Tamaño de la muesca en px de pantalla (`TAM_MUESCA` por el zoom), sin medir el DOM. */
-const tamMuesca = () => tamMuescaDe(st.acople.borde, zoom())
+/** Tamaño de la muesca en px de pantalla (`TAM_MUESCA`), sin medir el DOM. */
+const tamMuesca = () => tamMuescaDe(st.acople.borde)
 
 /** Largo del área de trabajo a lo largo de un borde. */
 const largoDe = (borde, area) => esHorizontal(borde) ? area.ancho : area.alto
 
 /** Disposición acoplada con el área de trabajo `area`: ventana fija, muesca y panel (9.6). */
 function disposicion(area, tablero) {
-  topearPaso(area)
   tablero ??= medirContenido()
-  return disposicionAcoplada(st.acople, tamMuesca(), tablero, area, zoom())
+  return disposicionAcoplada(st.acople, tamMuesca(), tablero, area)
 }
 
 /**
@@ -2209,15 +2622,13 @@ function disposicion(area, tablero) {
  */
 function disposicionActual(area) {
   if (st.acople) return disposicion(area)
-  topearPaso(area)
-  const z = zoom()
   if (st.mini) {
-    const tam = tamanoMini(z)
-    return disposicionTira(st.tira ? posicionEnPantalla(st.tira, tam, area) : null, tam, area, z)
+    const tam = tamanoMini()
+    return disposicionTira(st.tira ? posicionEnPantalla(st.tira, tam, area) : null, tam, area)
   }
   const tam = tamanoDeseado(medirContenido(), area)
   st.flotante = posicionEnPantalla(st.flotante ?? posicionDeFraccion(st.fraccion, tam, area), tam, area)
-  return disposicionFlotante(st.flotante, tam, area, z)
+  return disposicionFlotante(st.flotante, tam, area)
 }
 
 /**
@@ -2236,13 +2647,14 @@ function colocar(d) {
   if (d.local.muesca) { poner('m', d.local.muesca); poner('l', d.local.luz) }
   if (d.local.tablero) {
     poner('t', d.local.tablero)
-    // Poco alto (200 % en una pantalla de 768): la hoja de la configuración compacta su encabezado (configuracion-ux.md 16, M4)
+    // Poco alto (una pantalla de 768 o menos): la hoja de la configuración compacta su encabezado (configuracion-ux.md 16, M4)
     $('#marco').classList.toggle('bajo', marcoBajo(d.local.tablero.alto))
   }
   if (d.local.tira) poner('q', d.local.tira)
   colocarHoja(d, poner)
   st.disp = d
   st.ventana = { ...d.ventana }
+  if (st.lugarGlobo === 'muesca') ubicarGloboMuesca()
   // La primera vez: hasta acá el tablero no tenía lugar y no se veía; flotando, entra (6.1)
   if (!document.body.classList.contains('colocada')) {
     document.body.classList.add('colocada')
@@ -2259,14 +2671,13 @@ function colocarHoja(d, poner) {
   const tablero = d.modo === 'flotante' ? d.tablero : d.modo === 'acoplada' ? d.p.tablero : null
   d.hoja = null
   if (!st.chat.abierta || !tablero) return
-  const z = zoom()
-  if (!st.arrastre?.activo || !st.chat.lado) st.chat = { ...st.chat, lado: ladoHoja(tablero, d.ventana, d.modo, st.acople?.borde, z) }
-  const r = rectHoja(tablero, st.chat.lado, z, anchoBarra() * z)
+  if (!st.arrastre?.activo || !st.chat.lado) st.chat = { ...st.chat, lado: ladoHoja(tablero, d.ventana, d.modo, st.acople?.borde) }
+  const r = rectHoja(tablero, st.chat.lado, 1, anchoBarra())
   // `d.local.hoja` (px CSS de la ventana): desde dónde se pliega con el panel (3.1)
-  d.local.hoja = relativo(r, d.ventana, z)
+  d.local.hoja = relativo(r, d.ventana)
   poner('h', d.local.hoja)
   hojaEl.dataset.lado = st.chat.lado
-  // Poco alto (200 % en una pantalla de 768): el escenario compacto, así se lee la charla (18, B1)
+  // Poco alto (una pantalla de 768 o menos): el escenario compacto, así se lee la charla (18, B1)
   hojaEl.classList.toggle('baja', hojaBaja(d.local.hoja.alto))
   if (st.chat.lado !== 'encima') d.hoja = r
   // Si al soltar cambió de lado, la hoja se funde en el nuevo (D2); nunca en medio de un acto
@@ -2298,7 +2709,7 @@ function recolocar() {
 /**
  * Lleva la ventana al área de trabajo `g.area` si no está (9.7): solo pasa al cambiar de monitor o
  * de área, y entonces lo que se ve se vela antes y vuelve cuando WebView2 ya pintó (`planVentana`).
- * Pasar de una forma a otra, abrir, cerrar o cambiar el zoom no la tocan. Después ubica lo de adentro.
+ * Pasar de una forma a otra, abrir o cerrar no la tocan. Después ubica lo de adentro.
  */
 async function colocarEnArea(g) {
   const d = disposicionActual(g.area)
@@ -2320,7 +2731,9 @@ async function colocarEnArea(g) {
  */
 async function enviarZona(forzar = false) {
   if (!st.disp || !tauri?.core) return null
-  const zona = zonaInteractiva(st.disp, { abierta: st.vista, arrastrando: !!st.arrastre?.activo, hoja: hojaSeVe() ? st.disp.hoja : null }, zoom())
+  // El globo de la muesca (tareas o recordatorio) suma su rectángulo: si no, su clic pasaría a la app de abajo (tareas-ux.md 8.5)
+  const globo = st.lugarGlobo === 'muesca' ? st.rectGloboMuesca : null
+  const zona = zonaInteractiva(st.disp, { abierta: st.vista, arrastrando: !!st.arrastre?.activo, hoja: hojaSeVe() ? st.disp.hoja : null, globo })
   // `mirada`: acoplada, el Avi a la vista (la marca abierta o el de la muesca cerrada) quiere el
   // puntero; entonces Rust manda su posición global (muesca-avi-ux.md 9). Flotando, la marca mira
   // con el puntero del DOM, como siempre
@@ -2394,7 +2807,11 @@ function aplicarFoco() {
   // La configuración: su título al abrir, o una pieza de la hoja (`cfg:<data-k>`)
   else if (foco === 'cfg' && st.config.abierta) $('#titulo').focus()
   else if (foco.startsWith('cfg:') && st.config.abierta) ($(`#cfg [data-k="${CSS.escape(foco.slice(4))}"]`) ?? $('#titulo')).focus()
-  else ($('#proyectos .pj.activo') ?? $('#proyectos [data-proy]') ?? $('#marco [data-accion="pin"]'))?.focus()
+  // Tareas: su título al abrir (tareas-ux.md 9.4)
+  else if (foco === 'tar' && st.tareas.abierta) $('#titulo').focus()
+  // Hábitos: su título al abrir (habitos-ux.md 9.4)
+  else if (foco === 'hab' && st.habitos.abierta) $('#titulo').focus()
+  else ($('#repos [aria-current]') ?? $('#repos [data-proy]') ?? $('#marco [data-accion="pin"]'))?.focus()
 }
 
 /** Lleva lo que se ve (`st.vista`) a lo pedido (`st.muesca.abierta`), una animación por vez. */
@@ -2419,7 +2836,7 @@ async function sincronizar() {
 async function medidasAcople() {
   const g = await invocar('geometria')
   const d = disposicion(g.area)
-  return { g, d, rc: recorte(d.m.caja, d.p.tablero, st.acople.borde, zoom()) }
+  return { g, d, rc: recorte(d.m.caja, d.p.tablero, st.acople.borde) }
 }
 
 /**
@@ -2527,15 +2944,14 @@ async function cerrarAntes() {
  * del centro de lo que se ve sobre el borde (7.3), salvo que venga dado.
  */
 async function acoplarABorde(borde, lugar, area) {
-  const z = zoom()
-  const tam = tamMuescaDe(borde, z)
+  const tam = tamMuescaDe(borde)
   const desde = st.acople ? 'muesca' : st.mini ? 'tira' : 'tablero'
   if (desde === 'muesca' && st.acople.borde === borde && lugar == null) return
   const caja = desde === 'muesca' ? st.disp.m.caja : desde === 'tira' ? st.disp.tira : st.disp.tablero
   const l = lugar ?? (desde === 'muesca' ? st.acople.lugar : lugarDe(borde, centroDe(caja), area))
-  const acople = { borde, lugar: lugarAjustado(l, tam.largo, largoDe(borde, area), z) }
+  const acople = { borde, lugar: lugarAjustado(l, tam.largo, largoDe(borde, area)) }
   // Dónde queda la muesca (para eso no hace falta medir el tablero)
-  const destino = disposicionAcoplada(acople, tam, { ancho: 0, alto: 0 }, area, z).local.muesca
+  const destino = disposicionAcoplada(acople, tam, { ancho: 0, alto: 0 }, area).local.muesca
   await transicion(async () => {
     let soltar = () => {}
     let soltarHoja = async () => {}
@@ -2588,7 +3004,7 @@ async function flotar(puntero, area) {
     aplicarModo()
     const tam = tamanoDeseado(medirContenido(), area)
     st.flotante = puntero ? posicionFlotante(puntero, tam, area) : posicionEnPantalla(st.flotante ?? posicionDeFraccion(st.fraccion, tam, area), tam, area)
-    const d = disposicionFlotante(st.flotante, tam, area, zoom())
+    const d = disposicionFlotante(st.flotante, tam, area)
     colocar(d)
     // Lo de adentro se funde con el despliegue: sin entrada escalonada encima (6.4)
     st.revelado = true
@@ -2631,6 +3047,9 @@ muescaEl.addEventListener('pointerenter', e => {
 $('#marco').addEventListener('pointerenter', e => {
   if (e.pointerType === 'mouse' && st.muesca.abierta) ponerDentro(true)
 })
+$('#muesca-globo').addEventListener('pointerenter', e => {
+  if (e.pointerType === 'mouse' && !st.muesca.abierta) ponerDentro(true)
+})
 $('#hoja').addEventListener('pointerenter', e => {
   if (e.pointerType === 'mouse' && st.muesca.abierta) ponerDentro(true)
 })
@@ -2638,8 +3057,10 @@ document.documentElement.addEventListener('pointerleave', e => {
   if (e.pointerType === 'mouse') ponerDentro(false)
 })
 // Clic, Enter o Espacio: abre y lleva el foco al proyecto activo; abierta, la cierra (#21)
-muescaEl.addEventListener('click', () => {
+muescaEl.addEventListener('click', async () => {
   if (justoArrastro || !st.acople) return
+  // Cerrada, abre en el módulo actual o, con una pregunta pendiente, en Sesiones en esa pregunta (modulos-ux.md 8)
+  if (!st.muesca.abierta) await abrirPanelAlModulo()
   evento({ tipo: 'alternar' })
 })
 // Clic afuera (#21): acoplada, fuera del tablero los clics pasan de largo a la app de abajo y el
@@ -2726,7 +3147,7 @@ function empezarArrastre(a, e) {
     document.body.classList.remove('abierta', 'desplegada', 'abriendo', 'muesca-oculta')
     $('#marco').style.clipPath = ''
     pintarControles()
-    a.tam = { ancho: PILDORA.ancho * zoom(), alto: PILDORA.alto * zoom() }
+    a.tam = { ancho: PILDORA.ancho, alto: PILDORA.alto }
     // El tablero se mide una vez: a lo largo del borde la ventana fija solo se mueve (9.6)
     a.tablero = medirContenido()
   }
@@ -2735,7 +3156,7 @@ function empezarArrastre(a, e) {
   verAvis()
 }
 
-/** Una caja de la píldora en px CSS de la ventana (184 × 48 en px CSS, con cualquier zoom). */
+/** Una caja de la píldora en px CSS de la ventana (184 × 48). */
 const cajaPildora = p => ({ x: p.x, y: p.y, ancho: PILDORA.ancho, alto: PILDORA.alto })
 
 function moverArrastre(a) {
@@ -2773,14 +3194,14 @@ function moverMuesca(a, puntero, ventana) {
     }
     document.body.classList.remove('pildora')
     const tm = tamMuesca()
-    st.acople.lugar = lugarAjustado(lugarDe(a.borde, centroDe(caja), a.area), tm.largo, largoDe(a.borde, a.area), zoom())
+    st.acople.lugar = lugarAjustado(lugarDe(a.borde, centroDe(caja), a.area), tm.largo, largoDe(a.borde, a.area))
     colocar(disposicion(a.area, a.tablero))
     const ahora = st.disp.local.muesca
     if (eraPildora && st.pildora) movimientoMuesca.viajar(muescaEl, cajaPildora(st.pildora), ahora, { llega: true })
     else if (otroBorde && antes) movimientoMuesca.viajar(muescaEl, antes, ahora, { llega: true })
   } else {
     // Lejos de todo borde: la píldora flotante sigue al puntero, dentro de la misma ventana
-    const p = relativo(caja, ventana, zoom())
+    const p = relativo(caja, ventana)
     const cuerpo = document.body.style
     cuerpo.setProperty('--px', `${p.x}px`)
     cuerpo.setProperty('--py', `${p.y}px`)
@@ -2805,10 +3226,10 @@ function moverForma(a, puntero) {
   const pos = { x: caja.x, y: caja.y }
   if (a.origen === 'tablero') {
     st.flotante = pos
-    colocar(disposicionFlotante(pos, a.caja0, a.area, zoom()))
+    colocar(disposicionFlotante(pos, a.caja0, a.area))
   } else {
     st.tira = pos
-    colocar(disposicionTira(pos, a.caja0, a.area, zoom()))
+    colocar(disposicionTira(pos, a.caja0, a.area))
   }
 }
 
@@ -2823,10 +3244,10 @@ function soltarDentro(a) {
   const pos = posicionEnPantalla(a.caja, a.caja0, a.area)
   if (tablero) {
     st.flotante = pos
-    colocar(disposicionFlotante(pos, a.caja0, a.area, zoom()))
+    colocar(disposicionFlotante(pos, a.caja0, a.area))
   } else {
     st.tira = pos
-    colocar(disposicionTira(pos, a.caja0, a.area, zoom()))
+    colocar(disposicionTira(pos, a.caja0, a.area))
   }
   const ahora = tablero ? st.disp.local.tablero : st.disp.local.tira
   if (!mismoRect(antes, ahora)) movimientoMuesca.viajar(el, antes, ahora, { llega: true })
@@ -2985,8 +3406,8 @@ async function irAPaso(destino, { foco = 'titulo' } = {}) {
 async function abrirAsistente({ foco = false } = {}) {
   st.pp.abierto = true
   st.pp.cerrado = false
-  // Primeros pasos va en la misma columna: abrirlo cierra la configuración
-  if (st.config.abierta) cerrarConfig({ foco: false })
+  // Primeros pasos va en la columna de Sesiones (modulos-ux.md 11.1): abrirlo vuelve a Sesiones
+  await irModulo('sesiones', { foco: false })
   if (st.mini) await ponerMini(false)
   revisarPasos()
   pintar()
@@ -3199,7 +3620,7 @@ function datosConfiguracion(local = modeloDesdeChat(st.chat), ahora = Date.now()
   const lectura = st.cfgMod ?? (st.pp.revision?.claude ? st.pp.revision : null)
   const armado = st.config.armado
   return {
-    tamano: st.tamano, ubicacion: ubicacionDe(st.acople), arriba: st.arriba, avisar: st.avisar, pausa: st.pausa,
+    ubicacion: ubicacionDe(st.acople), arriba: st.arriba, avisar: st.avisar, pausa: st.pausa,
     arranque: st.arranque, error: st.config.error, mascota: st.mascota, forma: st.config.forma,
     nombreMascota: st.nombreMascota, nombreUsuario: st.nombreUsuario, nombresOk: !!st.config.nombresOk,
     modelo: textoModelo(local),
@@ -3236,12 +3657,10 @@ function firmaConfiguracion(tab, ahora) {
   return seccionConfiguracion(tab, datosFirma(ahora))
 }
 
-/** El encabezado y la barra con la configuración abierta: ningún proyecto elegido, la hoja abajo. */
+/** El encabezado con la configuración abierta y la hoja abajo; la tira de repos es solo de Sesiones (modulos-ux.md 4.4). */
 function pintarHojaConfiguracion() {
   modoMarco('tablero')
   $('#marco').classList.remove('con-hoja')
-  const enfocado = document.activeElement?.closest?.('#proyectos [data-proy]')
-  if (poner('#proyectos', barraProyectos(st.proyectos, -1)) && enfocado) $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
   texto('#titulo', 'Configuración')
   $('#titulo').title = ''
   texto('#subtitulo', subtituloConfiguracion(st.config.tab))
@@ -3272,9 +3691,7 @@ function pintarConfiguracion() {
     $('#marco').classList.toggle('con-mini', !!htmlMini)
     st.cfgFirmas.mini = htmlMini
   }
-  const pendientes = st.proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
-  const aviso = avisoPreguntaConfiguracion(pendientes)
-  if (st.cfgFirmas.aviso !== aviso) { $('#cfg-aviso').innerHTML = aviso; st.cfgFirmas.aviso = aviso }
+  // La pregunta pendiente se ve en #aviso-p, arriba de la hoja (modulos-ux.md 4.5): #cfg-aviso queda vacío hasta M2
   const ahora = Date.now()
   const datos = datosConfiguracion(modeloDesdeChat(st.chat), ahora)
   // Las pestañas no se redibujan: cambia cuál está elegida, así el indicador viaja desde donde estaba.
@@ -3338,26 +3755,23 @@ function datosFirma(ahora) {
 }
 
 /**
- * Reemplaza una parte de la hoja. Si adentro está el campo de la clave que se escribe, su texto, la
- * selección y el foco pasan al campo nuevo: el texto vive solo en el `<input>` (4.6), nunca en el HTML.
+ * Reemplaza una parte de la hoja. Si adentro está el campo que se escribe (`sel`: el de la clave, o los
+ * de la hoja de Tareas), su texto, la selección y el foco pasan al campo nuevo (el mismo `id` o
+ * `data-k`): el texto vive solo en el `<input>` (4.6), nunca en el HTML.
  */
-function ponerParteConCampo(el, html) {
-  const viejo = el.querySelector('#cfg-clave-in')
-  const guardado = viejo && { valor: viejo.value, ini: viejo.selectionStart, fin: viejo.selectionEnd, foco: document.activeElement === viejo }
-  // Los campos de nombre (#37): lo escrito sin guardar sigue en los dos, y el que tiene el foco, con su cursor
-  const nombres = [...el.querySelectorAll('input.cfg-nom')].map(i => ({
-    k: i.dataset.k, valor: i.value, ini: i.selectionStart, fin: i.selectionEnd, foco: document.activeElement === i,
-  }))
+function ponerParteConCampo(el, html, sel = '#cfg-clave-in, input.cfg-nom') {
+  const clave = c => c.id || c.dataset.k
+  const guardados = [...el.querySelectorAll(sel)].map(c => ({ k: clave(c), valor: c.value, ini: c.selectionStart, fin: c.selectionEnd, foco: document.activeElement === c, nom: c.classList.contains('cfg-nom') }))
   el.innerHTML = html
-  const pasar = (nuevo, g) => {
-    if (!nuevo || !g) return
+  for (const g of guardados) {
+    const nuevo = [...el.querySelectorAll(sel)].find(c => clave(c) === g.k)
+    if (!nuevo) continue
     nuevo.value = g.valor
     try { nuevo.setSelectionRange(g.ini, g.fin) } catch { /* el tipo no admite selección */ }
     if (g.foco) nuevo.focus({ preventScroll: true })
   }
-  pasar(guardado && el.querySelector('#cfg-clave-in'), guardado)
-  for (const n of nombres) pasar(el.querySelector(`input.cfg-nom[data-k="${CSS.escape(n.k)}"]`), n)
-  if (nombres.length) prenderGuardarNombres()
+  // Los campos de nombre (#37): con lo escrito de vuelta, el botón Guardar se prende o se apaga
+  if (guardados.some(g => g.nom)) prenderGuardarNombres()
 }
 
 /** Lo escrito en los dos campos de nombre (#37), por clave. */
@@ -3463,18 +3877,13 @@ function ponerProgresoConfig(m) {
 }
 
 /**
- * Abre la configuración (la fila de la barra, Ctrl ,, la bandeja o una tarjeta con `tab`). Sale de la
- * dividida y de la tira; acoplada, abre también el panel. Ya abierta, solo lleva el foco al título
- * (no la cierra: cerrar es "‹ Tablero" o Esc). El foco va al `h1` (11).
+ * Abre la hoja de Configuración (la fila del menú, Ctrl ,, la bandeja o una tarjeta con `tab`): la lee,
+ * la dibuja y hace su acto de entrada; acoplada, abre también el panel. Solo la llama `irModulo`
+ * (modulos-ux.md 11.1), que ya cerró la otra hoja, la dividida y la tira, y que con la hoja ya abierta
+ * solo cambia la pestaña y lleva el foco al título. El foco va al `h1` (11).
  */
-async function abrirConfig({ tab, foco = true } = {}) {
-  if (st.config.abierta) {
-    if (tab && tab !== st.config.tab) cambiarPestanaConfig(tab)
-    if (foco) $('#titulo').focus()
-    return
-  }
-  if (st.dividida.clave) await cerrarConversacion({ descartar: true })
-  if (st.mini) await ponerMini(false)
+function abrirConfig({ tab, foco = true } = {}) {
+  if (st.config.abierta) return
   st.config = { ...abrirConfiguracion(st.config, tab), error: null }
   // El mod, las claves y el modelo local se leen al abrir (solo lectura, sin red): los puntos de las
   // pestañas se ven desde cualquiera
@@ -3492,13 +3901,16 @@ async function abrirConfig({ tab, foco = true } = {}) {
   }
 }
 
-/** Cierra la hoja ("‹ Tablero", Esc o un proyecto de la barra): el tablero vuelve como estaba. */
-function cerrarConfig({ foco = true } = {}) {
+/**
+ * Cierra la hoja (solo desde `irModulo`: Esc, la fila de Sesiones, otro módulo, un proyecto o la
+ * pregunta). De vuelta en Sesiones el tablero vuelve como estaba, con su acto (`acto`); hacia otra hoja,
+ * sin él. El foco lo pone `irModulo`.
+ */
+function cerrarConfig({ acto = true } = {}) {
   if (!st.config.abierta) return
   st.config = cerrarConfiguracion(st.config)
   pintar()
-  movimientoConfig.cerrarHoja([$('#otro'), $('#w-globo'), $('#conteos'), ...document.querySelectorAll('#sesiones > .ses')])
-  if (foco) $('#cfg-fila').focus()
+  if (acto) movimientoConfig.cerrarHoja([$('#otro'), $('#w-globo'), $('#conteos'), ...document.querySelectorAll('#sesiones > .ses')])
 }
 
 /** Cambia de pestaña (clic o flechas): el indicador viaja y el contenido entra desde su lado. */
@@ -3947,11 +4359,1198 @@ async function clicBorrarClave(proveedor) {
   }
 }
 
+// ------------------------------------------------------------------ tareas (#39, docs/diseno/tareas-ux.md)
+// Reglas (14, "no improvisar"): todo se guarda al instante (no hay "Guardar"); lo que borra confirma en
+// el mismo botón; nada se abre solo; Hoy es el día de Argentina; un archivo roto nunca se toca (Rust
+// tampoco lo deja). La hoja vive en #tar, en la columna principal, como la configuración. La ventana
+// nunca arma rutas: manda la lista entera a `tareas_guardar` y el id a `tareas_borrar_lista`, y Rust
+// valida el id antes de armar `<config>/tareas/<id>.json`.
+// Entrega 1: la hoja, las listas y las tareas. Entrega 2: la tarea abierta (4.7), en el lugar de la
+// lista, y mover entre listas (11.3). El aviso diario con su globo (8) es la entrega 3.
+
+const hoyTareas = () => hoyArgentina(Date.now())
+
+/** La fila "Tareas" de la barra (4.1): la pista "Ctrl T" o el chip, y su nombre accesible. El chip late al cambiar la cuenta. */
+function pintarFilaTareas() {
+  const c = st.tareas.leido ? cuentas(st.tareas.listas, hoyTareas()) : { hoy: 0, vencidas: 0 }
+  const html = ladoFilaTareas(c)
+  if (st.tarFirmas.fila !== html) {
+    const cambio = st.tarFirmas.fila != null
+    $('#tar-fila-ct').innerHTML = html
+    st.tarFirmas.fila = html
+    if (cambio) movimientoTareas.latirChip($('#tar-fila .chip'))
+  }
+  const nombre = nombreFilaTareas(c)
+  if ($('#tar-fila').getAttribute('aria-label') !== nombre) $('#tar-fila').setAttribute('aria-label', nombre)
+}
+
+/** El encabezado con la hoja abierta: "Tareas" y su bajada (5.1); la tira de repos es solo de Sesiones (modulos-ux.md 4.4). */
+function pintarHojaTareas() {
+  modoMarco('tablero')
+  $('#marco').classList.remove('con-hoja')
+  const hoy = hoyTareas()
+  texto('#titulo', 'Tareas')
+  $('#titulo').title = ''
+  texto('#subtitulo', subtituloTareas(cuentas(st.tareas.listas, hoy), hoy, st.tareas.listas.length > 0))
+  pintarTareas()
+}
+
+/** Las filas que hacen su acto de tilde: mientras tanto, la lista no se redibuja (10). */
+const tildando = new Set()
+
+/** ¿La vista existe todavía? Una lista borrada o un archivo roto que se arregló vuelven a Hoy. */
+function vistaValida(t) {
+  if (t.ver === 'hoy' || t.ver === 'vencidas') return true
+  if (String(t.ver).startsWith('rota:')) return t.rotas.some(r => `rota:${r.archivo}` === t.ver)
+  return t.listas.some(l => l.id === t.ver)
+}
+
+/**
+ * Dibuja la hoja en #tar por partes (3.5): el esqueleto una vez; la línea de la pregunta; el primer uso
+ * o la carpeta; y en la carpeta el índice, el encabezado del panel, el error, el campo y la lista, cada
+ * uno solo si cambió. Un campo que se escribe nunca se pisa (`ponerParteConCampo`) y el foco vuelve a la
+ * misma pieza (`data-k`). Cerrada, vacía.
+ */
+function pintarTareas() {
+  const raiz = $('#tar')
+  const mini = $('#tar-mini')
+  const f = st.tarFirmas
+  if (!st.tareas.abierta) {
+    if (raiz.firstChild) { raiz.innerHTML = ''; st.tarFirmas = { fila: f.fila } }
+    if (mini.firstChild) mini.innerHTML = ''
+    return
+  }
+  if (!raiz.firstChild) { raiz.innerHTML = esqueletoTareas(); st.tarFirmas = { fila: f.fila } }
+  if (!vistaValida(st.tareas)) st.tareas = cambiarVista(st.tareas, 'hoy')
+  // Una tarea abierta que ya no está (se borró su lista) se cierra
+  if (st.tareas.det && !buscarTarea(st.tareas.listas, st.tareas.det)) st.tareas = cerrarDetalle(st.tareas)
+  const t = st.tareas
+  const firmas = st.tarFirmas
+  const htmlMini = miniTareas(st.mascota, t.feliz)
+  if (firmas.mini !== htmlMini) { mini.innerHTML = htmlMini; firmas.mini = htmlMini }
+  // La pregunta pendiente se ve en #aviso-p, arriba de la hoja (modulos-ux.md 4.5): #tar-aviso queda vacío hasta M2
+
+  const cuerpo = $('#tar-cuerpo')
+  const k = raiz.contains(document.activeElement) ? document.activeElement.closest('[data-k]')?.dataset.k : null
+  const modo = t.errorLeer && !t.listas.length ? 'error' : t.leido && !t.listas.length && !t.rotas.length ? 'primer' : 'carpeta'
+  if (firmas.modo !== modo) {
+    cuerpo.innerHTML = modo === 'carpeta' ? CARPETA : ''
+    for (const p of ['cuerpo', 'idx', 'pane-h', 'err', 'nuevo', 'lista']) delete firmas[p]
+    firmas.modo = modo
+  }
+  const ponerParte = (el, parte, html, firma = html) => {
+    if (!el || firmas[parte] === firma) return
+    ponerParteConCampo(el, html, 'input[data-campo], textarea[data-campo]')
+    firmas[parte] = firma
+  }
+  // La tarea abierta (4.7): entra en el lugar de la lista, con "‹ {vista}" en el del encabezado del panel
+  const det = modo === 'carpeta' && t.det ? buscarTarea(t.listas, t.det) : null
+  if (modo !== 'carpeta') {
+    ponerParte(cuerpo, 'cuerpo', modo === 'error' ? errorCarpeta(t.errorLeer) : primerUso(st.mascota, t.errorLista))
+  } else if (det) {
+    const parte = p => cuerpo.querySelector(`[data-parte="${p}"]`)
+    ponerParte(parte('idx'), 'idx', indiceTareas({
+      ver: t.ver, listas: t.listas, cuentas: t.leido ? cuentas(t.listas, hoyTareas()) : null, rotas: t.rotas,
+      renombrando: t.renombrando, creando: t.creando, errorLista: t.errorLista,
+    }))
+    ponerParte(parte('pane-h'), 'pane-h', atrasTarea(nombreVista(t.listas, t.ver)))
+    ponerParte(parte('err'), 'err', t.errorGuardar ? errorGuardar() : '')
+    ponerParte(parte('nuevo'), 'nuevo', '')
+    pintarDetalleTareas(parte('lista'), det)
+  } else {
+    const ahora = Date.now()
+    const hoy = hoyTareas()
+    const rota = String(t.ver).startsWith('rota:') ? t.ver.slice(5) : null
+    const armado = t.armado && armadoVigente(t, t.armado.id, ahora) && t.armado.id === `lista:${t.ver}`
+    const transcurrido = armado ? Math.max(0, MS_CONFIRMAR - (t.armado.hasta - ahora)) : 0
+    const parte = p => cuerpo.querySelector(`[data-parte="${p}"]`)
+    ponerParte(parte('idx'), 'idx', indiceTareas({
+      ver: t.ver, listas: t.listas, cuentas: t.leido ? cuentas(t.listas, hoy) : null, rotas: t.rotas,
+      renombrando: t.renombrando, creando: t.creando, errorLista: t.errorLista,
+    }))
+    // El "¿Borrar…? Sí" lleva cuánto lleva armado (para retomar la línea): no cuenta para la firma
+    const cab = c => cabeceraPanel({ ver: t.ver, listas: t.listas, hoy, armado: !!armado, transcurrido: c })
+    ponerParte(parte('pane-h'), 'pane-h', cab(transcurrido), cab(0))
+    ponerParte(parte('err'), 'err', rota ? errorRota(rota) : t.errorGuardar ? errorGuardar() : '')
+    ponerParte(parte('nuevo'), 'nuevo', rota || !t.leido ? '' : campoNueva(t.ver, t.listas))
+    // La recién agregada lleva su destello una vez: no cuenta para la firma (un redibujo no lo repite)
+    const lista = r => (rota ? '' : cuerpoLista({ ver: t.ver, listas: t.listas, hoy, hechas: t.hechas, recien: r, fantasmas: !t.leido && t.fantasmas, mascota: st.mascota }))
+    if (!tildando.size) ponerParte(parte('lista'), 'lista', lista(t.recien), lista(null))
+  }
+  if (k && !raiz.contains(document.activeElement)) raiz.querySelector(`[data-k="${CSS.escape(k)}"]`)?.focus({ preventScroll: true })
+}
+
+/**
+ * La tarea abierta en el lugar de la lista (4.7): el esqueleto una vez por tarea (el `h2` oculto sigue
+ * al título) y cada parte solo si cambió. El título y las notas no cuentan para sus firmas: viven en su
+ * campo mientras se escriben y nunca se pisan; la fecha y la lista sí (se cambian con un clic).
+ */
+function pintarDetalleTareas(el, { lista, tarea }) {
+  const t = st.tareas
+  const firmas = st.tarFirmas
+  if (!el) return
+  const firma = `det:${tarea.id}`
+  if (firmas.lista !== firma) {
+    el.innerHTML = esqueletoDetalle(tarea.titulo)
+    for (const p of ['det-tit', 'det-g', 'det-sub', 'det-notas', 'det-pie']) delete firmas[p]
+    firmas.lista = firma
+  }
+  const h2 = el.querySelector('#tar-pane-h')
+  if (h2 && h2.textContent !== tarea.titulo) h2.textContent = tarea.titulo
+  const ahora = Date.now()
+  const armado = !!t.armado && armadoVigente(t, t.armado.id, ahora) && t.armado.id === `tarea:${tarea.id}`
+  const transcurrido = armado ? Math.max(0, MS_CONFIRMAR - (t.armado.hasta - ahora)) : 0
+  const partes = c => partesDetalle({ lista, tarea, listas: t.listas, hoy: hoyTareas(), editandoSub: t.editandoSub, armado, transcurrido: c })
+  const p = partes(transcurrido)
+  const poner = (parte, html, f = html) => {
+    const sub = el.querySelector(`[data-parte="${parte}"]`)
+    if (!sub || firmas[parte] === f) return
+    ponerParteConCampo(sub, html, 'input[data-campo], textarea[data-campo]')
+    firmas[parte] = f
+  }
+  poner('det-tit', p.tit, `${tarea.id}|${!!tarea.hecha}`)
+  poner('det-g', p.datos)
+  poner('det-sub', p.subs)
+  poner('det-notas', p.notas, tarea.id)
+  poner('det-pie', p.pie, partes(0).pie)
+}
+
+/**
+ * Abre la hoja de Tareas (la fila del menú, Ctrl T o el globo del aviso diario): acoplada, abre también
+ * el panel. Solo la llama `irModulo` (modulos-ux.md 11.1), que ya cerró la configuración, la dividida y
+ * la tira, y que con la hoja ya abierta solo lleva el foco al título. Al abrir se vuelven a leer las
+ * listas (solo lectura). El foco va al `h1` (9.4).
+ */
+function abrirTareasHoja({ ver, foco = true } = {}) {
+  if (st.tareas.abierta) return
+  // El aviso diario se va si la hoja se abre, por el globo o por cualquier otro camino (8.1)
+  st.avisoTar = soltarAviso(st.avisoTar)
+  st.tareas = abrirTareas(st.tareas, ver)
+  leerTareas()
+  pintar()
+  movimientoTareas.abrirHoja($('#marco .cab'), $('#tar-cuerpo'))
+  if (st.acople) {
+    evento({ tipo: 'clic' })
+    if (foco) { st.focoPendiente = 'tar'; aplicarFoco() }
+  } else if (foco) {
+    $('#titulo').focus()
+  }
+}
+
+/**
+ * Cierra la hoja (solo desde `irModulo`): lo diferido se guarda antes. De vuelta en Sesiones el tablero
+ * vuelve como estaba, con su acto (`acto`); hacia otra hoja, sin él. El foco lo pone `irModulo`.
+ */
+function cerrarTareasHoja({ acto = true } = {}) {
+  if (!st.tareas.abierta) return
+  diferidoTareas.todos()
+  st.tareas = cerrarTareas(st.tareas)
+  pintar()
+  if (acto) movimientoConfig.cerrarHoja([$('#otro'), $('#w-globo'), $('#conteos'), ...document.querySelectorAll('#sesiones > .ses')])
+}
+
+/** Cambia de vista (el índice): el panel entra desde la derecha y el foco queda en el botón del índice (9.4). */
+function verTareas(ver) {
+  if (ver === st.tareas.ver && !st.tareas.det) return
+  diferidoTareas.todos()
+  st.tareas = cambiarVista(st.tareas, ver)
+  pintarTareas()
+  movimientoTareas.cambioVista($('#tar .pane'))
+  const lista = $('#tar .tar-desplaza')
+  if (lista) lista.scrollTop = 0
+}
+
+/**
+ * Esc con la hoja abierta (9.1): vacía el campo con algo escrito, cancela renombrar o crear (el foco
+ * vuelve a la fila de esa lista o a "Nueva lista"), desarma el "¿Borrar…? Sí" (el foco queda en el
+ * botón) o cierra la hoja (el foco va a la fila de la barra).
+ */
+function escTareas(objetivo) {
+  const campo = objetivo?.closest?.('#tar input[data-campo], #tar textarea[data-campo]')
+  const antes = st.tareas
+  const { tareas, accion } = alEscTareas(antes, campo ? { campo: campo.dataset.campo, texto: campo.value } : null)
+  if (accion === 'vaciar') { campo.value = ''; return }
+  // Sin capas, Esc va a Sesiones con el foco en su fila (modulos-ux.md 9.1)
+  if (alEscModulo('tareas', accion) === 'sesiones') { irModulo('sesiones', { foco: 'fila' }); return }
+  // La tarea abierta (capa 4): título y notas se guardan antes de cerrar; el foco va al cuerpo de su fila
+  if (accion === 'cerrar-tarea') { cerrarTareaHoja(); return }
+  st.tareas = tareas
+  pintarTareas()
+  if (accion === 'cancelar-lista') {
+    const k = antes.renombrando ? `ix-${antes.renombrando}` : $('#tar [data-k="crear"]') ? 'crear' : 'nueva'
+    $(`#tar [data-k="${CSS.escape(k)}"]`)?.focus()
+  } else if (accion === 'cancelar-sub') {
+    // El texto escrito se descarta y vuelve el de antes; el foco, a ese texto
+    $(`#tar [data-k="${CSS.escape(`st-${antes.editandoSub}`)}"]`)?.focus()
+  } else if (accion === 'desarmar') {
+    $(`#tar [data-k="${antes.armado?.id?.startsWith('tarea:') ? 'borrar-tarea' : 'borrar-lista'}"]`)?.focus()
+  }
+}
+
+// ---- el aviso diario (8 y 11.4)
+
+/**
+ * Después del primer `tareas_leer` que sale bien: se decide una sola vez si la mascota avisa hoy
+ * (`evaluarAviso`). Si la hoja ya está abierta, el aviso no hace falta (8.1).
+ */
+function evaluarAvisoTareas() {
+  if (st.avisoTar.evaluado) return
+  const hoy = hoyTareas()
+  st.avisoTar = evaluarAviso(st.avisoTar, { avisado: st.avisadoTar, hoy, cuentas: cuentas(st.tareas.listas, hoy) })
+  if (st.tareas.abierta) st.avisoTar = soltarAviso(st.avisoTar)
+}
+
+/**
+ * La forma de la ventana para la cola de globos (habitos-ux.md 8.2): la de `lugarGlobo` (globos.js), la
+ * pregunta pendiente (tapa todos los globos, D-h5 y D-m4) y el módulo a la vista (con su hoja abierta,
+ * el aviso de Tareas no hace falta; el recordatorio se ve igual).
+ */
+function formaGlobos() {
+  return {
+    fuera: st.fuera, mini: st.mini, chat: st.chat.abierta || hojaCerrando,
+    arrastrando: !!st.arrastre?.activo || document.body.classList.contains('pildora'), acoplada: !!st.acople, abierta: st.vista,
+    dividida: !!st.dividida.clave, barra: st.proyectos.length > 0 || st.modulo !== 'sesiones',
+    pregunta: st.proyectos.some(p => preguntasPendientes(p).length > 0), hojaAbierta: st.modulo,
+  }
+}
+
+/**
+ * Pone al día la cola antes de dibujar (8.1): el aviso de Tareas está mientras siga pendiente y haya
+ * algo que contar (lo de siempre de `lugarAviso`); cada recordatorio se va si su hábito quedó hecho por
+ * cualquier camino, si se borró o a la medianoche (`recordatorioVigente`), salvo el que confirma «Hecho».
+ */
+function ordenarCola() {
+  const hoy = hoyArgentina(Date.now())
+  const c = cuentas(st.tareas.listas, hoy)
+  st.globos = st.avisoTar.pendiente && c.hoy + c.vencidas > 0 ? encolar(st.globos, { tipo: 'tareas', clave: 'tareas' }) : quitar(st.globos, 'tareas')
+  for (const a of st.globos) {
+    if (a.tipo !== 'rec' || a.clave === st.confirmaGlobo?.clave) continue
+    if (!recordatorioVigente(a, st.habitos.lista.find(h => h.id === a.id), hoy)) st.globos = quitar(st.globos, a.clave)
+  }
+}
+
+/**
+ * Lo que dibuja cada tipo en cada lugar (8.2): el aviso de Tareas con sus vistas de siempre (`globoMarca`,
+ * `filaAviso`, `globoMuesca`) y el recordatorio con las suyas (`globoHab`, `filaAvisoHab`,
+ * `globoMuescaHab`), con la confirmación de «Hecho» si es el que confirma. `accion` y `valor` son los del
+ * botón de la muesca (uno solo para los dos: `#muesca-globo`). Sin datos (un hábito que ya no está), null.
+ */
+function vistaGlobo(aviso) {
+  if (aviso.tipo === 'resumen') {
+    // El resumen (8.4 y 8.5): sus números quedaron fijos al encolarlo; el clic (en los tres lugares) abre la charla
+    const t = textosResumen(aviso.resumen, aviso.frase, { plantilla: aviso.plantilla })
+    return {
+      firma: JSON.stringify([t.kicker, t.globo, t.muesca, t.barras]), accion: 'hab-res', valor: null, texto: t,
+      marca: globoResumen(t), fila: filaAvisoResumen(t), muesca: globoMuescaResumen(t),
+    }
+  }
+  if (aviso.tipo === 'tareas') {
+    const t = textoGlobo(cuentas(st.tareas.listas, hoyTareas()), horaGlobo(Date.now()))
+    return t && { firma: JSON.stringify(t), marca: globoMarca(t), fila: filaAviso(t), muesca: globoMuesca(t), accion: 'tar-globo', valor: null, texto: t }
+  }
+  const h = aviso.tipo === 'rec' && st.habitos.lista.find(x => x.id === aviso.id)
+  if (!h) return null
+  const t = textosGlobo(aviso, h)
+  const confirma = st.confirmaGlobo?.clave === aviso.clave ? textoHechoGlobo(h, aviso.dia) : null
+  return {
+    firma: JSON.stringify([t.globo, t.fila, t.muesca, t.progreso, confirma, h.color]), accion: 'hab-globo-ver', valor: h.id, texto: t,
+    marca: globoHab(t, { id: h.id, color: h.color, confirma }), fila: filaAvisoHab(t, { id: h.id, confirma }), muesca: globoMuescaHab(t),
+  }
+}
+
+/**
+ * Dibuja el globo de arriba de la cola donde esté la mascota a la vista (habitos-ux.md 8.1 y 8.2): el
+ * globo de la marca, la fila de la dividida o el globo de la muesca; en la tira, la bandeja, con la charla
+ * abierta o con una pregunta pendiente, espera. Uno por vez: si llega uno de más prioridad, el que estaba
+ * se va sin acto (vuelve después) y el nuevo entra con el suyo. La primera vez que se ve cada uno, el
+ * anuncio (5.4) y, el de Tareas, `tareas.avisado` (8.1). Nada de esto abre nada: solo dibuja. Lo llama
+ * `verAvis` (cada pintada y cada cambio de forma).
+ */
+function pintarGlobos() {
+  ordenarCola()
+  const a = globoActual(st.globos, formaGlobos())
+  const v = a && vistaGlobo(a.aviso)
+  const lugar = v ? a.lugar : null
+  const clave = v ? a.aviso.clave : null
+  const firma = v ? `${lugar}|${clave}|${v.firma}` : null
+  const antes = st.lugarGlobo
+  if (firma === st.firmaGlobo) {
+    if (lugar === 'muesca') ubicarGloboMuesca()
+    return
+  }
+  // Otro globo, o el mismo en otro lugar: entra con su acto. El mismo que cambia de texto, sin acto
+  const entra = lugar !== antes || clave !== st.claveGlobo
+  st.firmaGlobo = firma
+  st.lugarGlobo = lugar
+  st.claveGlobo = clave
+  const marcaG = $('.marca .globo-tar')
+  const filaG = $('#aviso-tar')
+  const muescaG = $('#muesca-globo')
+  // Lo que deja de verse se va sin acto (la ×, «Ver» y el fin de «Hecho» hacen el suyo antes, `sacarGlobo`)
+  if (lugar !== 'marca' || entra) marcaG?.remove()
+  if ((lugar !== 'dividida' || entra) && filaG.firstChild) filaG.innerHTML = ''
+  if (lugar !== 'muesca') { muescaG.hidden = true; muescaG.innerHTML = ''; st.rectGloboMuesca = null }
+  if (lugar === 'marca') {
+    const el = $('.marca .globo-tar')
+    if (el) el.outerHTML = v.marca
+    else $('.marca').insertAdjacentHTML('beforeend', v.marca)
+    if (entra) movimientoTareas.entraGlobo($('.marca .globo-tar'))
+  } else if (lugar === 'dividida') {
+    filaG.innerHTML = v.fila
+    if (entra) movimientoTareas.entraGlobo(filaG.firstElementChild)
+  } else if (lugar === 'muesca') {
+    const nuevo = muescaG.hidden || entra
+    muescaG.innerHTML = v.muesca.html
+    muescaG.setAttribute('aria-label', v.muesca.nombre)
+    muescaG.dataset.accion = v.accion
+    if (v.valor) muescaG.dataset.valor = v.valor
+    else delete muescaG.dataset.valor
+    muescaG.hidden = false
+    ubicarGloboMuesca()
+    if (nuevo) movimientoTareas.entraGlobo(muescaG, st.acople?.borde)
+  }
+  if (lugar) verGlobo(a.aviso, v)
+  if (antes === 'marca' || lugar === 'marca') pintarMarca()
+}
+
+/**
+ * Un globo se ve: la primera vez, el anuncio «{mascota}: {texto}» (5.4). El de Tareas, además, guarda
+ * `tareas.avisado` = hoy (un reinicio el mismo día no lo repite, 8.1); el recordatorio ya quedó en
+ * `habitosRecordados` al salir (8.3).
+ */
+function verGlobo(aviso, v) {
+  const nombre = datosEspecie(st.mascota).nombre
+  if (aviso.tipo === 'tareas') {
+    const { aviso: a, guardar } = verAviso(st.avisoTar)
+    st.avisoTar = a
+    if (guardar) {
+      st.avisadoTar = guardar
+      anunciar(anuncioGlobo(nombre, v.texto))
+      invocar('guardar_ajuste', { clave: 'tareasAvisado', valor: guardar }).catch(e => registrar(`tareas: no se guardó el aviso: ${e}`))
+    }
+  } else if (!st.anunciados.has(aviso.clave)) {
+    st.anunciados.add(aviso.clave)
+    anunciar(anuncioGlobo(nombre, v.texto))
+  }
+  // El resumen (8.4): `habitosResumen` = su lunes la primera vez que se ve; así no se repite
+  if (aviso.tipo === 'resumen' && !(st.habResumen >= aviso.lunes) && validarAjuste('habitosResumen', aviso.lunes)) {
+    st.habResumen = aviso.lunes
+    invocar('guardar_ajuste', { clave: 'habitosResumen', valor: aviso.lunes }).catch(e => registrar(`hábitos: no se guardó el resumen visto: ${e}`))
+  }
+}
+
+/**
+ * Ubica `#muesca-globo` del lado de adentro de la muesca (`lugarGloboMuesca`) y guarda su rectángulo
+ * en px de pantalla para la zona interactiva (tareas-ux.md 8.5): el tamaño se mide (depende del texto).
+ */
+function ubicarGloboMuesca() {
+  const el = $('#muesca-globo')
+  const d = st.disp
+  if (el.hidden || !st.acople || d?.modo !== 'acoplada') { st.rectGloboMuesca = null; return }
+  const local = lugarGloboMuesca(st.acople.borde, d.local.muesca, { ancho: el.offsetWidth, alto: el.offsetHeight }, { ancho: d.ventana.ancho, alto: d.ventana.alto })
+  el.style.left = `${local.x}px`
+  el.style.top = `${local.y}px`
+  el.style.setProperty('--cola', `${local.cola}px`)
+  st.rectGloboMuesca = absoluto(local, d.ventana)
+}
+
+/**
+ * La × del globo o de la fila, o Esc en el globo (8 y 9.1): el aviso se va hasta mañana
+ * (`tareas.avisado` ya quedó guardado al verse), con su acto de salida, el anuncio de 5.3 y el foco en
+ * la fila "Tareas" de la barra (9.4); en la dividida, sin barra, en el primer botón del riel.
+ */
+async function descartarAvisoTareas() {
+  if (!st.avisoTar.pendiente) return
+  const el = $('.marca [data-globo-tar]') ?? $('#aviso-tar [data-globo-tar]')
+  const tenia = el?.contains(document.activeElement)
+  st.avisoTar = soltarAviso(st.avisoTar)
+  if (el) await movimientoTareas.saleGlobo(el)
+  verAvis()
+  anunciar('Te lo recuerdo mañana')
+  if (tenia || !document.activeElement || document.activeElement === document.body) {
+    const fila = $('#tar-fila')
+    if (fila.offsetParent) fila.focus()
+    else $('#riel button')?.focus()
+  }
+}
+
+// ---- el recordatorio de un hábito (habitos-ux.md 8.3, entrega H2)
+
+/** Lo que dura la confirmación de «+1» o «Hecho» en el globo antes de irse sola (8.3). */
+const CONFIRMA_GLOBO_MS = 1800
+let relojConfirmaGlobo = null
+
+/**
+ * El ciclo de 1,5 s revisa los recordatorios (8.3), nunca un temporizador por hábito: cada hábito con
+ * aviso que toca, no está hecho y ya pasó su hora entra a la cola una sola vez por día
+ * (`habitosRecordados` en preferencias.json, así un reinicio el mismo día no lo repite). A la vez sale la
+ * notificación de Windows (`avisar`, textos de 5.5) si «Avisar» está prendido (D-h13) y no llegó más de
+ * 60 min tarde (D-h12: entonces solo el globo). Nada se abre solo.
+ */
+function revisarRecordatorios(ahora = Date.now()) {
+  if (!st.habitos.leido) return
+  const debidos = recordatoriosDebidos(st.habitos.lista, ahora, st.habRecordados)
+  if (!debidos.length) return
+  st.habRecordados = recordar(st.habRecordados, debidos.map(d => d.id), debidos[0].dia)
+  if (validarAjuste('habitosRecordados', st.habRecordados)) {
+    invocar('guardar_ajuste', { clave: 'habitosRecordados', valor: st.habRecordados }).catch(e => registrar(`hábitos: no se guardaron los recordados: ${e}`))
+  }
+  for (const d of debidos) {
+    const aviso = { tipo: 'rec', clave: claveRec(d.id, d.dia), id: d.id, dia: d.dia, hora: d.hora }
+    st.globos = encolar(st.globos, aviso)
+    const h = st.habitos.lista.find(x => x.id === d.id)
+    if (st.avisar && !d.tarde && h) {
+      const n = textosGlobo(aviso, h).notificacion
+      invocar('avisar', { titulo: n.titulo, cuerpo: n.cuerpo }).catch(e => registrar(`hábitos: no salió la notificación: ${e}`))
+    }
+  }
+  verAvis()
+}
+
+/**
+ * «+1 {unidad}» o «Hecho» del globo o de la fila (8.3): marca hoy sin abrir nada, como la hoja
+ * (`cambiarHabito`, que guarda). El globo confirma con el texto de 5.4 durante 1,8 s (la mascota feliz) y
+ * se va solo, aunque el «+1» no llegue a la meta (ya respondiste). El foco va a la × del globo (9.4).
+ */
+function hacerDesdeGlobo(id) {
+  const hoy = hoyHabitos()
+  const aviso = st.globos.find(a => a.tipo === 'rec' && a.id === id && a.dia === hoy)
+  const h = st.habitos.lista.find(x => x.id === id)
+  if (!aviso || !h || st.confirmaGlobo) return
+  const cantidad = h.tipo === 'cantidad'
+  // Antes de marcar: el globo que confirma no se va aunque el hábito ya esté hecho (`ordenarCola`)
+  st.confirmaGlobo = { clave: aviso.clave, id }
+  const fx = st.habitos.abierta ? (cantidad ? { tipo: 'suma', d: 1, dia: hoy } : { tipo: 'tilde', dia: hoy }) : null
+  const r = cambiarHabito(id, x => (cantidad ? sumarHabito(x, hoy, 1) : marcarHabito(x, hoy, true)), fx)
+  if (!r) { st.confirmaGlobo = null; verAvis(); return }
+  anunciar(plano(textoHechoGlobo(r.despues, hoy)))
+  if (st.habitos.abierta) trasMarcarHoy(r, () => $(`#hab [data-k="${cantidad ? 'sum' : 'ck'}-${CSS.escape(id)}"]`))
+  $('[data-globo-hab] [data-accion="hab-globo-x"]')?.focus()
+  clearTimeout(relojConfirmaGlobo)
+  relojConfirmaGlobo = setTimeout(() => { if (st.confirmaGlobo?.clave === aviso.clave) sacarGlobo(aviso.clave) }, CONFIRMA_GLOBO_MS)
+}
+
+/**
+ * Saca un globo de la cola (la ×, el fin de «Hecho»), con su acto de salida si está a la vista en la
+ * marca o en la dividida. Si el foco estaba en él (o en ningún lado), va al siguiente globo o, si no hay,
+ * a la fila «Hábitos» del menú; en la dividida, sin barra, al primer botón del riel (9.4).
+ */
+async function sacarGlobo(clave) {
+  const el = st.claveGlobo === clave ? ($('.marca [data-globo-hab]') ?? $('#aviso-tar [data-globo-hab]')) : null
+  const tenia = !!el?.contains(document.activeElement)
+  if (st.confirmaGlobo?.clave === clave) { st.confirmaGlobo = null; clearTimeout(relojConfirmaGlobo) }
+  st.globos = quitar(st.globos, clave)
+  if (el) await movimientoTareas.saleGlobo(el)
+  verAvis()
+  if (tenia || !document.activeElement || document.activeElement === document.body) {
+    const siguiente = $('.marca .globo-tar button, #aviso-tar button')
+    const fila = $('#hab-fila')
+    if (siguiente) siguiente.focus()
+    else if (fila?.offsetParent) fila.focus()
+    else $('#riel button')?.focus()
+  }
+}
+
+/** La × del recordatorio, o Esc en su globo (9.1): «Ahora no», no vuelve hasta mañana (ya está en `habitosRecordados`). */
+function descartarRecordatorio(id) {
+  const a = st.globos.find(x => x.tipo === 'rec' && x.id === id)
+  if (a) sacarGlobo(a.clave)
+}
+
+/** «Ver hábitos →» (o el globo de la muesca): el recordatorio se va y solo el clic abre la hoja en Hoy (8.3). */
+async function verDesdeGlobo(id) {
+  const a = st.globos.find(x => x.tipo === 'rec' && x.id === id)
+  if (a) {
+    if (st.confirmaGlobo?.clave === a.clave) { st.confirmaGlobo = null; clearTimeout(relojConfirmaGlobo) }
+    st.globos = quitar(st.globos, a.clave)
+  }
+  if (st.habitos.abierta && st.habitos.ver !== 'hoy') verHabitosEnHoja('hoy')
+  await irModulo('habitos', { ver: 'hoy' })
+  verAvis()
+}
+
+// ---- el resumen semanal (habitos-ux.md 8.4, entrega H3)
+
+/**
+ * El ciclo de 1,5 s revisa si toca un resumen (`resumenDebido`: el domingo desde las 18 de Argentina, o la
+ * semana pasada en el primer arranque de la siguiente; nunca uno ya visto ni uno más viejo). Los números
+ * salen de los datos (`resumenSemana`); la frase la pide `fraseResumen`. Mientras se escribe, el globo
+ * espera (es el último de la cola): entra a la cola recién con la frase. El que ya está en la cola (o uno
+ * más nuevo) no se vuelve a preparar, y la frase se pide como mucho una vez por semana (`habitosFrase`).
+ * Nada se abre solo.
+ */
+function revisarResumen(ahora = Date.now()) {
+  if (!st.habitos.leido || st.resumenPreparando) return
+  const lunes = resumenDebido({ hoy: hoyArgentina(ahora), horaAr: horaGlobo(ahora), guardado: st.habResumen ?? '', habitos: st.habitos.lista })
+  if (!lunes || st.globos.some(a => a.tipo === 'resumen' && a.lunes >= lunes)) return
+  st.resumenPreparando = lunes
+  const resumen = resumenSemana(st.habitos.lista, lunes)
+  fraseResumen(resumen).then(({ frase, plantilla }) => {
+    st.resumenPreparando = null
+    if (st.habResumen >= lunes) return
+    st.globos = conResumen(st.globos, { tipo: 'resumen', clave: claveResumen(lunes), lunes, resumen, frase, plantilla })
+    verAvis()
+  })
+}
+
+/**
+ * La frase del resumen (8.4), como mucho una vez por semana también entre arranques: si `habitosFrase`
+ * ya tiene la de ese lunes (`fraseGuardada`), esa, sin pedirle nada al modelo ("" es la plantilla). Si
+ * no, y solo con el modelo instalado (`estado_modelo`, que solo lee; sin modelo no hubo pedido y no se
+ * guarda nada), `habitos_frase` (Rust vuelve a mirar el modelo sin prender nada; nunca descarga). La
+ * respuesta vale si pasa `fraseValida`; si no, si tarda más de 45 s o falla, "". Apenas vuelve el
+ * pedido, bien o mal, se guarda `{ lunes, frase }` en `habitosFrase`. Sin frase, la plantilla.
+ */
+async function fraseResumen(resumen) {
+  const conFrase = f => (f && fraseValida(f, resumen) ? { frase: f, plantilla: false } : { frase: plantillaResumen(resumen), plantilla: true })
+  const ya = fraseGuardada(st.habFrase, resumen.lunes)
+  if (ya !== null || !tauri?.core) return conFrase(ya)
+  const modelo = await invocar('estado_modelo').catch(() => null)
+  if (modelo?.modelo !== 'listo') return conFrase('')
+  let frase = ''
+  try {
+    const r = await invocar('habitos_frase', { datos: datosFrase(resumen) })
+    if (fraseValida(r?.frase, resumen)) frase = r.frase.trim()
+    else registrar('hábitos: la frase del resumen no pasó la validación; va la plantilla')
+  } catch {
+    // Tiempo agotado o error del motor (Rust ya lo anotó): la plantilla
+  }
+  st.habFrase = { lunes: resumen.lunes, frase }
+  if (validarAjuste('habitosFrase', st.habFrase)) {
+    invocar('guardar_ajuste', { clave: 'habitosFrase', valor: st.habFrase }).catch(e => registrar(`hábitos: no se guardó la frase de la semana: ${e}`))
+  }
+  return conFrase(frase)
+}
+
+/**
+ * «Charlemos la semana →» (el globo de la marca, «Charlemos →» de la dividida o el globo de la muesca, 8.4):
+ * el resumen se va y se abre la hoja de la charla con una charla nueva del motor local, sea cual sea la
+ * preferencia (que no cambia), con la frase y los números como primer mensaje de la mascota. Plegada, el
+ * panel se abre primero; en la dividida, que no tiene marca (D4), sale de ella. Sin el modelo, la hoja
+ * muestra su «Descargar», que solo baja con el clic.
+ */
+async function charlaDesdeResumen() {
+  const a = st.globos.find(x => x.tipo === 'resumen')
+  if (!a) return
+  st.globos = quitar(st.globos, a.clave)
+  if (st.dividida.clave) await cerrarConversacion({ descartar: true })
+  if (st.acople && !st.muesca.abierta) {
+    await abrirPanelAlModulo()
+    evento({ tipo: 'clic' })
+  }
+  verAvis()
+  despacharChat({ tipo: 'semana', titulo: tituloSemana(a.lunes), texto: mensajeSemana(a.resumen, a.frase) })
+}
+
+/** La × del resumen, o Esc en su globo (9.1): «Más tarde», no vuelve hasta la semana siguiente (ya quedó en `habitosResumen` al verse). */
+function descartarResumen() {
+  const a = st.globos.find(x => x.tipo === 'resumen')
+  if (a) sacarGlobo(a.clave)
+}
+
+// ---- leer y guardar (11.3)
+
+let leyendoTareas = null
+/**
+ * Lee las listas (`tareas_leer`, solo lectura): al arrancar (la cuenta de la barra), al abrir la hoja
+ * y con "Volver a leer". Si tarda más de 150 ms, la primera vez, el panel muestra las filas fantasma
+ * (7.1). Las listas que no se pudieron guardar siguen como están en pantalla (7.4).
+ */
+function leerTareas() {
+  if (!tauri?.core) return null
+  if (leyendoTareas) return leyendoTareas
+  st.tareas = { ...st.tareas, cargando: true }
+  const reloj = setTimeout(() => {
+    if (!st.tareas.cargando || st.tareas.leido) return
+    st.tareas = { ...st.tareas, fantasmas: true }
+    pintarTareas()
+  }, 150)
+  leyendoTareas = (async () => {
+    try {
+      const r = await invocar('tareas_leer')
+      const listas = Array.isArray(r?.listas) ? r.listas : []
+      const rotas = Array.isArray(r?.rotas) ? r.rotas.filter(x => typeof x?.archivo === 'string') : []
+      for (const l of listas) anotarBaseTareas(l, r?.huellas?.[l.id])
+      st.tareas = { ...st.tareas, listas: mezclarLectura(listas, st.tareas.listas, listasSinGuardar()), rotas, leido: true, errorLeer: null }
+      evaluarAvisoTareas()
+    } catch (err) {
+      registrar(`tareas: no se pudieron leer: ${err}`)
+      st.tareas = { ...st.tareas, errorLeer: String(err?.message ?? err).slice(0, 120) || 'sin detalle' }
+    } finally {
+      clearTimeout(reloj)
+      st.tareas = { ...st.tareas, cargando: false, fantasmas: false }
+      leyendoTareas = null
+      pintar()
+    }
+  })()
+  return leyendoTareas
+}
+
+/**
+ * Por lista, lo último que se leyó o guardó en el disco y su huella (#43, chat-herramientas-ux.md 11.5):
+ * `tareas_guardar` no pisa un cambio de la charla, y con esto se vuelve a aplicar lo de la ventana.
+ */
+const basesTareas = new Map()
+function anotarBaseTareas(lista, huella) {
+  if (typeof lista?.id === 'string' && typeof huella === 'string') basesTareas.set(lista.id, { lista, huella })
+}
+
+/**
+ * Relee las listas y pone la `id` al día con lo del disco sin perder lo de la pantalla (`rebasarLista`).
+ * Devuelve si pudo.
+ */
+async function rebasarTareas(id) {
+  let r
+  try { r = await invocar('tareas_leer') } catch (err) { registrar(`tareas: no se pudo releer ${id}: ${err}`); return false }
+  const disco = (Array.isArray(r?.listas) ? r.listas : []).find(l => l.id === id)
+  const pantalla = st.tareas.listas.find(l => l.id === id)
+  if (!disco || !pantalla) return false
+  st.tareas = { ...st.tareas, listas: st.tareas.listas.map(l => (l.id === id ? rebasarLista(basesTareas.get(id)?.lista, pantalla, disco) : l)) }
+  anotarBaseTareas(disco, r?.huellas?.[id])
+  pintar()
+  return true
+}
+
+/**
+ * `oficina://tareas` (#43, 11.6): la charla cambió una lista. Se relee enseguida (8); si se está
+ * guardando, ese guardado choca con la huella y se pone al día solo.
+ */
+function alCambiarTareasFuera(p) {
+  const id = p?.lista
+  if (typeof id !== 'string' || !st.tareas.leido || guardadosTareas.get(id)?.enCurso) return
+  const tarea = typeof p.tarea === 'string' ? p.tarea : null
+  // Con la hoja abierta, la fila nueva o cambiada lleva el destello de «recién agregada» (chat-herramientas-ux.md 8)
+  const habia = !!tarea && !!buscarTarea(st.tareas.listas, tarea)
+  const alDia = ok => { if (ok) tareaCambiadaFuera(tarea, { nueva: !habia }) }
+  if (st.tareas.listas.some(l => l.id === id)) rebasarTareas(id).then(alDia)
+  else leerTareas()?.then(() => alDia(true))
+}
+
+/**
+ * Una tarea que cambió por la charla, ya releída (8): en la lista, su fila destella (y una nueva baja y
+ * aparece); abierta en el detalle, sus campos sin foco se ponen al día y el que tiene foco conserva lo
+ * que se está escribiendo.
+ */
+function tareaCambiadaFuera(id, { nueva }) {
+  if (!id || !st.tareas.abierta) return
+  if (st.tareas.det !== id) { destellarTarea(id, { entra: nueva }); return }
+  const t = buscarTarea(st.tareas.listas, id)?.tarea
+  if (!t) return
+  for (const [campo, valor] of [['titulo', t.titulo], ['notas', t.notas ?? '']]) {
+    const el = $(`#tar textarea[data-campo="${campo}"]`)
+    if (el && el !== document.activeElement && el.value !== valor) el.value = valor
+  }
+}
+
+/** Por lista: el guardado en curso (`promesa`) y si hay que guardarla otra vez al terminar. */
+const guardadosTareas = new Map()
+/** Las listas cuyo último guardado falló: se reintentan a los 5 s o con "Reintentar ahora" (7.4). */
+const fallidasTareas = new Set()
+let relojReintentoTareas = null
+
+/**
+ * Las tareas movidas cuyo destino todavía no confirmó (11.3, `nuevaMudanza` de tareas.js): mientras
+ * tanto su lista de origen se guarda con ellas (duplicadas, nunca perdidas).
+ */
+let mudanzasTareas = []
+
+/** Las listas que no se pueden pisar con lo leído: las que fallaron, las que se están guardando y los orígenes de una mudanza. */
+function listasSinGuardar() {
+  return new Set([
+    ...fallidasTareas, ...[...guardadosTareas].filter(([, g]) => g.enCurso).map(([id]) => id), ...mudanzasTareas.map(m => m.origen),
+  ])
+}
+
+/**
+ * Guarda una lista entera (`tareas_guardar`), de a una por vez por lista y siempre con lo último que hay
+ * en pantalla (más las tareas que salieron de ella y su destino no confirmó, `listaParaGuardar`). Si
+ * falla, lo de la pantalla queda, el error de 7.4 aparece (y se anuncia), se anota en widget.log y se
+ * reintenta solo a los 5 s; se va al primer guardado bueno. Cada guardado lleva su número (`n`): uno
+ * bueno que empezó después de mover suelta la mudanza y guarda el origen sin la tarea.
+ */
+function guardarListaTareas(id) {
+  let g = guardadosTareas.get(id)
+  if (!g) { g = { enCurso: false, otraVez: false, promesa: null, n: 0 }; guardadosTareas.set(id, g) }
+  if (g.enCurso) { g.otraVez = true; return g.promesa }
+  g.enCurso = true
+  g.promesa = (async () => {
+    // 11.5: si la charla cambió el archivo, se relee y se vuelve a aplicar lo de la ventana una vez
+    let rebasada = false
+    do {
+      g.otraVez = false
+      const lista = listaParaGuardar(st.tareas.listas, id, mudanzasTareas)
+      if (!lista) { fallidasTareas.delete(id); break }
+      const n = ++g.n
+      let r
+      try { r = await invocar('tareas_guardar', { lista, huella: basesTareas.get(id)?.huella ?? null }) } catch (err) { r = { ok: false, error: String(err?.message ?? err) } }
+      if (!r?.ok && r?.error === 'cambio' && !rebasada) {
+        rebasada = true
+        if (await rebasarTareas(id)) { g.otraVez = true; continue }
+      }
+      if (r?.ok) {
+        anotarBaseTareas(r.lista, r.huella)
+        fallidasTareas.delete(id)
+        const s = soltarMudanzas(mudanzasTareas, id, n)
+        mudanzasTareas = s.mudanzas
+        for (const origen of s.origenes) guardarListaTareas(origen)
+      } else {
+        fallidasTareas.add(id)
+        registrar(`tareas: no se guardó ${id}: ${r?.error ?? 'sin detalle'}`)
+      }
+    } while (g.otraVez)
+    g.enCurso = false
+    ponerErrorGuardar()
+  })()
+  return g.promesa
+}
+
+/** El error de 7.4 según lo que quedó sin guardar; con algo pendiente, el reintento a los 5 s. */
+function ponerErrorGuardar() {
+  const error = fallidasTareas.size > 0
+  if (error && !st.tareas.errorGuardar) decirTareas('No se guardó el último cambio')
+  if (error !== st.tareas.errorGuardar) { st.tareas = { ...st.tareas, errorGuardar: error }; pintarTareas() }
+  clearTimeout(relojReintentoTareas)
+  if (error) relojReintentoTareas = setTimeout(reintentarTareas, 5000)
+}
+
+/** "Reintentar ahora" o el reintento solo (7.4): vuelve a guardar lo que falló. */
+function reintentarTareas() {
+  clearTimeout(relojReintentoTareas)
+  for (const id of [...fallidasTareas]) guardarListaTareas(id)
+}
+
+/** Cambia una lista en pantalla (`f` devuelve la nueva, o null si no hay nada que hacer) y la guarda al instante. */
+function cambiarListaTareas(id, f) {
+  const lista = st.tareas.listas.find(l => l.id === id)
+  const nueva = lista && f(lista)
+  if (!nueva) return null
+  st.tareas = { ...st.tareas, listas: st.tareas.listas.map(l => (l.id === id ? nueva : l)) }
+  guardarListaTareas(id)
+  return nueva
+}
+
+// ---- acciones
+
+/** Un anuncio en la región `role=status` de la hoja (5.3), como `decirConfig`: vacía antes, así se vuelve a oír. */
+let anuncioTareasEn = null
+function decirTareas(mensaje) {
+  const el = $('#tar-vivo')
+  if (!el || !mensaje) return
+  el.textContent = ''
+  clearTimeout(anuncioTareasEn)
+  anuncioTareasEn = setTimeout(() => { el.textContent = mensaje }, 150)
+}
+
+/** Enter en el campo de nueva tarea (4.4): vacío no hace nada; en Hoy va a la primera lista con fecha de hoy. */
+function agregarEnHoja(campo) {
+  const t = st.tareas
+  const titulo = validarTitulo(campo.value)
+  if (!titulo) return
+  const paraHoy = t.ver === 'hoy'
+  const destino = paraHoy ? listaParaHoy(t.listas) : t.listas.find(l => l.id === t.ver)
+  if (!destino) return
+  const ahora = Date.now()
+  const id = nuevoId('t', ahora, Math.random, new Set(t.listas.flatMap(l => l.tareas.map(x => x.id))))
+  if (!cambiarListaTareas(destino.id, l => agregarTarea(l, titulo, { id, ahora, fecha: paraHoy ? hoyTareas() : null }))) return
+  campo.value = ''
+  st.tareas = { ...st.tareas, recien: id }
+  pintar()
+  st.tareas = { ...st.tareas, recien: null }
+  movimientoTareas.entraFila($(`#tar .fila[data-id="${CSS.escape(id)}"]`))
+  decirTareas(anuncioAgregada(destino.nombre, paraHoy))
+  // El foco queda en el campo, vacío (9.4)
+  $('#tar [data-k="nueva"]')?.focus({ preventScroll: true })
+}
+
+/** La mascota de 40 festeja 1,5 s y salta (4.10). */
+let relojFelizTareas = null
+function festejarTareas() {
+  st.tareas = { ...st.tareas, feliz: true }
+  pintarTareas()
+  movimientoTareas.salto($('#tar-mini > .avi'))
+  clearTimeout(relojFelizTareas)
+  relojFelizTareas = setTimeout(() => { st.tareas = { ...st.tareas, feliz: false }; pintarTareas() }, 1500)
+}
+
+const esperar = ms => new Promise(r => setTimeout(r, ms))
+
+/**
+ * El tilde de una fila (10): tildar se guarda al instante, el círculo rebota, el visto se dibuja, la
+ * raya tacha, saltan chispas, la mascota festeja y, a los 700 ms, la fila se pliega hacia "Hechas" (sin
+ * movimiento, 350 ms y sin pliegue). El foco va al tilde de la fila siguiente (9.4). Destildar vuelve a
+ * pendientes al instante.
+ */
+async function tildarEnHoja(b) {
+  const id = b.dataset.valor
+  const listaId = b.dataset.lista
+  const tarea = st.tareas.listas.find(l => l.id === listaId)?.tareas.find(x => x.id === id)
+  if (!tarea || tildando.has(id)) return
+  if (tarea.hecha) {
+    cambiarListaTareas(listaId, l => tildarTarea(l, id, false, Date.now()))
+    pintar()
+    decirTareas(`«${tarea.titulo}» vuelve a pendientes`)
+    $(`#tar [data-k="${CSS.escape(`ck-${id}`)}"]`)?.focus({ preventScroll: true })
+    return
+  }
+  const fila = b.closest('.fila')
+  const orden = [...document.querySelectorAll('#tar .filas:not(.hechas-l) > .fila')].map(li => li.dataset.id)
+  const foco = focoTrasTildar(orden, id)
+  tildando.add(id)
+  b.setAttribute('aria-checked', 'true')
+  fila?.classList.add('tildando')
+  cambiarListaTareas(listaId, l => tildarTarea(l, id, true, Date.now()))
+  movimientoTareas.chispas(fila)
+  festejarTareas()
+  decirTareas(`Hecha: ${tarea.titulo}`)
+  const { espera, pliega } = tiempoTilde(movimientoTareas.modo())
+  await esperar(espera)
+  if (pliega) await movimientoTareas.plegarFila(fila)
+  tildando.delete(id)
+  pintar()
+  const destino = $(`#tar [data-k="${CSS.escape(foco)}"]`) ?? $('#tar [data-k="nueva"]') ?? $('#titulo')
+  destino?.focus({ preventScroll: true })
+}
+
+/** "Nueva lista": el campo en su lugar del índice, con el foco. */
+function empezarListaTareas() {
+  st.tareas = { ...st.tareas, creando: true, renombrando: null, errorLista: null }
+  pintarTareas()
+  $('#tar [data-k="lista-in"]')?.focus()
+}
+
+/**
+ * Crea una lista (Enter en el campo, una sugerida del primer uso): nombre válido y sin repetir (D-n4),
+ * el color siguiente, un id que no es de ninguna lista ni de un archivo roto. La abre con el foco en
+ * "Agregar a {lista}…" (9.4).
+ */
+function crearListaEnHoja(nombre) {
+  const t = st.tareas
+  const r = validarNombreLista(nombre, t.listas)
+  if (!r.ok) {
+    const error = textoErrorLista(r)
+    if (error !== t.errorLista) { st.tareas = { ...t, errorLista: error }; pintarTareas() }
+    return
+  }
+  const ahora = Date.now()
+  const usados = new Set([...t.listas.map(l => l.id), ...t.rotas.map(x => x.archivo.replace(/\.json$/, ''))])
+  const lista = nuevaLista(t.listas, r.nombre, { id: nuevoId('l', ahora, Math.random, usados), ahora })
+  st.tareas = cambiarVista({ ...t, listas: [...t.listas, lista] }, lista.id)
+  guardarListaTareas(lista.id)
+  pintar()
+  movimientoTareas.cambioVista($('#tar .pane'))
+  decirTareas(`Lista «${lista.nombre}» creada`)
+  $('#tar [data-k="nueva"]')?.focus()
+}
+
+/** "Renombrar": el campo en la fila del índice (D-n5), con el nombre seleccionado. */
+function empezarRenombrarTareas(id) {
+  st.tareas = { ...st.tareas, renombrando: id, creando: false, errorLista: null, armado: null }
+  pintarTareas()
+  const campo = $('#tar [data-k="ren-in"]')
+  campo?.focus()
+  campo?.select()
+}
+
+/** Enter al renombrar: el mismo nombre solo cierra el campo; uno repetido lo dice; vacío no hace nada. El foco vuelve a la fila. */
+function renombrarEnHoja(nombre) {
+  const t = st.tareas
+  const id = t.renombrando
+  const lista = t.listas.find(l => l.id === id)
+  if (!lista) return
+  const r = validarNombreLista(nombre, t.listas, id)
+  if (!r.ok) {
+    const error = textoErrorLista(r)
+    if (error !== t.errorLista) { st.tareas = { ...t, errorLista: error }; pintarTareas() }
+    return
+  }
+  st.tareas = { ...t, renombrando: null, errorLista: null }
+  if (r.nombre !== lista.nombre) {
+    cambiarListaTareas(id, l => renombrarLista(l, r.nombre))
+    decirTareas(`Ahora se llama «${r.nombre}»`)
+  }
+  pintar()
+  $(`#tar [data-k="${CSS.escape(`ix-${id}`)}"]`)?.focus()
+}
+
+let relojArmadoTareas = null
+/** El "¿Borrar…? Sí" vuelve solo a los 3 s (4.8), como `vigilarArmado` de la configuración. */
+function vigilarArmadoTareas() {
+  clearTimeout(relojArmadoTareas)
+  const a = st.tareas.armado
+  if (!a) return
+  relojArmadoTareas = setTimeout(() => {
+    const t = desarmarVencido(st.tareas, Date.now())
+    if (t === st.tareas) return vigilarArmadoTareas()
+    st.tareas = t
+    pintarTareas()
+  }, Math.max(0, a.hasta - Date.now()) + 20)
+}
+
+/**
+ * "Borrar lista" (4.8): el primer clic arma "¿Borrar con 6 tareas? Sí" 3 s; el segundo borra el
+ * archivo con todas sus tareas, una sola vez (después de su guardado en curso, así no vuelve a
+ * aparecer). El foco va a "Hoy" del índice (9.4). Si Rust no pudo, la lista queda y se anuncia.
+ */
+async function clicBorrarListaTareas(id) {
+  const { config, ejecutar } = clicBorrar(st.tareas, `lista:${id}`, Date.now())
+  st.tareas = config
+  vigilarArmadoTareas()
+  pintarTareas()
+  if (!ejecutar) return
+  const lista = st.tareas.listas.find(l => l.id === id)
+  if (!lista) return
+  await guardadosTareas.get(id)?.promesa
+  let r
+  try { r = await invocar('tareas_borrar_lista', { id }) } catch (err) { r = { ok: false, error: String(err?.message ?? err) } }
+  if (!r?.ok) {
+    registrar(`tareas: no se borró ${id}: ${r?.error ?? 'sin detalle'}`)
+    decirTareas('No se guardó el último cambio')
+    return
+  }
+  fallidasTareas.delete(id)
+  guardadosTareas.delete(id)
+  st.tareas = cambiarVista({ ...st.tareas, listas: st.tareas.listas.filter(l => l.id !== id) }, 'hoy')
+  // Sus mudanzas (11.3) se olvidan: las que iban a ella se borraron con la lista, así que sus orígenes
+  // se guardan sin ellas; las que salieron de ella ya no tienen archivo de origen
+  const sueltas = mudanzasTareas.filter(m => m.origen === id || m.destino === id)
+  mudanzasTareas = mudanzasTareas.filter(m => !sueltas.includes(m))
+  for (const origen of new Set(sueltas.filter(m => m.destino === id).map(m => m.origen))) guardarListaTareas(origen)
+  ponerErrorGuardar()
+  pintar()
+  decirTareas(anuncioBorradaLista(lista.nombre, lista.tareas.length))
+  ;($('#tar [data-k="ix-hoy"]') ?? $('#tar [data-k="primer-in"]') ?? $('#titulo'))?.focus()
+}
+
+/** "Hechas · n" (4.9): se despliega con sus filas bajando; el foco queda en el botón. */
+function alternarHechasTareas() {
+  st.tareas = { ...st.tareas, hechas: !st.tareas.hechas }
+  pintarTareas()
+  if (st.tareas.hechas) movimientoTareas.abrirHechas(document.querySelectorAll('#tar .hechas-l .fila'))
+}
+
+// ---- la tarea abierta (4.7, entrega 2)
+
+/**
+ * Título y notas se guardan 600 ms después de dejar de escribir y al salir del campo (11.3), con el
+ * guardado de siempre (`guardarListaTareas`, con su reintento de 7.4): no hay otro camino a `tareas_guardar`.
+ */
+const diferidoTareas = diferirGuardado(id => guardarListaTareas(id))
+
+/** La tarea abierta y su lista, o null. */
+const detalleAbierto = () => (st.tareas.det ? buscarTarea(st.tareas.listas, st.tareas.det) : null)
+
+/** Pone el foco en una pieza de la hoja (`data-k`), con el cursor al final si es un campo. */
+function enfocarTareas(k, { alFinal = false } = {}) {
+  const el = $(`#tar [data-k="${CSS.escape(k)}"]`)
+  if (!el) return false
+  el.focus({ preventScroll: false })
+  if (alFinal && typeof el.value === 'string') { try { el.setSelectionRange(el.value.length, el.value.length) } catch { /* sin selección */ } }
+  return true
+}
+
+/** El cuerpo de una fila abre su tarea en el lugar de la lista (B): los hijos del panel entran desde la derecha; el foco, a su título (9.4). */
+function abrirTareaHoja(id) {
+  if (!buscarTarea(st.tareas.listas, id)) return
+  st.tareas = abrirDetalle(st.tareas, id)
+  pintarTareas()
+  const lista = $('#tar .tar-desplaza')
+  if (lista) lista.scrollTop = 0
+  movimientoTareas.abrirTarea($('#tar .pane'))
+  enfocarTareas(`tit-${id}`, { alFinal: true })
+}
+
+/** "‹ {vista}" o Esc: guarda lo pendiente, la lista vuelve con el acto de cambiar de vista y el foco va al cuerpo de su fila (9.4). */
+function cerrarTareaHoja() {
+  const id = st.tareas.det
+  if (!id) return
+  diferidoTareas.todos()
+  st.tareas = cerrarDetalle(st.tareas)
+  pintarTareas()
+  movimientoTareas.cambioVista($('#tar .pane'))
+  if (!enfocarTareas(`ab-${id}`) && !enfocarTareas('nueva')) $('#titulo').focus()
+}
+
+/** Cambia la tarea abierta en pantalla y la guarda al instante (Vence, Prioridad: todo lo que no es título ni notas). */
+function cambiarDetalleTareas(cambios) {
+  const d = detalleAbierto()
+  if (!d) return
+  cambiarListaTareas(d.lista.id, l => editarTarea(l, d.tarea.id, cambios))
+  pintar()
+}
+
+/**
+ * Lo que se escribe en el título o las notas va a `st` en cada `input` (3.5) y se guarda 600 ms después
+ * del último. El título vacío deja el anterior en `st` (al salir del campo vuelve, 4.7); el `h2` oculto lo sigue.
+ */
+function escribirDetalleTareas(campo) {
+  const d = detalleAbierto()
+  if (!d) return
+  if (campo.dataset.campo === 'titulo' && /[\r\n]/.test(campo.value)) {
+    const pos = campo.selectionStart
+    campo.value = campo.value.replace(/[\r\n]+/g, ' ')
+    try { campo.setSelectionRange(pos, pos) } catch { /* sin selección */ }
+  }
+  const cambios = campo.dataset.campo === 'titulo' ? { titulo: campo.value } : { notas: campo.value }
+  st.tareas = { ...st.tareas, listas: st.tareas.listas.map(l => (l.id === d.lista.id ? editarTarea(l, d.tarea.id, cambios) : l)) }
+  const h2 = $('#tar-pane-h')
+  const titulo = buscarTarea(st.tareas.listas, d.tarea.id)?.tarea.titulo
+  if (h2 && titulo && h2.textContent !== titulo) h2.textContent = titulo
+  diferidoTareas.programar(d.lista.id)
+}
+
+/** Al salir del título o las notas (y Enter en el título): un título vacío vuelve al anterior y lo pendiente se guarda ya. */
+function salirCampoDetalle(campo) {
+  const d = detalleAbierto()
+  if (!d) return
+  if (campo.dataset.campo === 'titulo' && campo.value !== d.tarea.titulo && !campo.value.trim()) campo.value = d.tarea.titulo
+  diferidoTareas.ya(d.lista.id)
+}
+
+/** El tilde de la tarea abierta: se guarda al instante; tildada, el círculo rebota, el título se tacha y la mascota festeja (sin pliegue). */
+function tildarDetalleTareas() {
+  const d = detalleAbierto()
+  if (!d) return
+  const hecha = !d.tarea.hecha
+  cambiarListaTareas(d.lista.id, l => tildarTarea(l, d.tarea.id, hecha, Date.now()))
+  pintar()
+  if (hecha) {
+    $('#tar .det-tit')?.classList.add('tildando')
+    festejarTareas()
+    decirTareas(`Hecha: ${d.tarea.titulo}`)
+  } else {
+    decirTareas(`«${d.tarea.titulo}» vuelve a pendientes`)
+  }
+}
+
+/**
+ * "Lista" (4.7): mueve la tarea abierta a otra lista. Guarda primero la de destino; la de origen, cuando
+ * el destino confirmó (y mientras tanto, si se guarda, con la tarea): si algo falla queda duplicada,
+ * nunca perdida, y lo muestra el error de 7.4 (11.3). En pantalla queda una sola copia.
+ */
+function moverEnHoja(destinoId) {
+  const d = detalleAbierto()
+  if (!d) return
+  const r = moverTarea(st.tareas.listas, d.tarea.id, destinoId)
+  if (!r) return
+  mudanzasTareas = nuevaMudanza(mudanzasTareas, { tarea: d.tarea.id, origen: r.origen, destino: r.destino, desde: guardadosTareas.get(r.destino)?.n ?? 0 })
+  st.tareas = { ...st.tareas, listas: r.listas }
+  guardarListaTareas(r.destino)
+  pintar()
+  decirTareas(`Movida a ${r.listas.find(l => l.id === r.destino)?.nombre ?? ''}`)
+}
+
+/** "¿Borrar? Sí" (4.8): el primer clic arma 3 s; el segundo borra la tarea una vez y el foco va al campo de nueva tarea (9.4). */
+function clicBorrarTareaHoja(id) {
+  const { config, ejecutar } = clicBorrar(st.tareas, `tarea:${id}`, Date.now())
+  st.tareas = config
+  vigilarArmadoTareas()
+  pintarTareas()
+  if (!ejecutar) return
+  const d = buscarTarea(st.tareas.listas, id)
+  if (!d) return
+  const o = olvidarMudanzas(mudanzasTareas, id)
+  mudanzasTareas = o.mudanzas
+  st.tareas = cerrarDetalle(st.tareas)
+  cambiarListaTareas(d.lista.id, l => borrarTarea(l, id))
+  for (const origen of o.origenes) guardarListaTareas(origen)
+  pintar()
+  movimientoTareas.cambioVista($('#tar .pane'))
+  decirTareas(`Borraste «${d.tarea.titulo}»`)
+  if (!enfocarTareas('nueva') && !enfocarTareas(`ix-${st.tareas.ver}`)) $('#titulo').focus()
+}
+
+/** Enter en "Agregar una subtarea": vacío o con 50 no hace nada; el foco queda en el campo, vacío. */
+function agregarSubEnHoja(campo) {
+  const d = detalleAbierto()
+  if (!d || (d.tarea.subtareas ?? []).length >= MAX_SUBTAREAS) return
+  const subId = nuevoId('s', Date.now(), Math.random, new Set((d.tarea.subtareas ?? []).map(s => s.id)))
+  if (!cambiarListaTareas(d.lista.id, l => agregarSubtarea(l, d.tarea.id, campo.value, subId))) return
+  campo.value = ''
+  pintar()
+}
+
+/** El tilde de una subtarea: el cuadro rebota y la mascota festeja (sin chispas ni pliegue, 10). */
+function tildarSubEnHoja(subId) {
+  const d = detalleAbierto()
+  const sub = d?.tarea.subtareas?.find(s => s.id === subId)
+  if (!sub) return
+  cambiarListaTareas(d.lista.id, l => tildarSubtarea(l, d.tarea.id, subId, !sub.hecha))
+  pintar()
+  if (!sub.hecha) {
+    $(`#tar .subs li[data-id="${CSS.escape(subId)}"]`)?.classList.add('tildando')
+    festejarTareas()
+    decirTareas(`Hecha: ${sub.titulo}`)
+  } else {
+    decirTareas(`«${sub.titulo}» vuelve a pendientes`)
+  }
+}
+
+/** El clic en el texto de una subtarea lo vuelve un campo (4.7), con el cursor al final. */
+function empezarSubEnHoja(subId) {
+  st.tareas = { ...st.tareas, editandoSub: subId }
+  pintarTareas()
+  enfocarTareas(`sub-ed-${subId}`, { alFinal: true })
+}
+
+/**
+ * Enter o salir del campo de una subtarea: guarda el texto; vacío, la borra (D-n2). `foco`: con Enter,
+ * el foco vuelve a su texto (o al campo de agregar, si se borró).
+ */
+function confirmarSubEnHoja(subId, texto, { foco = true } = {}) {
+  const d = detalleAbierto()
+  if (!d || st.tareas.editandoSub !== subId) return
+  st.tareas = { ...st.tareas, editandoSub: null }
+  const sub = d.tarea.subtareas?.find(s => s.id === subId)
+  if (sub && validarTitulo(texto) !== sub.titulo) cambiarListaTareas(d.lista.id, l => editarSubtarea(l, d.tarea.id, subId, texto))
+  pintar()
+  if (foco && !enfocarTareas(`st-${subId}`)) enfocarTareas('sub-in')
+}
+
+/** Los botones de la hoja de Tareas (`data-accion="tar-…"`). Un clic en otra cosa desarma el "¿Borrar…? Sí" (4.8). */
+async function accionTareas(a, b) {
+  if (st.tareas.armado && a !== 'tar-borrar-lista' && a !== 'tar-borrar-tarea') {
+    st.tareas = { ...st.tareas, armado: null }
+    pintarTareas()
+  }
+  switch (a) {
+    case 'tar-abrir': await irModulo('tareas'); break
+    // El globo del aviso diario (8): solo el clic abre la hoja en Hoy; la × lo deja para mañana.
+    // En la marca el globo es parte de lo que se arrastra: después de un arrastre real, el clic no cuenta
+    case 'tar-globo': if (!justoArrastro) await irModulo('tareas', { ver: 'hoy' }); break
+    case 'tar-globo-x': if (!justoArrastro) descartarAvisoTareas(); break
+    // «‹ Tablero» se fue (modulos-ux.md 11.1): la acción queda como alias de ir a Sesiones
+    case 'tar-cerrar': await irModulo('sesiones'); break
+    case 'tar-ver': verTareas(b.dataset.valor); break
+    case 'tar-crear': empezarListaTareas(); break
+    case 'tar-sugerida': crearListaEnHoja(b.dataset.valor); break
+    case 'tar-renombrar': empezarRenombrarTareas(b.dataset.valor); break
+    case 'tar-borrar-lista': await clicBorrarListaTareas(b.dataset.valor); break
+    case 'tar-tildar': await tildarEnHoja(b); break
+    case 'tar-hechas': alternarHechasTareas(); break
+    // La tarea abierta (4.7): todo lo que no es título ni notas se guarda en el clic
+    case 'tar-abrir-tarea': abrirTareaHoja(b.dataset.valor); break
+    case 'tar-cerrar-tarea': cerrarTareaHoja(); break
+    case 'tar-tildar-det': tildarDetalleTareas(); break
+    case 'tar-fecha': cambiarDetalleTareas({ fecha: fechaDeOpcion(b.dataset.valor, hoyTareas()) }); break
+    case 'tar-prio': cambiarDetalleTareas({ importante: b.dataset.valor === 'imp' }); break
+    case 'tar-tildar-sub': tildarSubEnHoja(b.dataset.valor); break
+    case 'tar-editar-sub': empezarSubEnHoja(b.dataset.valor); break
+    case 'tar-borrar-tarea': clicBorrarTareaHoja(b.dataset.valor); break
+    case 'tar-reintentar': reintentarTareas(); break
+    // "Abrir la carpeta" (7.6): Rust abre siempre `<config>/tareas/`, nunca una ruta de la ventana
+    case 'tar-carpeta': invocar('tareas_abrir_carpeta').catch(err => registrar(`tareas: no se pudo abrir la carpeta: ${err}`)); break
+    case 'tar-releer': await leerTareas(); break
+    // La línea de la pregunta de la hoja ya no se dibuja (la reemplaza #aviso-p, modulos-ux.md 4.5): el alias hace lo mismo
+    case 'tar-pregunta': await responderDesdeAviso(st.proyectos.findIndex(p => preguntasPendientes(p).length)); break
+  }
+}
+
 /** Los botones de la hoja (`data-accion="cfg-…"`). Cada uno hace solo lo suyo, y solo con el clic. */
 async function accionConfiguracion(a, b) {
   switch (a) {
-    case 'cfg-abrir': await abrirConfig({ tab: b.dataset.tab }); break
-    case 'cfg-cerrar': cerrarConfig(); break
+    case 'cfg-abrir': await irModulo('config', { tab: b.dataset.tab }); break
+    // «‹ Tablero» se fue (modulos-ux.md 11.1): la acción queda como alias de ir a Sesiones
+    case 'cfg-cerrar': await irModulo('sesiones'); break
     case 'cfg-tab': cambiarPestanaConfig(b.dataset.valor); break
     case 'cfg-sw': {
       const clave = b.dataset.valor
@@ -3959,16 +5558,6 @@ async function accionConfiguracion(a, b) {
       else await guardarAjusteConfig(clave, !st[clave])
       break
     }
-    case 'cfg-tam':
-      st.config = { ...st.config, error: null }
-      try {
-        await invocar('cambiar_tamano', { direccion: Number(b.dataset.valor) })
-      } catch (err) {
-        registrar(`configuración: tamaño: ${err}`)
-        st.config = { ...st.config, error: 'tamano' }
-        pintarConfiguracion()
-      }
-      break
     case 'cfg-ubic': await ubicarConfig(b.dataset.valor); break
     case 'cfg-esp': await elegirEspecieConfig(b.dataset.valor); break
     case 'cfg-nom-guardar': if (b.getAttribute('aria-disabled') !== 'true') await guardarNombres(); break
@@ -4001,17 +5590,8 @@ async function accionConfiguracion(a, b) {
     case 'cfg-clave-guardar': await guardarClaveConfig(b.dataset.valor); break
     case 'cfg-clave-probar': await probarClaveConfig(b.dataset.valor); break
     case 'cfg-clave-borrar': await clicBorrarClave(b.dataset.valor); break
-    case 'cfg-ver': {
-      // La pregunta pendiente (4.1): cierra la configuración y la muestra, en su proyecto
-      const k = st.proyectos.findIndex(p => preguntasPendientes(p).length)
-      cerrarConfig({ foco: false })
-      st.plegado = false
-      st.firmas.clavesGlobo = null
-      if (k >= 0 && st.proyectos[k].repo !== st.repo) irAProyecto(st.proyectos[k].repo, 1)
-      else pintar()
-      ;($('#w-globo button') ?? $('#otro .aviso') ?? $('#cfg-fila'))?.focus()
-      break
-    }
+    // La línea de la pregunta de la hoja ya no se dibuja (la reemplaza #aviso-p, modulos-ux.md 4.5): el alias hace lo mismo
+    case 'cfg-ver': await responderDesdeAviso(st.proyectos.findIndex(p => preguntasPendientes(p).length)); break
   }
 }
 
@@ -4042,6 +5622,700 @@ function teclaConfiguracion(e) {
   return false
 }
 
+/** Flechas, Inicio y Fin en los segmentos de la tarea abierta (9.3): mueven el foco y eligen, como `teclaConfiguracion`. */
+function teclaTareas(e) {
+  if (!st.tareas.abierta) return false
+  return teclaRadios(e, '#tar')
+}
+
+/**
+ * Las flechas, Inicio y Fin en un `radiogroup` de una hoja (`raiz`: '#tar' o '#hab'): eligen la opción
+ * siguiente (como las pestañas de la configuración) y el foco la sigue. Devuelve si la tecla era suya.
+ */
+function teclaRadios(e, raiz) {
+  const radio = e.target.closest?.(`${raiz} [role="radio"]`)
+  const tecla = { ArrowDown: 'ArrowRight', ArrowUp: 'ArrowLeft' }[e.key] ?? e.key
+  if (!radio || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(tecla)) return false
+  e.preventDefault()
+  const grupo = [...radio.closest('[role="radiogroup"]').querySelectorAll('[role="radio"]')]
+  const sig = grupo.find(x => x.dataset.valor === pestanaSiguiente(radio.dataset.valor, tecla, grupo.map(x => x.dataset.valor)))
+  if (sig && sig !== radio) {
+    sig.focus()
+    sig.click()
+  }
+  return true
+}
+
+// ------------------------------------------------------------------ hábitos (#41, docs/diseno/habitos-ux.md)
+// Reglas (2): todo se guarda al instante (no hay "Guardar"); lo que borra confirma en el mismo botón;
+// nada se abre solo; el día es el de Argentina (un día sin hacer no corta nada hasta la medianoche) y los
+// días que no tocan nunca cuentan como falta; un archivo roto nunca se toca (Rust tampoco lo deja). La
+// hoja vive en #hab, en la columna principal, como Tareas. La ventana nunca arma rutas: manda el hábito
+// entero a `habitos_guardar` y el id a `habitos_borrar`, y Rust valida el id antes de armar
+// `<config>/habitos/<id>.json`.
+// Entrega H1: los datos y la hoja. El recordatorio con su globo y su notificación (H2) y el resumen
+// semanal (H3) no están: la hora del aviso se guarda, pero todavía nada avisa.
+
+const hoyHabitos = () => hoyArgentina(Date.now())
+
+/** La fila «Hábitos» del menú (4.1): la pista, «—» o el anillo, y su nombre accesible. El anillo late al cambiar la cuenta. */
+function pintarFilaHabitos() {
+  const c = st.habitos.leido ? cuentasHoy(st.habitos.lista, hoyHabitos()) : { hechos: 0, total: 0, habitos: 0 }
+  const html = ladoFilaHabitos(c)
+  if (st.habFirmas.fila !== html) {
+    const cambio = st.habFirmas.fila != null
+    $('#hab-fila-ct').innerHTML = html
+    st.habFirmas.fila = html
+    if (cambio) movimientoHabitos.latirChip($('#hab-fila .anillo-c'))
+  }
+  ponerNombre('#hab-fila', nombreFilaHabitos(c))
+}
+
+/** El encabezado con la hoja abierta: «Hábitos» y su bajada (5.1); la tira de repos es solo de Sesiones. */
+function pintarHojaHabitos() {
+  modoMarco('tablero')
+  $('#marco').classList.remove('con-hoja')
+  const hoy = hoyHabitos()
+  texto('#titulo', 'Hábitos')
+  $('#titulo').title = ''
+  texto('#subtitulo', subtituloHabitos(cuentasHoy(st.habitos.lista, hoy), hoy))
+  pintarHabitos()
+}
+
+/** ¿La vista existe todavía? Un hábito borrado o un archivo roto que se arregló vuelven a Hoy. */
+function vistaHabitosValida(t) {
+  if (t.ver === 'hoy' || t.ver === 'semana' || t.ver === 'nuevo') return true
+  if (String(t.ver).startsWith('rota:')) return t.rotas.some(r => `rota:${r.archivo}` === t.ver)
+  return t.lista.some(h => h.id === t.ver)
+}
+
+/** El acto de un solo dibujo (el tilde, el vaso, la celda, 10): lo lleva el dibujo de ese cambio y no cuenta para la firma. */
+let fxHabitos = null
+
+/**
+ * Dibuja la hoja en #hab por partes (3.5): el esqueleto una vez; el primer uso, el error de la carpeta o
+ * la carpeta; y en la carpeta el índice, el encabezado del panel, el error y la vista, cada uno solo si
+ * cambió. Un campo que se escribe nunca se pisa (`ponerParteConCampo`) y el foco vuelve a la misma
+ * pieza (`data-k`; el «−1» que se fue deja el foco en su sumador). Cerrada, vacía.
+ */
+function pintarHabitos() {
+  const raiz = $('#hab')
+  const mini = $('#hab-mini')
+  const f = st.habFirmas
+  if (!st.habitos.abierta) {
+    if (raiz.firstChild) { raiz.innerHTML = ''; st.habFirmas = { fila: f.fila } }
+    if (mini.firstChild) mini.innerHTML = ''
+    return
+  }
+  if (!raiz.firstChild) { raiz.innerHTML = esqueletoHabitos(); st.habFirmas = { fila: f.fila } }
+  if (st.habitos.leido && !vistaHabitosValida(st.habitos)) st.habitos = verHabitos(st.habitos, 'hoy')
+  const t = st.habitos
+  const firmas = st.habFirmas
+  const htmlMini = miniTareas(st.mascota, t.feliz)
+  if (firmas.mini !== htmlMini) { mini.innerHTML = htmlMini; firmas.mini = htmlMini }
+
+  const cuerpo = $('#hab-cuerpo')
+  const k = raiz.contains(document.activeElement) ? document.activeElement.closest('[data-k]')?.dataset.k : null
+  const modo = t.error && !t.lista.length ? 'error' : t.leido && !t.lista.length && !t.rotas.length && t.ver !== 'nuevo' ? 'primer' : 'carpeta'
+  if (firmas.modo !== modo) {
+    cuerpo.innerHTML = modo === 'carpeta' ? CARPETA_HAB : ''
+    for (const p of ['todo', 'idx', 'pane-h', 'err', 'cuerpo']) delete firmas[p]
+    firmas.modo = modo
+  }
+  const ponerParte = (el, parte, html, firma = html) => {
+    if (!el || firmas[parte] === firma) return
+    ponerParteConCampo(el, html, 'input[data-campo], textarea[data-campo]')
+    firmas[parte] = firma
+  }
+  if (modo !== 'carpeta') {
+    ponerParte(cuerpo, 'todo', modo === 'error' ? errorCarpetaHab(t.error) : primerUsoHabitos(st.mascota))
+  } else {
+    const ahora = Date.now()
+    const armado = !!t.armado && armadoVigente(t, t.armado.id, ahora) && t.armado.id === `borrar:${t.ver}`
+    const transcurrido = armado ? Math.max(0, MS_CONFIRMAR - (t.armado.hasta - ahora)) : 0
+    const datos = { ...t, hoy: hoyHabitos(), avisar: st.avisar, mascota: st.mascota, armado }
+    const p = partesHoja({ ...datos, fx: fxHabitos, recien: t.recien, transcurrido })
+    // La firma no lleva el acto de un solo dibujo, la fila recién creada, cuánto lleva armado el borrado
+    // ni lo que se escribe en el formulario nuevo (vive en su campo): un redibujo no repite nada
+    const quieta = fxHabitos || t.recien || transcurrido || t.borrador
+      ? partesHoja({ ...datos, borrador: t.borrador && { ...t.borrador, nombre: '', unidad: '' } })
+      : p
+    const parte = x => cuerpo.querySelector(`[data-parte="${x}"]`)
+    ponerParte(parte('idx'), 'idx', p.idx, quieta.idx)
+    ponerParte(parte('pane-h'), 'pane-h', p.paneH, quieta.paneH)
+    ponerParte(parte('err'), 'err', p.err, quieta.err)
+    ponerParte(parte('cuerpo'), 'cuerpo', p.cuerpo, quieta.cuerpo)
+  }
+  if (k && !raiz.contains(document.activeElement)) {
+    const otro = k.startsWith('menos-') ? `sum-${k.slice(6)}` : null
+    ;(raiz.querySelector(`[data-k="${CSS.escape(k)}"]`) ?? (otro && raiz.querySelector(`[data-k="${CSS.escape(otro)}"]`)))?.focus({ preventScroll: true })
+  }
+}
+
+/**
+ * Abre la hoja de Hábitos (la fila del menú o Ctrl H): acoplada, abre también el panel. Solo la llama
+ * `irModulo` (modulos-ux.md 11.1), que ya cerró la otra hoja, la dividida y la tira. Al abrir se vuelven
+ * a leer los hábitos (solo lectura). El foco va al `h1` (9.4).
+ */
+function abrirHabitosHoja({ ver, foco = true } = {}) {
+  if (st.habitos.abierta) return
+  st.habitos = abrirHabitos(st.habitos, ver)
+  leerHabitos()
+  pintar()
+  movimientoHabitos.abrirHoja($('#marco .cab'), $('#hab-cuerpo'))
+  if (st.acople) {
+    evento({ tipo: 'clic' })
+    if (foco) { st.focoPendiente = 'hab'; aplicarFoco() }
+  } else if (foco) {
+    $('#titulo').focus()
+  }
+}
+
+/**
+ * Cierra la hoja (solo desde `irModulo`): el nombre o la unidad que se escribían se guardan antes. De
+ * vuelta en Sesiones el tablero vuelve como estaba, con su acto (`acto`); hacia otra hoja, sin él.
+ */
+function cerrarHabitosHoja({ acto = true } = {}) {
+  if (!st.habitos.abierta) return
+  confirmarCamposHabito()
+  st.habitos = cerrarHabitos(st.habitos)
+  pintar()
+  if (acto) movimientoConfig.cerrarHoja([$('#otro'), $('#w-globo'), $('#conteos'), ...document.querySelectorAll('#sesiones > .ses')])
+}
+
+// ---- leer y guardar (11.1, 11.5)
+
+let leyendoHabitos = null
+/**
+ * Lee los hábitos (`habitos_leer`, solo lectura): al arrancar (la cuenta de la fila del menú), al abrir
+ * la hoja y con «Volver a leer». Si tarda más de 150 ms, la primera vez, el panel muestra las filas
+ * fantasma (7.1). Los hábitos que no se pudieron guardar siguen como están en pantalla (7.4).
+ */
+function leerHabitos() {
+  if (!tauri?.core) return null
+  if (leyendoHabitos) return leyendoHabitos
+  st.habitos = { ...st.habitos, cargando: true }
+  const reloj = setTimeout(() => {
+    if (!st.habitos.cargando || st.habitos.leido) return
+    st.habitos = { ...st.habitos, fantasmas: true }
+    pintarHabitos()
+  }, 150)
+  leyendoHabitos = (async () => {
+    try {
+      const r = await invocar('habitos_leer')
+      const lista = Array.isArray(r?.habitos) ? r.habitos : []
+      const rotas = Array.isArray(r?.rotas) ? r.rotas.filter(x => typeof x?.archivo === 'string') : []
+      st.habitos = { ...st.habitos, lista: ordenarHabitos(mezclarLectura(lista, st.habitos.lista, habitosSinGuardar())), rotas, leido: true, error: null }
+    } catch (err) {
+      registrar(`hábitos: no se pudieron leer: ${err}`)
+      st.habitos = { ...st.habitos, error: String(err?.message ?? err).slice(0, 120) || 'sin detalle' }
+    } finally {
+      clearTimeout(reloj)
+      st.habitos = { ...st.habitos, cargando: false, fantasmas: false }
+      leyendoHabitos = null
+      pintar()
+    }
+  })()
+  return leyendoHabitos
+}
+
+/** Por hábito: el guardado en curso (`promesa`) y si hay que guardarlo otra vez al terminar. */
+const guardadosHabitos = new Map()
+/** Los hábitos cuyo último guardado falló: se reintentan a los 5 s o con «Reintentar ahora» (7.4). */
+const fallidosHabitos = new Set()
+let relojReintentoHabitos = null
+
+/** Los hábitos que no se pueden pisar con lo leído: los que fallaron y los que se están guardando. */
+function habitosSinGuardar() {
+  return new Set([...fallidosHabitos, ...[...guardadosHabitos].filter(([, g]) => g.enCurso).map(([id]) => id)])
+}
+
+/**
+ * Guarda un hábito entero (`habitos_guardar`), de a uno por vez por hábito y siempre con lo último que
+ * hay en pantalla, como `guardarListaTareas` (sin sus mudanzas: un hábito no se mueve de archivo). Si
+ * falla, lo de la pantalla queda, el error de 7.4 aparece (y se anuncia), se anota en widget.log y se
+ * reintenta solo a los 5 s; se va al primer guardado bueno.
+ */
+function guardarHabito(id) {
+  let g = guardadosHabitos.get(id)
+  if (!g) { g = { enCurso: false, otraVez: false, promesa: null }; guardadosHabitos.set(id, g) }
+  if (g.enCurso) { g.otraVez = true; return g.promesa }
+  g.enCurso = true
+  g.promesa = (async () => {
+    do {
+      g.otraVez = false
+      const habito = st.habitos.lista.find(h => h.id === id)
+      if (!habito) { fallidosHabitos.delete(id); break }
+      let r
+      try { r = await invocar('habitos_guardar', { habito }) } catch (err) { r = { ok: false, error: String(err?.message ?? err) } }
+      if (r?.ok) fallidosHabitos.delete(id)
+      else {
+        fallidosHabitos.add(id)
+        registrar(`hábitos: no se guardó ${id}: ${r?.error ?? 'sin detalle'}`)
+      }
+    } while (g.otraVez)
+    g.enCurso = false
+    ponerErrorGuardarHabitos()
+  })()
+  return g.promesa
+}
+
+/** El error de 7.4 según lo que quedó sin guardar; con algo pendiente, el reintento a los 5 s. */
+function ponerErrorGuardarHabitos() {
+  const error = fallidosHabitos.size > 0
+  if (error && !st.habitos.errorGuardar) decirHabitos('No se guardó el último cambio')
+  if (error !== st.habitos.errorGuardar) { st.habitos = { ...st.habitos, errorGuardar: error }; pintarHabitos() }
+  clearTimeout(relojReintentoHabitos)
+  if (error) relojReintentoHabitos = setTimeout(reintentarHabitos, 5000)
+}
+
+/** «Reintentar ahora» o el reintento solo (7.4): vuelve a guardar lo que falló. */
+function reintentarHabitos() {
+  clearTimeout(relojReintentoHabitos)
+  for (const id of [...fallidosHabitos]) guardarHabito(id)
+}
+
+// ---- acciones
+
+/** Un anuncio en la región `role=status` de la hoja (5.3), como `decirTareas`: vacía antes, así se vuelve a oír. */
+let anuncioHabitosEn = null
+function decirHabitos(mensaje) {
+  const el = $('#hab-vivo')
+  if (!el || !mensaje) return
+  el.textContent = ''
+  clearTimeout(anuncioHabitosEn)
+  anuncioHabitosEn = setTimeout(() => { el.textContent = mensaje }, 150)
+}
+
+/** Pone el foco en una pieza de la hoja (`data-k`), con el cursor al final si es un campo. */
+function enfocarHabitos(k, { alFinal = false } = {}) {
+  const el = $(`#hab [data-k="${CSS.escape(k)}"]`)
+  if (!el) return false
+  el.focus({ preventScroll: false })
+  if (alFinal && typeof el.value === 'string') { try { el.setSelectionRange(el.value.length, el.value.length) } catch { /* sin selección */ } }
+  return true
+}
+
+/** La mascota de 40 festeja 1,5 s y salta 6 px (4.13). */
+let relojFelizHabitos = null
+function festejarHabitos() {
+  st.habitos = { ...st.habitos, feliz: true }
+  pintarHabitos()
+  movimientoHabitos.salto($('#hab-mini > .avi'))
+  clearTimeout(relojFelizHabitos)
+  relojFelizHabitos = setTimeout(() => { st.habitos = { ...st.habitos, feliz: false }; pintarHabitos() }, 1500)
+}
+
+/**
+ * Cambia un hábito en pantalla (`f` devuelve el nuevo, o null si no hay nada que hacer), sube su mejor
+ * racha si la superó (11.4) y lo guarda al instante. `fx`: el acto de un solo dibujo (10). Devuelve lo
+ * que pasó (antes y después, para los anuncios, las chispas, el hito y el día completo), o null.
+ */
+function cambiarHabito(id, f, fx = null) {
+  const hoy = hoyHabitos()
+  const t = st.habitos
+  const antes = t.lista.find(h => h.id === id)
+  const nuevo = antes && f(antes)
+  if (!nuevo || nuevo === antes) return null
+  const despues = conMejor(nuevo, hoy)
+  const cAntes = cuentasHoy(t.lista, hoy)
+  st.habitos = { ...t, lista: t.lista.map(h => (h.id === id ? despues : h)) }
+  guardarHabito(id)
+  const cDespues = cuentasHoy(st.habitos.lista, hoy)
+  const r = {
+    antes, despues, rAntes: rachaHabito(antes, hoy), rDespues: rachaHabito(despues, hoy),
+    llega: !hechoHabito(antes, hoy) && hechoHabito(despues, hoy), total: cDespues.total,
+    completo: cDespues.total > 0 && cDespues.hechos >= cDespues.total && !(cAntes.total > 0 && cAntes.hechos >= cAntes.total),
+  }
+  fxHabitos = fx && { id, ...fx, sube: r.rDespues > r.rAntes, llega: r.llega }
+  pintar()
+  fxHabitos = null
+  return r
+}
+
+/**
+ * Después de marcar hoy (10): con el hábito recién hecho, las chispas y la mascota festeja; al llegar a
+ * 7, 30 o 100, la píldora del hito (4.14, solo con una marca de hoy); con el día completo, la franja o la
+ * barra se encienden. Los anuncios van después del de la marca (5.3).
+ */
+function trasMarcarHoy(r, control) {
+  if (r.llega) {
+    movimientoHabitos.chispas(control())
+    festejarHabitos()
+  }
+  const hito = hitoNuevo(r.rAntes, r.rDespues)
+  if (hito) {
+    const txt = textoHito(r.despues, hito)
+    movimientoHabitos.hito($('#hab'), hitoHtml(txt))
+    setTimeout(() => decirHabitos(txt), 300)
+  }
+  if (r.completo) {
+    movimientoHabitos.diaCompleto($('#hab'))
+    if (!r.llega) festejarHabitos()
+    setTimeout(() => decirHabitos(anuncioDiaCompleto(r.total)), 900)
+  }
+}
+
+/** El tilde de hoy (4.5): sí/no, algunos días y por semana (con la semana cumplida cuenta igual). El foco queda en el control (9.4). */
+function tildarHabitoEnHoja(id) {
+  const hoy = hoyHabitos()
+  const h = st.habitos.lista.find(x => x.id === id)
+  if (!h || h.tipo === 'cantidad' || !tocaHabito(h, hoy)) return
+  const on = valorHabito(h, hoy) < 1
+  const r = cambiarHabito(id, x => marcarHabito(x, hoy, on), { tipo: 'tilde', dia: hoy })
+  if (!r) return
+  decirHabitos(anuncioTilde(h, on))
+  trasMarcarHoy(r, () => $(`#hab [data-k="ck-${CSS.escape(id)}"]`) ?? $(`#hab .cel[data-valor="${CSS.escape(id)}"][data-dia="${hoy}"]`))
+}
+
+/** Sumar o restar un vaso hoy (4.6): la gota al sumar; puede pasar la meta (D-h16). El foco queda en el control. */
+function sumarHabitoEnHoja(id, d) {
+  const hoy = hoyHabitos()
+  const h = st.habitos.lista.find(x => x.id === id)
+  if (!h || h.tipo !== 'cantidad' || (d < 0 && valorHabito(h, hoy) <= 0)) return
+  const r = cambiarHabito(id, x => sumarHabito(x, hoy, d), { tipo: 'suma', d, dia: hoy })
+  if (!r) return
+  decirHabitos(anuncioSuma(r.despues, valorHabito(r.despues, hoy), r.llega && d > 0))
+  const control = () => $(`#hab [data-k="sum-${CSS.escape(id)}"]`)
+  if (d > 0) movimientoHabitos.gota(control())
+  trasMarcarHoy(r, control)
+}
+
+/** Corregir un día de esta semana en Semana (4.8, D-h4): hoy es el tilde; un día pasado alterna hecho y sin hacer. */
+function corregirCeldaHabitos(id, dia) {
+  const hoy = hoyHabitos()
+  if (dia === hoy) { tildarHabitoEnHoja(id); return }
+  const h = st.habitos.lista.find(x => x.id === id)
+  const r = h && cambiarHabito(id, x => corregirHabito(x, dia, hoy), { tipo: 'celda', dia })
+  if (!r) return
+  decirHabitos(anuncioCorregido(h, dia, valorHabito(r.despues, dia) >= 1))
+}
+
+/** Cambia de vista desde el índice (3.4): el panel entra desde la derecha y el foco queda en el botón (9.4). */
+function verHabitosEnHoja(ver) {
+  if (ver === st.habitos.ver) return
+  confirmarCamposHabito()
+  st.habitos = verHabitos(st.habitos, ver)
+  pintarHabitos()
+  movimientoHabitos.cambioVista($('#hab .pane'))
+  const d = $('#hab .hab-desplaza')
+  if (d) d.scrollTop = 0
+}
+
+/** Abre un hábito en el lugar de la vista (4.10), con «‹ {Hoy|Semana}»; el foco va a su nombre (9.4). */
+function abrirHabitoEnHoja(id) {
+  if (!st.habitos.lista.some(h => h.id === id)) return
+  confirmarCamposHabito()
+  st.habitos = abrirHabito(st.habitos, id)
+  pintarHabitos()
+  movimientoHabitos.cambioVista($('#hab .pane'))
+  const d = $('#hab .hab-desplaza')
+  if (d) d.scrollTop = 0
+  enfocarHabitos(`nom-in-${id}`, { alFinal: true })
+}
+
+/** «‹ {Hoy|Semana}» o Esc (9.1): lo escrito se guarda y el foco vuelve a su nombre en la lista (o a su fila en Semana). */
+function cerrarHabitoEnHoja() {
+  const id = st.habitos.ver
+  const desde = st.habitos.desde
+  confirmarCamposHabito()
+  st.habitos = cerrarHabito(st.habitos)
+  pintarHabitos()
+  movimientoHabitos.cambioVista($('#hab .pane'))
+  if (!enfocarHabitos(desde === 'semana' ? `mat-${id}` : `nom-${id}`)) enfocarHabitos(`ix-${desde}`)
+}
+
+/** «Nuevo hábito» (4.11): el formulario con su borrador; el foco, al nombre. */
+function empezarNuevoHabito() {
+  confirmarCamposHabito()
+  st.habitos = empezarNuevo(st.habitos, st.habitos.lista)
+  pintarHabitos()
+  movimientoHabitos.cambioVista($('#hab .pane'))
+  enfocarHabitos('nom-in-nuevo')
+}
+
+/** «Cancelar» o Esc (9.1): vuelve a la vista de origen con el foco en «Nuevo hábito» (o en el primer uso). */
+function cancelarNuevoHabito() {
+  st.habitos = cerrarHabito(st.habitos)
+  pintarHabitos()
+  movimientoHabitos.cambioVista($('#hab .pane'))
+  if (!enfocarHabitos('nuevo-b') && !enfocarHabitos('primer-otro')) $('#titulo').focus()
+}
+
+/** Los ids que un hábito nuevo no puede repetir: los de la lista y los de los archivos rotos (11.1). */
+const idsHabitos = () => new Set([...st.habitos.lista.map(h => h.id), ...st.habitos.rotas.map(r => r.archivo.replace(/\.json$/, ''))])
+
+/**
+ * Agrega un hábito ya armado (el formulario o una sugerida), lo guarda y abre Hoy con la fila
+ * destellando (7.2); el foco va a su nombre (9.4).
+ */
+function agregarHabitoEnHoja(habito, sugerida) {
+  const primero = !st.habitos.lista.length
+  st.habitos = { ...st.habitos, lista: ordenarHabitos([...st.habitos.lista, habito]), ver: 'hoy', desde: 'hoy', borrador: null, errForm: null, recien: habito.id }
+  guardarHabito(habito.id)
+  pintar()
+  st.habitos = { ...st.habitos, recien: null }
+  if (primero) movimientoHabitos.abrirHoja(null, $('#hab-cuerpo'))
+  else movimientoHabitos.cambioVista($('#hab .pane'))
+  decirHabitos(anuncioCreado(habito.nombre, sugerida))
+  enfocarHabitos(`nom-${habito.id}`)
+}
+
+/** «Crear hábito» o Enter en el nombre (4.11): valida (5.1) y, si está bien, lo crea; si no, el error y el foco en lo que falta. */
+function crearHabitoEnHoja() {
+  const t = st.habitos
+  if (t.ver !== 'nuevo' || !t.borrador) return
+  const leer = (k, v) => $(`#hab [data-k="${k}"]`)?.value ?? v
+  const b = { ...t.borrador, nombre: leer('nom-in-nuevo', t.borrador.nombre), unidad: leer('unidad-nuevo', t.borrador.unidad) }
+  const v = validarHabito(b, t.lista)
+  if (!v.ok) {
+    st.habitos = { ...t, borrador: b, errForm: v.error }
+    pintarHabitos()
+    enfocarHabitos(v.campo === 'dias' ? 'dia-0' : 'nom-in-nuevo')
+    return
+  }
+  const ahora = Date.now()
+  agregarHabitoEnHoja(nuevoHabito({ ...b, nombre: v.nombre }, { id: nuevoId('h', ahora, Math.random, idsHabitos()), ahora, hoy: hoyHabitos(), lista: t.lista }), false)
+}
+
+/** Una sugerida del primer uso (7.2): crea ese hábito con su tipo y su meta, sin aviso. */
+function crearSugeridaEnHoja(sid) {
+  const s = SUGERIDAS.find(x => x.id === sid)
+  if (!s || !validarHabito({ nombre: s.nombre, tipo: s.tipo, dias: s.dias }, st.habitos.lista).ok) return
+  const ahora = Date.now()
+  agregarHabitoEnHoja(desdeSugerida(s, { id: nuevoId('h', ahora, Math.random, idsHabitos()), ahora, hoy: hoyHabitos(), lista: st.habitos.lista }), true)
+}
+
+/** El formulario a la vista (4.11): `{ id: 'nuevo', h: borrador }` o el hábito abierto; si no hay, null. */
+function formularioActual() {
+  const t = st.habitos
+  if (t.ver === 'nuevo' && t.borrador) return { id: 'nuevo', h: t.borrador }
+  const h = esHabito(t.ver) ? t.lista.find(x => x.id === t.ver) : null
+  return h ? { id: h.id, h } : null
+}
+
+/**
+ * Un campo del formulario (4.11): en el nuevo cambia el borrador; en un hábito abierto se guarda al
+ * instante (11.1: cambiar el tipo reescribe el registro). Sacarle el último día dice «Tiene que quedar
+ * al menos un día.» y no se guarda. El foco queda en el control (el redibujo lo devuelve por `data-k`).
+ */
+function editarFormulario(campo, v) {
+  const fa = formularioActual()
+  if (!fa) return
+  const t = st.habitos
+  if (fa.id === 'nuevo') {
+    st.habitos = { ...t, borrador: editarHabito(t.borrador, campo, v), errForm: null }
+    pintarHabitos()
+    return
+  }
+  const nuevo = editarHabito(fa.h, campo, v)
+  const valido = validarHabito(nuevo, t.lista)
+  if (!valido.ok && valido.campo === 'dias') {
+    st.habitos = { ...t, errForm: valido.error }
+    pintarHabitos()
+    return
+  }
+  if (t.errForm) st.habitos = { ...t, errForm: null }
+  if (!cambiarHabito(fa.id, () => nuevo)) pintarHabitos()
+}
+
+/** − y + de la meta o de las veces (4.11). */
+function pasoFormulario(valor) {
+  const fa = formularioActual()
+  const [campo, d] = String(valor).split(':')
+  if (fa && (campo === 'meta' || campo === 'veces')) editarFormulario(campo, (fa.h[campo] ?? 1) + Number(d))
+}
+
+/** Un día de la semana del formulario (4.11): se suma o se saca. */
+function diaFormulario(i) {
+  const fa = formularioActual()
+  if (!fa || !(i >= 0 && i <= 6)) return
+  const dias = fa.h.dias ?? []
+  editarFormulario('dias', dias.includes(i) ? dias.filter(d => d !== i) : [...dias, i])
+}
+
+/** La hora de cada aviso apagado, para volver a prenderlo con la misma (4.11); la primera vez, 09:00. */
+const avisosApagados = new Map()
+/** El interruptor del aviso (4.11). El recordatorio en sí es H2: acá solo se guarda la hora. */
+function avisoFormulario() {
+  const fa = formularioActual()
+  if (!fa) return
+  if (fa.h.aviso) {
+    avisosApagados.set(fa.id, fa.h.aviso)
+    editarFormulario('aviso', null)
+  } else {
+    editarFormulario('aviso', avisosApagados.get(fa.id) ?? AVISO_POR_DEFECTO)
+  }
+}
+
+/** La frase del formulario (4.11) con lo que hay escrito ahora en el nombre y la unidad. */
+function refrescarFrase(form) {
+  const id = form?.dataset.form
+  const base = id === 'nuevo' ? st.habitos.borrador : st.habitos.lista.find(h => h.id === id)
+  const frase = form?.querySelector('[data-frase]')
+  if (!base || !frase) return
+  const nombre = form.querySelector('[data-campo="nombre"]')?.value ?? base.nombre
+  const unidad = form.querySelector('[data-campo="unidad"]')?.value ?? base.unidad
+  frase.innerHTML = fraseHtml({ ...base, nombre, unidad })
+}
+
+/**
+ * Guarda el nombre o la unidad de un hábito que ya existe (3.5, 4.10): el nombre vacío vuelve al de
+ * antes; repetido, el error de 5.1 y no se guarda; la unidad, recortada a 16.
+ */
+function confirmarTextoHabito(campo) {
+  const form = campo.closest('[data-form]')
+  const id = form?.dataset.form
+  const h = id && id !== 'nuevo' ? st.habitos.lista.find(x => x.id === id) : null
+  if (!h) return
+  if (campo.dataset.campo === 'nombre') {
+    const texto = campo.value.replace(/\s*[\r\n]+\s*/g, ' ')
+    if (!texto.trim()) { campo.value = h.nombre; refrescarFrase(form); return }
+    const v = validarHabito({ ...h, nombre: texto }, st.habitos.lista)
+    if (!v.ok) { st.habitos = { ...st.habitos, errForm: v.error }; pintarHabitos(); return }
+    if (st.habitos.errForm) st.habitos = { ...st.habitos, errForm: null }
+    if (!cambiarHabito(id, x => ({ ...x, nombre: v.nombre }))) pintarHabitos()
+  } else if (campo.dataset.campo === 'unidad') {
+    const unidad = editarHabito(h, 'unidad', campo.value).unidad
+    if (unidad !== h.unidad) cambiarHabito(id, x => ({ ...x, unidad }))
+  }
+}
+
+/** Lo que se escribe en el hábito abierto se guarda antes de cambiar de vista o cerrar la hoja. */
+function confirmarCamposHabito() {
+  for (const c of document.querySelectorAll('#hab .det [data-campo="nombre"], #hab .det [data-campo="unidad"]')) confirmarTextoHabito(c)
+}
+
+/**
+ * «Guardar» del hábito abierto: confirma el nombre y la unidad escritos, espera a que el archivo quede
+ * escrito y recién entonces dice «Guardado» 2,5 s. Con el nombre que no sirve queda su error (5.1); si
+ * no se pudo escribir, el de 7.4 con su reintento, nunca «Guardado».
+ */
+let relojGuardadoHabitos = null
+async function guardarDesdeBoton(id) {
+  confirmarCamposHabito()
+  if (st.habitos.errForm || !st.habitos.lista.some(h => h.id === id)) return
+  await guardarHabito(id)
+  if (fallidosHabitos.has(id)) return
+  st.habitos = { ...st.habitos, guardado: id }
+  pintarHabitos()
+  clearTimeout(relojGuardadoHabitos)
+  relojGuardadoHabitos = setTimeout(() => {
+    if (st.habitos.guardado === id) { st.habitos = { ...st.habitos, guardado: null }; pintarHabitos() }
+  }, 2500)
+}
+
+let relojArmadoHabitos = null
+/** El «¿Borrar…? Sí» vuelve solo a los 3 s (4.12), como el de Tareas. */
+function vigilarArmadoHabitos() {
+  clearTimeout(relojArmadoHabitos)
+  const a = st.habitos.armado
+  if (!a) return
+  relojArmadoHabitos = setTimeout(() => {
+    const t = desarmarVencido(st.habitos, Date.now())
+    if (t === st.habitos) return vigilarArmadoHabitos()
+    st.habitos = t
+    pintarHabitos()
+  }, Math.max(0, a.hasta - Date.now()) + 20)
+}
+
+/**
+ * «Borrar hábito» (4.12): el primer clic arma «¿Borrar con su racha de {n} días? Sí» 3 s; el segundo
+ * borra el archivo con todo su registro, una sola vez (después de su guardado en curso, así no vuelve a
+ * aparecer). El foco va a «Hoy» del índice (9.4). Si Rust no pudo (un archivo roto no se borra), el
+ * hábito queda y se anuncia.
+ */
+async function clicBorrarHabito(id) {
+  const { config, ejecutar } = clicBorrar(st.habitos, `borrar:${id}`, Date.now())
+  st.habitos = config
+  vigilarArmadoHabitos()
+  pintarHabitos()
+  if (!ejecutar) return
+  const h = st.habitos.lista.find(x => x.id === id)
+  if (!h) return
+  await guardadosHabitos.get(id)?.promesa
+  let r
+  try { r = await invocar('habitos_borrar', { id }) } catch (err) { r = { ok: false, error: String(err?.message ?? err) } }
+  if (!r?.ok) {
+    registrar(`hábitos: no se borró ${id}: ${r?.error ?? 'sin detalle'}`)
+    decirHabitos('No se guardó el último cambio')
+    return
+  }
+  fallidosHabitos.delete(id)
+  guardadosHabitos.delete(id)
+  avisosApagados.delete(id)
+  st.habitos = verHabitos({ ...st.habitos, lista: st.habitos.lista.filter(x => x.id !== id) }, 'hoy')
+  ponerErrorGuardarHabitos()
+  pintar()
+  decirHabitos(anuncioBorrado(h.nombre))
+  ;($('#hab [data-k="ix-hoy"]') ?? $('#hab [data-k="primer-otro"]') ?? $('#titulo'))?.focus()
+}
+
+/**
+ * Esc con la hoja abierta (9.1): vacía el nombre del hábito nuevo, desarma el «¿Borrar…? Sí» (el foco
+ * queda en el botón), cancela el formulario nuevo, cierra el hábito abierto o, sin capas, va a Sesiones
+ * con el foco en su fila (modulos-ux.md 9.1).
+ */
+function escHabitos(objetivo) {
+  const campo = objetivo?.closest?.('#hab input[data-campo], #hab textarea[data-campo]')
+  const { habitos, accion } = alEscHabitos(st.habitos, campo ? { campo: campo.dataset.campo, texto: campo.value } : null)
+  if (accion === 'vaciar') {
+    campo.value = ''
+    st.habitos = { ...st.habitos, borrador: { ...st.habitos.borrador, nombre: '' } }
+    refrescarFrase(campo.closest('[data-form]'))
+    return
+  }
+  if (alEscModulo('habitos', accion) === 'sesiones') { irModulo('sesiones', { foco: 'fila' }); return }
+  if (accion === 'cerrar-habito') { cerrarHabitoEnHoja(); return }
+  if (accion === 'cancelar-nuevo') { cancelarNuevoHabito(); return }
+  st.habitos = habitos
+  pintarHabitos()
+  if (accion === 'desarmar') enfocarHabitos('borrar')
+}
+
+/** Los botones de la hoja de Hábitos (`data-accion="hab-…"`). Un clic en otra cosa desarma el «¿Borrar…? Sí» (4.12). */
+async function accionHabitos(a, b) {
+  if (st.habitos.armado && a !== 'hab-borrar') {
+    st.habitos = { ...st.habitos, armado: null }
+    pintarHabitos()
+  }
+  switch (a) {
+    // El globo del recordatorio (8.3): «+1»/«Hecho» marca sin abrir nada, «Ver hábitos →» (o el de la muesca)
+    // abre la hoja en Hoy y la × lo deja para mañana. En la marca el globo es parte de lo que se arrastra:
+    // después de un arrastre real, el clic no cuenta
+    case 'hab-globo-hacer': if (!justoArrastro) hacerDesdeGlobo(b.dataset.valor); break
+    case 'hab-globo-ver': if (!justoArrastro) await verDesdeGlobo(b.dataset.valor); break
+    case 'hab-globo-x': if (!justoArrastro) descartarRecordatorio(b.dataset.valor); break
+    // El resumen semanal (8.4): el clic abre la charla; la × lo deja para la semana que viene
+    case 'hab-res': if (!justoArrastro) await charlaDesdeResumen(); break
+    case 'hab-res-x': if (!justoArrastro) descartarResumen(); break
+    case 'hab-ver': verHabitosEnHoja(b.dataset.valor); break
+    case 'hab-nuevo': empezarNuevoHabito(); break
+    case 'hab-cancelar': cancelarNuevoHabito(); break
+    case 'hab-crear': crearHabitoEnHoja(); break
+    case 'hab-sugerida': crearSugeridaEnHoja(b.dataset.valor); break
+    case 'hab-abrir': abrirHabitoEnHoja(b.dataset.valor); break
+    case 'hab-cerrar-habito': cerrarHabitoEnHoja(); break
+    case 'hab-tildar': tildarHabitoEnHoja(b.dataset.valor); break
+    case 'hab-sumar': sumarHabitoEnHoja(b.dataset.valor, 1); break
+    case 'hab-restar': sumarHabitoEnHoja(b.dataset.valor, -1); break
+    case 'hab-celda': corregirCeldaHabitos(b.dataset.valor, b.dataset.dia); break
+    case 'hab-tipo': editarFormulario('tipo', b.dataset.valor); break
+    case 'hab-paso': pasoFormulario(b.dataset.valor); break
+    case 'hab-dia': diaFormulario(Number(b.dataset.valor)); break
+    case 'hab-aviso': avisoFormulario(); break
+    case 'hab-color': editarFormulario('color', b.dataset.valor); break
+    case 'hab-borrar': await clicBorrarHabito(b.dataset.valor); break
+    case 'hab-guardar': await guardarDesdeBoton(b.dataset.valor); break
+    case 'hab-reintentar': reintentarHabitos(); break
+    // «Abrir la carpeta» (7.6): Rust abre siempre `<config>/habitos/`, nunca una ruta de la ventana
+    case 'hab-carpeta': invocar('habitos_abrir_carpeta').catch(err => registrar(`hábitos: no se pudo abrir la carpeta: ${err}`)); break
+    case 'hab-releer': await leerHabitos(); break
+    default: break
+  }
+}
+
+
 // ------------------------------------------------------------------ la charla con la mascota (docs/diseno/chat-avis-ux.md)
 // Reglas de oro: un clic, nunca solo (abrir la hoja no manda nada; solo Enter, Enviar, una
 // sugerencia, Reintentar o "Volver a preguntar" mandan); nunca se pierde lo escrito (el borrador
@@ -4067,7 +6341,15 @@ let colaGuardar = Promise.resolve()
  * La respuesta en curso ya dibujada (6.2): de qué turno y qué texto. Lo que llega después entra con
  * `.w`; lo ya puesto no se toca. `quieto`: lo próximo se agrega sin animar (la hoja vuelve a verse).
  */
-const vivo = { turno: null, texto: '', quieto: false }
+const vivo = {
+  turno: null, texto: '', quieto: false,
+  // Los recibos (#43, chat-herramientas-ux.md 3.4 y 10): `sellados`, los cambios ya vistos (se dibujan
+  // quietos); `llegados`, los que llegaron en esta ejecución (por evento o «Reintentar»: solo esos hacen
+  // su acto); `recibos`, el HTML de los recibos puestos por mensaje (índice → HTML), y `mensaje`, el
+  // mensaje en curso como se dibujó (para agregar sin reescribir, 11.11). `deshacer`: el estado de
+  // «Deshacer» de esta ejecución por id (`curso` o `fallo`, 4.4).
+  sellados: new Set(), llegados: new Set(), recibos: new Map(), mensaje: null, deshacer: new Map(),
+}
 /** El acto de abrir (su promesa: el foco va al campo cuando la mascota aterriza) y si se está cerrando. */
 let actoHoja = null
 let hojaCerrando = false
@@ -4093,6 +6375,8 @@ function modeloVista(ahora = Date.now()) {
   return {
     chat: c, especie: st.mascota, nombre: st.nombreMascota, usuario: st.nombreUsuario, ahoraMs: ahora, reciente, hablando: false, puedeAdjuntar: true,
     proyectos: carpetasDeProyectos(st.proyectos),
+    // Los recibos (#43): los nombres y colores de las listas en pantalla, el día y el estado de «Deshacer»
+    recibos: { listas: st.tareas.listas, hoy: hoyArgentina(ahora), ui: vivo.deshacer },
   }
 }
 
@@ -4109,7 +6393,7 @@ let rutasArrastre = []
 function alArrastrarArchivo(p) {
   if (!p?.type) return
   if (p.type === 'enter' || p.type === 'drop') rutasArrastre = Array.isArray(p.paths) ? p.paths.filter(r => typeof r === 'string') : rutasArrastre
-  const sobre = p.type !== 'leave' && hojaSeVe() && sobreHoja(p.position, window.devicePixelRatio || 1, st.disp?.local?.hoja, zoom())
+  const sobre = p.type !== 'leave' && hojaSeVe() && sobreHoja(p.position, window.devicePixelRatio || 1, st.disp?.local?.hoja)
   if (p.type === 'drop' && sobre) {
     const rutas = rutasArrastre
     rutasArrastre = []
@@ -4378,6 +6662,10 @@ function efectoChat(e) {
         .then(doc => despacharChat(e.para === 'recordar' ? { tipo: 'recordar', conversacion: doc } : { tipo: 'retomar', id: e.id, conversacion: doc }))
         .catch(err => registrar(`chat leer: ${err}`))
       break
+    case 'guardar':
+      // Una charla que nace con mensajes (la del resumen semanal, habitos-ux.md 8.4): al archivo ya, sin Engram
+      guardarCharla(e.conversacion, false)
+      break
     case 'borrar':
       // El archivo y su copia en Engram (solo la de avis); la de Claude Code queda (D29)
       colaGuardar = colaGuardar.then(() => invocar('chat_borrar', { id: e.id })).catch(err => registrar(`chat borrar: ${err}`))
@@ -4391,6 +6679,7 @@ function enfocarEnHoja(a, id = null) {
   if (!hojaSeVe()) return
   const destino = {
     campo: campoChat, carpeta: $('#chat-cab .carpeta'), modelo: $('#chat-cab .modelo'), hist: $('#hoja .arriba [data-accion="ch-hist"]'), buscar: $('#chat-buscar'),
+    puede: $('#ch-puede'),
     borrar: $('#chat-hist-lista .h-borrar'),
     charla: id ? [...$$('#chat-hist-lista [data-accion="ch-retomar"]')].find(x => x.dataset.id === id) : null,
   }[a]
@@ -4479,24 +6768,31 @@ function pintarHilo(m) {
   const animar = hayMovimiento() && !vivo.quieto
   vivo.quieto = false
   let html, firma
+  // La firma no lleva los recibos (#43, 11.11): se ponen y se agregan aparte (`pintarRecibos`), así un
+  // cambio que llega no rehace el hilo
   if (c.estado === 'escribiendo') {
     // La firma sin el texto que llega (un espacio en su lugar): cambia solo si cambia lo demás, y
     // solo entonces se arma el hilo entero, con lo ya visto quieto
     const conv = c.conversacion
     const mensajes = conv.mensajes.map((x, k) => (k === conv.mensajes.length - 1 ? { ...x, texto: ' ' } : x))
-    firma = hiloVista({ ...m, mostrado: null, chat: { ...c, conversacion: { ...conv, mensajes } } })
+    firma = hiloVista({ ...m, sinRecibos: true, mostrado: null, chat: { ...c, conversacion: { ...conv, mensajes } } })
     html = st.firmas['#chat-hilo'] === firma ? '' : hiloVista({ ...m, mostrado: vivo.turno === c.turno ? vivo.texto : '', animar })
   } else {
     html = hiloVista(m)
-    firma = html.replace(/data-reloj>[^<]*</, 'data-reloj><')
+    firma = hiloVista({ ...m, sinRecibos: true }).replace(/data-reloj>[^<]*</, 'data-reloj><')
   }
   const llega = c.estado === 'escribiendo' ? c.conversacion.mensajes.at(-1).texto : ''
   if (poner('#chat-hilo', html, firma)) {
     vivo.turno = c.turno
     vivo.texto = llega
-    if (seguir) el.scrollTop = el.scrollHeight
+    pintarRecibos(el, m, { completo: true, animar })
+    // Una bienvenida abre arriba (el saludo primero); con mensajes, abajo si estaba al fondo (`scrollHilo`)
+    const lugar = scrollHilo(c, seguir)
+    if (lugar === 'arriba') el.scrollTop = 0
+    else if (lugar === 'abajo') el.scrollTop = el.scrollHeight
     return
   }
+  pintarRecibos(el, m, { completo: false, animar })
   if (c.estado === 'escribiendo') {
     const txt = el.querySelector('.m-m.vivo .txt')
     const abiertoEl = txt?.querySelector('.abierto')
@@ -4524,7 +6820,277 @@ function pintarHilo(m) {
     const relojEl = el.querySelector('[data-reloj]')
     if (reloj != null && relojEl && relojEl.textContent !== reloj) relojEl.textContent = reloj
   }
-  if (seguir) el.scrollTop = el.scrollHeight
+  // Sin redibujar, una bienvenida queda donde la dejó el usuario
+  if (scrollHilo(c, seguir) === 'abajo') el.scrollTop = el.scrollHeight
+}
+
+/**
+ * Los recibos de cada mensaje (#43, chat-herramientas-ux.md 3.2 y 11.11), aparte del hilo: `completo`,
+ * el hilo se acaba de poner entero (solo se anotan y se animan los nuevos). Si no, cada `.recibos` que
+ * cambió se pone al día por su cuenta: en el mensaje en curso, si lo único nuevo son cambios
+ * (`diferenciaRecibos`), se agregan (el recibo después de su texto, la fila con `insertAdjacentHTML` y
+ * solo el texto del encabezado y el pie); si cambió otra cosa (Deshacer), se reemplaza ese `.recibos`
+ * y el foco vuelve al mismo control. Lo demás del hilo nunca se toca.
+ */
+function pintarRecibos(el, m, { completo, animar }) {
+  const c = m.chat
+  const mensajes = c.conversacion?.mensajes ?? []
+  const ultimo = mensajes.length - 1
+  const v = { listas: m.recibos.listas, hoy: m.recibos.hoy, ui: m.recibos.ui }
+  if (completo) vivo.recibos.clear()
+  for (let k = 0; k < mensajes.length; k++) {
+    const msg = mensajes[k]
+    if (msg.rol !== 'mascota') continue
+    const enCurso = k === ultimo && msg.turno === c.turno && ocupado(c)
+    const nuevo = recibosDe(m, msg, k, enCurso)
+    if (completo) { if (nuevo) vivo.recibos.set(k, nuevo); continue }
+    if (nuevo === (vivo.recibos.get(k) ?? '')) continue
+    const caja = el.querySelector(`.recibos[data-i="${k}"]`)
+    if (!caja) {
+      // Solo el mensaje en curso suma su primer recibo sin redibujar: después de su texto o de la espera
+      // (un mensaje anterior que no se ve, D32, no tiene dónde: queda anotado)
+      const ancla = enCurso ? [...el.querySelectorAll('.m-m.vivo, .espera')].at(-1) : null
+      if (nuevo && ancla) ancla.insertAdjacentHTML('afterend', nuevo)
+      else if (nuevo && enCurso) { st.firmas['#chat-hilo'] = null; programarHoja(); continue }
+    } else if (!nuevo) {
+      caja.remove()
+    } else {
+      const dif = enCurso && vivo.mensaje ? diferenciaRecibos(vivo.mensaje, msg) : null
+      if (!(dif?.nuevos.length && agregarCambios(caja, msg, k, dif.nuevos, v))) reemplazarRecibos(caja, nuevo)
+    }
+    if (nuevo) vivo.recibos.set(k, nuevo)
+    else vivo.recibos.delete(k)
+  }
+  const enCursoMsg = ocupado(c) ? mensajes[ultimo] : null
+  vivo.mensaje = enCursoMsg?.rol === 'mascota' ? enCursoMsg : null
+  animarRecibos(el, c, animar)
+}
+
+/**
+ * Agrega a un `.recibos` puesto los cambios que llegaron (11.11). Una fila nueva del recibo de cambios
+ * entra con `insertAdjacentHTML` (antes del pie); el encabezado cambia solo su texto («Anoté en Tareas» →
+ * «2 cambios», 7) y el pie aparece con la segunda fila. Un error o «para borrar», al final. Devuelve si pudo.
+ */
+function agregarCambios(caja, msg, k, nuevos, v) {
+  const deCambios = armarRecibos(msg).find(r => r.tipo === 'cambios')?.cambios ?? []
+  for (const cambio of nuevos) {
+    const escribe = ESCRIBEN.includes(cambio.herramienta)
+    if (escribe && cambio.estado !== 'error') {
+      const sec = caja.querySelector('section[data-rec="cambios"]')
+      const hasta = deCambios.slice(0, deCambios.findIndex(x => x.id === cambio.id) + 1)
+      if (!sec) { caja.insertAdjacentHTML('beforeend', reciboHtml({ tipo: 'cambios', cambios: hasta }, k, v)); continue }
+      const solo = hasta.length > 1
+      const pie = sec.querySelector('.rec-pie')
+      const fila = filaCambioHtml(cambio, v, { solo })
+      if (pie) pie.insertAdjacentHTML('beforebegin', fila)
+      else sec.insertAdjacentHTML('beforeend', fila)
+      // Con dos o más, el «Deshacer» de cada fila es solo el ícono (4.3)
+      for (const b of sec.querySelectorAll('.rf .deshacer:not(.solo)')) {
+        b.classList.add('solo')
+        b.title = 'Deshacer'
+        b.innerHTML = b.querySelector('svg')?.outerHTML ?? ''
+      }
+      ponerTextosRecibo(sec, hasta, k)
+    } else if (escribe || cambio.estado === 'mostrar') {
+      caja.insertAdjacentHTML('beforeend', reciboHtml(escribe ? { tipo: 'error', cambio } : { tipo: 'mostrar', cambio }, k, v))
+    }
+  }
+  return true
+}
+
+/**
+ * El encabezado y el pie del recibo de cambios al sumarse una fila (7, 11.11): cambia solo su texto, así
+ * el foco en «Ver en Tareas →» o en «Deshacer los {n}» se queda. El pie aparece con la segunda fila.
+ */
+function ponerTextosRecibo(sec, cambios, k) {
+  const titulo = encabezadoRecibo(cambios)
+  const t = sec.querySelector('.rec-h .rec-t')
+  if (t && t.textContent !== titulo) t.textContent = titulo
+  sec.setAttribute('aria-label', titulo)
+  const ultimo = cambios.at(-1)
+  const lnk = sec.querySelector('.rec-h .lnk')
+  if (lnk) { lnk.dataset.lista = ultimo?.lista ?? ''; lnk.dataset.tarea = ultimo?.tarea ?? '' }
+  const pie = sec.querySelector('.rec-pie')
+  if (!pie) {
+    const html = pieCambiosHtml(cambios, k)
+    if (html) sec.insertAdjacentHTML('beforeend', html)
+    return
+  }
+  const p = pieDeshacer(cambios)
+  const boton = pie.querySelector('[data-accion="ch-deshacer-todos"]')
+  if (p.boton && boton) {
+    // Solo el texto del botón (después de su ícono)
+    const nodo = [...boton.childNodes].find(n => n.nodeType === Node.TEXT_NODE)
+    if (nodo) nodo.textContent = p.boton
+    else boton.append(p.boton)
+  } else {
+    const html = pieCambiosHtml(cambios, k)
+    const lugar = document.createElement('div')
+    lugar.innerHTML = html
+    pie.replaceChildren(...(lugar.firstElementChild?.childNodes ?? []))
+  }
+}
+
+/**
+ * Reemplaza un `.recibos` entero (Deshacer, Reintentar) y devuelve el foco al mismo control (`data-accion`,
+ * `data-cambio` y `data-estado`); si ese control ya no está y el foco estaba en el pie, al pie (9.3).
+ */
+function reemplazarRecibos(caja, html) {
+  const activo = caja.contains(document.activeElement) ? document.activeElement : null
+  const clave = activo && `${activo.dataset.accion ?? ''}|${activo.dataset.cambio ?? ''}|${activo.dataset.estado ?? ''}`
+  const enPie = activo?.closest('.rec-pie')?.dataset.pie ?? null
+  const lugar = document.createElement('div')
+  lugar.innerHTML = html
+  const nueva = lugar.firstElementChild
+  caja.replaceWith(nueva)
+  if (!clave) return
+  const igual = [...nueva.querySelectorAll('[data-accion], [data-estado]')].find(x => `${x.dataset.accion ?? ''}|${x.dataset.cambio ?? ''}|${x.dataset.estado ?? ''}` === clave)
+  ;(igual ?? (enPie != null ? nueva.querySelector(`.rec-pie[data-pie="${CSS.escape(enPie)}"]`) : null))?.focus({ preventScroll: true })
+}
+
+/**
+ * El acto de los recibos (10), una vez por cambio (`vivo.sellados`): solo los que llegaron en esta
+ * ejecución (`vivo.llegados`) y se ven con movimiento; lo demás (una charla retomada, lo que llegó con la
+ * hoja plegada, un redibujo) queda quieto. «No llegó» hace su acto en el turno que acaba de terminar.
+ */
+function animarRecibos(el, c, animar) {
+  for (const sec of el.querySelectorAll('.recibos section.rec')) {
+    const filas = [...sec.querySelectorAll('.rf[data-cambio]')]
+    let ids = sec.dataset.cambio ? [sec.dataset.cambio] : filas.map(f => f.dataset.cambio)
+    if (sec.dataset.rec === 'nollego') {
+      const k = Number(sec.closest('.recibos')?.dataset.i)
+      const msg = c.conversacion?.mensajes[k]
+      const clave = `nollego:${c.conversacion?.id}:${k}`
+      if (msg?.turno > 0 && msg.turno === c.turno) vivo.llegados.add(clave)
+      ids = [clave]
+    }
+    const frescos = ids.filter(id => vivo.llegados.has(id) && !vivo.sellados.has(id))
+    for (const id of ids) vivo.sellados.add(id)
+    if (!frescos.length || !animar) continue
+    if (frescos.length === ids.length) movimientoRecibos.llega(sec)
+    else movimientoRecibos.sumaFilas(filas.filter(f => frescos.includes(f.dataset.cambio)))
+  }
+}
+
+/** Busca un cambio por id en la charla de ahora: `{ cambio, k }` (k, el índice de su mensaje). */
+function buscarCambio(id) {
+  const mensajes = st.chat.conversacion?.mensajes ?? []
+  for (let k = 0; k < mensajes.length; k++) {
+    const cambio = (mensajes[k].cambios ?? []).find(x => x.id === id)
+    if (cambio) return { cambio, k }
+  }
+  return null
+}
+
+/** Anuncia en la región de la hoja (5.3). */
+const anunciarRecibo = texto => anunciarChat(texto)
+
+/**
+ * «Deshacer» de una fila (4.4, 11.7): `chat_deshacer` con el cambio guardado; mientras, `aria-busy` y
+ * el ícono que gira. Deshecho: la raya tacha la fila, el foco queda en «Deshecho» y se anuncia; cambió
+ * después: «Cambió después»; si falla, el botón queda con «No se pudo deshacer. Probá de nuevo.».
+ * Devuelve el estado (para «Deshacer los {n}»).
+ */
+async function deshacerCambio(id, { foco = true } = {}) {
+  const hallado = buscarCambio(id)
+  if (!hallado || hallado.cambio.estado !== 'hecho' || vivo.deshacer.get(id) === 'curso') return null
+  const conv = st.chat.conversacion
+  vivo.deshacer.set(id, 'curso')
+  pintarHoja()
+  let r
+  try {
+    r = await invocar('chat_deshacer', { conversacion: conv.id, cambio: hallado.cambio })
+  } catch (err) {
+    registrar(`chat deshacer: ${err}`)
+    r = { estado: 'error' }
+  }
+  if (r?.estado === 'deshecho' || r?.estado === 'cambio-despues') {
+    vivo.deshacer.delete(id)
+    despacharChat({ tipo: 'cambio-estado', id, estado: r.estado })
+    const fila = $(`#chat-hilo .rf[data-cambio="${CSS.escape(id)}"]`)
+    if (r.estado === 'deshecho') movimientoRecibos.deshacer(fila)
+    if (foco) fila?.querySelector('[data-estado]')?.focus({ preventScroll: true })
+    if (foco) anunciarRecibo(anuncioDeshacer([[hallado.cambio, r.estado]]))
+    return r.estado
+  }
+  vivo.deshacer.set(id, 'fallo')
+  pintarHoja()
+  if (foco) anunciarRecibo(anuncioDeshacer([[hallado.cambio, 'error']]))
+  return 'error'
+}
+
+/**
+ * «Deshacer los {n}» (4.4): de la última a la primera, un `chat_deshacer` por vez; el foco queda en el pie
+ * (en «Deshechos {k} de {n}», o en el pie mismo, que lo puede tomar: 9.3) y se anuncia una vez.
+ */
+async function deshacerTodos(k) {
+  const msg = st.chat.conversacion?.mensajes[k]
+  const cambios = (armarRecibos(msg ?? {}).find(r => r.tipo === 'cambios')?.cambios ?? []).filter(x => x.estado === 'hecho')
+  const resultados = []
+  for (const cambio of [...cambios].reverse()) {
+    const estado = await deshacerCambio(cambio.id, { foco: false })
+    if (estado) resultados.push([cambio, estado])
+  }
+  const pie = $(`#chat-hilo .recibos[data-i="${k}"] .rec-pie`)
+  ;(pie?.querySelector('[data-estado], button') ?? pie)?.focus({ preventScroll: true })
+  anunciarRecibo(anuncioDeshacer(resultados))
+}
+
+/** «Reintentar» de un recibo de error (11.9): el cambio nuevo ocupa su lugar y el foco va a su fila. */
+async function reintentarCambio(id) {
+  const hallado = buscarCambio(id)
+  if (!hallado || hallado.cambio.estado !== 'error' || !hallado.cambio.reintentable) return
+  let nuevo
+  try {
+    nuevo = await invocar('chat_reintentar', { conversacion: st.chat.conversacion.id, cambio: hallado.cambio })
+  } catch (err) {
+    registrar(`chat reintentar: ${err}`)
+    return
+  }
+  if (typeof nuevo?.id !== 'string') return
+  vivo.llegados.add(nuevo.id)
+  despacharChat({ tipo: 'cambio-reemplazo', id, cambio: nuevo })
+  const fila = $(`#chat-hilo [data-cambio="${CSS.escape(nuevo.id)}"]`)
+  if (fila) { fila.tabIndex = -1; fila.focus({ preventScroll: true }) }
+  // Como el anuncio de fin (5.3): «Anotada: {título}, {fecha}», o «No se anotó: {título}. {motivo}»
+  anunciarRecibo(anuncioRecibo([nuevo], hoyArgentina(Date.now())))
+}
+
+/**
+ * «Ver en Tareas →», «Abrir Tareas» e «Ir a la tarea →» (4.2, 4.6, 9.3): abre Tareas en la lista del
+ * cambio (con el destello de su fila) o en Hoy; `abrir`, además abre la tarea con el foco en «Borrar tarea».
+ */
+async function verEnTareas({ lista = null, tarea = null, abrir = false } = {}) {
+  const ver = lista && st.tareas.listas.some(l => l.id === lista) ? lista : 'hoy'
+  if (st.modulo === 'tareas') {
+    st.tareas = cambiarVista(st.tareas, ver)
+    pintar()
+    $('#titulo').focus()
+  } else {
+    await irModulo('tareas', { ver })
+  }
+  if (!tarea) return
+  if (abrir && buscarTarea(st.tareas.listas, tarea)) {
+    st.tareas = abrirDetalle(st.tareas, tarea)
+    pintar()
+    $('#tar [data-accion="tar-borrar-tarea"]')?.focus({ preventScroll: true })
+    return
+  }
+  destellarTarea(tarea)
+}
+
+/**
+ * La fila de una tarea lleva el destello de «recién agregada» una vez (tareas-ux.md 10, `.recien`) sin
+ * redibujar la lista; `entra`: además baja y aparece (una fila que llegó por la charla, 8).
+ */
+function destellarTarea(id, { entra = false } = {}) {
+  const fila = id && st.tareas.abierta ? $(`#tar .fila[data-id="${CSS.escape(id)}"]`) : null
+  if (!fila) return
+  fila.classList.remove('recien')
+  void fila.offsetWidth
+  fila.classList.add('recien')
+  fila.addEventListener('animationend', () => fila.classList.remove('recien'), { once: true })
+  if (entra) movimientoTareas.entraFila(fila)
 }
 
 /**
@@ -4571,6 +7137,7 @@ function pintarHoja() {
   texto('#chat-nom', nombre)
   poner('#chat-est', estadoEscena(m))
   ponerConFoco('#chat-cab', cabecera(m))
+  pintarPuede(m)
   pintarHilo(m)
   const comp = composer(m)
   poner('#chat-adjuntos', comp.adjuntos)
@@ -4586,6 +7153,20 @@ function pintarHoja() {
   else st.firmas['#chat-menu'] = null
   pintarCajon(m)
   poner('#chat-soltar', capaSoltar(m))
+}
+
+/**
+ * La línea «Puede tocar» y su globo (#43, 4.1), fija entre la cabecera y el hilo. Su lugar
+ * (`#ch-puede-lugar`) se crea la primera vez, antes de `#chat-hilo`; el globo baja al abrirse (10).
+ */
+let puedeAbierto = false
+function pintarPuede(m) {
+  if (!$('#ch-puede-lugar')) $('#chat-hilo').insertAdjacentHTML('beforebegin', '<div id="ch-puede-lugar" class="puede-lugar"></div>')
+  const motor = m.chat.conversacion?.motor ?? m.chat.motor
+  const abierto = !!m.chat.puede
+  ponerConFoco('#ch-puede-lugar', lineaPuedeHtml({ motor, abierto }) + globoPuedeHtml({ motor, abierto, mascota: nombreMascota() }))
+  if (abierto && !puedeAbierto) movimientoRecibos.globo($('#ch-puede-lugar .puede-globo'))
+  puedeAbierto = abierto
 }
 
 /** El cajón: su armazón al abrirlo (el buscador no se redibuja mientras se escribe) y la lista. */
@@ -4664,6 +7245,20 @@ async function accionChat(a, b) {
     case 'ch-borrar': despacharChat({ tipo: 'borrar-charla' }); break
     case 'ch-copiar': await copiarDeHoja(b, c.conversacion?.mensajes[Number(b.dataset.i)]?.texto ?? ''); break
     case 'ch-copiar-codigo': await copiarDeHoja(b, b.closest('pre')?.querySelector('code')?.textContent ?? ''); break
+    // La charla con herramientas (#43, chat-herramientas-ux.md 4): la línea «Puede tocar» y los recibos
+    case 'ch-puede': despacharChat({ tipo: 'puede' }); break
+    case 'ch-puede-nueva':
+      // Con Local: una charla nueva con Claude Code (el motor de una charla con mensajes no cambia, D-c17)
+      despacharChat({ tipo: 'puede' })
+      elegirMotor('claude')
+      campoChat.focus()
+      break
+    case 'ch-deshacer': if (b.getAttribute('aria-disabled') !== 'true') await deshacerCambio(b.dataset.cambio); break
+    case 'ch-deshacer-todos': await deshacerTodos(Number(b.dataset.i)); break
+    case 'ch-reintentar-cambio': await reintentarCambio(b.dataset.cambio); break
+    case 'ch-ver-tareas': await verEnTareas({ lista: b.dataset.lista || null, tarea: b.dataset.tarea || null }); break
+    case 'ch-abrir-tareas': await verEnTareas(); break
+    case 'ch-ir-tarea': if (b.getAttribute('aria-disabled') !== 'true') await verEnTareas({ lista: b.dataset.lista || null, tarea: b.dataset.tarea || null, abrir: true }); break
   }
 }
 
@@ -4740,6 +7335,8 @@ document.addEventListener('input', e => {
 // Un clic afuera del menú de carpeta lo cierra (3.5); lo mismo el menú de una charla del cajón
 document.addEventListener('pointerdown', e => {
   if (st.chat.menu && !e.target.closest?.('#chat-menu, #chat-cab .carpeta')) despacharChat({ tipo: 'menu' })
+  // El globo de «Puede tocar» también (#43, 4.1)
+  if (st.chat.puede && !e.target.closest?.('#ch-puede-lugar')) despacharChat({ tipo: 'puede' })
   if (st.chat.menuModelo && !e.target.closest?.('#chat-menu, #chat-cab .modelo')) despacharChat({ tipo: 'menu-modelo' })
   if (st.chat.menuCharla && !e.target.closest?.('#chat-hist-lista .h-menu')) despacharChat({ tipo: 'menu-charla', id: st.chat.menuCharla.id })
 })
@@ -4753,8 +7350,13 @@ document.addEventListener('contextmenu', e => {
 
 /** Pinta la marca: su ánimo real y la descripción del Avi-botón. Con la hoja abierta, su motor está quieto (3.2). */
 function pintarMarca(ahora = Date.now()) {
-  const animo = animoMarca(st.proyectos, ahora)
-  marca.animo(animo, reposoPermitido(st.proyectos, ahora))
+  // Con un globo a la vista (el aviso de tareas o un recordatorio), el Avi de la marca saluda y no juega;
+  // con el resumen semanal, cuenta; mientras el globo confirma «Hecho», está feliz (habitos-ux.md 8.2)
+  const conGlobo = st.lugarGlobo === 'marca'
+  const feliz = conGlobo && st.confirmaGlobo?.clave === st.claveGlobo
+  const resumen = conGlobo && st.globos.some(a => a.clave === st.claveGlobo && a.tipo === 'resumen')
+  const animo = feliz ? 'feliz' : resumen ? 'contando' : conGlobo ? 'saluda' : animoMarca(st.proyectos, ahora)
+  marca.animo(animo, !conGlobo && reposoPermitido(st.proyectos, ahora))
   texto('#marca-animo', animoTexto(animo))
 }
 
@@ -4791,6 +7393,14 @@ async function iniciar() {
       ponerPausa(valorInterruptor(m.pausa, INTERRUPTORES.pausa))
       st.arranque = m.arranque === true
       st.version = typeof m.version === 'string' ? m.version : null
+      // El día del último aviso diario de tareas (tareas-ux.md 11.4)
+      st.avisadoTar = typeof m.tareasAvisado === 'string' ? m.tareasAvisado : null
+      // Los hábitos ya recordados hoy (habitos-ux.md 8.3): un reinicio el mismo día no los repite
+      st.habRecordados = validarAjuste('habitosRecordados', m.habitosRecordados) ? m.habitosRecordados : null
+      // El lunes del último resumen semanal visto (habitos-ux.md 8.4): no se repite ni vuelve uno más viejo
+      st.habResumen = validarAjuste('habitosResumen', m.habitosResumen) && m.habitosResumen ? m.habitosResumen : null
+      // La frase ya pedida de esa semana: entre arranques no se le vuelve a pedir al modelo
+      st.habFrase = validarAjuste('habitosFrase', m.habitosFrase) ? m.habitosFrase : null
       // Dónde quedó el tablero flotante la última vez (fracciones del área, 9.7)
       if (m.flotante && typeof m.flotante === 'object') st.fraccion = { x: Number(m.flotante.x), y: Number(m.flotante.y) }
       // El motor, la carpeta y el modelo (#35) de la próxima charla, y las recientes (chat-avis-ux.md 3.4, D11)
@@ -4806,27 +7416,30 @@ async function iniciar() {
         st.acople = { borde: m.acople.borde, lugar: Number(m.acople.lugar) }
         aplicarModo()
       }
-      await aplicarTamano(typeof m.tamano === 'number' ? m.tamano : PASO_POR_DEFECTO)
     } catch {
       st.mascota = ESPECIE_POR_DEFECTO
-      await aplicarTamano(PASO_POR_DEFECTO)
     }
+    ubicarAlArrancar()
     const escuchar = tauri.event.listen
     // "Pausar animaciones" de la bandeja o de la configuración
     escuchar('oficina://pausa', ev => ponerPausa(!!ev.payload))
-    escuchar('oficina://tamano', ev => aplicarTamano(Number(ev.payload)))
     // La mascota guardada (configuracion-ux.md 9.3): toda la ventana se redibuja con ella, sin acto;
     // si la eligió esta misma ventana, ya está puesta y no pasa nada
     escuchar('oficina://mascota', ev => ponerMascota(ev.payload?.mascota))
     // "Configuración…" de la bandeja (configuracion-ux.md 4.1): muestra el panel y abre la hoja
-    escuchar('oficina://configuracion', ev => { if (ev.payload?.abrir) abrirConfig({ tab: ev.payload.tab }) })
+    escuchar('oficina://configuracion', ev => { if (ev.payload?.abrir) irModulo('config', { tab: ev.payload.tab }) })
     // Se abrió Avis otra vez estando en la tira mini: volver a la ventana completa
-    escuchar('oficina://expandir', () => ponerMini(false))
+    escuchar('oficina://expandir', () => expandir())
     // Acoplar a un borde o flotar (null) desde afuera: la bandeja ya no lo manda (la configuración
     // llama a acoplarA directo); queda para la vista de desarrollo (`__bandeja`)
     escuchar('oficina://acoplar', ev => acoplarA(typeof ev.payload === 'string' ? ev.payload : null))
     // "Mostrar Avis", la notificación o abrir Avis otra vez: acoplada, abre el panel
-    escuchar('oficina://abrir', () => { if (st.acople) evento({ tipo: 'clic' }) })
+    escuchar('oficina://abrir', async () => {
+      // Abrir el panel (modulos-ux.md 8): el módulo actual o, con una pregunta pendiente, Sesiones en esa pregunta
+      if (!st.acople) return
+      if (!st.muesca.abierta) await abrirPanelAlModulo()
+      evento({ tipo: 'clic' })
+    })
     // El puntero entró o salió de la zona interactiva (9.6); un aviso más viejo que el último se descarta
     // Acoplada: el puntero global (px lógicos de pantalla) para la mirada del Avi a la vista; cada motor
     // lo ignora si no se ve (marca-avi-ux.md 6 y muesca-avi-ux.md 9)
@@ -4850,7 +7463,12 @@ async function iniciar() {
     tomarAvisoMod()
     // La charla (chat-avis-ux.md 7.5): cada evento lleva su conversación y su turno; transicionChat
     // descarta los de otra conversación o de un turno viejo
-    escuchar('oficina://chat', ev => despacharChat({ tipo: 'backend', payload: ev.payload }))
+    escuchar('oficina://chat', ev => {
+      // Un cambio, una lectura o «para borrar» que llegó ahora hace su acto al verse (#43, 10)
+      if (['cambio', 'lectura', 'mostrar'].includes(ev.payload?.tipo) && typeof ev.payload.cambio?.id === 'string') vivo.llegados.add(ev.payload.cambio.id)
+      despacharChat({ tipo: 'backend', payload: ev.payload })
+    })
+    escuchar('oficina://tareas', ev => alCambiarTareasFuera(ev.payload))
     // El modelo de esta PC (3.6): la descarga y el borrado desde la configuración
     escuchar('oficina://modelo', ev => alEventoModelo(ev.payload))
     // Los archivos que se sueltan (10): Tauri los toma antes que el HTML (`dragDropEnabled`)
@@ -4858,9 +7476,13 @@ async function iniciar() {
       ?.catch(err => registrar(`chat arrastrar: ${err}`))
     // El historial de la charla (9.1): la lista del disco y, si es de las últimas 12 h, la última (D11)
     efectoChat({ tipo: 'historial' })
+    // Las listas de tareas (tareas-ux.md 11.3): la cuenta de la fila de la barra desde el arranque
+    leerTareas()
+    // Los hábitos (habitos-ux.md 11.5): lo de hoy en la fila del menú desde el arranque
+    leerHabitos()
   } else {
     // Sin Tauri (el HTML abierto solo): la ventana del navegador hace de área
-    await aplicarTamano(PASO_POR_DEFECTO)
+    ubicarAlArrancar()
     colocar(disposicionActual({ x: 0, y: 0, ancho: innerWidth, alto: innerHeight }))
   }
   ciclo()

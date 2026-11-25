@@ -6,7 +6,7 @@
 // Entrega 5: "Quién responde" en Modelos y el historial del chat en Datos.
 
 import { escapar } from './logica.js'
-import { PESTANAS, UBICACIONES, limitesTamano, CLAVE_VISTA_PREVIA, opcionesForma, rotuloEspecie, PROVEEDORES, textoClave, MOTORES, OPCIONES_MODELO, textoHistorial, MAX_NOMBRE } from './configuracion.js'
+import { PESTANAS, UBICACIONES, CLAVE_VISTA_PREVIA, opcionesForma, rotuloEspecie, PROVEEDORES, textoClave, MOTORES, OPCIONES_MODELO, textoHistorial, MAX_NOMBRE } from './configuracion.js'
 import { modeloValido } from './chat.js'
 import { NOMBRES_ESPECIES, datosEspecie, especieValida } from './especies.js'
 import { avi, claudeDe } from './avis.js'
@@ -144,24 +144,13 @@ function segmentos(accion, opciones, actual, etiqueta, clase = '') {
   return `<div class="seg${clase ? ` ${clase}` : ''}" role="radiogroup" aria-label="${etiqueta}">${botones}</div>`
 }
 
-/** Tamaño: − / % / +, con las puntas en `aria-disabled` (siguen enfocables). */
-function pasoTamano(tamano) {
-  const { achicar, agrandar } = limitesTamano(tamano)
-  return '<div class="paso" role="group" aria-label="Tamaño del panel">'
-    + `<button type="button" class="pb" aria-label="Achicar" aria-disabled="${!achicar}" data-accion="cfg-tam" data-valor="-1" data-k="tam-menos"${achicar ? '' : ' title="Ya está en el más chico"'}>−</button>`
-    + `<output class="pv" aria-live="polite">${Number(tamano)} %</output>`
-    + `<button type="button" class="pb" aria-label="Agrandar" aria-disabled="${!agrandar}" data-accion="cfg-tam" data-valor="1" data-k="tam-mas"${agrandar ? '' : ' title="Ya está en el más grande"'}>+</button>`
-    + '</div>'
-}
-
 /**
- * Pestaña Panel (4.4): tamaño, dónde vive, siempre arriba, avisar, pausar y arrancar con Windows,
- * en ese orden. `datos`: { tamano, ubicacion, arriba, avisar, pausa, arranque, error } (`error`: la
- * clave del ajuste que no se pudo guardar, o null).
+ * Pestaña Panel (4.4): dónde vive, siempre arriba, avisar, pausar y arrancar con Windows, en ese
+ * orden (sin Tamaño: el panel va siempre al 100 %, #47). `datos`: { ubicacion, arriba, avisar, pausa,
+ * arranque, error } (`error`: la clave del ajuste que no se pudo guardar, o null).
  */
 export function seccionPanel(datos) {
-  return fila('Tamaño', 'De 100 a 200 %, de a 25. También con Ctrl + y Ctrl −.', pasoTamano(datos.tamano), { error: errorDe(datos, 'tamano') })
-    + fila('Dónde vive', 'Flotando, o acoplada a un borde de la pantalla.', segmentos('cfg-ubic', UBICACIONES, datos.ubicacion, 'Dónde vive', 'ancho'), { apilada: true, error: errorDe(datos, 'ubicacion') })
+  return fila('Dónde vive', 'Flotando, o acoplada a un borde de la pantalla.', segmentos('cfg-ubic', UBICACIONES, datos.ubicacion, 'Dónde vive', 'ancho'), { apilada: true, error: errorDe(datos, 'ubicacion') })
     + filaInterruptor('arriba', 'Siempre arriba', 'Queda encima de las otras ventanas.', datos.arriba, datos)
     + filaInterruptor('avisar', 'Avisarme con cada pregunta', 'Una notificación de Windows cuando Claude te pregunta algo.', datos.avisar, datos)
     + filaInterruptor('pausa', 'Pausar animaciones', 'Las mascotas quedan quietas en su pose.', datos.pausa, datos)

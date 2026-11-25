@@ -307,7 +307,7 @@ Lanzar con `Command::new` y la búsqueda de `claude.exe`/`claude.cmd` que ya tie
 ## Preguntas abiertas
 
 - ~~¿El chat debe aparecer en Avis como sesión o quedar afuera?~~ Afuera (dirección 7.2).
-- ~~¿`--safe-mode` deja la suscripción funcionando?~~ Sí (7.1 de E0). `--restricted` no se probó.
+- ~~¿`--safe-mode` deja la suscripción funcionando?~~ Sí (7.1 de E0). `--restricted` no se probó en E0; en #43 (M-H2, 25/11) reemplazó a `--safe-mode`, que apaga `--mcp-config` (ver `docs/diseno/chat-herramientas-ux.md` 11.2).
 - ¿`--permission-prompts none` deniega de verdad en `manual`? Con solo `Read`, `Glob` y `Grep` no apareció ningún pedido de permiso en E0, así que sigue sin verse. Cómo es el `control_request` `can_use_tool` con `--permission-prompt-tool stdio`: no se vio.
 - ¿Qué tamaño máximo de PDF acepta el bloque `document` por stdin? 15 MB entra (7.8 de E0); el techo no se buscó.
 - ~~¿El cwd del chat es un repo o una carpeta propia?~~ Las dos (dirección 3.4).

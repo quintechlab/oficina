@@ -182,3 +182,13 @@ test('tamanoArchivo, detalleAdjunto y nombreArchivo', () => {
   assert.equal(nombreArchivo('/home/x/notas.md'), 'notas.md')
   assert.equal(nombreArchivo('notas.md'), 'notas.md')
 })
+
+test('sin zoom (#47): soltar sobre la hoja sin escala es lo mismo que al 100 %', () => {
+  const hoja = { x: 704, y: 200, ancho: 420, alto: 640 }
+  for (const dpr of [1, 1.25, 1.5, 2]) {
+    for (const [x, y] of [[704, 200], [703, 300], [1123, 839], [1124, 300], [900, 840]]) {
+      const p = { x: x * dpr, y: y * dpr }
+      assert.equal(sobreHoja(p, dpr, hoja), sobreHoja(p, dpr, hoja, 1), `${x},${y} a ${dpr}`)
+    }
+  }
+})

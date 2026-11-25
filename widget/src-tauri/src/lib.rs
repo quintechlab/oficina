@@ -1,13 +1,16 @@
 mod adjuntos;
 mod arranque;
+mod atomico;
 mod chat;
 mod chat_local;
 mod claves;
 mod diagnostico;
 mod engram;
 mod equipo;
+mod habitos;
 mod historial;
 mod preferencias;
+mod mcp_avis;
 mod modelo;
 mod mod_auto;
 mod transcripcion;
@@ -15,6 +18,7 @@ mod ordenes;
 mod primeros_pasos;
 mod respuestas;
 mod sesiones;
+mod tareas;
 
 use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::{Mutex, PoisonError};
@@ -456,22 +460,6 @@ fn colocar_al_arrancar(app: &AppHandle, v: &WebviewWindow) -> Result<(), String>
 
 fn ruta_preferencias(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|c| c.join("preferencias.json"))
-}
-
-fn tamano_guardado(app: &AppHandle) -> u32 {
-    ruta_preferencias(app).map(|r| preferencias::leer_tamano(&r)).unwrap_or(preferencias::PASO_POR_DEFECTO)
-}
-
-/// Agranda (1), achica (-1) o vuelve a 100 % (0): guarda y avisa a la ventana.
-fn cambiar_tamano_app(app: &AppHandle, direccion: i32) -> u32 {
-    let nuevo = preferencias::paso(tamano_guardado(app), direccion);
-    if let Some(r) = ruta_preferencias(app) {
-        if let Err(e) = preferencias::guardar_tamano(&r, nuevo) {
-            registrar(format!("configuración: no se pudo guardar el tamaño: {e}"));
-        }
-    }
-    let _ = app.emit("oficina://tamano", nuevo);
-    nuevo
 }
 
 /// Segunda vez que se abre Avis: no hay otra ventana, se muestra la que ya está.
@@ -920,6 +908,201 @@ async fn chat_borrar_todo() -> Result<serde_json::Value, String> {
     .map_err(|e| e.to_string())?
 }
 
+// ------------------------------------------------------------------ tareas (#39)
+
+/// `<config>/tareas`: un archivo por lista (`tareas.rs`).
+fn carpeta_tareas(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path().app_config_dir().map(|c| c.join("tareas")).map_err(|e| e.to_string())
+}
+
+/// Todas las listas, en orden, y los archivos rotos (S6, tareas-ux.md 11.3): `{ listas, rotas: [{ archivo, motivo }] }`.
+#[tauri::command]
+async fn tareas_leer(app: AppHandle) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_tareas(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        // Una carpeta que existe y no se puede leer es "Carpeta ilegible" (7.5), no el primer uso
+        if let Err(e) = std::fs::read_dir(&carpeta) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                registrar(format!("tareas: no se pudo leer la carpeta: {e}"));
+                return Err(e.to_string());
+            }
+        }
+        let l = tareas::listar(&carpeta);
+        // #43 (11.5): la huella de cada lista, para guardar sin pisar un cambio de la charla
+        Ok(serde_json::json!({ "listas": l.listas, "rotas": l.rotas, "huellas": l.huellas }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Guarda una lista entera (formato v1; lo que no sirve se rechaza sin tocar el archivo):
+/// `{ ok: true, lista, huella }` con lo guardado, o `{ ok: false, error }` (lo anota la ventana, 7.4: una sola línea en widget.log).
+/// `huella` (#43, 11.5): la de lo que leyó la ventana; si el archivo cambió desde entonces (la charla
+/// escribió), no guarda y el error es `"cambio"`. Sin `huella`, guarda como siempre.
+#[tauri::command]
+async fn tareas_guardar(app: AppHandle, lista: serde_json::Value, huella: Option<String>) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_tareas(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || tareas::guardar_si(&carpeta, &lista, huella.as_deref())).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok((lista, huella)) => serde_json::json!({ "ok": true, "lista": lista, "huella": huella }),
+        Err(error) => serde_json::json!({ "ok": false, "error": error }),
+    })
+}
+
+/// «Deshacer» de un recibo de la charla (#43, chat-herramientas-ux.md 11.7), solo con el clic: vuelve
+/// el cambio a su `antes` si la tarea sigue como la dejó la charla. `{ estado: "deshecho" |
+/// "cambio-despues" | "error", motivo? }`. No le manda nada a la mascota: el próximo mensaje lleva
+/// `<avis-deshecho>`. Un cambio con otra forma es un error del comando.
+#[tauri::command]
+async fn chat_deshacer(app: AppHandle, conversacion: String, cambio: serde_json::Value) -> Result<serde_json::Value, String> {
+    if !chat::conversacion_valida(&conversacion) {
+        return Err(String::from("id de conversación inválido"));
+    }
+    let carpeta = carpeta_tareas(&app)?;
+    let para_avisar = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let d = mcp_avis::deshacer(&carpeta, &cambio, chrono::Utc::now().timestamp_millis())?;
+        for t in &d.tocadas {
+            let _ = para_avisar.emit(mcp_avis::EVENTO_TAREAS, t);
+        }
+        if d.estado == "deshecho" && !d.tocadas.is_empty() {
+            el_chat()?.anotar_deshecho(&conversacion, &mcp_avis::linea_deshecho(&cambio));
+        }
+        if let Some(m) = &d.motivo {
+            registrar(format!("chat: no se pudo deshacer: {m}"));
+        }
+        Ok(serde_json::json!({ "estado": d.estado, "motivo": d.motivo }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// «Reintentar» de un recibo de error (#43, 11.9), solo con el clic: repite esa operación con lo que
+/// pidió el modelo, sin turno. Devuelve el cambio nuevo, que reemplaza a la fila de error.
+#[tauri::command]
+async fn chat_reintentar(app: AppHandle, conversacion: String, cambio: serde_json::Value) -> Result<serde_json::Value, String> {
+    if !chat::conversacion_valida(&conversacion) {
+        return Err(String::from("id de conversación inválido"));
+    }
+    let carpeta = carpeta_tareas(&app)?;
+    let para_avisar = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (nuevo, tocadas) = mcp_avis::reintentar(&carpeta, &cambio, chrono::Utc::now().timestamp_millis())?;
+        for t in &tocadas {
+            let _ = para_avisar.emit(mcp_avis::EVENTO_TAREAS, t);
+        }
+        Ok(nuevo)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Borra una lista con sus tareas (solo con el segundo clic de "¿Borrar? Sí"); nunca un archivo roto. `{ ok, error? }`.
+#[tauri::command]
+async fn tareas_borrar_lista(app: AppHandle, id: String) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_tareas(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || tareas::borrar(&carpeta, &id)).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok(()) => serde_json::json!({ "ok": true }),
+        Err(error) => {
+            registrar(format!("tareas: no se pudo borrar: {error}"));
+            serde_json::json!({ "ok": false, "error": error })
+        }
+    })
+}
+
+/// Abre `<config>/tareas/` en el Explorador (la ruta es siempre la de Avis, nunca una de la ventana).
+#[tauri::command]
+fn tareas_abrir_carpeta(app: AppHandle) -> Result<(), String> {
+    let carpeta = carpeta_tareas(&app)?;
+    std::fs::create_dir_all(&carpeta).map_err(|e| e.to_string())?;
+    std::process::Command::new("explorer").arg(&carpeta).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+// ------------------------------------------------------------------ hábitos (#41)
+
+/// `<config>/habitos`: un archivo por hábito (`habitos.rs`).
+fn carpeta_habitos(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path().app_config_dir().map(|c| c.join("habitos")).map_err(|e| e.to_string())
+}
+
+/// Todos los hábitos, en orden, y los archivos rotos (habitos-ux.md 11.5): `{ habitos, rotas: [{ archivo, motivo }] }`.
+/// Una carpeta que existe y no se puede leer es un error, no "sin hábitos".
+#[tauri::command]
+async fn habitos_leer(app: AppHandle) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_habitos(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Err(e) = std::fs::read_dir(&carpeta) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                registrar(format!("hábitos: no se pudo leer la carpeta: {e}"));
+                return Err(String::from("No se pudo abrir la carpeta de hábitos."));
+            }
+        }
+        let l = habitos::listar(&carpeta);
+        Ok(serde_json::json!({ "habitos": l.habitos, "rotas": l.rotas }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Guarda un hábito entero (formato v1; lo que no sirve se rechaza sin tocar el archivo):
+/// `{ ok: true, habito }` con lo guardado, o `{ ok: false, error }` (la ventana lo anota).
+#[tauri::command]
+async fn habitos_guardar(app: AppHandle, habito: serde_json::Value) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_habitos(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || habitos::guardar(&carpeta, &habito)).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok(habito) => serde_json::json!({ "ok": true, "habito": habito }),
+        Err(error) => serde_json::json!({ "ok": false, "error": error }),
+    })
+}
+
+/// Borra un hábito (solo con el segundo clic de "¿Borrar? Sí"); nunca un archivo roto. `{ ok, error? }`.
+#[tauri::command]
+async fn habitos_borrar(app: AppHandle, id: String) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_habitos(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || habitos::borrar(&carpeta, &id)).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok(()) => serde_json::json!({ "ok": true }),
+        Err(error) => {
+            registrar(format!("hábitos: no se pudo borrar: {error}"));
+            serde_json::json!({ "ok": false, "error": error })
+        }
+    })
+}
+
+/// Abre `<config>/habitos/` en el Explorador (la ruta es siempre la de Avis).
+#[tauri::command]
+fn habitos_abrir_carpeta(app: AppHandle) -> Result<(), String> {
+    let carpeta = carpeta_habitos(&app)?;
+    std::fs::create_dir_all(&carpeta).map_err(|e| e.to_string())?;
+    std::process::Command::new("explorer").arg(&carpeta).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// La frase del resumen semanal de hábitos (habitos-ux.md 8.4 y 11.7): `{ frase }` o un error (la ventana
+/// usa la plantilla). Solo con el modelo de esta PC instalado (si no, error sin prender nada: nunca se
+/// descarga nada); el motor se prende como para una charla (`motor_charla`, que avisa `preparando`) y se
+/// apaga solo a los 10 min. Una respuesta, 60 tokens y 45 s; nada se guarda.
+#[tauri::command]
+async fn habitos_frase(app: AppHandle, datos: serde_json::Value) -> Result<serde_json::Value, String> {
+    let motor: chat_local::MotorLocal = std::sync::Arc::new(move || {
+        let avisar = |v: serde_json::Value| {
+            let _ = app.emit(modelo::EVENTO, v);
+        };
+        modelo::IA.motor_charla(&avisar).map(|(puerto, uso)| (puerto, Box::new(uso) as Box<dyn chat_local::UsoMotor>))
+    });
+    let r = tauri::async_runtime::spawn_blocking(move || habitos::frase(&datos, &|| estado_local() == "instalado", motor, habitos::TOPE_FRASE))
+        .await
+        .map_err(|e| e.to_string())?;
+    match r {
+        Ok(frase) => Ok(serde_json::json!({ "frase": frase })),
+        Err(e) => {
+            registrar(format!("hábitos: sin la frase del resumen: {e}"));
+            Err(e)
+        }
+    }
+}
+
 /// El motor, la carpeta y el modelo de la charla (chat-avis-ux.md 3.4 y #35): quedan para la próxima
 /// charla nueva y la carpeta va primera en las recientes. `modelo`: uno de `chat::MODELOS` o `null`
 /// ("Por defecto"), guardado tal cual. Devuelve `{ motor, carpeta, recientes, modelo }` como el `chat`
@@ -950,8 +1133,10 @@ async fn elegir_carpeta(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 /// Todo lo que la ventana necesita al arrancar y para la configuración (configuracion-ux.md 9.2):
-/// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version, chat }`. `arranque` sale
-/// del sistema, no del archivo. Sin carpeta de configuración, los valores de fábrica.
+/// `{ mascota, acople, flotante, arriba, avisar, pausa, arranque, version, chat, tareasAvisado,
+/// habitosRecordados, habitosResumen, habitosFrase }`.
+/// `arranque` sale del sistema, no del archivo. Sin carpeta de configuración, los valores de fábrica.
+/// Sin `tamano`: el panel va siempre al 100 % (#47).
 #[tauri::command]
 fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
     let ruta = ruta_preferencias(&app);
@@ -961,7 +1146,6 @@ fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::
         "mascota": ruta.as_deref().map(preferencias::leer_mascota).unwrap_or_else(|| String::from(preferencias::ESPECIES[0])),
         "nombreMascota": nombres.mascota,
         "nombreUsuario": nombres.usuario,
-        "tamano": tamano_guardado(&app),
         "acople": preferencias::valor_de_acople(*estado.acople.lock().unwrap()),
         "flotante": ruta.as_deref().and_then(preferencias::leer_flotante).map(|f| serde_json::json!({ "x": f.x, "y": f.y })),
         "arriba": interruptores.arriba,
@@ -970,6 +1154,14 @@ fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::
         "arranque": arranque::marca_real(app.autolaunch().is_enabled()),
         "version": app.package_info().version.to_string(),
         "chat": valor_chat(ruta.as_deref().map(preferencias::leer_chat).unwrap_or_default()),
+        // El día del último aviso diario de tareas (tareas-ux.md 11.4), o null
+        "tareasAvisado": ruta.as_deref().and_then(preferencias::leer_tareas_avisado),
+        // Los hábitos ya recordados hoy (habitos-ux.md 8.3): `{ dia, ids }`, o null
+        "habitosRecordados": ruta.as_deref().and_then(preferencias::leer_habitos_recordados),
+        // El lunes de la semana del último resumen semanal visto (habitos-ux.md 8.4), o null
+        "habitosResumen": ruta.as_deref().and_then(preferencias::leer_habitos_resumen),
+        // La frase de esa semana (8.4): `{ lunes, frase }`, o null; así no se le pide de nuevo al modelo
+        "habitosFrase": ruta.as_deref().and_then(preferencias::leer_habitos_frase),
     })
 }
 
@@ -986,9 +1178,11 @@ fn valor_chat(c: preferencias::Chat) -> serde_json::Value {
 }
 
 /// Guarda un ajuste de la configuración (`mascota`, `arriba`, `avisar` o `pausa`; configuracion-ux.md
-/// 9.2) y aplica su efecto: "Siempre arriba" a la ventana, la pausa a la marca de la bandeja y a la
-/// ventana (`oficina://pausa`), la mascota a la ventana (`oficina://mascota`). Si no se pudo guardar,
-/// no aplica nada y la ventana vuelve el control a su valor de antes.
+/// 9.2; `tareasAvisado`, el día del aviso diario de tareas, tareas-ux.md 11.4; y `habitosRecordados`,
+/// los hábitos ya recordados hoy, habitos-ux.md 8.3) y aplica su
+/// efecto: "Siempre arriba" a la ventana, la pausa a la marca de la bandeja y a la ventana
+/// (`oficina://pausa`), la mascota a la ventana (`oficina://mascota`); el aviso y los recordados, ninguno. Si no se
+/// pudo guardar, no aplica nada y la ventana vuelve el control a su valor de antes.
 #[tauri::command]
 fn guardar_ajuste(app: AppHandle, estado: State<'_, Estado>, clave: String, valor: serde_json::Value) -> Result<serde_json::Value, String> {
     // Un error vuelve a la ventana, que lo anota en widget.log y muestra "No se pudo guardar"
@@ -1027,12 +1221,6 @@ fn poner_arranque(app: AppHandle, valor: bool) -> bool {
         registrar(format!("configuración: arrancar con Windows quedó en {real}"));
     }
     real
-}
-
-/// Ctrl + / Ctrl − / Ctrl 0 y los botones − y + de la configuración.
-#[tauri::command]
-fn cambiar_tamano(app: AppHandle, direccion: i32) -> u32 {
-    cambiar_tamano_app(&app, direccion.signum())
 }
 
 /// Posición y tamaño de la ventana, área de trabajo de su monitor y bordes donde se puede acoplar
@@ -1272,7 +1460,8 @@ fn registrar(linea: String) {
     }
 }
 
-/// Notificación de Windows con una pregunta nueva.
+/// Notificación de Windows: una pregunta nueva o el recordatorio de un hábito (habitos-ux.md 8.3 y 5.5,
+/// título y cuerpo, sin botones). Falta medir con el `.msi` el clic, cuál se tocó, imagen y botones (11.9).
 #[tauri::command]
 fn avisar(app: AppHandle, titulo: String, cuerpo: String) -> Result<(), String> {
     app.notification().builder().title(titulo).body(cuerpo).show().map_err(|e| e.to_string())
@@ -1690,6 +1879,14 @@ pub fn run() {
                     };
                     modelo::IA.motor_charla(&avisar).map(|(puerto, uso)| (puerto, Box::new(uso) as Box<dyn chat_local::UsoMotor>))
                 }));
+                // Las herramientas de tareas de la charla (#43): el servidor arranca con el primer `claude`
+                let para_tareas = handle.clone();
+                el.poner_herramientas(
+                    config.join("tareas"),
+                    std::sync::Arc::new(move |v| {
+                        let _ = para_tareas.emit(mcp_avis::EVENTO_TAREAS, v);
+                    }),
+                );
                 let _ = chat::CHAT.set(el);
             }
             // La copia del historial en Engram (9.2): una sesión por arranque, que se abre con la primera copia
@@ -1725,7 +1922,6 @@ pub fn run() {
             ajustar_ventana,
             guardar_acople,
             guardar_flotante,
-            cambiar_tamano,
             modo_mini,
             esconder,
             zona_interactiva,
@@ -1760,6 +1956,17 @@ pub fn run() {
             chat_borrar,
             chat_contar,
             chat_borrar_todo,
+            chat_deshacer,
+            chat_reintentar,
+            tareas_leer,
+            tareas_guardar,
+            tareas_borrar_lista,
+            tareas_abrir_carpeta,
+            habitos_leer,
+            habitos_guardar,
+            habitos_borrar,
+            habitos_abrir_carpeta,
+            habitos_frase,
             guardar_chat,
             elegir_carpeta,
             borrar_modelo,

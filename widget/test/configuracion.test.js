@@ -8,7 +8,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   PESTANAS, IDS_PESTANAS, pestanaSiguiente, validarAjuste, cambiosNombres, nombreMarca, subtituloConfiguracion, UBICACIONES, ubicacionDe, bordeDeUbicacion,
-  limitesTamano, configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion,
+  configInicial, abrirConfiguracion, cerrarConfiguracion, alEsc, esAtajoConfiguracion,
   pestanaValida, valorInterruptor, FORMAS_VISTA, opcionesForma, elegirForma, rotuloEspecie, anuncioEspecie, anuncioForma,
   modoVistaPrevia, CLAVE_VISTA_PREVIA, horaArgentina, textoMod, textoModelo, puntoPestana, clicBorrar, armadoVigente,
   desarmarVencido, MS_CONFIRMAR, filasEnEstaPC, marcoBajo, modeloDesdeChat, descargaDesdeConfig,
@@ -123,6 +123,33 @@ test('validarAjuste: arriba, avisar y pausa solo booleanos', () => {
   }
 })
 
+test('validarAjuste: tareasAvisado acepta un día que existe o vacío, como preferencias.rs (tareas-ux.md 11.4)', () => {
+  for (const bueno of ['2026-11-24', '2024-02-29', '']) assert.equal(validarAjuste('tareasAvisado', bueno), true, bueno)
+  for (const malo of ['2026-02-30', '2025-02-29', '2026-13-01', '2026-11-24T10:00', '2026-11-24 10:00', '2026-1-05', '+026-11-24', '24/11/2026', 20261124, true, null, undefined, {}]) {
+    assert.equal(validarAjuste('tareasAvisado', malo), false, String(malo))
+  }
+  // Las otras claves siguen como estaban
+  assert.equal(validarAjuste('mascota', '2026-11-24'), false)
+  assert.equal(validarAjuste('pausa', '2026-11-24'), false)
+})
+
+test('validarAjuste: habitosRecordados acepta { dia, ids } con ids de hábito, hasta 100, como preferencias.rs (habitos-ux.md 11.5)', () => {
+  const cien = Array.from({ length: 100 }, (_, i) => `h-${i}`)
+  for (const bueno of [{ dia: '2026-11-26', ids: [] }, { dia: '2026-11-26', ids: ['h-agua', 'h-mf3k-2a'] }, { dia: '2024-02-29', ids: cien }]) {
+    assert.equal(validarAjuste('habitosRecordados', bueno), true, JSON.stringify(bueno))
+  }
+  for (const malo of [
+    { dia: '2026-02-30', ids: [] }, { dia: '', ids: [] }, { ids: [] }, { dia: '2026-11-26' }, { dia: '2026-11-26', ids: ['l-trabajo'] },
+    { dia: '2026-11-26', ids: ['h-../x'] }, { dia: '2026-11-26', ids: ['h-A'] }, { dia: '2026-11-26', ids: [3] }, { dia: '2026-11-26', ids: 'h-agua' },
+    { dia: '2026-11-26', ids: [...cien, 'h-100'] }, { dia: '2026-11-26', ids: [], otra: 1 }, '2026-11-26', null, true, [],
+  ]) {
+    assert.equal(validarAjuste('habitosRecordados', malo), false, JSON.stringify(malo))
+  }
+  // Las otras claves siguen igual: el aviso de tareas no acepta la forma de los recordados
+  assert.equal(validarAjuste('tareasAvisado', { dia: '2026-11-26', ids: [] }), false)
+  assert.equal(validarAjuste('tareasAvisado', '2026-11-26'), true)
+})
+
 test('validarAjuste: una clave desconocida se rechaza', () => {
   assert.equal(validarAjuste('tamano', 125), false)
   assert.equal(validarAjuste('clave', 'sk-falsa'), false)
@@ -201,15 +228,9 @@ test('ubicacionDe y bordeDeUbicacion: flotando es "flota"; acoplada, su borde', 
   assert.equal(bordeDeUbicacion('cualquiera'), undefined)
 })
 
-test('limitesTamano: − se apaga en 100 % y + en 200 %', () => {
-  assert.deepEqual(limitesTamano(100), { achicar: false, agrandar: true })
-  assert.deepEqual(limitesTamano(150), { achicar: true, agrandar: true })
-  assert.deepEqual(limitesTamano(200), { achicar: true, agrandar: false })
-})
-
 // ------------------------------------------------------------------ lo que dibuja la hoja (4.3 y 5)
 
-const PANEL = { tamano: 125, ubicacion: 'flota', arriba: true, avisar: false, pausa: false, arranque: false, error: null }
+const PANEL = { ubicacion: 'flota', arriba: true, avisar: false, pausa: false, arranque: false, error: null }
 
 test('las pestañas: tablist con una sola en el orden de tabulación y el indicador', () => {
   const html = pestanasConfiguracion('panel')
@@ -228,10 +249,9 @@ test('el esqueleto: aviso, pestañas, panel de pestaña enfocable y la región d
   assert.match(html, /class="oculto" role="status" id="cfg-vivo"/)
 })
 
-test('Panel: las seis filas, en orden y con los textos de la dirección', () => {
+test('Panel: las cinco filas, en orden y con los textos de la dirección', () => {
   const html = seccionConfiguracion('panel', PANEL)
   const textos = [
-    'Tamaño', 'De 100 a 200 %, de a 25. También con Ctrl + y Ctrl −.',
     'Dónde vive', 'Flotando, o acoplada a un borde de la pantalla.',
     'Siempre arriba', 'Queda encima de las otras ventanas.',
     'Avisarme con cada pregunta', 'Una notificación de Windows cuando Claude te pregunta algo.',
@@ -255,15 +275,6 @@ test('Panel: cada interruptor es un switch con su estado y "Sí"/"No" oculto al 
   const prendido = seccionConfiguracion('panel', { ...PANEL, arranque: true, pausa: true })
   assert.match(prendido, /aria-checked="true" aria-label="Arrancar con Windows"/)
   assert.match(prendido, /aria-checked="true" aria-label="Pausar animaciones"/)
-})
-
-test('Panel: el tamaño con − y + que se apagan en las puntas y el porcentaje', () => {
-  const html = seccionConfiguracion('panel', PANEL)
-  assert.match(html, /role="group" aria-label="Tamaño del panel"/)
-  assert.match(html, /aria-label="Achicar" aria-disabled="false"/)
-  assert.match(html, /<output class="pv"[^>]*>125 %<\/output>/)
-  assert.match(seccionConfiguracion('panel', { ...PANEL, tamano: 100 }), /aria-label="Achicar" aria-disabled="true"/)
-  assert.match(seccionConfiguracion('panel', { ...PANEL, tamano: 200 }), /aria-label="Agrandar" aria-disabled="true"/)
 })
 
 test('Panel: "Dónde vive" es un radiogroup con la ubicación actual elegida y enfocable', () => {
@@ -873,4 +884,32 @@ test('marcoBajo: menos de 520 px CSS de tablero compacta el encabezado de la hoj
   assert.equal(marcoBajo(519), true)
   assert.equal(marcoBajo(520), false)
   assert.equal(marcoBajo(640), false)
+})
+
+test('validarAjuste: habitosResumen (un lunes o vacío) y habitosFrase ({ lunes, frase }), como preferencias.rs (habitos-ux.md 8.4)', () => {
+  for (const bueno of ['2026-11-23', '']) assert.equal(validarAjuste('habitosResumen', bueno), true, bueno)
+  for (const malo of ['2026-11-24', '2026-02-30', null, 20261123]) assert.equal(validarAjuste('habitosResumen', malo), false, String(malo))
+  assert.equal(validarAjuste('habitosFrase', { lunes: '2026-11-23', frase: 'Bien.' }), true)
+  assert.equal(validarAjuste('habitosFrase', { lunes: '2026-11-23', frase: '' }), true)
+  assert.equal(validarAjuste('habitosFrase', { lunes: '2026-11-24', frase: '' }), false)
+  assert.equal(validarAjuste('habitosFrase', { lunes: '2026-11-23', frase: 'a\nb' }), false)
+  // Las claves de antes siguen igual
+  assert.equal(validarAjuste('tareasAvisado', '2026-11-24'), true)
+  assert.equal(validarAjuste('habitosRecordados', { dia: '2026-11-26', ids: ['h-agua'] }), true)
+  assert.equal(validarAjuste('habitosRecordados', '2026-11-23'), false)
+  assert.equal(validarAjuste('mascota', 'lumen'), true)
+  assert.equal(validarAjuste('otra', '2026-11-23'), false)
+})
+
+test('Panel sin zoom (#47): no hay fila Tamaño ni botones − y +; quedan las otras cinco en orden', () => {
+  const html = seccionConfiguracion('panel', PANEL)
+  assert.doesNotMatch(html, /Tamaño|Ctrl \+|cfg-tam|Achicar|Agrandar|class="pv"/)
+  const textos = ['Dónde vive', 'Siempre arriba', 'Avisarme con cada pregunta', 'Pausar animaciones', 'Arrancar con Windows']
+  let desde = -1
+  for (const t of textos) {
+    const i = html.indexOf(t, desde + 1)
+    assert.ok(i > desde, `falta o fuera de orden: ${t}`)
+    desde = i
+  }
+  assert.equal((html.match(/<span class="aj-t"|<label class="aj-t"/g) ?? []).length, 5)
 })

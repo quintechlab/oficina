@@ -1,10 +1,12 @@
-//! Preferencias del widget que sobreviven entre usos: el tamaño elegido en la bandeja, el borde
-//! donde está acoplada la muesca (docs/diseno/estilo-avis-ux.md, 7.5), la posición del tablero
+//! Preferencias del widget que sobreviven entre usos: el borde donde está acoplada la muesca
+//! (docs/diseno/estilo-avis-ux.md, 7.5), la posición del tablero
 //! flotante, el monitor de la última vez (9.7), la última revisión automática del mod (#17) y la
 //! mascota de Claude (docs/diseno/mascotas-avi-ux.md 9.1), los interruptores de la configuración
 //! (docs/diseno/configuracion-ux.md 9.1: `arriba`, `avisar`, `pausa`) y el motor, la carpeta y las
 //! carpetas recientes de la charla (docs/diseno/chat-avis-ux.md 3.4).
 //! Se guardan en `<carpeta de configuración de la app>/preferencias.json`. Nunca claves de API.
+//! El panel va siempre al 100 % (#47): la clave `tamano` de las versiones con zoom queda sin uso; no
+//! se lee ni se escribe, y `escribir` la conserva tal cual, como cualquier clave que no conoce (D9).
 
 use std::path::Path;
 
@@ -12,41 +14,10 @@ use serde_json::{json, Value};
 
 use crate::chat;
 
-/// Pasos del tamaño, en porcentaje del tamaño original (el de la versión 0.1): de 100 % a 200 %.
-pub const PASOS: [u32; 5] = [100, 125, 150, 175, 200];
-pub const PASO_POR_DEFECTO: u32 = 100;
-
-/// Tamaño guardado. Sin archivo o ilegible, 100 %. Migra el valor de la 0.2: "normal" es 100 %,
-/// "grande" y "muy grande" son 200 % (lo más grande que hay ahora).
-pub fn leer_tamano(ruta: &Path) -> u32 {
-    let guardado = std::fs::read_to_string(ruta)
-        .ok()
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
-        .map(|v| v["tamano"].clone())
-        .unwrap_or(serde_json::Value::Null);
-    match guardado {
-        serde_json::Value::Number(n) => n.as_u64().map(|n| n as u32).filter(|n| PASOS.contains(n)).unwrap_or(PASO_POR_DEFECTO),
-        serde_json::Value::String(t) => match t.as_str() {
-            "grande" | "muy-grande" | "muy grande" => 200,
-            _ => PASO_POR_DEFECTO,
-        },
-        _ => PASO_POR_DEFECTO,
-    }
-}
-
-/// Guarda el tamaño elegido (solo uno de `PASOS`). Lo demás guardado se conserva.
-pub fn guardar_tamano(ruta: &Path, tamano: u32) -> Result<(), String> {
-    if !PASOS.contains(&tamano) {
-        return Err(format!("tamaño desconocido: {tamano}"));
-    }
-    escribir(ruta, Preferencias { tamano, ..leer_todo(ruta) })
-}
-
 /// Lo que Rust escribe con forma propia: guardar una preferencia no borra las otras. Lo demás del
 /// archivo (la mascota, los interruptores, una clave de otra entrega o de una versión más nueva) se
 /// conserva tal cual (D9); `ajustes` pisa solo las claves que trae.
 struct Preferencias {
-    tamano: u32,
     acople: Option<Acople>,
     flotante: Option<Flotante>,
     monitor: Option<(f64, f64)>,
@@ -57,10 +28,9 @@ struct Preferencias {
     ajustes: Vec<(&'static str, Value)>,
 }
 
-/// Lo guardado, ya leído y migrado (el tamaño de texto de la 0.2 pasa a número).
+/// Lo guardado, ya leído.
 fn leer_todo(ruta: &Path) -> Preferencias {
     Preferencias {
-        tamano: leer_tamano(ruta),
         acople: leer_acople(ruta),
         flotante: leer_flotante(ruta),
         monitor: leer_monitor(ruta),
@@ -71,7 +41,7 @@ fn leer_todo(ruta: &Path) -> Preferencias {
 }
 
 /// Escribe el archivo: parte de lo leído (si es un objeto) y pisa solo sus claves (D9 de
-/// configuracion-ux.md 9.1). Así una clave que esta versión no conoce sobrevive a guardar el tamaño.
+/// configuracion-ux.md 9.1). Así una clave que esta versión no conoce sobrevive a guardar el acople.
 fn escribir(ruta: &Path, p: Preferencias) -> Result<(), String> {
     if let Some(carpeta) = ruta.parent() {
         std::fs::create_dir_all(carpeta).map_err(|e| e.to_string())?;
@@ -83,7 +53,6 @@ fn escribir(ruta: &Path, p: Preferencias) -> Result<(), String> {
     let flotante = p.flotante.map_or(Value::Null, |f| json!({ "x": fraccion(Some(f.x)), "y": fraccion(Some(f.y)) }));
     let monitor = p.monitor.map_or(Value::Null, |(x, y)| json!({ "x": x, "y": y }));
     let revision_mod = p.revision_mod.map_or(Value::Null, |r| json!({ "revisado": r.revisado, "fallo": r.fallo }));
-    valor.insert(String::from("tamano"), json!(p.tamano));
     valor.insert(String::from("acople"), valor_de_acople(p.acople));
     valor.insert(String::from("flotante"), flotante);
     valor.insert(String::from("monitor"), monitor);
@@ -122,19 +91,71 @@ pub fn leer_interruptores(ruta: &Path) -> Interruptores {
     Interruptores { arriba: leer("arriba", f.arriba), avisar: leer("avisar", f.avisar), pausa: leer("pausa", f.pausa) }
 }
 
-/// Las claves que escribe `guardar_ajuste` (el tamaño y el acople tienen sus comandos propios). Las
-/// mismas que `validarAjuste` de configuracion.js; `motor` llega con el chat.
-const AJUSTES: [&str; 6] = ["mascota", "arriba", "avisar", "pausa", "nombreMascota", "nombreUsuario"];
+/// Las claves que escribe `guardar_ajuste` (el acople tiene su comando propio; `tamano`, ninguno: #47). Los nombres (#37) son
+/// `nombreMascota` y `nombreUsuario`. Las
+/// mismas que `validarAjuste` de configuracion.js; `motor` llega con el chat. `tareasAvisado` es el
+/// día del aviso diario de tareas (tareas-ux.md 11.4) y se guarda adentro de `"tareas"`.
+/// `habitosRecordados` son los hábitos ya recordados hoy (habitos-ux.md 8.3 y 11.5), `habitosResumen` el
+/// lunes de la semana del último resumen semanal que se vio y `habitosFrase` la frase de esa semana
+/// (`{ lunes, frase }`, 8.4: se pide como mucho una vez por semana), las tres tal cual.
+const AJUSTES: [&str; 10] = ["mascota", "arriba", "avisar", "pausa", "nombreMascota", "nombreUsuario", "tareasAvisado", "habitosRecordados", "habitosResumen", "habitosFrase"];
+
+/// La frase de la semana como mucho (habitos-ux.md 8.4, `MAX_FRASE` de habitos.js).
+const MAX_FRASE: usize = 160;
+
+/// Cuántos hábitos recordados se guardan como mucho (habitos-ux.md 11.5; `MAX_RECORDADOS` de habitos.js).
+const MAX_RECORDADOS: usize = 100;
 
 /// ¿`valor` sirve para `clave`? La mascota, una de `ESPECIES` (texto exacto); los interruptores,
-/// solo booleanos; los nombres (#37), texto que sirva para `nombre_valido`. Cualquier otra clave, no.
+/// solo booleanos; el aviso de tareas, un día que existe `AAAA-MM-DD` o vacío; los hábitos recordados,
+/// `{ dia, ids }` (`recordados_validos`); el resumen de hábitos, un lunes que existe o vacío; los nombres (#37),
+/// texto que sirva para `nombre_valido`. Cualquier otra clave, no.
 pub fn ajuste_valido(clave: &str, valor: &Value) -> bool {
     match clave {
         "mascota" => valor.as_str().is_some_and(|m| ESPECIES.contains(&m)),
         "arriba" | "avisar" | "pausa" => valor.is_boolean(),
+        "tareasAvisado" => valor.as_str().is_some_and(|d| d.is_empty() || dia_valido(d)),
+        "habitosRecordados" => recordados_validos(valor),
+        "habitosResumen" => valor.as_str().is_some_and(|d| d.is_empty() || lunes_valido(d)),
+        "habitosFrase" => frase_semana_valida(valor),
         "nombreMascota" | "nombreUsuario" => valor.as_str().is_some_and(nombre_valido),
         _ => false,
     }
+}
+
+/// ¿`AAAA-MM-DD` de un día que existe? Solo dígitos y los dos guiones (sin hora ni signo).
+fn dia_valido(d: &str) -> bool {
+    let b = d.as_bytes();
+    b.len() == 10
+        && b.iter().enumerate().all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() })
+        && chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok()
+}
+
+/// ¿Un día que existe y es lunes? (el de `habitosResumen`, habitos-ux.md 8.4: la semana va de lunes a domingo)
+fn lunes_valido(d: &str) -> bool {
+    dia_valido(d) && chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok_and(|f| chrono::Datelike::weekday(&f) == chrono::Weekday::Mon)
+}
+
+/// La frase de la semana (habitos-ux.md 8.4): un objeto con solo `lunes` (un lunes que existe) y `frase`
+/// (una línea de 0 a 160 caracteres; "" si el pedido falló y va la plantilla). Así, entre arranques, el
+/// modelo se usa como mucho una vez por semana.
+fn frase_semana_valida(valor: &Value) -> bool {
+    let Some(o) = valor.as_object() else { return false };
+    let lunes = o.get("lunes").and_then(Value::as_str).is_some_and(lunes_valido);
+    let frase = o.get("frase").and_then(Value::as_str).is_some_and(|f| !f.contains(['\n', '\r']) && f.chars().count() <= MAX_FRASE);
+    o.len() == 2 && lunes && frase
+}
+
+/// Los hábitos recordados (habitos-ux.md 11.5): un objeto con solo `dia` (un día que existe) e `ids`
+/// (hasta 100 ids de hábito válidos, `habitos::id_valido`). Así un reinicio el mismo día no repite el
+/// recordatorio (8.3).
+fn recordados_validos(valor: &Value) -> bool {
+    let Some(o) = valor.as_object() else { return false };
+    let dia = o.get("dia").and_then(Value::as_str).is_some_and(dia_valido);
+    let ids = o.get("ids").and_then(Value::as_array).is_some_and(|ids| {
+        ids.len() <= MAX_RECORDADOS && ids.iter().all(|id| id.as_str().is_some_and(crate::habitos::id_valido))
+    });
+    o.len() == 2 && dia && ids
 }
 
 /// Un nombre de la configuración (#37 S4): hasta 40 caracteres sin contar los espacios de los
@@ -162,13 +183,51 @@ pub fn leer_nombres(ruta: &Path) -> Nombres {
     Nombres { mascota: leer("nombreMascota"), usuario: leer("nombreUsuario") }
 }
 
-/// Guarda un ajuste de la configuración y conserva lo demás. Uno inválido no toca el archivo.
+/// Guarda un ajuste de la configuración y conserva lo demás. Uno inválido no toca el archivo. El aviso
+/// de tareas va a `"tareas": { "avisado" }` (11.4), conservando lo demás que haya en `"tareas"`.
 pub fn guardar_ajuste(ruta: &Path, clave: &str, valor: &Value) -> Result<(), String> {
     let clave = AJUSTES
         .into_iter()
         .find(|c| *c == clave && ajuste_valido(c, valor))
         .ok_or_else(|| format!("ajuste inválido: {clave}"))?;
-    escribir(ruta, Preferencias { ajustes: vec![(clave, valor.clone())], ..leer_todo(ruta) })
+    let ajuste = if clave == "tareasAvisado" {
+        let mut tareas = match leer_valor(ruta).and_then(|v| v.get("tareas").cloned()) {
+            Some(Value::Object(m)) => m,
+            _ => serde_json::Map::new(),
+        };
+        tareas.insert(String::from("avisado"), valor.clone());
+        ("tareas", Value::Object(tareas))
+    } else {
+        (clave, valor.clone())
+    };
+    escribir(ruta, Preferencias { ajustes: vec![ajuste], ..leer_todo(ruta) })
+}
+
+/// Los hábitos ya recordados (`habitosRecordados`, habitos-ux.md 8.3), o `None` si no hay o no sirven
+/// (lo escrito a mano que no pasa `recordados_validos` se lee como nada recordado).
+pub fn leer_habitos_recordados(ruta: &Path) -> Option<Value> {
+    leer_valor(ruta).and_then(|v| v.get("habitosRecordados").cloned()).filter(recordados_validos)
+}
+
+/// El lunes de la semana del último resumen semanal visto (`habitosResumen`, habitos-ux.md 8.4), o `None`
+/// si no hay, está vacío o no es un lunes que existe (lo escrito a mano que no sirve se lee como nunca visto).
+pub fn leer_habitos_resumen(ruta: &Path) -> Option<String> {
+    leer_valor(ruta)
+        .and_then(|v| v.get("habitosResumen")?.as_str().map(String::from))
+        .filter(|d| lunes_valido(d))
+}
+
+/// La frase guardada de la semana (`habitosFrase`, habitos-ux.md 8.4), o `None` si no hay o no sirve.
+pub fn leer_habitos_frase(ruta: &Path) -> Option<Value> {
+    leer_valor(ruta).and_then(|v| v.get("habitosFrase").cloned()).filter(frase_semana_valida)
+}
+
+/// El día del último aviso diario de tareas (`tareas.avisado`, 11.4). Sin archivo, sin la clave,
+/// vacío o algo que no es un día: `None` (nunca avisado).
+pub fn leer_tareas_avisado(ruta: &Path) -> Option<String> {
+    leer_valor(ruta)
+        .and_then(|v| v.get("tareas")?.get("avisado")?.as_str().map(String::from))
+        .filter(|d| dia_valido(d))
 }
 
 // ------------------------------------------------------------------ mascota (docs/diseno/mascotas-avi-ux.md 9.1)
@@ -255,7 +314,7 @@ pub fn guardar_chat(ruta: &Path, motor: &str, carpeta: Option<&str>, modelo: Opt
 
 /// Posición del tablero flotante adentro del área de trabajo: la fracción del lugar libre (0 arriba
 /// a la izquierda, 1 abajo a la derecha; `fraccionFlotante` de `tamano.js`). Así vuelve adentro del
-/// área aunque cambie el monitor, la barra de tareas o el tamaño elegido. Reemplaza a lo que
+/// área aunque cambie el monitor, la barra de tareas o el tamaño del tablero. Reemplaza a lo que
 /// guardaba `tauri-plugin-window-state` de la ventana flotante.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Flotante {
@@ -382,19 +441,9 @@ pub fn leer_acople(ruta: &Path) -> Option<Acople> {
     acople_desde_valor(&leer_valor(ruta)?["acople"])
 }
 
-/// Guarda el acople (`None`: flota) y conserva lo demás, con el tamaño ya migrado al número.
+/// Guarda el acople (`None`: flota) y conserva lo demás.
 pub fn guardar_acople(ruta: &Path, acople: Option<Acople>) -> Result<(), String> {
     escribir(ruta, Preferencias { acople, ..leer_todo(ruta) })
-}
-
-/// El paso siguiente: `direccion` 1 agranda, -1 achica, 0 vuelve a 100 %. Se frena en las puntas.
-pub fn paso(actual: u32, direccion: i32) -> u32 {
-    if direccion == 0 {
-        return PASO_POR_DEFECTO;
-    }
-    let i = PASOS.iter().position(|p| *p == actual).unwrap_or(0) as i32;
-    let j = (i + direccion.signum()).clamp(0, PASOS.len() as i32 - 1);
-    PASOS[j as usize]
 }
 
 /// Qué hacer cuando se abre Avis con una ya abierta: nunca otra ventana, sino mostrar la que hay.
@@ -437,65 +486,55 @@ mod tests {
     }
 
     #[test]
-    fn sin_archivo_o_con_basura_el_tamano_es_100() {
-        let r = ruta_temporal("defecto");
-        assert_eq!(leer_tamano(&r), 100);
-        fs::create_dir_all(r.parent().unwrap()).unwrap();
-        fs::write(&r, "no es json").unwrap();
-        assert_eq!(leer_tamano(&r), 100);
-        fs::write(&r, r#"{"tamano":"gigante"}"#).unwrap();
-        assert_eq!(leer_tamano(&r), 100);
-        fs::write(&r, r#"{"tamano":130}"#).unwrap();
-        assert_eq!(leer_tamano(&r), 100);
-        fs::remove_dir_all(r.parent().unwrap()).unwrap();
-    }
-
-    #[test]
-    fn migra_el_tamano_de_la_version_anterior() {
-        let r = ruta_temporal("migrar");
-        fs::create_dir_all(r.parent().unwrap()).unwrap();
-        for (viejo, nuevo) in [("normal", 100), ("grande", 200), ("muy-grande", 200), ("muy grande", 200)] {
-            fs::write(&r, format!(r#"{{"tamano":"{viejo}"}}"#)).unwrap();
-            assert_eq!(leer_tamano(&r), nuevo, "{viejo}");
+    fn un_tamano_viejo_no_rompe_la_lectura_y_queda_sin_uso() {
+        // #47 (S2): el panel va siempre al 100 %; el `tamano` de antes (125–200, "grande", "muy
+        // grande" o basura) no cambia nada de lo que se lee y escribir lo conserva tal cual (D9)
+        for viejo in [json!(125), json!(200), json!("grande"), json!("muy grande"), json!("basura"), json!([1])] {
+            let r = ruta_temporal("tamano-viejo");
+            fs::create_dir_all(r.parent().unwrap()).unwrap();
+            let texto = json!({
+                "tamano": viejo, "mascota": "ascua", "arriba": false,
+                "acople": { "borde": "arriba", "lugar": 0.42 }, "flotante": { "x": 0.25, "y": 0.8 },
+            });
+            fs::write(&r, texto.to_string()).unwrap();
+            assert_eq!(leer_mascota(&r), "ascua", "{viejo}");
+            assert!(!leer_interruptores(&r).arriba, "{viejo}");
+            assert_eq!(leer_acople(&r), Some(Acople { borde: Borde::Arriba, lugar: 0.42 }), "{viejo}");
+            assert_eq!(leer_flotante(&r), Some(Flotante { x: 0.25, y: 0.8 }), "{viejo}");
+            guardar_ajuste(&r, "pausa", &json!(true)).unwrap();
+            guardar_acople(&r, None).unwrap();
+            guardar_monitor(&r, (10.0, 20.0)).unwrap();
+            let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+            assert_eq!(guardado["tamano"], viejo, "{viejo}");
+            assert_eq!(leer_mascota(&r), "ascua", "{viejo}");
+            assert!(leer_interruptores(&r).pausa, "{viejo}");
+            fs::remove_dir_all(r.parent().unwrap()).unwrap();
         }
+    }
+
+    #[test]
+    fn guardar_no_agrega_un_tamano() {
+        // #47: sin zoom, ninguna preferencia escribe `tamano`
+        let r = ruta_temporal("sin-tamano");
+        guardar_ajuste(&r, "pausa", &json!(true)).unwrap();
+        guardar_acople(&r, Some(Acople { borde: Borde::Abajo, lugar: 0.3 })).unwrap();
+        guardar_flotante(&r, Flotante { x: 0.5, y: 0.5 }).unwrap();
+        guardar_monitor(&r, (10.0, 20.0)).unwrap();
+        guardar_revision_mod(&r, RevisionMod { revisado: 1_795_000_000_000, fallo: false }).unwrap();
+        let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+        assert_eq!(guardado.get("tamano"), None);
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 
     #[test]
-    fn el_tamano_elegido_se_guarda_y_se_vuelve_a_leer() {
-        let r = ruta_temporal("guardar");
-        guardar_tamano(&r, 175).unwrap();
-        assert_eq!(leer_tamano(&r), 175);
-        guardar_tamano(&r, 100).unwrap();
-        assert_eq!(leer_tamano(&r), 100);
-        assert!(guardar_tamano(&r, 130).is_err());
-        assert_eq!(leer_tamano(&r), 100);
-        fs::remove_dir_all(r.parent().unwrap()).unwrap();
-    }
-
-    #[test]
-    fn agrandar_y_achicar_de_a_un_paso_frenando_en_las_puntas() {
-        assert_eq!(paso(100, 1), 125);
-        assert_eq!(paso(175, 1), 200);
-        assert_eq!(paso(200, 1), 200);
-        assert_eq!(paso(150, -1), 125);
-        assert_eq!(paso(100, -1), 100);
-        assert_eq!(paso(175, 0), 100);
-        // Un valor fuera de los pasos arranca desde 100 %
-        assert_eq!(paso(130, 1), 125);
-    }
-
-    #[test]
-    fn un_archivo_viejo_sin_acople_flota_y_conserva_el_tamano() {
+    fn un_archivo_viejo_sin_acople_flota() {
         let r = ruta_temporal("viejo");
         fs::create_dir_all(r.parent().unwrap()).unwrap();
         // Archivos de la 0.3: solo el tamaño (número o texto de la 0.2)
         fs::write(&r, r#"{"tamano":150}"#).unwrap();
         assert_eq!(leer_acople(&r), None);
-        assert_eq!(leer_tamano(&r), 150);
         fs::write(&r, r#"{"tamano":"grande"}"#).unwrap();
         assert_eq!(leer_acople(&r), None);
-        assert_eq!(leer_tamano(&r), 200);
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
         // Sin archivo, también flota
         assert_eq!(leer_acople(&ruta_temporal("sin-archivo")), None);
@@ -526,19 +565,19 @@ mod tests {
     }
 
     #[test]
-    fn guardar_el_acople_conserva_el_tamano_y_guardar_el_tamano_conserva_el_acople() {
+    fn guardar_el_acople_conserva_el_monitor_y_guardar_el_monitor_conserva_el_acople() {
         let r = ruta_temporal("guardar-acople");
-        guardar_tamano(&r, 175).unwrap();
+        guardar_monitor(&r, (175.0, 0.0)).unwrap();
         guardar_acople(&r, Some(Acople { borde: Borde::Abajo, lugar: 0.3 })).unwrap();
-        assert_eq!(leer_tamano(&r), 175);
+        assert_eq!(leer_monitor(&r), Some((175.0, 0.0)));
         assert_eq!(leer_acople(&r), Some(Acople { borde: Borde::Abajo, lugar: 0.3 }));
-        guardar_tamano(&r, 125).unwrap();
+        guardar_monitor(&r, (125.0, 0.0)).unwrap();
         assert_eq!(leer_acople(&r), Some(Acople { borde: Borde::Abajo, lugar: 0.3 }));
-        assert_eq!(leer_tamano(&r), 125);
+        assert_eq!(leer_monitor(&r), Some((125.0, 0.0)));
         // Flotar guarda `"acople": null`, como dice la dirección (7.5)
         guardar_acople(&r, None).unwrap();
         assert_eq!(leer_acople(&r), None);
-        assert_eq!(leer_tamano(&r), 125);
+        assert_eq!(leer_monitor(&r), Some((125.0, 0.0)));
         let guardado: serde_json::Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
         assert_eq!(guardado["acople"], serde_json::Value::Null);
         // El lugar se guarda ya ajustado entre 0 y 1
@@ -548,31 +587,19 @@ mod tests {
     }
 
     #[test]
-    fn guardar_el_acople_migra_el_tamano_de_texto_de_la_version_anterior() {
-        let r = ruta_temporal("migrar-acople");
-        fs::create_dir_all(r.parent().unwrap()).unwrap();
-        fs::write(&r, r#"{"tamano":"muy grande"}"#).unwrap();
-        guardar_acople(&r, Some(Acople { borde: Borde::Izquierda, lugar: 0.5 })).unwrap();
-        let guardado: serde_json::Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
-        assert_eq!(guardado["tamano"], serde_json::json!(200));
-        assert_eq!(guardado["acople"], serde_json::json!({ "borde": "izquierda", "lugar": 0.5 }));
-        fs::remove_dir_all(r.parent().unwrap()).unwrap();
-    }
-
-    #[test]
     fn la_posicion_flotante_se_guarda_entre_0_y_1_y_no_borra_lo_demas() {
         let r = ruta_temporal("flotante");
         // Sin archivo, ni posición ni monitor: el tablero arranca al medio del principal
         assert_eq!(leer_flotante(&r), None);
         assert_eq!(leer_monitor(&r), None);
-        guardar_tamano(&r, 150).unwrap();
+        guardar_monitor(&r, (150.0, 0.0)).unwrap();
         guardar_acople(&r, Some(Acople { borde: Borde::Abajo, lugar: 0.3 })).unwrap();
         guardar_flotante(&r, Flotante { x: 0.25, y: 0.8 }).unwrap();
         assert_eq!(leer_flotante(&r), Some(Flotante { x: 0.25, y: 0.8 }));
-        // Guardar la posición conserva el tamaño y el acople, y al revés
-        assert_eq!(leer_tamano(&r), 150);
+        // Guardar la posición conserva el monitor y el acople, y al revés
+        assert_eq!(leer_monitor(&r), Some((150.0, 0.0)));
         assert_eq!(leer_acople(&r), Some(Acople { borde: Borde::Abajo, lugar: 0.3 }));
-        guardar_tamano(&r, 175).unwrap();
+        guardar_monitor(&r, (175.0, 0.0)).unwrap();
         guardar_acople(&r, None).unwrap();
         assert_eq!(leer_flotante(&r), Some(Flotante { x: 0.25, y: 0.8 }));
         // Fuera de 0..1 se topa; lo que no es número va al medio
@@ -590,7 +617,7 @@ mod tests {
         let r = ruta_temporal("monitor");
         guardar_monitor(&r, (2880.0, 700.0)).unwrap();
         assert_eq!(leer_monitor(&r), Some((2880.0, 700.0)));
-        guardar_tamano(&r, 125).unwrap();
+        guardar_ajuste(&r, "pausa", &json!(true)).unwrap();
         guardar_acople(&r, Some(Acople { borde: Borde::Arriba, lugar: 0.5 })).unwrap();
         guardar_flotante(&r, Flotante { x: 0.5, y: 0.5 }).unwrap();
         assert_eq!(leer_monitor(&r), Some((2880.0, 700.0)));
@@ -606,12 +633,12 @@ mod tests {
         let r = ruta_temporal("revision-mod");
         // Sin archivo: ninguna revisión (toca revisar)
         assert_eq!(leer_revision_mod(&r), None);
-        guardar_tamano(&r, 150).unwrap();
+        guardar_monitor(&r, (150.0, 0.0)).unwrap();
         guardar_revision_mod(&r, RevisionMod { revisado: 1_795_000_000_000, fallo: true }).unwrap();
         assert_eq!(leer_revision_mod(&r), Some(RevisionMod { revisado: 1_795_000_000_000, fallo: true }));
-        assert_eq!(leer_tamano(&r), 150);
+        assert_eq!(leer_monitor(&r), Some((150.0, 0.0)));
         // Guardar cualquier otra preferencia no la borra
-        guardar_tamano(&r, 175).unwrap();
+        guardar_monitor(&r, (175.0, 0.0)).unwrap();
         guardar_acople(&r, Some(Acople { borde: Borde::Abajo, lugar: 0.3 })).unwrap();
         guardar_flotante(&r, Flotante { x: 0.2, y: 0.4 }).unwrap();
         guardar_monitor(&r, (100.0, 200.0)).unwrap();
@@ -692,10 +719,10 @@ mod tests {
         // El motor local guarda el motor; un motor desconocido no se guarda
         assert_eq!(guardar_chat(&r, "local", None, None).unwrap().motor, Some(String::from("local")));
         assert!(guardar_chat(&r, "otro", None, None).is_err());
-        assert_eq!(leer_tamano(&r), 150);
+        assert_eq!(leer_valor(&r).unwrap()["tamano"], json!(150));
         assert_eq!(leer_mascota(&r), "ascua");
         // Guardar otra preferencia no borra la charla
-        guardar_tamano(&r, 175).unwrap();
+        guardar_monitor(&r, (175.0, 0.0)).unwrap();
         guardar_acople(&r, None).unwrap();
         assert_eq!(leer_chat(&r).recientes, ["C:\\dos", "C:\\uno"].map(String::from).to_vec());
         assert_eq!(leer_chat(&r).motor, Some(String::from("local")));
@@ -724,7 +751,7 @@ mod tests {
         assert_eq!(fs::read_to_string(&r).unwrap(), antes);
         // Las claves que esta versión no conoce siguen ahí
         assert!(antes.contains("una version nueva"));
-        assert_eq!(leer_tamano(&r), 150);
+        assert_eq!(leer_valor(&r).unwrap()["tamano"], json!(150));
         // Guardado a mano con basura: "Por defecto"
         for texto in [r#"{"chat":{"motor":"claude","modelo":"gpt"}}"#, r#"{"chat":{"motor":"claude","modelo":3}}"#, r#"{"chat":{"motor":"claude"}}"#] {
             fs::write(&r, texto).unwrap();
@@ -735,12 +762,12 @@ mod tests {
     }
 
     #[test]
-    fn guardar_el_tamano_o_el_acople_no_borra_la_mascota() {
+    fn guardar_el_monitor_o_el_acople_no_borra_la_mascota() {
         let r = ruta_temporal("conserva-mascota");
         fs::create_dir_all(r.parent().unwrap()).unwrap();
         // La escribe Configuración (#23), o el usuario a mano: Rust solo la conserva
         fs::write(&r, r#"{"tamano":150,"mascota":"bruma"}"#).unwrap();
-        guardar_tamano(&r, 175).unwrap();
+        guardar_monitor(&r, (175.0, 0.0)).unwrap();
         assert_eq!(leer_mascota(&r), "bruma");
         guardar_acople(&r, Some(Acople { borde: Borde::Arriba, lugar: 0.5 })).unwrap();
         assert_eq!(leer_mascota(&r), "bruma");
@@ -749,16 +776,15 @@ mod tests {
         guardar_monitor(&r, (100.0, 200.0)).unwrap();
         guardar_revision_mod(&r, RevisionMod { revisado: 1_795_000_000_000, fallo: false }).unwrap();
         assert_eq!(leer_mascota(&r), "bruma");
-        assert_eq!(leer_tamano(&r), 175);
         // Un texto que esta versión no conoce (una especie futura) también se conserva tal cual
         fs::write(&r, r#"{"tamano":100,"mascota":"futura"}"#).unwrap();
-        guardar_tamano(&r, 125).unwrap();
+        guardar_monitor(&r, (125.0, 0.0)).unwrap();
         let guardado: serde_json::Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
         assert_eq!(guardado["mascota"], serde_json::json!("futura"));
         assert_eq!(leer_mascota(&r), "avi");
         // Sin mascota guardada, guardar otra cosa no la inventa
         fs::write(&r, r#"{"tamano":100}"#).unwrap();
-        guardar_tamano(&r, 150).unwrap();
+        guardar_monitor(&r, (150.0, 0.0)).unwrap();
         let guardado: serde_json::Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
         assert_eq!(guardado.get("mascota"), None);
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
@@ -810,6 +836,20 @@ mod tests {
     }
 
     #[test]
+    fn el_aviso_de_tareas_acepta_un_dia_que_existe_o_vacio() {
+        // tareas-ux.md 11.4: el día de Argentina en que se vio el globo, "AAAA-MM-DD"
+        for bueno in ["2026-11-24", "2024-02-29", ""] {
+            assert!(ajuste_valido("tareasAvisado", &json!(bueno)), "{bueno}");
+        }
+        for malo in [
+            json!("2026-02-30"), json!("2025-02-29"), json!("2026-13-01"), json!("2026-11-24T10:00"), json!("2026-11-24 10:00"),
+            json!("2026-1-05"), json!("+026-11-24"), json!("24/11/2026"), json!(20261124), json!(true), Value::Null, json!({}),
+        ] {
+            assert!(!ajuste_valido("tareasAvisado", &malo), "{malo}");
+        }
+    }
+
+    #[test]
     fn los_nombres_aceptan_texto_corto_sin_caracteres_de_control() {
         // #37 S4: hasta 40 caracteres; vacío es "el de siempre"
         for clave in ["nombreMascota", "nombreUsuario"] {
@@ -820,6 +860,189 @@ mod tests {
                 assert!(!ajuste_valido(clave, &malo), "{clave} {malo}");
             }
         }
+    }
+
+    #[test]
+    fn el_aviso_de_tareas_se_guarda_en_tareas_avisado_sin_borrar_lo_demas() {
+        let r = ruta_temporal("tareas-avisado");
+        assert_eq!(leer_tareas_avisado(&r), None);
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        fs::write(&r, r#"{"tareas":{"futura":3},"otra":[1]}"#).unwrap();
+        guardar_ajuste(&r, "arriba", &json!(false)).unwrap();
+        guardar_ajuste(&r, "mascota", &json!("lumen")).unwrap();
+        guardar_monitor(&r, (150.0, 0.0)).unwrap();
+        guardar_ajuste(&r, "tareasAvisado", &json!("2026-11-24")).unwrap();
+        let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+        // Dentro de "tareas" (11.4), sin pisar lo que esa clave ya traía ni lo demás del archivo
+        assert_eq!(guardado["tareas"], json!({ "avisado": "2026-11-24", "futura": 3 }));
+        assert!(guardado.get("tareasAvisado").is_none());
+        assert_eq!(guardado["otra"], json!([1]));
+        assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-24"));
+        assert!(!leer_interruptores(&r).arriba);
+        assert_eq!(leer_mascota(&r), "lumen");
+        assert_eq!(leer_monitor(&r), Some((150.0, 0.0)));
+        // Y guardar otra cosa después no lo borra
+        guardar_ajuste(&r, "pausa", &json!(true)).unwrap();
+        guardar_monitor(&r, (100.0, 0.0)).unwrap();
+        assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-24"));
+        // Uno inválido no toca el archivo
+        let antes = fs::read_to_string(&r).unwrap();
+        assert!(guardar_ajuste(&r, "tareasAvisado", &json!("2026-02-30")).is_err());
+        assert_eq!(fs::read_to_string(&r).unwrap(), antes);
+        // Vacío: nunca avisado
+        guardar_ajuste(&r, "tareasAvisado", &json!("")).unwrap();
+        assert_eq!(leer_tareas_avisado(&r), None);
+        // Lo guardado a mano que no es un día se lee como nunca avisado
+        fs::write(&r, r#"{"tareas":{"avisado":"ayer"}}"#).unwrap();
+        assert_eq!(leer_tareas_avisado(&r), None);
+        fs::write(&r, r#"{"tareas":"basura"}"#).unwrap();
+        assert_eq!(leer_tareas_avisado(&r), None);
+        guardar_ajuste(&r, "tareasAvisado", &json!("2026-11-25")).unwrap();
+        assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-25"));
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn los_habitos_recordados_aceptan_un_dia_y_ids_de_habito_hasta_100() {
+        // habitos-ux.md 8.3 y 11.5: `{ dia, ids }`, el día de Argentina y los hábitos ya recordados ese día
+        let cien: Vec<String> = (0..100).map(|i| format!("h-{i}")).collect();
+        for bueno in [json!({ "dia": "2026-11-26", "ids": [] }), json!({ "dia": "2026-11-26", "ids": ["h-agua", "h-mf3k-2a"] }), json!({ "dia": "2024-02-29", "ids": cien })] {
+            assert!(ajuste_valido("habitosRecordados", &bueno), "{bueno}");
+        }
+        let ciento_uno: Vec<String> = (0..101).map(|i| format!("h-{i}")).collect();
+        for malo in [
+            json!({ "dia": "2026-02-30", "ids": [] }), json!({ "dia": "", "ids": [] }), json!({ "ids": [] }), json!({ "dia": "2026-11-26" }),
+            json!({ "dia": "2026-11-26", "ids": ["l-trabajo"] }), json!({ "dia": "2026-11-26", "ids": ["h-../x"] }), json!({ "dia": "2026-11-26", "ids": ["h-A"] }),
+            json!({ "dia": "2026-11-26", "ids": [3] }), json!({ "dia": "2026-11-26", "ids": "h-agua" }), json!({ "dia": "2026-11-26", "ids": ciento_uno }),
+            json!({ "dia": "2026-11-26", "ids": [], "otra": 1 }), json!("2026-11-26"), Value::Null, json!(true), json!([]),
+        ] {
+            assert!(!ajuste_valido("habitosRecordados", &malo), "{malo}");
+        }
+    }
+
+    #[test]
+    fn los_habitos_recordados_se_guardan_sin_borrar_lo_demas_y_se_leen_validados() {
+        let r = ruta_temporal("habitos-recordados");
+        assert_eq!(leer_habitos_recordados(&r), None);
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        fs::write(&r, r#"{"tareas":{"avisado":"2026-11-26"},"futura":[1],"mascota":"ascua"}"#).unwrap();
+        let valor = json!({ "dia": "2026-11-26", "ids": ["h-agua", "h-caminar"] });
+        guardar_ajuste(&r, "habitosRecordados", &valor).unwrap();
+        let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+        assert_eq!(guardado["habitosRecordados"], valor);
+        // Lo demás del archivo sigue: el aviso de tareas, la mascota y una clave que esta versión no conoce
+        assert_eq!(guardado["tareas"], json!({ "avisado": "2026-11-26" }));
+        assert_eq!(guardado["futura"], json!([1]));
+        assert_eq!(leer_mascota(&r), "ascua");
+        assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-26"));
+        assert_eq!(leer_habitos_recordados(&r), Some(valor.clone()));
+        // Uno inválido no toca el archivo
+        assert!(guardar_ajuste(&r, "habitosRecordados", &json!({ "dia": "ayer", "ids": [] })).is_err());
+        assert_eq!(leer_habitos_recordados(&r), Some(valor));
+        // Guardar otro ajuste no lo borra
+        guardar_ajuste(&r, "tareasAvisado", &json!("2026-11-27")).unwrap();
+        assert!(leer_habitos_recordados(&r).is_some());
+        // Lo escrito a mano que no sirve se lee como nada recordado
+        fs::write(&r, r#"{"habitosRecordados":{"dia":"2026-11-26","ids":["../x"]}}"#).unwrap();
+        assert_eq!(leer_habitos_recordados(&r), None);
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn el_resumen_de_habitos_acepta_un_lunes_que_existe_o_vacio() {
+        // habitos-ux.md 8.4 y 11.5: el lunes de la semana resumida, "AAAA-MM-DD", o vacío
+        for bueno in ["2026-11-23", "2024-01-01", ""] {
+            assert!(ajuste_valido("habitosResumen", &json!(bueno)), "{bueno}");
+        }
+        for malo in [
+            json!("2026-11-24"), json!("2026-11-29"), json!("2026-02-30"), json!("2026-11-23T00:00"), json!("23/11/2026"),
+            json!(20261123), json!(true), Value::Null, json!({}), json!(["2026-11-23"]),
+        ] {
+            assert!(!ajuste_valido("habitosResumen", &malo), "{malo}");
+        }
+        // Las otras claves siguen igual: el aviso de tareas acepta cualquier día, no solo lunes
+        assert!(ajuste_valido("tareasAvisado", &json!("2026-11-24")));
+        assert!(!ajuste_valido("habitosRecordados", &json!("2026-11-23")));
+    }
+
+    #[test]
+    fn el_resumen_de_habitos_se_guarda_sin_borrar_lo_demas_y_se_lee_validado() {
+        let r = ruta_temporal("habitos-resumen");
+        assert_eq!(leer_habitos_resumen(&r), None);
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        let recordados = json!({ "dia": "2026-11-26", "ids": ["h-agua"] });
+        fs::write(&r, r#"{"tareas":{"avisado":"2026-11-26"},"futura":[1],"mascota":"ascua"}"#).unwrap();
+        guardar_ajuste(&r, "habitosRecordados", &recordados).unwrap();
+        guardar_ajuste(&r, "habitosResumen", &json!("2026-11-23")).unwrap();
+        let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+        assert_eq!(guardado["habitosResumen"], "2026-11-23");
+        // Lo demás del archivo sigue
+        assert_eq!(guardado["tareas"], json!({ "avisado": "2026-11-26" }));
+        assert_eq!(guardado["futura"], json!([1]));
+        assert_eq!(leer_mascota(&r), "ascua");
+        assert_eq!(leer_habitos_recordados(&r), Some(recordados));
+        assert_eq!(leer_habitos_resumen(&r).as_deref(), Some("2026-11-23"));
+        // Uno inválido no toca el archivo
+        let antes = fs::read_to_string(&r).unwrap();
+        assert!(guardar_ajuste(&r, "habitosResumen", &json!("2026-11-24")).is_err());
+        assert_eq!(fs::read_to_string(&r).unwrap(), antes);
+        // Guardar otro ajuste no lo borra
+        guardar_ajuste(&r, "tareasAvisado", &json!("2026-11-27")).unwrap();
+        assert_eq!(leer_habitos_resumen(&r).as_deref(), Some("2026-11-23"));
+        // Vacío: nunca visto
+        guardar_ajuste(&r, "habitosResumen", &json!("")).unwrap();
+        assert_eq!(leer_habitos_resumen(&r), None);
+        // Lo escrito a mano que no es un lunes se lee como nada visto
+        fs::write(&r, r#"{"habitosResumen":"2026-11-24"}"#).unwrap();
+        assert_eq!(leer_habitos_resumen(&r), None);
+        fs::write(&r, r#"{"habitosResumen":5}"#).unwrap();
+        assert_eq!(leer_habitos_resumen(&r), None);
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn la_frase_de_la_semana_acepta_un_lunes_y_una_frase_de_una_linea_hasta_160() {
+        // habitos-ux.md 8.4: `{ lunes, frase }`; frase "" si el pedido falló (va la plantilla)
+        let larga = "a".repeat(160);
+        for bueno in [json!({ "lunes": "2026-11-23", "frase": "Bien." }), json!({ "lunes": "2026-11-23", "frase": "" }), json!({ "lunes": "2024-01-01", "frase": larga })] {
+            assert!(ajuste_valido("habitosFrase", &bueno), "{bueno}");
+        }
+        let mas_larga = "a".repeat(161);
+        for malo in [
+            json!({ "lunes": "2026-11-24", "frase": "Bien." }), json!({ "lunes": "", "frase": "" }), json!({ "lunes": "2026-02-30", "frase": "" }),
+            json!({ "lunes": "2026-11-23", "frase": "a\nb" }), json!({ "lunes": "2026-11-23", "frase": "a\rb" }), json!({ "lunes": "2026-11-23", "frase": mas_larga }),
+            json!({ "lunes": "2026-11-23", "frase": 5 }), json!({ "lunes": "2026-11-23" }), json!({ "frase": "" }),
+            json!({ "lunes": "2026-11-23", "frase": "", "otra": 1 }), json!("2026-11-23"), Value::Null, json!([]),
+        ] {
+            assert!(!ajuste_valido("habitosFrase", &malo), "{malo}");
+        }
+    }
+
+    #[test]
+    fn la_frase_de_la_semana_se_guarda_sin_borrar_lo_demas_y_se_lee_validada() {
+        let r = ruta_temporal("habitos-frase");
+        assert_eq!(leer_habitos_frase(&r), None);
+        fs::create_dir_all(r.parent().unwrap()).unwrap();
+        fs::write(&r, r#"{"tareas":{"avisado":"2026-11-26"},"habitosResumen":"2026-11-16","futura":[1]}"#).unwrap();
+        let valor = json!({ "lunes": "2026-11-23", "frase": "Caminaste 5 de 7 días." });
+        guardar_ajuste(&r, "habitosFrase", &valor).unwrap();
+        let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+        assert_eq!(guardado["habitosFrase"], valor);
+        assert_eq!(guardado["futura"], json!([1]));
+        assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-26"));
+        assert_eq!(leer_habitos_resumen(&r).as_deref(), Some("2026-11-16"));
+        assert_eq!(leer_habitos_frase(&r), Some(valor.clone()));
+        // Uno inválido no toca el archivo
+        let antes = fs::read_to_string(&r).unwrap();
+        assert!(guardar_ajuste(&r, "habitosFrase", &json!({ "lunes": "2026-11-24", "frase": "" })).is_err());
+        assert_eq!(fs::read_to_string(&r).unwrap(), antes);
+        // Guardar otro ajuste no la borra
+        guardar_ajuste(&r, "habitosResumen", &json!("2026-11-23")).unwrap();
+        assert_eq!(leer_habitos_frase(&r), Some(valor));
+        // Lo escrito a mano que no sirve se lee como nada guardado
+        fs::write(&r, r#"{"habitosFrase":{"lunes":"2026-11-23","frase":"a\nb"}}"#).unwrap();
+        assert_eq!(leer_habitos_frase(&r), None);
+        fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 
     #[test]
@@ -863,13 +1086,12 @@ mod tests {
     }
 
     #[test]
-    fn guardar_el_tamano_el_acople_o_la_revision_del_mod_no_borra_los_ajustes() {
+    fn guardar_el_acople_el_monitor_o_la_revision_del_mod_no_borra_los_ajustes() {
         let r = ruta_temporal("conserva-ajustes");
         guardar_ajuste(&r, "arriba", &json!(false)).unwrap();
         guardar_ajuste(&r, "avisar", &json!(false)).unwrap();
         guardar_ajuste(&r, "pausa", &json!(true)).unwrap();
         guardar_ajuste(&r, "mascota", &json!("bruma")).unwrap();
-        guardar_tamano(&r, 175).unwrap();
         guardar_acople(&r, Some(Acople { borde: Borde::Derecha, lugar: 0.2 })).unwrap();
         guardar_acople(&r, None).unwrap();
         guardar_flotante(&r, Flotante { x: 0.1, y: 0.9 }).unwrap();
@@ -877,10 +1099,8 @@ mod tests {
         guardar_revision_mod(&r, RevisionMod { revisado: 1_795_000_000_000, fallo: false }).unwrap();
         assert_eq!(leer_interruptores(&r), Interruptores { arriba: false, avisar: false, pausa: true });
         assert_eq!(leer_mascota(&r), "bruma");
-        assert_eq!(leer_tamano(&r), 175);
         // Y guardar un ajuste no borra lo demás
         guardar_ajuste(&r, "pausa", &json!(false)).unwrap();
-        assert_eq!(leer_tamano(&r), 175);
         assert_eq!(leer_flotante(&r), Some(Flotante { x: 0.1, y: 0.9 }));
         assert_eq!(leer_monitor(&r), Some((10.0, 20.0)));
         assert_eq!(leer_revision_mod(&r), Some(RevisionMod { revisado: 1_795_000_000_000, fallo: false }));
@@ -889,12 +1109,12 @@ mod tests {
     }
 
     #[test]
-    fn una_clave_desconocida_sobrevive_a_guardar_el_tamano() {
+    fn una_clave_desconocida_sobrevive_a_guardar() {
         // D9: `escribir` parte de lo leído y pisa solo sus claves (otra entrega o una versión más nueva)
         let r = ruta_temporal("desconocida");
         fs::create_dir_all(r.parent().unwrap()).unwrap();
         fs::write(&r, r#"{"tamano":100,"motor":"local","futura":{"a":[1,2]},"arriba":"basura"}"#).unwrap();
-        guardar_tamano(&r, 150).unwrap();
+        guardar_monitor(&r, (150.0, 0.0)).unwrap();
         guardar_acople(&r, Some(Acople { borde: Borde::Abajo, lugar: 0.5 })).unwrap();
         guardar_ajuste(&r, "avisar", &json!(false)).unwrap();
         let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
@@ -903,12 +1123,12 @@ mod tests {
         // Lo que no se entiende se conserva tal cual, y se lee como el de fábrica
         assert_eq!(guardado["arriba"], json!("basura"));
         assert!(leer_interruptores(&r).arriba);
-        assert_eq!(guardado["tamano"], json!(150));
+        assert_eq!(guardado["tamano"], json!(100));
         assert_eq!(guardado["avisar"], json!(false));
         // Un archivo que no es un objeto se reemplaza entero
         fs::write(&r, "[1,2,3]").unwrap();
-        guardar_tamano(&r, 125).unwrap();
-        assert_eq!(leer_tamano(&r), 125);
+        guardar_monitor(&r, (125.0, 0.0)).unwrap();
+        assert_eq!(leer_monitor(&r), Some((125.0, 0.0)));
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 
