@@ -931,11 +931,18 @@ fn carpeta_tareas(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 async fn tareas_leer(app: AppHandle) -> Result<serde_json::Value, String> {
     let carpeta = carpeta_tareas(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
+        // Una carpeta que existe y no se puede leer es "Carpeta ilegible" (7.5), no el primer uso
+        if let Err(e) = std::fs::read_dir(&carpeta) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                registrar(format!("tareas: no se pudo leer la carpeta: {e}"));
+                return Err(e.to_string());
+            }
+        }
         let l = tareas::listar(&carpeta);
-        serde_json::json!({ "listas": l.listas, "rotas": l.rotas })
+        Ok(serde_json::json!({ "listas": l.listas, "rotas": l.rotas }))
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?
 }
 
 /// Guarda una lista entera (formato v1; lo que no sirve se rechaza sin tocar el archivo):
