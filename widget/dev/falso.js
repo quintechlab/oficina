@@ -49,6 +49,19 @@
 //   ?cfg=datos&historial=muchas  el historial del chat (7.4) con 24 charlas falsas más las del chat falso;
 //                 "Borrar todo" tarda 0,9 s; &borrarfalla deja 3 sin borrar ("Reintentar")
 //   Lo guardado queda en window.__ajustes.
+// Tareas (#39, docs/diseno/tareas-ux.md): la fila "Tareas" de la barra, Ctrl T o ?tareas=… abren la hoja.
+//   Sin ?tareas, las cuatro listas del boceto (Trabajo, Casa, Compras y Facturación, con fechas contadas
+//   desde hoy en Argentina) y la hoja cerrada: la fila muestra la cuenta. Con ?tareas, la hoja se abre
+//   sola a los 0,9 s por el mismo clic del usuario y va a la vista del caso:
+//   ?tareas=hoy        Hoy (de todas las listas, importantes primero) y su avance
+//   ?tareas=vencidas   Vencidas, la más vieja primero
+//   ?tareas=lista      la lista Trabajo, con "Renombrar", "Borrar lista" y "Hechas · 1"
+//   ?tareas=primer     sin listas: el primer uso ("Armá tu primera lista")
+//   ?tareas=vacia      Ideas (vacía) y Casa con una tarea para mañana: "Listo por hoy." · "Mañana: 1 tarea."
+//   ?tareas=roto       un archivo que no se pudo leer (7.6): su fila en el índice y su error con "Abrir la carpeta"
+//   ?tareas=guardarfalla  tareas_guardar falla siempre: el primer cambio muestra "No se guardó el último cambio." (7.4)
+//   &tareaslento       tareas_leer tarda 1,2 s (las filas fantasma de 7.1)
+//   Lo guardado queda en window.__tareas (un Map por id de lista).
 //   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
 //                 docs/diseno/mascotas-avi-ux.md 9.1), con su forma evolucionada, sus bucles y sus actos;
 //                 los subagentes, sus variantes (7.3; con el Avi, el elenco por nombre)
@@ -510,6 +523,81 @@
   // ?cfg=<pestaña>: como "Configuración…" de la bandeja, abre la configuración en esa pestaña
   if (url.has('cfg')) setTimeout(() => emitir('oficina://configuracion', { abrir: true, tab: url.get('cfg') || undefined }), 900)
 
+  // ---- Tareas (#39, docs/diseno/tareas-ux.md 11.3): las listas del boceto, en memoria, con las fechas
+  // contadas desde hoy en Argentina (UTC−3), como tareas.rs las guarda (`creada` y `hechaEn` en ms)
+  const modoTareas = url.get('tareas')
+  const diaAr = n => new Date(Date.now() - 3 * 3600000 + n * 86400000).toISOString().slice(0, 10)
+  let nTarea = 0
+  const tareaF = (titulo, extra = {}) => ({
+    id: `t-falsa${++nTarea}`, titulo, hecha: false, hechaEn: null, fecha: null, importante: false, notas: '', subtareas: [], creada: ahora - (40 - nTarea) * 3600000, ...extra,
+  })
+  const listaF = (id, nombre, color, orden, tareas) => ({ v: 1, id, nombre, color, orden, creada: ahora - 9 * 86400000 + orden, tareas })
+  const LISTAS_FALSAS = [
+    listaF('l-trabajo', 'Trabajo', 'celeste', 0, [
+      tareaF('Revisar el PR #36 del modelo del chat', {
+        fecha: diaAr(0), importante: true, notas: 'Ojo con el relanzar cuando hay un turno en curso: probar Haiku → Sonnet a mitad de una respuesta.',
+        subtareas: [{ id: 's-1', titulo: 'Probar con Haiku y con Sonnet', hecha: true }, { id: 's-2', titulo: 'Leer los tests de abrir_con', hecha: false }, { id: 's-3', titulo: 'Dejar los comentarios', hecha: false }],
+      }),
+      tareaF('Presupuesto de la landing para Café Molienda', { fecha: diaAr(-1), importante: true, notas: 'Tres secciones y un formulario de reservas.' }),
+      tareaF('Subir la versión del widget a 0.13', { fecha: diaAr(2) }),
+      tareaF('Renovar el certificado para firmar el MSI', { fecha: diaAr(3), notas: 'Vence en diciembre.' }),
+      tareaF('Contestarle a Nahuel por el hosting'),
+      tareaF('Deploy del catálogo a producción', { hecha: true, hechaEn: ahora - 3600000 }),
+    ]),
+    listaF('l-casa', 'Casa', 'verde', 1, [
+      tareaF('Pagar la boleta de la luz', { fecha: diaAr(0), importante: true, notas: 'Con el código de pago electrónico.' }),
+      tareaF('Llamar al técnico del aire', { fecha: diaAr(4) }),
+      tareaF('Sacar turno para renovar el DNI'),
+      tareaF('Regar las plantas', { fecha: diaAr(0), hecha: true, hechaEn: ahora - 7200000 }),
+    ]),
+    listaF('l-compras', 'Compras', 'rosa', 2, [
+      tareaF('Pasta térmica para la notebook', { importante: true, notas: 'Una que no se seque rápido.' }),
+      tareaF('Cable USB-C de 2 m'),
+      tareaF('Yerba (2 kg)'),
+      tareaF('Café en grano', { hecha: true, hechaEn: ahora - 86400000 }),
+    ]),
+    listaF('l-facturacion', 'Facturación', 'violeta', 3, [
+      tareaF('Pagar el monotributo', { fecha: diaAr(-4), importante: true, notas: 'Este mes no pasó el débito automático.' }),
+      tareaF('Factura C de noviembre a Café Molienda', { fecha: diaAr(6) }),
+    ]),
+  ]
+  const listasTareas = new Map(
+    (modoTareas === 'primer' ? []
+      : modoTareas === 'vacia' ? [listaF('l-ideas', 'Ideas', 'celeste', 0, []), listaF('l-casa', 'Casa', 'verde', 1, [tareaF('Llamar al técnico del aire', { fecha: diaAr(1) })])]
+        : LISTAS_FALSAS).map(l => [l.id, l]),
+  )
+  const rotasTareas = modoTareas === 'roto' ? [{ archivo: 'l-mf3k2a9x1b.json', motivo: 'no es JSON: EOF while parsing a value at line 14 column 0' }] : []
+  window.__tareas = listasTareas
+  const comandosTareas = {
+    // Como tareas.rs: las listas por orden y los archivos rotos (&tareaslento tarda 1,2 s: las filas fantasma)
+    tareas_leer: () => new Promise(r => setTimeout(() => r({
+      listas: [...listasTareas.values()].sort((a, b) => a.orden - b.orden).map(l => structuredClone(l)), rotas: rotasTareas,
+    }), url.has('tareaslento') ? 1200 : 120)),
+    // ?tareas=guardarfalla: Rust no pudo escribir (7.4); lo de la pantalla queda y reintenta a los 5 s
+    tareas_guardar: ({ lista }) => {
+      if (!/^l-[a-z0-9-]{1,38}$/.test(lista?.id ?? '')) return { ok: false, error: 'id de lista inválido' }
+      if (modoTareas === 'guardarfalla') return { ok: false, error: 'acceso denegado (falso)' }
+      listasTareas.set(lista.id, structuredClone(lista))
+      console.info('[tareas] guardada', lista.id, lista.tareas.length)
+      return { ok: true, lista }
+    },
+    tareas_borrar_lista: ({ id }) => {
+      if (!/^l-[a-z0-9-]{1,38}$/.test(id ?? '')) return { ok: false, error: 'id de lista inválido' }
+      listasTareas.delete(id)
+      console.info('[tareas] borrada', id)
+      return { ok: true }
+    },
+    tareas_abrir_carpeta: () => console.info('[explorador] <config>\tareas'),
+  }
+  // ?tareas=…: abre la hoja como el usuario (el clic en la fila "Tareas") y va a la vista de cada caso
+  if (modoTareas !== null) {
+    setTimeout(() => {
+      document.querySelector('#tar-fila')?.click()
+      const ver = { vencidas: 'ix-vencidas', lista: 'ix-l-trabajo', roto: 'ix-rota:l-mf3k2a9x1b.json' }[modoTareas]
+      if (ver) setTimeout(() => document.querySelector(`#tar [data-k="${ver}"]`)?.click(), 400)
+    }, 900)
+  }
+
   // ---- zona interactiva (9.6): imita el sondeo de Rust y el paso de los clics
   const zonaSt = { zona: null, toda: false, dentro: true, informado: false, n: 0, punto: null, desfase: null, mirada: false, cursor: null, cursorT: 0 }
   /** Como `debe_sondear`: en todas las formas mientras se ve (la vista no se esconde). */
@@ -927,6 +1015,7 @@
 
   const comandos = {
     ...comandosChat,
+    ...comandosTareas,
     registrar: ({ linea }) => console.debug('[widget.log]', linea),
     revisar_primeros_pasos: () => new Promise(r => setTimeout(() => r(revisionFalsa()), url.has('pplento') ? 2000 : 600)),
     // Como Rust (estado_mod): la lectura del mod y la última revisión guardada, solo lectura

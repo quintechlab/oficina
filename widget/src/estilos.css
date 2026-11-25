@@ -96,6 +96,9 @@
   /* Configuración (docs/diseno/configuracion-ux.md 6): el indicador de la pestaña y la ventana del
      "¿Borrar? Sí" (la de control.js) */
   --d-pestana: 320ms; --d-confirma: 3s;
+  /* Tareas (docs/diseno/tareas-ux.md 6): el ancho del índice, la espera del tilde antes del pliegue y las tintas
+     sobre el globo crema (entrega 3) */
+  --ancho-indice: 136px; --d-tilde: 700ms; --rojo-tinta: #B3321F; --ambar-tinta: #7A5A0E;
 }
 
 /* ------------------------------------------------------------------ base */
@@ -1747,11 +1750,11 @@ p.det-rot { margin-top: var(--e-5) }
 
 /* Modelos e Instalación (6.1, entrega 3): píldoras de estado con su texto siempre, tarjetas del
    modelo local y del mod, y el "¿Borrar? Sí" que confirma en el mismo botón (D5) */
-#cfg .t-ok { --c: var(--verde) }
-#cfg .t-aviso { --c: var(--ambar) }
-#cfg .t-proc { --c: var(--celeste) }
-#cfg .t-error { --c: var(--rojo) }
-#cfg .t-nada { --c: var(--tenue) }
+:is(#cfg, #tar) .t-ok { --c: var(--verde) }
+:is(#cfg, #tar) .t-aviso { --c: var(--ambar) }
+:is(#cfg, #tar) .t-proc { --c: var(--celeste) }
+:is(#cfg, #tar) .t-error { --c: var(--rojo) }
+:is(#cfg, #tar) .t-nada { --c: var(--tenue) }
 /* El punto de estado de una pestaña (6.3): el texto va oculto al lado, el color nunca solo */
 #cfg .pes .pt { width: 6px; height: 6px; box-shadow: none }
 #cfg .pill {
@@ -1771,26 +1774,26 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .barra { background: var(--s3) }
 #cfg .barra i { background: linear-gradient(90deg, var(--celeste), #B5D3FF); transition: transform .4s var(--ease) }
 #cfg .barra i::after { display: none }
-#cfg .cifras { font: var(--t-mono-s); color: var(--tenue); font-variant-numeric: tabular-nums }
-#cfg .lnk {
+:is(#cfg, #tar) .cifras { font: var(--t-mono-s); color: var(--tenue); font-variant-numeric: tabular-nums }
+:is(#cfg, #tar) .lnk {
   min-height: 32px; padding: 0 var(--e-3); border: 0; border-radius: var(--r-tag); background: none; color: var(--crema2);
   font: 700 12px/1 var(--f); cursor: pointer; transition: color var(--d-color) ease, transform var(--d-presion) ease;
 }
-#cfg .lnk:hover { color: var(--crema); text-decoration: underline }
-#cfg .lnk:active { transform: scale(.97) }
-#cfg .lnk.peligro { color: var(--rojo) }
-#cfg .armado {
+:is(#cfg, #tar) .lnk:hover { color: var(--crema); text-decoration: underline }
+:is(#cfg, #tar) .lnk:active { transform: scale(.97) }
+:is(#cfg, #tar) .lnk.peligro { color: var(--rojo) }
+:is(#cfg, #tar) .armado {
   position: relative; overflow: hidden; min-height: 32px; padding: 0 var(--e-6); border: 0; border-radius: var(--r-pildora);
   background: var(--rojo); color: var(--negro); font: 800 12px/1 var(--f); white-space: nowrap; cursor: pointer;
 }
-#cfg .armado:focus-visible { outline-color: var(--crema) }
+:is(#cfg, #tar) .armado:focus-visible { outline-color: var(--crema) }
 /* La línea que se vacía en los 3 s (`--ya` la retoma donde iba si la sección se redibuja) */
-#cfg .armado::after {
+:is(#cfg, #tar) .armado::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--negro); opacity: .45;
   transform-origin: 0 50%; animation: drena var(--d-confirma) linear var(--ya, 0ms) both;
 }
 #cfg .ver-avis { margin: var(--e-7) 0 0; font: var(--t-mono-s); color: var(--tenue) }
-#cfg .lnk[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none; transform: none }
+:is(#cfg, #tar) .lnk[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none; transform: none }
 
 /* Claves de API (6.1 y 7.1, entrega 4): el candado, una fila por proveedor con su inicial (sin logos,
    D11), el estado con la máscara del final y, editando, el campo de contraseña con su ayuda */
@@ -1812,14 +1815,14 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .cl > .acc, #cfg .cl > .aj-error { grid-column: 2 }
 #cfg .cl > .aj-error { margin: 0 }
 #cfg .cl-form { grid-column: 2; display: grid; gap: 6px; margin-top: 6px }
-#cfg .campo {
+:is(#cfg, #tar) .campo {
   display: flex; align-items: center; gap: var(--e-2); padding: 0 var(--e-2) 0 12px; min-height: 38px; border: 1px solid var(--linea);
   border-radius: var(--r-campo); background: var(--s1); transition: border-color var(--d-color) ease, box-shadow var(--d-color) ease;
 }
-#cfg .campo:focus-within { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
-#cfg .campo.mal { border-color: rgba(255, 122, 107, .7) }
-#cfg .campo input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--crema); font: var(--t-mono); letter-spacing: .03em }
-#cfg .campo input::placeholder { color: var(--tenue) }
+:is(#cfg, #tar) .campo:focus-within { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
+:is(#cfg, #tar) .campo.mal { border-color: rgba(255, 122, 107, .7) }
+:is(#cfg, #tar) .campo input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--crema); font: var(--t-mono); letter-spacing: .03em }
+:is(#cfg, #tar) .campo input::placeholder { color: var(--tenue) }
 #cfg .cl-ayuda { margin: 0; font: var(--t-chico); color: var(--tenue) }
 #cfg .cl-ayuda.mal { color: var(--rojo) }
 #cfg .cl-ayuda.aviso { color: var(--ambar) }
@@ -1830,18 +1833,18 @@ p.det-rot { margin-top: var(--e-5) }
   body:not(.pausa) #cfg .cl.recien { animation: cfgRecien 1.2s var(--ease) }
 }
 @media (prefers-reduced-motion: reduce) {
-  #cfg .campo { transition: none }
+  :is(#cfg, #tar) .campo { transition: none }
 }
 @keyframes cfgLate { 50% { opacity: .35 } }
 @media (prefers-reduced-motion: no-preference) {
-  body:not(.pausa) #cfg .t-proc .pt { animation: cfgLate 1.2s ease-in-out infinite }
+  body:not(.pausa) :is(#cfg, #tar) .t-proc .pt { animation: cfgLate 1.2s ease-in-out infinite }
 }
 @media (prefers-reduced-motion: reduce) {
-  #cfg .barra i, #cfg .lnk { transition: none }
-  #cfg .armado::after { animation: none }
+  #cfg .barra i, :is(#cfg, #tar) .lnk { transition: none }
+  :is(#cfg, #tar) .armado::after { animation: none }
 }
 body.pausa #cfg .barra i { transition: none }
-body.pausa #cfg .armado::after { animation: none }
+body.pausa :is(#cfg, #tar) .armado::after { animation: none }
 
 /* El Avi de 40 junto al título, fuera de Mascota (6.1 `.mini`) */
 .cfg-mini { display: none }
@@ -1861,3 +1864,200 @@ body.pausa #cfg .armado::after { animation: none }
 }
 body.pausa #cfg .sw i, body.pausa #cfg .esc-m, body.pausa #cfg .esp .avi { transition: none }
 body.pausa #cfg .esp:hover .avi { transform: none }
+
+/* ------------------------------------------------------------------ tareas (docs/diseno/tareas-ux.md, opción B "Carpeta")
+   La hoja vive en la columna principal (#tar, hermana de #cfg, 3.2): con #marco.con-tar esconde lo mismo
+   que la configuración. Un índice angosto a la izquierda y el panel a la derecha (.carpeta). Todo va
+   bajo #tar: `.fila`, `.tag`, `.sub`, `.err` y `.desplaza` ya existen en otros lugares. */
+
+/* La fila de la barra (4.1): el molde de Configuración, arriba de ella, con el cuadro y el visto */
+.pj.tar { --c: var(--crema2); margin-bottom: var(--e-1) }
+.pj.tar .pj-ic { background: var(--s2); color: var(--crema2) }
+.pj.tar svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round }
+.pj.tar .tilde-p { stroke-dasharray: 9; stroke-dashoffset: 0 }
+.pj.tar .tar-ct { display: contents }
+.pj.tar kbd { flex: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+.pj.tar[aria-current="page"] { background: var(--ambar-osc); color: var(--ambar) }
+.pj.tar[aria-current="page"] .pj-ic { background: color-mix(in srgb, var(--ambar) 18%, transparent); color: var(--ambar) }
+/* Con alguna vencida (4.1): rojo con su punto; el número va oculto en el nombre de la fila */
+.chip-venc { display: inline-flex; align-items: center; gap: 4px; background: color-mix(in srgb, var(--rojo) 22%, var(--s2)); color: var(--rojo); font-weight: 600 }
+.chip-venc i { width: 5px; height: 5px; border-radius: 50%; background: var(--rojo) }
+.pj.tar[aria-current="page"] .chip-preg { background: var(--ambar); color: var(--negro) }
+.pj.tar[aria-current="page"] .chip-venc { background: color-mix(in srgb, var(--rojo) 22%, var(--s2)); color: var(--rojo) }
+
+/* La hoja en el marco */
+#tar:empty, #tar-aviso:empty { display: none }
+#marco:not(.con-tar) #tar-volver { display: none }
+#marco.con-tar #tar-volver { display: inline-flex; margin-right: var(--e-2) }
+#marco.con-tar #vacio-avi, #marco.con-tar #otro, #marco.con-tar #pestanas, #marco.con-tar .split, #marco.con-tar .ficha-u,
+#marco.con-tar #w-globo, #marco.con-tar #pp, #marco.con-tar .conteos, #marco.con-tar .sesiones { display: none }
+#marco.con-tar .principal { overflow: hidden }
+#marco.con-tar.bajo #subtitulo { display: none }
+#marco.con-tar #tar { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
+#tar > * { flex: none }
+#tar-aviso { margin-bottom: var(--e-5) }
+#tar > #tar-cuerpo { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
+
+/* La mascota de 40 junto al título (4.10) */
+.tar-mini { display: none }
+#marco.con-tar .cab-t { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: var(--e-5); align-items: center }
+#marco.con-tar .tar-mini { display: grid; place-items: center; grid-row: 1 / span 2; width: 40px; height: 40px }
+#marco.con-tar .cab-t > h1, #marco.con-tar .cab-t > p { grid-column: 2 }
+
+/* La carpeta (3.3 y 4.2): el índice desplaza solo (sin barra visible); el panel desplaza en su lista */
+#tar .carpeta { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--ancho-indice) minmax(0, 1fr); gap: 0 14px }
+#tar .idx { display: flex; flex-direction: column; gap: var(--e-1); min-height: 0; padding-right: var(--e-5); border-right: 1px solid var(--linea); overflow-y: auto; scrollbar-width: none }
+#tar .ix-b {
+  flex: none; display: flex; align-items: center; gap: var(--e-4); width: 100%; min-height: 34px; padding: 0 var(--e-4) 0 var(--e-3);
+  border: 0; border-radius: var(--r-fila); background: none; color: var(--crema2); font: 700 12px/1.1 var(--f); text-align: left; cursor: pointer;
+  transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
+}
+#tar .ix-b:hover { background: var(--s2); color: var(--crema) }
+#tar .ix-b:active { transform: scale(.97) }
+#tar .ix-b[aria-current="page"] { background: var(--ambar-osc); color: var(--ambar) }
+#tar .ix-b .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+#tar .ix-b .ct { flex: none; font: 500 10px/1 var(--m); font-stretch: 75%; color: var(--tenue) }
+#tar .ix-b .ct.t-aviso { color: var(--ambar) }
+#tar .ix-b .ct.t-error { color: var(--rojo) }
+#tar .ix-ic { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: var(--r-tag); background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c) }
+#tar .ix-ic svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round }
+#tar .ix-ic.punto::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c) }
+#tar .ix-b.rota .n { font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
+#tar .ix-mas { color: var(--tenue); font-weight: 600 }
+#tar .ix-mas .ix-ic { background: none; border: 1px dashed var(--linea-hover); color: var(--tenue) }
+#tar .rot-i { margin: var(--e-6) 0 var(--e-2) var(--e-4); font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+#tar .ix-campo { flex: none; min-height: 34px; padding: 0 var(--e-3) 0 var(--e-4) }
+#tar .ix-campo input { font: 700 12px/1 var(--f) }
+#tar .ix-campo > svg { display: none }
+#tar .ix-err { margin: var(--e-2) var(--e-2) var(--e-2) var(--e-4); font: var(--t-chico); color: var(--rojo) }
+
+/* El panel (4.3): el encabezado y el campo quedan fijos; la lista desplaza */
+#tar .pane { min-width: 0; min-height: 0; display: flex; flex-direction: column }
+#tar .pane > [data-parte] { flex: none }
+#tar .pane-h { display: grid; gap: var(--e-1); margin: 0 0 var(--e-4) var(--e-1) }
+#tar .pane-h h2 { display: flex; align-items: center; gap: var(--e-4); min-width: 0; font: 800 19px/1.15 var(--f); letter-spacing: -.03em; overflow-wrap: anywhere }
+#tar .pane-h h2 .pt { width: 8px; height: 8px }
+#tar .pane-s { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--e-3); min-height: 32px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#tar .pane-s > span:first-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#tar .pane-s .acc { flex: none; display: flex; align-items: center; gap: 0; margin-left: auto; margin-right: calc(-1 * var(--e-2)) }
+#tar .pane-s .lnk, #tar .pane-s .armado { white-space: nowrap }
+#tar .pane-s .lnk { padding: 0 var(--e-3) }
+#tar .prog { display: block; width: 90px; height: 4px; border-radius: 2px; background: var(--s3); overflow: hidden }
+#tar .prog i { display: block; height: 100%; width: var(--p); border-radius: 2px; background: var(--ambar) }
+#tar .pane > .tar-desplaza {
+  flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--linea-hover) transparent; padding: 0 var(--e-1) var(--e-4) var(--e-1); margin-left: calc(-1 * var(--e-1))
+}
+
+/* El campo de nueva tarea (4.4): el "+" y la pista "Enter", que aparece con foco */
+#tar .campo { padding: 0 var(--e-3) 0 var(--e-5) }
+#tar .campo input { font: var(--t-cuerpo); letter-spacing: 0 }
+#tar .campo > svg { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--tenue); stroke-width: 1.6; stroke-linecap: round }
+#tar .campo:focus-within > svg { stroke: var(--ambar) }
+#tar .campo kbd { flex: none; padding: 3px 5px; border: 1px solid var(--linea); border-radius: 5px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue); opacity: 0 }
+#tar .campo:focus-within kbd { opacity: 1 }
+#tar .nueva { margin: 0 0 var(--e-3) }
+#tar .pista { margin: 0 0 var(--e-4) var(--e-1); font: var(--t-chico); color: var(--tenue) }
+
+/* La fila (4.5): tilde, cuerpo e insignia; filete de 38 a la derecha que se esconde con hover */
+#tar .filas { list-style: none; display: grid; margin: 0; padding: 0 }
+#tar .fila {
+  position: relative; display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: start; gap: 0;
+  margin: 0; padding: 0 var(--e-3) 0 0; border: 0; border-radius: var(--r-fila); background: none; transition: background var(--d-color) ease
+}
+#tar .fila::before { content: ""; position: absolute; left: 38px; right: 8px; top: 0; height: 1px; background: var(--linea); transition: opacity var(--d-color) ease }
+#tar .fila:first-child::before, #tar .fila:hover::before, #tar .fila:hover + .fila::before { opacity: 0 }
+#tar .fila:hover { background: var(--s1) }
+#tar .ck { position: relative; width: 36px; height: 38px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer }
+#tar .ck::before { content: ""; grid-area: 1 / 1; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--linea-hover); box-sizing: border-box; transition: border-color var(--d-color) ease, background var(--d-color) ease }
+#tar .ck svg { grid-area: 1 / 1; position: relative; width: 12px; height: 12px; fill: none; stroke: var(--negro); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 14; stroke-dashoffset: 14 }
+#tar .ck:hover::before { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent) }
+#tar .fila.imp > .ck::before { border-color: color-mix(in srgb, var(--ambar) 75%, transparent) }
+#tar .ck[aria-checked="true"]::before { border-color: var(--ambar); background: var(--ambar) }
+#tar .ck[aria-checked="true"] svg { stroke-dashoffset: 0 }
+#tar .ck:focus-visible { outline-offset: -4px }
+#tar .f-cuerpo { min-width: 0; display: grid; gap: var(--e-2); justify-items: start; padding: var(--e-5) var(--e-2) var(--e-5) var(--e-1) }
+#tar .tit {
+  font: var(--t-cuerpo-f); color: var(--crema); overflow-wrap: anywhere;
+  background: linear-gradient(var(--crema2), var(--crema2)) 0 58% / 0% 1.5px no-repeat
+}
+#tar .fila.hecha .tit, #tar .fila.tildando .tit { background-size: 100% 1.5px; color: var(--tenue) }
+#tar .meta { display: flex; flex-wrap: wrap; gap: 3px var(--e-5); align-items: center; max-width: 75% }
+#tar .tag { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 0; border-radius: 0; background: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--c, var(--tenue)) }
+#tar .tag.t-nada { --c: var(--tenue) }
+#tar .tag.t-error::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor }
+#tar .de-l { display: inline-flex; align-items: center; gap: 5px; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
+#tar .de-l .pt { width: 5px; height: 5px; box-shadow: none }
+#tar .subc { display: inline-flex; align-items: center; gap: 5px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#tar .subc i { width: 20px; height: 3px; border-radius: 2px; background: linear-gradient(var(--crema2), var(--crema2)) 0 0 / var(--p) 100% no-repeat, var(--s3) }
+#tar .ic-nota { width: 12px; height: 12px; fill: none; stroke: var(--tenue); stroke-width: 1.5; stroke-linecap: round }
+#tar .imp-b { align-self: center; width: 20px; height: 20px; display: grid; place-items: center; border-radius: var(--r-tag); background: var(--ambar-osc); color: var(--ambar); font: 600 11px/1 var(--m) }
+#tar .fila.hecha .imp-b { opacity: .4 }
+#tar .chispa { position: absolute; left: 18px; top: 19px; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--c); pointer-events: none; opacity: 0 }
+#tar .chispa:nth-of-type(even) { background: var(--ambar) }
+
+/* "Hechas · n" (4.9) */
+#tar .pleg {
+  display: flex; align-items: center; gap: var(--e-4); width: 100%; min-height: 32px; margin-top: var(--e-5); padding: 0 var(--e-3);
+  border: 0; border-radius: var(--e-4); background: none; color: var(--tenue); font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; cursor: pointer
+}
+#tar .pleg::after { content: ""; flex: 1; height: 1px; background: var(--linea) }
+#tar .pleg svg { width: 10px; height: 10px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8 }
+#tar .pleg[aria-expanded="true"] svg { transform: rotate(90deg) }
+#tar .pleg:hover { color: var(--crema2) }
+#tar .hechas-l .fila { opacity: .85 }
+
+/* Leyendo (7.1): tres filas fantasma de 38, sin brillo */
+#tar .fantasmas { gap: var(--e-2) }
+#tar .fantasmas li { height: 38px; border-radius: var(--r-fila); background: var(--s1) }
+
+/* Vacíos, primer uso y errores (7.2 a 7.6) */
+#tar .vac { display: grid; justify-items: center; text-align: center; gap: var(--e-3); padding: 26px var(--e-8) var(--e-9) }
+#tar .vac b { font: var(--t-titulo) }
+#tar .vac p { max-width: 32ch; font: var(--t-chico); color: var(--crema2) }
+#tar .primer {
+  display: grid; justify-items: center; text-align: center; gap: var(--e-4); margin-top: var(--e-3); padding: 26px var(--e-10) 22px;
+  border: 1px dashed var(--linea-hover); border-radius: var(--r-tarjeta);
+  background: radial-gradient(180px 70px at 50% 108px, rgba(242, 182, 50, .16), transparent 72%)
+}
+#tar .primer b { font: 800 18px/1.2 var(--f); letter-spacing: -.02em }
+#tar .primer p { max-width: 36ch; font: var(--t-chico); color: var(--crema2) }
+#tar .primer .sug { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--e-3); margin-top: var(--e-3) }
+#tar .primer .campo { width: 100%; max-width: 280px; margin-top: var(--e-1) }
+#tar .fc {
+  display: inline-flex; align-items: center; gap: var(--e-3); min-height: 32px; padding: 0 11px 0 var(--e-4); border: 1px solid var(--linea); border-radius: var(--r-pildora);
+  background: none; color: var(--crema2); font: 700 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
+  transition: color var(--d-color) ease, border-color var(--d-color) ease, transform var(--d-presion) ease
+}
+#tar .fc:hover { color: var(--crema); border-color: var(--linea-hover) }
+#tar .fc:active { transform: scale(.96) }
+#tar .err {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--e-2) var(--e-5); align-items: start; margin: 0 0 var(--e-4); padding: var(--e-5) var(--e-6);
+  border: 1px solid rgba(255, 122, 107, .35); border-radius: var(--r-cuadro); background: color-mix(in srgb, var(--rojo) 6%, var(--s1)); font: var(--t-chico); color: var(--crema2)
+}
+#tar .err b { display: block; font: var(--t-cuerpo-f); color: var(--crema) }
+#tar .err > .pt { margin-top: 5px }
+#tar .err .acc { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--e-1) var(--e-2); margin-left: calc(-1 * var(--e-3)) }
+
+/* Movimiento (10): el círculo se hunde y rebota, el visto se dibuja, la raya tacha, la fila nueva
+   destella, el chip late y el visto de la fila de la barra se redibuja. Con movimiento reducido o pausa,
+   al instante */
+@keyframes tarHunde { 0% { transform: scale(1) } 30% { transform: scale(.72) } 100% { transform: scale(1) } }
+@keyframes tarRecien { 0% { background: color-mix(in srgb, var(--ambar) 14%, transparent) } 100% { background: transparent } }
+@keyframes tarLate { 40% { transform: scale(1.25) } }
+@keyframes tarRetilde { 0% { stroke-dashoffset: 9 } 100% { stroke-dashoffset: 0 } }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) #tar .ck svg { transition: stroke-dashoffset .26s var(--ease) .08s }
+  body:not(.pausa) #tar .tit { transition: background-size .34s var(--ease) .12s, color .3s ease .12s }
+  body:not(.pausa) #tar .fila.tildando .ck::before { animation: tarHunde .42s var(--rebote) }
+  body:not(.pausa) #tar .fila.recien { animation: tarRecien 1.2s var(--ease) }
+  body:not(.pausa) #tar .pleg svg { transition: transform .3s var(--ease) }
+  body:not(.pausa) #tar .prog i { transition: width .5s var(--ease) }
+  body:not(.pausa) #tar .campo kbd { transition: opacity var(--d-color) ease }
+  body:not(.pausa) .pj.tar .chip.late { animation: tarLate .5s var(--rebote) }
+  body:not(.pausa) .pj.tar:not([aria-current]):hover .tilde-p { animation: tarRetilde .6s var(--ease) }
+}
+@media (prefers-reduced-motion: reduce) {
+  #tar .ix-b, #tar .fila, #tar .fila::before, #tar .ck::before, #tar .fc { transition: none }
+}
+body.pausa #tar .ix-b, body.pausa #tar .fila, body.pausa #tar .fila::before, body.pausa #tar .ck::before, body.pausa #tar .fc { transition: none }

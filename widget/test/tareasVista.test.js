@@ -1,0 +1,153 @@
+// Tests de tareasVista.js (#39, docs/diseno/tareas-ux.md 3.3, 4 y 5): el HTML de la fila de la barra,
+// el índice, el encabezado del panel, el campo de nueva tarea, las filas, "Hechas", los vacíos, el
+// primer uso y los errores. Solo HTML: los textos exactos de la sección 5 y lo accesible (12).
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  ladoFilaTareas, indiceTareas, cabeceraPanel, campoNueva, cuerpoLista, primerUso, errorGuardar, errorRota,
+  errorCarpeta, avisoPreguntaTareas, esqueletoTareas, CARPETA, miniTareas,
+} from '../src/tareasVista.js'
+
+const HOY = '2026-11-24'
+const t = (id, extra = {}) => ({ id, titulo: id, hecha: false, hechaEn: null, fecha: null, importante: false, notas: '', subtareas: [], creada: 1, ...extra })
+const L = (id, nombre, color, tareas, orden = 0) => ({ v: 1, id, nombre, color, orden, creada: 1, tareas })
+const LISTAS = [
+  L('l-trabajo', 'Trabajo', 'celeste', [
+    t('t-pr', { titulo: 'Revisar el PR #36', fecha: HOY, importante: true, notas: 'Ojo', subtareas: [{ id: 's-1', titulo: 'a', hecha: true }, { id: 's-2', titulo: 'b', hecha: false }, { id: 's-3', titulo: 'c', hecha: false }] }),
+    t('t-venc', { titulo: 'Presupuesto <b>', fecha: '2026-11-23' }),
+    t('t-hecha', { titulo: 'Deploy', hecha: true, hechaEn: 5, fecha: HOY }),
+  ]),
+  L('l-casa', 'Casa', 'verde', [t('t-luz', { titulo: 'Pagar la luz', fecha: HOY })], 1),
+]
+
+test('la fila de la barra: la pista "Ctrl T" sin nada; el chip ámbar con las de hoy; el rojo con el punto si hay vencidas', () => {
+  assert.equal(ladoFilaTareas({ hoy: 0, vencidas: 0 }), '<kbd aria-hidden="true">Ctrl T</kbd>')
+  const hoy = ladoFilaTareas({ hoy: 2, vencidas: 0 })
+  assert.match(hoy, /class="chip chip-preg" aria-hidden="true">2</)
+  const venc = ladoFilaTareas({ hoy: 2, vencidas: 2 })
+  assert.match(venc, /class="chip chip-venc" aria-hidden="true"><i><\/i>4</)
+  assert.doesNotMatch(venc, /kbd/)
+})
+
+test('el esqueleto: la línea de la pregunta, el cuerpo y la región de anuncios', () => {
+  assert.match(esqueletoTareas(), /id="tar-aviso"/)
+  assert.match(esqueletoTareas(), /class="oculto" role="status" id="tar-vivo"/)
+  for (const parte of ['idx', 'pane-h', 'err', 'nuevo', 'lista']) assert.match(CARPETA, new RegExp(`data-parte="${parte}"`))
+  assert.match(CARPETA, /<nav class="idx" aria-label="Vistas y listas"/)
+  assert.match(CARPETA, /<section class="pane" aria-labelledby="tar-pane-h"/)
+})
+
+test('índice: Hoy y Vencidas con su cuenta (oculta para el lector), "Listas", cada lista con su punto y su cuenta, y "Nueva lista"', () => {
+  const html = indiceTareas({ ver: 'l-casa', listas: LISTAS, cuentas: { hoy: 2, vencidas: 1 }, rotas: [] })
+  assert.match(html, /data-valor="hoy"[^>]*>.*Hoy<\/span><span class="ct t-aviso" aria-hidden="true">2<\/span><span class="oculto">, 2 pendientes<\/span>/)
+  assert.match(html, /data-valor="vencidas"[^>]*>.*Vencidas<\/span><span class="ct t-error" aria-hidden="true">1<\/span>/)
+  assert.match(html, /<span class="rot-i" aria-hidden="true">Listas<\/span>/)
+  assert.match(html, /data-valor="l-casa" data-k="ix-l-casa" aria-current="page" style="--c:var\(--verde\)" title="Casa"/)
+  assert.match(html, /data-valor="l-trabajo"[^>]*>.*Trabajo<\/span><span class="ct" aria-hidden="true">2<\/span><span class="oculto">, 2 pendientes<\/span>/)
+  assert.match(html, /class="ix-b ix-mas" data-accion="tar-crear"[^>]*>.*Nueva lista/)
+  // Sin cuenta en 0, y sin leer todavía (7.1) Hoy y Vencidas van sin cuenta
+  const cero = indiceTareas({ ver: 'hoy', listas: [], cuentas: null, rotas: [] })
+  assert.doesNotMatch(cero, /class="ct/)
+})
+
+test('índice: renombrar y crear ponen el campo en su lugar, con el error de nombre repetido; los archivos rotos van al final', () => {
+  const ren = indiceTareas({ ver: 'l-casa', listas: LISTAS, cuentas: { hoy: 0, vencidas: 0 }, rotas: [], renombrando: 'l-casa', errorLista: 'Ya hay una lista «Trabajo».' })
+  assert.match(ren, /<input data-campo="ren" data-k="ren-in" maxlength="40" value="Casa" placeholder="Nombre de la lista" aria-label="Nuevo nombre de la lista"/)
+  assert.match(ren, /role="alert">Ya hay una lista «Trabajo».</)
+  assert.doesNotMatch(ren, /data-valor="l-casa"/)
+  const crear = indiceTareas({ ver: 'hoy', listas: LISTAS, cuentas: null, rotas: [{ archivo: 'l-roto.json', motivo: 'no es JSON' }], creando: true })
+  assert.match(crear, /data-campo="lista" data-k="lista-in" maxlength="40" value="" placeholder="Nombre de la lista"/)
+  assert.doesNotMatch(crear, /Nueva lista<\/span>/)
+  assert.match(crear, /class="ix-b rota" data-accion="tar-ver" data-valor="rota:l-roto.json"[^>]*title="l-roto.json: no es JSON"/)
+})
+
+test('encabezado del panel: Hoy con la fecha, el avance y su barra; Vencidas; una lista con Renombrar y Borrar lista', () => {
+  const hoy = cabeceraPanel({ ver: 'hoy', listas: LISTAS, hoy: HOY })
+  assert.match(hoy, /<h2 id="tar-pane-h">Hoy<\/h2>/)
+  assert.match(hoy, /martes 24\/11 · 1 de 3/)
+  assert.match(hoy, /role="progressbar" aria-label="Hechas hoy" aria-valuemin="0" aria-valuemax="3" aria-valuenow="1"><i style="--p:33.3%">/)
+  assert.match(cabeceraPanel({ ver: 'vencidas', listas: LISTAS, hoy: HOY }), /la más vieja primero/)
+  const lista = cabeceraPanel({ ver: 'l-trabajo', listas: LISTAS, hoy: HOY })
+  assert.match(lista, /<h2 id="tar-pane-h"><i class="pt" style="--c:var\(--celeste\)" aria-hidden="true"><\/i>Trabajo<\/h2>/)
+  assert.match(lista, /2 pendientes · 1 hecha/)
+  assert.match(lista, /class="lnk" data-accion="tar-renombrar" data-valor="l-trabajo" data-k="renombrar">Renombrar/)
+  assert.match(lista, /class="lnk peligro" data-accion="tar-borrar-lista" data-valor="l-trabajo" data-k="borrar-lista">Borrar lista/)
+})
+
+test('encabezado: "Borrar lista" armado pregunta con la cuenta de tareas, con el mismo data-k y la línea que retoma', () => {
+  const html = cabeceraPanel({ ver: 'l-trabajo', listas: LISTAS, hoy: HOY, armado: true, transcurrido: 1200 })
+  assert.match(html, /class="armado" data-accion="tar-borrar-lista" data-valor="l-trabajo" data-k="borrar-lista" aria-live="polite" style="--ya:-1200ms">¿Borrar con 3 tareas\? Sí</)
+})
+
+test('campo de nueva tarea: Hoy agrega a la primera lista; una lista, a ella; Vencidas no tiene campo', () => {
+  assert.match(campoNueva('hoy', LISTAS), /<label class="campo nueva">.*<input data-campo="nueva" data-k="nueva" maxlength="200" placeholder="Agregar para hoy en Trabajo…" aria-label="Agregar para hoy en Trabajo"><kbd>Enter<\/kbd><\/label>/)
+  assert.match(campoNueva('l-casa', LISTAS), /placeholder="Agregar a Casa…"/)
+  assert.equal(campoNueva('vencidas', LISTAS), '<p class="pista">Las vencidas salen de sus listas: tildalas o cambiales la fecha.</p>')
+})
+
+test('filas: el tilde es un checkbox con "Hecha: {título}", la fecha corta con su texto largo oculto, la lista en Hoy, las subtareas y las notas', () => {
+  const html = cuerpoLista({ ver: 'hoy', listas: LISTAS, hoy: HOY, hechas: false })
+  assert.match(html, /<li class="fila imp" data-id="t-pr" style="--c:var\(--celeste\)">/)
+  assert.match(html, /class="ck" role="checkbox" aria-checked="false" aria-label="Hecha: Revisar el PR #36" data-accion="tar-tildar" data-lista="l-trabajo" data-valor="t-pr" data-k="ck-t-pr"/)
+  assert.match(html, /<span class="tag t-aviso"><span class="oculto">, Vence hoy<\/span><span aria-hidden="true">hoy<\/span><\/span>/)
+  assert.match(html, /<span class="de-l" style="--c:var\(--celeste\)"><i class="pt" aria-hidden="true"><\/i>Trabajo<\/span>/)
+  assert.match(html, /<span class="subc" style="--p:33.3%"><i aria-hidden="true"><\/i>1\/3<span class="oculto"> subtareas hechas<\/span><\/span>/)
+  assert.match(html, /<span class="oculto">, con notas<\/span>/)
+  assert.match(html, /<span class="oculto">, importante<\/span>/)
+  assert.match(html, /<span class="imp-b" aria-hidden="true">!<\/span>/)
+  // Importantes primero: el PR antes que la luz
+  assert.ok(html.indexOf('t-pr') < html.indexOf('t-luz'))
+})
+
+test('filas: el título se escapa; una lista no repite su nombre en cada fila', () => {
+  const html = cuerpoLista({ ver: 'l-trabajo', listas: LISTAS, hoy: HOY, hechas: false })
+  assert.match(html, /Presupuesto &lt;b&gt;/)
+  assert.doesNotMatch(html, /class="de-l"/)
+  assert.match(html, /<span class="tag t-error"><span class="oculto">, Venció ayer<\/span><span aria-hidden="true">ayer<\/span>/)
+})
+
+test('"Hechas · n": plegado por defecto (aria-expanded false, sin la lista); desplegado, tildadas y sin fecha; la recién agregada lleva su destello', () => {
+  const plegado = cuerpoLista({ ver: 'l-trabajo', listas: LISTAS, hoy: HOY, hechas: false })
+  assert.match(plegado, /<button type="button" class="pleg" aria-expanded="false" aria-controls="tar-hechas" data-accion="tar-hechas" data-k="pleg">.*Hechas · 1<\/button>/)
+  assert.doesNotMatch(plegado, /t-hecha/)
+  const abierto = cuerpoLista({ ver: 'l-trabajo', listas: LISTAS, hoy: HOY, hechas: true, recien: 't-venc' })
+  assert.match(abierto, /<ul class="filas hechas-l" id="tar-hechas"><li class="fila hecha" data-id="t-hecha"/)
+  assert.match(abierto, /aria-checked="true" aria-label="Hecha: Deploy"/)
+  assert.doesNotMatch(abierto.slice(abierto.indexOf('hechas-l')), /class="tag/)
+  assert.match(abierto, /<li class="fila recien" data-id="t-venc"/)
+  // Vencidas no tiene "Hechas"
+  assert.doesNotMatch(cuerpoLista({ ver: 'vencidas', listas: LISTAS, hoy: HOY, hechas: false }), /class="pleg"/)
+})
+
+test('vacíos (5.2) y las filas fantasma mientras se lee (7.1)', () => {
+  const sinNada = [L('l-a', 'Ideas', 'rosa', [])]
+  assert.match(cuerpoLista({ ver: 'l-a', listas: sinNada, hoy: HOY }), /<div class="vac">.*<b>«Ideas» está vacía.<\/b><p>Escribí arriba y Enter para sumar la primera.<\/p><\/div>/)
+  assert.match(cuerpoLista({ ver: 'vencidas', listas: sinNada, hoy: HOY }), /<b>Nada vencido.<\/b><p>Estás al día.<\/p>/)
+  assert.match(cuerpoLista({ ver: 'hoy', listas: sinNada, hoy: HOY }), /<b>Listo por hoy.<\/b><p>No queda nada con fecha de hoy.<\/p>/)
+  assert.equal(cuerpoLista({ ver: 'hoy', listas: [], hoy: HOY, fantasmas: true }), '<ul class="filas fantasmas" aria-hidden="true"><li></li><li></li><li></li></ul>')
+})
+
+test('primer uso (5.2): el saludo, las tres sugeridas y el campo "Otro nombre…"', () => {
+  const html = primerUso('avi')
+  assert.match(html, /<div class="primer">/)
+  assert.match(html, /<b>Armá tu primera lista<\/b><p>Las tareas quedan en esta PC. Cuando tengas algo para hoy, te aviso al prender.<\/p>/)
+  for (const n of ['Trabajo', 'Casa', 'Compras']) assert.match(html, new RegExp(`data-accion="tar-sugerida" data-valor="${n}" data-k="sug-${n}">\\+ ${n}</button>`))
+  assert.match(html, /data-campo="lista" data-k="primer-in" maxlength="40" placeholder="Otro nombre…" aria-label="Nombre de la lista nueva"/)
+})
+
+test('errores (5.2): no se guardó, archivo roto y carpeta ilegible, con sus botones', () => {
+  assert.match(errorGuardar(), /<b>No se guardó el último cambio.<\/b>Sigue en pantalla. Reintento solo en 5 s.<\/div><div class="acc"><button type="button" class="lnk" data-accion="tar-reintentar" data-k="reintentar">Reintentar ahora<\/button>/)
+  const rota = errorRota('l-<x>.json')
+  assert.match(rota, /<b>Una lista no se pudo leer.<\/b>El archivo quedó como estaba \(l-&lt;x&gt;.json\). Las demás listas andan./)
+  assert.match(rota, /data-accion="tar-carpeta" data-k="carpeta">Abrir la carpeta<\/button><button type="button" class="lnk" data-accion="tar-releer" data-k="releer">Volver a leer/)
+  const carpeta = errorCarpeta('acceso denegado')
+  assert.match(carpeta, /<b>No se pudo abrir la carpeta de tareas.<\/b>acceso denegado/)
+  assert.match(carpeta, /data-accion="tar-releer"/)
+})
+
+test('la línea de la pregunta pendiente con la hoja abierta (3.1), y la mascota de 40 junto al título', () => {
+  assert.equal(avisoPreguntaTareas(0), '')
+  assert.match(avisoPreguntaTareas(1), /<button type="button" class="aviso cfg-aviso" data-accion="tar-pregunta"><span>Claude te hace una pregunta<\/span><span class="ir">Ver →<\/span><\/button>/)
+  assert.match(miniTareas('avi', false), /class="avi"/)
+  assert.notEqual(miniTareas('avi', true), miniTareas('avi', false))
+})
