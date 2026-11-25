@@ -310,8 +310,12 @@ function calendario(h, hoy) {
     + `<div class="letras" aria-hidden="true">${letras(hoy, false)}</div>${filas}</div></div>`
 }
 
-/** El hábito abierto (4.10): el nombre editable, la racha grande, las últimas 5 semanas, la configuración y el pie. */
-function detalle(h, { hoy, armado, transcurrido, errForm, avisar, fx }) {
+/**
+ * El hábito abierto (4.10): el nombre editable, la racha grande, las últimas 5 semanas, la configuración,
+ * «Guardar» y el pie. «Guardar» confirma lo escrito en el nombre y la unidad (lo demás ya se guarda al
+ * tocarlo); `guardado`: «Guardado» en su región `status` después de guardar bien (main.js lo saca solo).
+ */
+function detalle(h, { hoy, armado, transcurrido, errForm, avisar, fx, guardado }) {
   const n = racha(h, hoy)
   const sube = fx?.id === h.id && fx.sube ? ' sube' : ''
   return `<div class="det frm" data-form="${escapar(h.id)}">`
@@ -319,6 +323,8 @@ function detalle(h, { hoy, armado, transcurrido, errForm, avisar, fx }) {
     + `<div class="racha-g r${nivelRacha(n)}${sube}">${ICONO.brasa}<b>${n}</b><span>${escapar(textoRachaGrande(h, n))}<small>la mejor: ${mejorRacha(h, hoy)} · desde el ${desdeEl(h.creado ?? 0)}</small></span></div>`
     + calendario(h, hoy)
     + formulario(h, { modo: 'editar', errForm, avisar })
+    + `<div class="hb-acc"><button type="button" class="btn" data-accion="hab-guardar" data-valor="${escapar(h.id)}" data-k="guardar">Guardar</button>`
+    + `<span class="hb-ok" role="status">${guardado ? 'Guardado' : ''}</span></div>`
     + `<div class="det-pie"><span class="cifras">Creado el ${desdeEl(h.creado ?? 0)}</span>${confirmable('hab-borrar', h.id, 'borrar', 'Borrar hábito', textoBorrar(h, hoy), armado, transcurrido)}</div>`
     + '</div>'
 }
@@ -332,7 +338,7 @@ function detalle(h, { hoy, armado, transcurrido, errForm, avisar, fx }) {
  */
 export function partesHoja({
   ver, desde = 'hoy', lista, rotas = [], leido = true, fantasmas: fant = false, hoy, errorGuardar = false, armado = false,
-  transcurrido = 0, borrador = null, errForm = null, avisar = true, mascota = 'avi', fx = null, recien = null,
+  transcurrido = 0, borrador = null, errForm = null, avisar = true, mascota = 'avi', fx = null, recien = null, guardado = null,
 }) {
   const c = leido ? cuentasHoy(lista, hoy) : null
   const idx = indiceHabitos({ ver, lista, rotas, cuentas: c, hoy })
@@ -347,7 +353,7 @@ export function partesHoja({
     const h = lista.find(x => x.id === ver)
     if (h) {
       const paneH = `<button type="button" class="lnk atras" data-accion="hab-cerrar-habito" data-k="atras">‹ ${desde === 'semana' ? 'Semana' : 'Hoy'}</button><h2 class="oculto" id="hab-pane-h">${escapar(h.nombre)}</h2>`
-      return { idx, paneH, err: errG, cuerpo: detalle(h, { hoy, armado, transcurrido, errForm, avisar, fx }) }
+      return { idx, paneH, err: errG, cuerpo: detalle(h, { hoy, armado, transcurrido, errForm, avisar, fx, guardado: guardado === h.id }) }
     }
   }
   if (ver === 'semana') {

@@ -6039,6 +6039,25 @@ function confirmarCamposHabito() {
   for (const c of document.querySelectorAll('#hab .det [data-campo="nombre"], #hab .det [data-campo="unidad"]')) confirmarTextoHabito(c)
 }
 
+/**
+ * «Guardar» del hábito abierto: confirma el nombre y la unidad escritos, espera a que el archivo quede
+ * escrito y recién entonces dice «Guardado» 2,5 s. Con el nombre que no sirve queda su error (5.1); si
+ * no se pudo escribir, el de 7.4 con su reintento, nunca «Guardado».
+ */
+let relojGuardadoHabitos = null
+async function guardarDesdeBoton(id) {
+  confirmarCamposHabito()
+  if (st.habitos.errForm || !st.habitos.lista.some(h => h.id === id)) return
+  await guardarHabito(id)
+  if (fallidosHabitos.has(id)) return
+  st.habitos = { ...st.habitos, guardado: id }
+  pintarHabitos()
+  clearTimeout(relojGuardadoHabitos)
+  relojGuardadoHabitos = setTimeout(() => {
+    if (st.habitos.guardado === id) { st.habitos = { ...st.habitos, guardado: null }; pintarHabitos() }
+  }, 2500)
+}
+
 let relojArmadoHabitos = null
 /** El «¿Borrar…? Sí» vuelve solo a los 3 s (4.12), como el de Tareas. */
 function vigilarArmadoHabitos() {
@@ -6140,6 +6159,7 @@ async function accionHabitos(a, b) {
     case 'hab-aviso': avisoFormulario(); break
     case 'hab-color': editarFormulario('color', b.dataset.valor); break
     case 'hab-borrar': await clicBorrarHabito(b.dataset.valor); break
+    case 'hab-guardar': await guardarDesdeBoton(b.dataset.valor); break
     case 'hab-reintentar': reintentarHabitos(); break
     // «Abrir la carpeta» (7.6): Rust abre siempre `<config>/habitos/`, nunca una ruta de la ventana
     case 'hab-carpeta': invocar('habitos_abrir_carpeta').catch(err => registrar(`hábitos: no se pudo abrir la carpeta: ${err}`)); break

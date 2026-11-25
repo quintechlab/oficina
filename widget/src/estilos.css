@@ -2045,11 +2045,14 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 :is(#tar, #hab) .ck[aria-checked="true"] svg { stroke-dashoffset: 0 }
 :is(#tar, #hab) .ck:focus-visible { outline-offset: -4px }
 #tar .f-cuerpo { min-width: 0; display: grid; gap: var(--e-2); justify-items: start; padding: var(--e-5) var(--e-2) var(--e-5) var(--e-1) }
-#tar .tit {
-  font: var(--t-cuerpo-f); color: var(--crema); overflow-wrap: anywhere;
-  background: linear-gradient(var(--crema2), var(--crema2)) 0 58% / 0% 1.5px no-repeat
+#tar .tit { font: var(--t-cuerpo-f); color: var(--crema); overflow-wrap: anywhere }
+/* La raya va en el texto en línea (no en el bloque): con `clone` cada renglón lleva la suya */
+#tar .tit-t {
+  background: linear-gradient(var(--crema2), var(--crema2)) 0 58% / 0% 1.5px no-repeat;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone
 }
-:is(#tar, #hab) .fila.hecha .tit, :is(#tar, #hab) .fila.tildando .tit { background-size: 100% 1.5px; color: var(--tenue) }
+:is(#tar, #hab) .fila.hecha .tit, :is(#tar, #hab) .fila.tildando .tit { color: var(--tenue) }
+:is(#tar, #hab) .fila.hecha .tit-t, :is(#tar, #hab) .fila.tildando .tit-t { background-size: 100% 1.5px }
 #tar .meta { display: flex; flex-wrap: wrap; gap: 3px var(--e-5); align-items: center; max-width: 75% }
 #tar .tag { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 0; border-radius: 0; background: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--c, var(--tenue)) }
 #tar .tag.t-nada { --c: var(--tenue) }
@@ -2194,7 +2197,8 @@ body.pausa #cfg .esp:hover .avi { transform: none }
   body:not(.pausa) #tar .det-tit.tildando > .ck::before, body:not(.pausa) #tar .subs li.tildando > .ck::before { animation: tarHunde .42s var(--rebote) }
   body:not(.pausa) #tar .det-tit.tildando > .ck svg, body:not(.pausa) #tar .subs li.tildando > .ck svg { animation: tarVisto .26s var(--ease) .08s both }
   body:not(.pausa) :is(#tar, #hab) .ck svg { transition: stroke-dashoffset .26s var(--ease) .08s }
-  body:not(.pausa) #tar .tit { transition: background-size .34s var(--ease) .12s, color .3s ease .12s }
+  body:not(.pausa) #tar .tit { transition: color .3s ease .12s }
+  body:not(.pausa) #tar .tit-t { transition: background-size .34s var(--ease) .12s }
   body:not(.pausa) :is(#tar, #hab) .fila.tildando .ck::before { animation: tarHunde .42s var(--rebote) }
   body:not(.pausa) :is(#tar, #hab) .fila.recien { animation: tarRecien 1.2s var(--ease) }
   body:not(.pausa) #tar .pleg svg { transition: transform .3s var(--ease) }
@@ -2396,6 +2400,14 @@ body.pausa :is(#tar, #hab) .tit-in, body.pausa #tar .seg > button, body.pausa #t
 #hab .e-form::before { content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor }
 #hab .acc-c { display: flex; gap: 6px; align-items: center }
 #hab .det-pie .lnk { margin-right: calc(-1 * var(--e-3)) }
+/* «Guardar» del hábito abierto y su «Guardado» (la región status existe siempre, así se oye) */
+#hab .hb-acc { display: flex; align-items: center; gap: var(--e-4) }
+#hab .hb-ok { font: var(--t-mono-s); color: var(--ambar) }
+#hab .hb-ok:not(:empty)::before { content: "✓ " }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) #hab .hb-ok:not(:empty) { animation: hbOk .3s var(--ease) both }
+}
+@keyframes hbOk { from { opacity: 0; transform: translateX(-4px) } }
 
 /* El primer uso (7.2): las sugeridas con su punto y su detalle */
 #hab .primer .fc .pt { width: 6px; height: 6px; box-shadow: none; background: var(--c) }
