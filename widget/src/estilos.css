@@ -1221,6 +1221,106 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja.baja #chat-avi { top: 2px; width: 56px; height: 56px }
 #hoja.baja #chat-avi .avi { --t: 56px !important }
 
+/* La charla con herramientas (#43, chat-herramientas-ux.md 4 y 6): la línea «Puede tocar», su globo y los
+   recibos. Reusan las piezas de Tareas (el círculo, la etiqueta, la barra de avance) en chico */
+#hoja .puede-lugar { position: relative; flex: none; margin-bottom: 6px }
+#hoja .puede {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 30px; padding: 0 10px 0 6px; border-radius: 10px;
+  background: var(--s1); border: 1px solid var(--linea); color: var(--crema2); font: var(--t-mono-s); font-stretch: 75%; text-align: left;
+  transition: border-color var(--d-color), transform var(--d-presion) ease
+}
+#hoja .puede:hover, #hoja .puede[aria-expanded="true"] { border-color: var(--linea-hover) }
+#hoja .puede:active { transform: scale(.99) }
+#hoja .puede .ico { width: 18px; height: 18px; flex: none; display: grid; place-items: center; border-radius: 6px; background: color-mix(in srgb, var(--ambar) 18%, transparent); color: var(--ambar) }
+#hoja .puede svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round }
+#hoja .puede .t { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#hoja .puede b { font-weight: 500; color: var(--crema) }
+#hoja .puede .mas { margin-left: auto; flex: none; color: var(--tenue) }
+#hoja .puede.no { border-style: dashed; color: var(--tenue) }
+#hoja .puede.no .ico { background: var(--s3); color: var(--tenue) }
+#hoja .puede.no b { color: var(--crema2) }
+#hoja .puede-globo {
+  position: absolute; z-index: 8; top: calc(100% + 6px); left: 0; right: 0; display: grid; gap: 10px; padding: 12px 40px 12px 12px;
+  border-radius: 12px; background: var(--s2); border: 1px solid var(--linea-hover); box-shadow: 0 14px 30px rgba(0, 0, 0, .45)
+}
+#hoja .puede-globo p { font: var(--t-chico); color: var(--crema2) }
+#hoja .puede-globo b { color: var(--crema) }
+#hoja .puede-globo .ic { position: absolute; top: 6px; right: 6px }
+
+#hoja .recibos { display: grid; gap: 8px; margin-top: -4px }
+#hoja .rec { position: relative; display: grid; border-radius: 14px; background: var(--s1); border: 1px solid var(--linea); overflow: hidden }
+#hoja .rec-luz { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--ambar), transparent); transform: translateX(-100%); pointer-events: none }
+#hoja .rec-h { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 6px 0 12px; font: var(--t-rotulo); font-stretch: 75%; letter-spacing: .12em; text-transform: uppercase; color: var(--ambar) }
+#hoja .rec-h .rec-t { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#hoja .rec-h .lnk { position: relative; flex: none; margin-left: auto; height: 24px; padding: 0 6px; border-radius: 6px; letter-spacing: 0; text-transform: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
+#hoja .rec-h .lnk::after { content: ""; position: absolute; inset: -4px 0 }
+#hoja .rec-h .lnk:hover { background: var(--s3); color: var(--crema) }
+#hoja .rf { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 52px; padding: 8px 8px 8px 12px; border-top: 1px solid var(--linea) }
+#hoja .rec-h + .rf { border-top: 0 }
+#hoja .rf:focus-visible { outline-offset: -2px }
+#hoja .rf .tx { min-width: 0; display: grid; gap: 3px }
+#hoja .rf .tx b { position: relative; justify-self: start; max-width: 100%; font: var(--t-cuerpo-f); color: var(--crema); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#hoja .rf .raya { position: absolute; left: 0; right: 0; top: 52%; height: 1.5px; background: var(--crema2); transform: scaleX(0); transform-origin: 0 50%; pointer-events: none }
+#hoja .rf .meta { display: flex; flex-wrap: wrap; gap: 5px; align-items: center }
+#hoja .rf .vb { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hoja .rf.deshecho .tx b { color: var(--tenue) }
+#hoja .rf.deshecho .raya { transform: none }
+/* La fila deshecha entera al 45 % (4.4); «Deshecho» queda legible (12: el estado no va solo por el color) */
+#hoja .rf.deshecho > .cir, #hoja .rf.deshecho > .tx { opacity: .45 }
+#hoja .rf.hecha .tx b { color: var(--tenue); text-decoration: line-through }
+#hoja .rf.vencida .cir { border-color: var(--rojo) }
+#hoja .rf .rf-err { grid-column: 2 / -1; font: var(--t-chico); color: var(--rojo) }
+#hoja .rec.mal .rf.pedida .cir { opacity: .4 }
+#hoja .cir { position: relative; width: 18px; height: 18px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 1.5px solid var(--linea-hover); box-sizing: border-box }
+#hoja .cir.on { background: var(--ambar); border-color: var(--ambar) }
+#hoja .cir.on svg { width: 11px; height: 11px; fill: none; stroke: var(--negro); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 14; stroke-dashoffset: 0 }
+#hoja .tg { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 6px; background: var(--s3); font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2); white-space: nowrap }
+#hoja .tg i { width: 6px; height: 6px; border-radius: 50%; background: var(--c) }
+#hoja .tg.h { color: var(--ambar) }
+#hoja .tg.v { color: var(--rojo); background: color-mix(in srgb, var(--rojo) 14%, var(--s2)) }
+#hoja .deshacer {
+  position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 10px; border-radius: var(--r-pildora);
+  border: 1px solid var(--linea-hover); color: var(--crema2); font: 700 11.5px/1 var(--f); white-space: nowrap;
+  transition: background var(--d-color), color var(--d-color), transform var(--d-presion) ease
+}
+#hoja .deshacer:hover { background: var(--s3); color: var(--crema) }
+#hoja .deshacer:active { transform: scale(.96) }
+#hoja .deshacer[aria-disabled="true"] { cursor: progress }
+#hoja .deshacer svg { width: 12px; height: 12px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round }
+#hoja .deshacer.solo { width: 32px; padding: 0; justify-content: center }
+#hoja .estado-d { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue); padding-right: 6px; white-space: nowrap }
+#hoja .estado-d:focus-visible { outline-offset: 2px; border-radius: 4px }
+#hoja .rec-pie { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 8px 12px; border-top: 1px solid var(--linea); font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hoja .rec.mal { border-color: rgba(255, 122, 107, .45); background: linear-gradient(170deg, rgba(255, 122, 107, .08), var(--s1) 70%) }
+#hoja .rec.mal .rec-luz { background: linear-gradient(90deg, transparent, var(--rojo), transparent) }
+#hoja .rec.mal .rec-h { color: var(--rojo) }
+#hoja .rec.mal .motivo { padding: 2px 12px 0; font: var(--t-chico); color: var(--crema2) }
+#hoja .rec.mal .rec-pie { border-top: 0; justify-content: flex-start }
+#hoja .rec.lee .rec-h, #hoja .rec.neutro .rec-h { color: var(--crema2) }
+#hoja .rec.lee .rec-luz, #hoja .rec.neutro .rec-luz { display: none }
+#hoja .rec.lee .rf { min-height: 44px }
+#hoja .rec .prog { flex: none; display: block; width: 70px; height: 4px; margin-left: auto; border-radius: 2px; background: var(--s3); overflow: hidden }
+#hoja .rec .prog i { display: block; height: 100%; width: var(--p); border-radius: 2px; background: var(--ambar) }
+#hoja .rec .cuenta { flex: none; padding-right: 6px; letter-spacing: 0; text-transform: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hoja .rec .mas-l { padding: 4px 12px 8px; border-top: 1px solid var(--linea); font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hoja .mini {
+  position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 10px; border-radius: var(--r-pildora);
+  border: 1px solid var(--linea-hover); color: var(--crema); font: 700 11.5px/1 var(--f); white-space: nowrap;
+  transition: background var(--d-color), color var(--d-color), border-color var(--d-color), transform var(--d-presion) ease
+}
+#hoja .mini::after { content: ""; position: absolute; inset: -2px 0 }
+#hoja .mini:hover { background: var(--s3) }
+#hoja .mini:active { transform: scale(.96) }
+#hoja .mini.pri { background: var(--crema); color: var(--tinta); border-color: var(--crema) }
+#hoja .mini.pri:hover { background: #FFF7E6 }
+#hoja .mini.sutil { border-color: transparent; color: var(--crema2) }
+#hoja .mini.sutil:hover { color: var(--crema) }
+#hoja .mini[aria-disabled="true"] { opacity: .45; cursor: not-allowed; transform: none }
+@keyframes recGira { to { transform: rotate(-360deg) } }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) #hoja .deshacer.gira svg { animation: recGira .3s var(--ease) }
+}
+
 #chat-menu { position: absolute; z-index: 9; top: 52px; left: 14px }
 /* El del modelo cae debajo de su botón, contra el borde derecho de la charla */
 #chat-menu.de-modelo { left: auto; right: 14px }

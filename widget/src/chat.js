@@ -7,6 +7,8 @@
 // dispara un clic o Enter); nunca se pierde lo escrito; el texto del modelo nunca es HTML.
 
 import { escapar, textoActividad, tiempoRelativo, tiempoSubagente } from './logica.js'
+import { anunciosMensaje } from './recibos.js'
+import { hoyArgentina } from './fechas.js'
 
 // ------------------------------------------------------------------ geometría (3.1)
 
@@ -106,6 +108,8 @@ export function chatInicial() {
     borrador: '', adjuntos: [], errorAdjunto: null, menu: false, menuModelo: false, cajon: false, soltando: null, error: null, todos: false,
     proceso: 'apagado', engram: 'sin-saber', local: 'sin-saber', progreso: null,
     motor: 'claude', carpeta: null, modelo: null, recientes: [], turno: 0, frenado: null, charlas: [], firmas: {}, menuCharla: null,
+    // El globo de la línea «Puede tocar» (#43, chat-herramientas-ux.md 4.1)
+    puede: false,
   }
 }
 
@@ -285,6 +289,16 @@ export function relojEspera(desdeMs, ultimoMs, ahoraMs) {
   return { reloj: formatoReloj(ahoraMs - desdeMs), tarda: ahoraMs - desdeMs >= TARDA_MS, vencido: ahoraMs - (ultimoMs ?? desdeMs) >= SIN_NOTICIAS_MS }
 }
 
+/**
+ * Dónde queda el hilo al dibujarse: una bienvenida (charla sin mensajes) arriba, así el saludo se ve
+ * primero aunque las sugerencias no entren (#43, 5.4); con mensajes, abajo si ya estaba al fondo (sigue
+ * al texto que llega); si no, donde estaba (null).
+ */
+export function scrollHilo(c, alFondo) {
+  if (!c?.conversacion?.mensajes?.length) return 'arriba'
+  return alFondo ? 'abajo' : null
+}
+
 /** Los eventos del servidor de Avis (#43, chat-herramientas-ux.md 11.6): un cambio, una lectura o "para borrar". */
 const TIPOS_CAMBIO = new Set(['cambio', 'lectura', 'mostrar'])
 
@@ -292,6 +306,29 @@ const TIPOS_CAMBIO = new Set(['cambio', 'lectura', 'mostrar'])
 function conCambio(m, cambio) {
   if (typeof cambio?.id !== 'string' || !cambio.id || (m.cambios ?? []).some(x => x.id === cambio.id)) return m
   return { ...m, cambios: [...(m.cambios ?? []), cambio] }
+}
+
+/** Cambia un cambio (por id) en el mensaje de la mascota que lo tiene, en la charla de ahora; si no está, null. */
+function conCambioCambiado(c, id, f) {
+  const conv = c.conversacion
+  if (!conv || typeof id !== 'string') return null
+  const k = conv.mensajes.findIndex(m => m.rol === 'mascota' && (m.cambios ?? []).some(x => x.id === id))
+  if (k < 0) return null
+  const mensajes = conv.mensajes.slice()
+  mensajes[k] = { ...mensajes[k], cambios: mensajes[k].cambios.map(x => (x.id === id ? f(x) : x)) }
+  return { ...c, conversacion: { ...conv, mensajes } }
+}
+
+/** «Deshacer» terminó (`chat_deshacer`, 11.7): el cambio queda `deshecho` o `cambio-despues` (y se guarda). */
+function conEstadoCambio(c, id, estado) {
+  if (estado !== 'deshecho' && estado !== 'cambio-despues') return NADA(c)
+  return NADA(conCambioCambiado(c, id, x => ({ ...x, estado })) ?? c)
+}
+
+/** «Reintentar» (`chat_reintentar`, 11.9): el cambio nuevo ocupa el lugar del error, en el mismo mensaje. */
+function conReemplazo(c, id, cambio) {
+  if (typeof cambio?.id !== 'string' || !cambio.id) return NADA(c)
+  return NADA(conCambioCambiado(c, id, () => cambio) ?? c)
 }
 
 /** Un evento de Rust (`oficina://chat`) del turno de ahora; los de otra conversación o de otro turno, nada. */
@@ -331,10 +368,13 @@ function delBackend(c, p, ctx) {
     case 'fin': {
       if (!vivo) return NADA(c)
       const conv2 = conMascota({ ...conv, actualizada: ahora }, turno, m => ({ ...m, estado: 'ok', ms: Number(p.ms) || 0 }))
-      const texto = textoPlano(conv2.mensajes.findLast(m => m.rol === 'mascota')?.texto ?? '')
+      const ultimo = conv2.mensajes.findLast(m => m.rol === 'mascota')
+      const texto = textoPlano(ultimo?.texto ?? '')
+      // Los recibos se anuncian una vez, al terminar, con la respuesta (#43, 5.3)
+      const recibos = anunciosMensaje(ultimo, hoyArgentina(ahora))
       return {
         chat: { ...c, estado: 'listo', listoMs: ahora, conversacion: conv2 },
-        efectos: [{ tipo: 'anunciar', texto: `${ctx.mascota} respondió: ${texto.slice(0, 140)}` }],
+        efectos: [{ tipo: 'anunciar', texto: `${ctx.mascota} respondió: ${texto.slice(0, 140)}${recibos ? ` ${recibos}` : ''}` }],
       }
     }
     case 'frenada':
@@ -448,7 +488,7 @@ export function transicionChat(c, ev, ctx = {}) {
     }
     case 'cerrar':
       // Cerrar nunca frena: la respuesta termina y queda en la charla (3.1)
-      return c.abierta ? { chat: { ...c, abierta: false, menu: false, menuModelo: false, cajon: false, soltando: null }, efectos: [{ tipo: 'foco', a: 'marca' }] } : NADA(c)
+      return c.abierta ? { chat: { ...c, abierta: false, menu: false, menuModelo: false, cajon: false, soltando: null, puede: false }, efectos: [{ tipo: 'foco', a: 'marca' }] } : NADA(c)
     case 'alternar':
       return transicionChat(c, { tipo: c.abierta ? 'cerrar' : 'abrir' }, ctx)
     case 'abierta': {
@@ -585,8 +625,17 @@ export function transicionChat(c, ev, ctx = {}) {
       const progreso = ev.total != null ? { bajado: Number(ev.bajado) || 0, total: Number(ev.total) || 0 } : c.progreso
       return NADA({ ...c, local, progreso })
     }
+    case 'puede':
+      // La línea «Puede tocar» abre y cierra su globo (#43, 4.1)
+      return NADA({ ...c, puede: !c.puede })
+    case 'cambio-estado':
+      return conEstadoCambio(c, ev.id, ev.estado)
+    case 'cambio-reemplazo':
+      return conReemplazo(c, ev.id, ev.cambio)
     case 'esc':
-      // 3.5: menú > cajón > frenar > cerrar; el foco vuelve al disparador de lo que se cerró
+      // 3.5: menú > cajón > frenar > cerrar; el foco vuelve al disparador de lo que se cerró. Antes que
+      // todo, el globo de «Puede tocar» (#43, 9.1)
+      if (c.puede) return { chat: { ...c, puede: false }, efectos: [{ tipo: 'foco', a: 'puede' }] }
       if (c.menuModelo) return { chat: { ...c, menuModelo: false }, efectos: [{ tipo: 'foco', a: 'modelo' }] }
       if (c.menu) return { chat: { ...c, menu: false }, efectos: [{ tipo: 'foco', a: 'carpeta' }] }
       if (c.menuCharla) return { chat: { ...c, menuCharla: null }, efectos: [{ tipo: 'foco', a: 'charla', id: c.menuCharla.id }] }
@@ -816,7 +865,9 @@ export function sugerencias(motor, carpeta) {
   const medio = carpeta
     ? [`¿Qué cambió hoy en ${carpeta}?`, `Armame la documentación de ${carpeta}`]
     : ['¿Quién me está esperando?', '¿Qué preguntas tengo pendientes?']
-  return [{ texto: '¿En qué anda cada sesión?' }, ...medio.map(texto => ({ texto })), { texto: 'Resumime un PDF', adjuntar: true }]
+  // Las de Tareas (#43, chat-herramientas-ux.md 5.4): solo Claude Code tiene las herramientas de Avis
+  const tareas = ['Anotame comprar pan para mañana', '¿Qué tengo hoy?']
+  return [{ texto: '¿En qué anda cada sesión?' }, ...[...medio, ...tareas].map(texto => ({ texto })), { texto: 'Resumime un PDF', adjuntar: true }]
 }
 
 /**
@@ -1001,6 +1052,8 @@ export function charlaDeCabecera(h) {
  * `luego` (main.js lo junta cada 2 s). Al cambiar de charla con una respuesta en curso, la de antes, ya.
  * Al cambiar el modelo de una charla con mensajes (#35), ya.
  */
+const firmaCambios = conv => conv.mensajes.flatMap(m => (m.cambios ?? []).map(x => `${x.id}:${x.estado}`)).join('|')
+
 export function guardadosPendientes(antes, despues) {
   const a = antes?.conversacion
   const d = despues?.conversacion
@@ -1012,7 +1065,9 @@ export function guardadosPendientes(antes, despues) {
   const mando = d.mensajes.length > a.mensajes.length
   // Otro modelo (#35): se recuerda por charla, así que el archivo lo guarda ya (sin Engram: no hay texto nuevo)
   const modelo = (a.modelo ?? null) !== (d.modelo ?? null)
-  if (fin || corta || mando || modelo) pendientes.push({ conversacion: d, cuando: 'ya', engram: fin })
+  // Un cambio en las tareas (#43, 11.8): llegó, se deshizo o se reintentó; se guarda ya
+  const cambios = firmaCambios(a) !== firmaCambios(d)
+  if (fin || corta || mando || modelo || cambios) pendientes.push({ conversacion: d, cuando: 'ya', engram: fin })
   else if (despues.estado === 'escribiendo' && d.mensajes !== a.mensajes) pendientes.push({ conversacion: d, cuando: 'luego', engram: false })
   return pendientes
 }

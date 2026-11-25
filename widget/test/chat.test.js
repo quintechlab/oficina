@@ -11,6 +11,7 @@ import {
   ACTIVIDAD_QUIETA, TOPES_DATOS, formatoReloj, nombreCarpeta, listaCharlas, mensajesVisibles, TARDA_MS, SIN_NOTICIAS_MS,
 } from '../src/chat.js'
 import { hilo, escena, cabecera, composer, menuCarpeta, cajon, capaSoltar, textoError } from '../src/chatVista.js'
+import { guardadosPendientes, scrollHilo } from '../src/chat.js'
 import { zonaInteractiva, disposicionFlotante, disposicionAcoplada, disposicionTira } from '../src/muesca.js'
 import { agruparPorProyecto } from '../src/logica.js'
 
@@ -504,11 +505,12 @@ test('tituloConversacion: las primeras 6 palabras sin signos al final; vacío o 
 // ------------------------------------------------------------------ 11 y 12: sugerencias y adjuntos
 
 test('sugerencias(motor, carpeta): los textos de 4.1 con la carpeta; sin carpeta, los de sesiones', () => {
-  assert.deepEqual(sugerencias('claude', 'catalogo').map(s => s.texto), ['¿En qué anda cada sesión?', '¿Qué cambió hoy en catalogo?', 'Armame la documentación de catalogo', 'Resumime un PDF'])
-  assert.deepEqual(sugerencias('claude', null).map(s => s.texto), ['¿En qué anda cada sesión?', '¿Quién me está esperando?', '¿Qué preguntas tengo pendientes?', 'Resumime un PDF'])
+  // Con Claude Code, también las de Tareas (#43, chat-herramientas-ux.md 5.4); con Local, no
+  assert.deepEqual(sugerencias('claude', 'catalogo').map(s => s.texto), ['¿En qué anda cada sesión?', '¿Qué cambió hoy en catalogo?', 'Armame la documentación de catalogo', 'Anotame comprar pan para mañana', '¿Qué tengo hoy?', 'Resumime un PDF'])
+  assert.deepEqual(sugerencias('claude', null).map(s => s.texto), ['¿En qué anda cada sesión?', '¿Quién me está esperando?', '¿Qué preguntas tengo pendientes?', 'Anotame comprar pan para mañana', '¿Qué tengo hoy?', 'Resumime un PDF'])
   assert.deepEqual(sugerencias('local', null).map(s => s.texto), ['¿Quién me está esperando?', '¿Cuántos subagentes trabajan ahora?', '¿Qué pregunta tengo pendiente?'])
   // "Resumime un PDF" abre el selector de archivos, no manda nada
-  assert.deepEqual(sugerencias('claude', 'x').map(s => !!s.adjuntar), [false, false, false, true])
+  assert.deepEqual(sugerencias('claude', 'x').map(s => !!s.adjuntar), [false, false, false, false, false, true])
 })
 
 test('validarAdjunto: PDF hasta 20 MB, texto hasta 200 KB, 5 por mensaje y nada con el motor local', () => {
@@ -706,4 +708,111 @@ test('textoHerramientas: las de Avis (mcp__avis__…) no van en la línea: tiene
   const avis = [{ nombre: 'mcp__avis__tarea_crear', detalle: '' }, { nombre: 'mcp__avis__tareas_ver', detalle: '' }]
   assert.equal(textoHerramientas(avis, 'catalogo'), '')
   assert.equal(textoHerramientas([...avis, { nombre: 'Read', detalle: 'README.md' }], 'catalogo'), 'Leyó <b>README.md</b>')
+})
+
+// ------------------------------------------------------------------ #43, C2: los recibos en la charla (chat-herramientas-ux.md 3, 4, 7, 9 y 11.7)
+
+const CREADA = {
+  id: 'c-pan', herramienta: 'tarea_crear', estado: 'hecho', lista: 'l-compras', tarea: 't-pan', titulo: 'Comprar pan',
+  antes: null, despues: { titulo: 'Comprar pan', fecha: null, hecha: false, importante: false, lista: 'l-compras' }, motivo: null, reintentable: false, args: null,
+}
+const TILDADA = { ...CREADA, id: 'c-yerba', herramienta: 'tarea_tildar', titulo: 'Yerba', antes: { hecha: false, hechaEn: null, lista: 'l-compras' }, despues: { hecha: true, hechaEn: 5, lista: 'l-compras' } }
+const mascotaFinal = c => c.conversacion.mensajes.findLast(m => m.rol === 'mascota')
+/** Una charla con un turno que anotó una tarea, con o sin terminar. */
+function conRecibo({ terminar = true, cambios = [CREADA] } = {}) {
+  let c = evento(enviar(abierta(), 'Anotame pan').chat, 'listo', { sesion: 's' }).chat
+  for (const x of cambios) c = evento(c, 'cambio', { cambio: x }).chat
+  c = evento(c, 'texto', { texto: 'Listo, en Compras.' }).chat
+  return terminar ? evento(c, 'fin', { ms: 900 }).chat : c
+}
+
+test('hilo: el recibo va en div.recibos después del texto de la mascota (3.2), con su fila y «Deshacer»', () => {
+  const h = hilo(MODELO({ chat: conRecibo() }))
+  assert.match(h, /<div class="m-m"><div class="txt"><p>Listo, en Compras\.<\/p><\/div><div class="pie-m">[\s\S]*?<\/div><\/div><div class="recibos" data-i="1"><section class="rec" data-rec="cambios" aria-label="Anoté en Tareas">/)
+  assert.match(h, /data-accion="ch-deshacer" data-cambio="c-pan" aria-label="Deshacer: anotada Comprar pan"/)
+  // Terminado, la región ya no se anuncia (12)
+  assert.doesNotMatch(h, /class="recibos"[^>]*aria-live/)
+})
+
+test('hilo: mientras el turno corre, el recibo aparece apenas llega el cambio, aunque el texto siga (7), con aria-live', () => {
+  const c = conRecibo({ terminar: false })
+  const h = hilo(MODELO({ chat: c }))
+  assert.match(h, /<div class="m-m vivo">[\s\S]*<\/div><div class="recibos" data-i="1" aria-live="polite">/)
+  // Antes del texto, debajo de la espera
+  const espera = evento(evento(enviar(abierta(), 'Anotame pan').chat, 'listo', { sesion: 's' }).chat, 'cambio', { cambio: CREADA }).chat
+  assert.match(hilo(MODELO({ chat: espera })), /<div class="espera">[\s\S]*<\/div><div class="recibos" data-i="1" aria-live="polite">/)
+})
+
+test('hilo: el estado de «Deshacer» de esta ejecución (en curso, falló) llega en m.recibos.ui; las listas dan los chips', () => {
+  const listas = [{ id: 'l-compras', nombre: 'Compras', color: 'rosa', tareas: [] }]
+  const h = hilo(MODELO({ chat: conRecibo(), recibos: { listas, hoy: '2026-11-23', ui: new Map([['c-pan', 'curso']]) } }))
+  assert.match(h, /class="deshacer gira"[^>]*aria-busy="true"/)
+  assert.match(h, /<span class="tg" style="--c:var\(--rosa\)"><i aria-hidden="true"><\/i>Compras<\/span>/)
+})
+
+test('lo de antes: una charla sin cambios no lleva recibos ni cambia su hilo', () => {
+  let c = evento(enviar(abierta(), '¿En qué anda cada sesión?').chat, 'listo', { sesion: 's' }).chat
+  c = evento(c, 'herramienta', { nombre: 'Read', detalle: 'README.md' }).chat
+  c = evento(evento(c, 'texto', { texto: 'Todo tranquilo.' }).chat, 'fin', { ms: 1200 }).chat
+  const h = hilo(MODELO({ chat: c }))
+  assert.doesNotMatch(h, /recibos|class="rec/)
+  assert.equal(h, hilo(MODELO({ chat: c, recibos: { listas: [], hoy: '2026-11-23', ui: new Map() } })))
+})
+
+test('cambio-estado: deshacer cambia el estado del cambio en su mensaje (deshecho o cambió después) y se guarda ya', () => {
+  const c = conRecibo()
+  const r = transicionChat(c, { tipo: 'cambio-estado', id: 'c-pan', estado: 'deshecho' }, CTX)
+  assert.equal(mascotaFinal(r.chat).cambios[0].estado, 'deshecho')
+  assert.deepEqual(guardadosPendientes(c, r.chat).map(g => g.cuando), ['ya'])
+  assert.equal(mascotaFinal(transicionChat(c, { tipo: 'cambio-estado', id: 'c-pan', estado: 'cambio-despues' }, CTX).chat).cambios[0].estado, 'cambio-despues')
+  // Otro estado, o un id que no está: nada
+  assert.equal(transicionChat(c, { tipo: 'cambio-estado', id: 'c-pan', estado: 'hecho' }, CTX).chat, c)
+  assert.equal(transicionChat(c, { tipo: 'cambio-estado', id: 'c-otro', estado: 'deshecho' }, CTX).chat, c)
+})
+
+test('cambio-reemplazo: «Reintentar» pone el cambio nuevo en el lugar del error (11.9) y se guarda ya', () => {
+  const error = { ...CREADA, id: 'c-err', estado: 'error', motivo: 'No se pudo guardar. No cambió nada.', reintentable: true, args: { titulo: 'Comprar pan' } }
+  const c = conRecibo({ cambios: [TILDADA, error] })
+  const r = transicionChat(c, { tipo: 'cambio-reemplazo', id: 'c-err', cambio: CREADA }, CTX)
+  assert.deepEqual(mascotaFinal(r.chat).cambios.map(x => x.id), ['c-yerba', 'c-pan'])
+  assert.deepEqual(guardadosPendientes(c, r.chat).map(g => g.cuando), ['ya'])
+  assert.equal(transicionChat(c, { tipo: 'cambio-reemplazo', id: 'c-err', cambio: { estado: 'hecho' } }, CTX).chat, c)
+})
+
+test('«Puede tocar»: el globo se abre y se cierra; Esc lo cierra primero y lleva el foco a la línea (9.1)', () => {
+  let c = conRecibo()
+  c = transicionChat(c, { tipo: 'puede' }, CTX).chat
+  assert.equal(c.puede, true)
+  const esc = transicionChat({ ...c, menu: true }, { tipo: 'esc' }, CTX)
+  assert.equal(esc.chat.puede, false)
+  assert.equal(esc.chat.menu, true)
+  assert.deepEqual(esc.efectos, [{ tipo: 'foco', a: 'puede' }])
+  assert.equal(transicionChat(c, { tipo: 'puede' }, CTX).chat.puede, false)
+  assert.equal(transicionChat(c, { tipo: 'cerrar' }, CTX).chat.puede, false)
+  // Lo de antes: sin el globo, Esc sigue como siempre (cierra la hoja)
+  assert.equal(transicionChat(conRecibo(), { tipo: 'esc' }, CTX).chat.abierta, false)
+})
+
+test('fin: el anuncio suma el de cada recibo, uno por recibo y no fila por fila (5.3); sin cambios, como antes', () => {
+  let c = evento(enviar(abierta(), 'Anotame pan').chat, 'listo', { sesion: 's' }).chat
+  c = evento(evento(c, 'cambio', { cambio: CREADA }).chat, 'cambio', { cambio: TILDADA }).chat
+  const r = evento(evento(c, 'texto', { texto: 'Listo.' }).chat, 'fin', { ms: 900 })
+  assert.deepEqual(r.efectos, [{ tipo: 'anunciar', texto: 'Ascua respondió: Listo. 2 cambios: anotada Comprar pan; tildada Yerba.' }])
+  // Varios recibos, cada uno su frase: el de cambios y el de «no llegó»
+  let f = evento(enviar(abierta(), 'Anotame pan y yerba').chat, 'listo', { sesion: 's' }).chat
+  f = evento(f, 'herramienta', { nombre: 'mcp__avis__tarea_crear', detalle: '' }).chat
+  f = evento(f, 'herramienta', { nombre: 'mcp__avis__tarea_crear', detalle: '' }).chat
+  f = evento(evento(f, 'cambio', { cambio: CREADA }).chat, 'texto', { texto: 'Listo.' }).chat
+  assert.equal(evento(f, 'fin', { ms: 9 }).efectos[0].texto, 'Ascua respondió: Listo. Anotada: Comprar pan. Un cambio no llegó a Avis.')
+  const sin = evento(evento(evento(enviar(abierta()).chat, 'listo', { sesion: 's' }).chat, 'texto', { texto: 'Hola.' }).chat, 'fin', { ms: 9 })
+  assert.deepEqual(sin.efectos, [{ tipo: 'anunciar', texto: 'Ascua respondió: Hola.' }])
+})
+
+test('scrollHilo: una bienvenida (charla sin mensajes) abre con el hilo arriba; con mensajes, abajo si estaba al fondo', () => {
+  assert.equal(scrollHilo(abierta(), true), 'arriba')
+  assert.equal(scrollHilo(abierta(), false), 'arriba')
+  const con = conRecibo()
+  assert.equal(scrollHilo(con, true), 'abajo')
+  assert.equal(scrollHilo(con, false), null)
+  assert.equal(scrollHilo(chatInicial(), true), 'arriba')
 })

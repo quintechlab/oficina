@@ -222,3 +222,29 @@ test('ningún @keyframes se llama igual que otro: el último pisaría al primero
   assert.match(css, /@keyframes late \{ 0%, 100% \{ transform: scale\(\.8\); opacity: \.12 \}/)
   assert.match(css, /#hoja \.paso\.ahora i \{ animation: late-paso /)
 })
+
+// ------------------------------------------------------------------ #43, C2: el movimiento de los recibos (chat-herramientas-ux.md 10)
+
+test('las pistas de los recibos son las de 10: llega 600 con rebote, sello a los 100 por 900, visto a los 250 por 500', async () => {
+  const { PISTAS_RECIBO: P } = await import('../src/recibos.js')
+  assert.deepEqual(P.llega, { dura: 600, sube: 10, escala: 0.96, curva: 'outBack(1.6)' })
+  assert.deepEqual(P.sello, { en: 100, dura: 900 })
+  assert.deepEqual(P.tilde, { en: 250, dura: 500, trazo: 14 })
+  // La fila que se suma: 8 px, 420 ms, escalonadas 70; el error, sin rebote; la lectura, escalonada 50
+  assert.deepEqual(P.fila, { dura: 420, sube: 8, escalon: 70, curva: 'outExpo' })
+  assert.deepEqual(P.error, { dura: 420, sube: 10, curva: 'outExpo' })
+  assert.deepEqual(P.lectura, { dura: 360, escalon: 50, sube: 8, curva: 'outQuart' })
+  assert.deepEqual(P.deshacer, { raya: 400, estado: 300, opacidad: 0.45 })
+  assert.deepEqual(P.globo, { dura: 220, baja: 6, curva: 'outQuart' })
+})
+
+test('el ícono de Deshacer gira solo con movimiento y sin pausa; quieto, el recibo no esconde nada', () => {
+  assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{\r?\n  body:not\(\.pausa\) #hoja \.deshacer\.gira svg \{ animation: recGira/)
+  // La luz del borde descansa fuera de la caja y la raya en 0: sin el acto (reducido, pausa) no se ven
+  assert.match(css, /#hoja \.rec-luz \{[^}]*transform: translateX\(-100%\)/)
+  assert.match(css, /#hoja \.rf\.deshecho \.raya \{ transform: none \}/)
+})
+
+test('la fila deshecha queda entera al 45 % (4.4), salvo «Deshecho», que se tiene que leer', () => {
+  assert.match(css, /#hoja \.rf\.deshecho > \.cir, #hoja \.rf\.deshecho > \.tx \{ opacity: \.45 \}/)
+})

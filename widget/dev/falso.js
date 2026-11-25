@@ -171,6 +171,18 @@
 //   &modeloChat=opus   el modelo de Claude de las charlas nuevas (#35): fable|opus|sonnet|haiku (sin esto, Por defecto)
 //   &cancelaCarpeta    "Elegir otra carpeta…" se cancela (sin esto, elige quintech-crm del escritorio)
 //   &engram            el pie del cajón dice "también en Engram" (sin esto, "Engram apagado")
+// La charla con herramientas (#43, C2; chat-herramientas-ux.md 11.11): las herramientas falsas escriben
+// en las listas falsas de Tareas (window.__tareas) y avisan por oficina://tareas, como mcp_avis.rs:
+//   ?chat=recibo       «anotame comprar pan para mañana»: el recibo «Anoté en Tareas» con su sello
+//   ?chat=recibos      tres cambios (tildar, nueva fecha y mover): «3 cambios», filas escalonadas y «Deshacer los 3»
+//   ?chat=deshecho     el recibo y, al terminar, el clic en «Deshacer»: la raya y «Deshecho»
+//   ?chat=despues      el recibo, la tarea tildada en Tareas y el clic en «Deshacer»: «Cambió después»
+//   ?chat=lectura      «¿Qué tengo hoy?»: el recibo de lectura con su avance
+//   ?chat=borrar       «borrá la del DNI»: el recibo «Para borrar» con «Ir a la tarea →»
+//   ?chat=error        un error reintentable («No se pudo guardar…») con «Reintentar» y «Abrir Tareas»
+//   ?chat=nollego      dos tarea_crear y un solo cambio: «Un cambio no llegó a Avis»
+//   ?chat=local-herr   con Local: la línea punteada, la respuesta en texto y su globo abierto
+//   Con &tareas=hoy, la hoja de Tareas abierta al lado: la fila que entra con su destello (8)
 // window.__arrastrar({ type: 'enter' | 'over' | 'drop' | 'leave', paths, position }) imita el arrastre
 // de Tauri (onDragDropEvent, px físicos); window.__soltarEnHoja([ruta]) suelta en el medio de la hoja.
 // Desde la consola del iframe: window.__chat.despachar({ tipo: 'soltando', nombre: 'a.pdf' }) manda
@@ -610,21 +622,31 @@
   )
   const rotasTareas = modoTareas === 'roto' ? [{ archivo: 'l-mf3k2a9x1b.json', motivo: 'no es JSON: EOF while parsing a value at line 14 column 0' }] : []
   window.__tareas = listasTareas
+  /** La huella de una lista (11.5): un hash corto de su JSON (en Rust, el SHA-256 de los bytes del archivo). */
+  const huellaFalsa = l => {
+    let h = 0
+    for (const ch of JSON.stringify(l)) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0
+    return `h${(h >>> 0).toString(16)}`
+  }
   window.__guardadasTareas = []
   const comandosTareas = {
     // Como tareas.rs: las listas por orden y los archivos rotos (&tareaslento tarda 1,2 s: las filas fantasma)
+    // Con la huella de cada lista (#43, 11.5): un hash de su contenido, como el SHA-256 de tareas.rs
     tareas_leer: () => new Promise(r => setTimeout(() => r({
       listas: [...listasTareas.values()].sort((a, b) => a.orden - b.orden).map(l => structuredClone(l)), rotas: rotasTareas,
+      huellas: Object.fromEntries([...listasTareas.values()].map(l => [l.id, huellaFalsa(l)])),
     }), url.has('tareaslento') ? 1200 : 120)),
     // ?tareas=guardarfalla: Rust no pudo escribir (7.4); lo de la pantalla queda y reintenta a los 5 s
-    tareas_guardar: ({ lista }) => {
+    tareas_guardar: ({ lista, huella = null }) => {
       if (!/^l-[a-z0-9-]{1,38}$/.test(lista?.id ?? '')) return { ok: false, error: 'id de lista inválido' }
+      // La charla la cambió desde que la ventana la leyó: no se pisa (11.5)
+      if (huella && listasTareas.has(lista.id) && huella !== huellaFalsa(listasTareas.get(lista.id))) return { ok: false, error: 'cambio' }
       if (modoTareas === 'guardarfalla') return { ok: false, error: 'acceso denegado (falso)' }
       if (modoTareas === 'moverfalla' && lista.id === 'l-casa') return { ok: false, error: 'acceso denegado (falso)' }
       window.__guardadasTareas.push([lista.id, lista.tareas.length])
       listasTareas.set(lista.id, structuredClone(lista))
       console.info('[tareas] guardada', lista.id, lista.tareas.length)
-      return { ok: true, lista }
+      return { ok: true, lista, huella: huellaFalsa(lista) }
     },
     tareas_borrar_lista: ({ id }) => {
       if (!/^l-[a-z0-9-]{1,38}$/.test(id ?? '')) return { ok: false, error: 'id de lista inválido' }
@@ -811,7 +833,7 @@
   const GB = 1024 ** 3
   const TOTAL_MODELO = Math.round(2.6 * GB)
   const modeloLocal = {
-    modelo: url.get('modelo') === 'listo' || chatEsc === 'error-red' ? 'listo' : ['bajando', 'roto'].includes(url.get('modelo')) ? url.get('modelo') : 'falta',
+    modelo: url.get('modelo') === 'listo' || chatEsc === 'error-red' || chatEsc === 'local-herr' ? 'listo' : ['bajando', 'roto'].includes(url.get('modelo')) ? url.get('modelo') : 'falta',
     bajado: url.get('modelo') === 'bajando' ? Math.round(0.4 * GB) : 0,
     total: TOTAL_MODELO, motor: 'apagado', primeraVez: true, aceleracion: 'gpu',
   }
@@ -896,6 +918,7 @@
       luego(3700, () => { emitirChat(c, turno, 'error', { motivo: 'red' }); terminar() })
       return
     }
+    if (ESCENAS_HERR.has(chatEsc)) { turnoConHerramientas(c, turno, luego, terminar); return }
     const respuesta = rapido ? `Sobre «${texto}»: todo tranquilo por ahora.` : RESPUESTA
     let t = rapido ? 200 : 1300
     if (!rapido) {
@@ -907,6 +930,116 @@
     if (chatEsc === 'escribiendo') return
     luego(t + 120, () => { emitirChat(c, turno, 'fin', { ms: t + 120 }); terminar() })
   }
+  // ---- La charla con herramientas (#43, C2; chat-herramientas-ux.md 11.4 a 11.9): como mcp_avis.rs, cada
+  // herramienta escribe en las listas falsas (window.__tareas), emite su cambio por oficina://chat y la
+  // lista tocada por oficina://tareas; chat_deshacer y chat_reintentar siguen sus reglas.
+  const ESCENAS_HERR = new Set(['recibo', 'recibos', 'deshecho', 'despues', 'lectura', 'borrar', 'error', 'nollego'])
+  let nCambio = 0
+  const idCambio = () => `c-falso${++nCambio}`
+  const listaDeTarea = id => [...listasTareas.values()].find(l => l.tareas.some(t => t.id === id)) ?? null
+  const avisarTareas = (lista, tarea) => emitir('oficina://tareas', { lista, tarea, origen: 'chat' })
+  const cambioBase = (herramienta, estado, lista, tarea, titulo) => ({ id: idCambio(), herramienta, estado, lista, tarea, titulo, antes: null, despues: null, motivo: null, reintentable: false, args: null })
+  const herr = {
+    crear: ({ titulo, lista = 'l-compras', fecha = null }) => {
+      const l = listasTareas.get(lista)
+      const t = tareaF(titulo, { fecha, creada: Date.now() })
+      l.tareas.push(t)
+      avisarTareas(lista, t.id)
+      return { ...cambioBase('tarea_crear', 'hecho', lista, t.id, titulo), despues: { titulo, fecha, hecha: false, importante: false, lista } }
+    },
+    tildar: ({ id, hecha = true }) => {
+      const l = listaDeTarea(id)
+      const t = l.tareas.find(x => x.id === id)
+      const antes = { hecha: t.hecha, hechaEn: t.hechaEn, lista: l.id }
+      Object.assign(t, { hecha, hechaEn: hecha ? Date.now() : null })
+      avisarTareas(l.id, id)
+      return { ...cambioBase('tarea_tildar', 'hecho', l.id, id, t.titulo), antes, despues: { hecha, hechaEn: t.hechaEn, lista: l.id } }
+    },
+    editar: ({ id, lista, ...campos }) => {
+      const origen = listaDeTarea(id)
+      const t = origen.tareas.find(x => x.id === id)
+      const antes = { lista: origen.id }
+      const despues = { lista: lista ?? origen.id }
+      for (const [k, v] of Object.entries(campos)) { antes[k] = t[k]; despues[k] = v; t[k] = v }
+      if (lista && lista !== origen.id) {
+        listasTareas.get(lista).tareas.push(t)
+        origen.tareas = origen.tareas.filter(x => x.id !== id)
+        avisarTareas(lista, id)
+      }
+      avisarTareas(origen.id, id)
+      return { ...cambioBase('tarea_editar', 'hecho', despues.lista, id, t.titulo), antes, despues }
+    },
+    ver: vista => {
+      const hoy = diaAr(0)
+      const todas = [...listasTareas.values()].flatMap(l => l.tareas.map(t => ({ l, t })))
+      const de = todas.filter(({ t }) => (vista === 'vencidas' ? !t.hecha && t.fecha && t.fecha < hoy : t.fecha === hoy))
+      const orden = [...de].sort((a, b) => Number(!!a.t.hecha) - Number(!!b.t.hecha) || Number(!!b.t.importante) - Number(!!a.t.importante))
+      const filas = orden.slice(0, 6).map(({ l, t }) => ({ tarea: t.id, lista: l.id, titulo: t.titulo, fecha: t.fecha, hecha: t.hecha, importante: t.importante }))
+      return { ...cambioBase('tareas_ver', 'lectura', null, null, null), resumen: { vista, nombre: null, hoy, hechas: de.filter(x => x.t.hecha).length, total: de.length, mas: de.length - filas.length, filas } }
+    },
+    mostrar: id => {
+      const l = listaDeTarea(id)
+      return { ...cambioBase('tarea_mostrar', 'mostrar', l.id, id, l.tareas.find(x => x.id === id).titulo), resumen: { para: 'borrar' } }
+    },
+  }
+  const RESPUESTAS_HERR = {
+    recibo: 'Listo, para mañana en Compras.', deshecho: 'Listo, para mañana en Compras.', despues: 'Listo, para mañana en Compras.',
+    recibos: 'Hecho, tres cambios.', lectura: 'Tenés tres para hoy y una ya tildada. Arrancaría por el PR.',
+    borrar: 'Borrar lo hacés vos, con un clic: así nada se va por un malentendido. Te la dejo a mano:',
+    error: 'No pude anotarla: el archivo no se guardó.', nollego: 'Anoté el pan y la yerba.',
+  }
+  /** El turno falso con las herramientas de Avis: las llamadas (`↳`, que no se ven), los cambios y el texto. */
+  function turnoConHerramientas(c, turno, luego, terminar) {
+    const pasos = {
+      recibo: [['tarea_crear', () => herr.crear({ titulo: 'Comprar pan', fecha: diaAr(1) })]],
+      deshecho: [['tarea_crear', () => herr.crear({ titulo: 'Comprar pan', fecha: diaAr(1) })]],
+      despues: [['tarea_crear', () => herr.crear({ titulo: 'Comprar pan', fecha: diaAr(1) })]],
+      recibos: [
+        ['tarea_tildar', () => herr.tildar({ id: 't-falsa7' })],
+        ['tarea_editar', () => herr.editar({ id: 't-falsa1', fecha: diaAr(2) })],
+        ['tarea_editar', () => herr.editar({ id: 't-falsa12', lista: 'l-trabajo' })],
+      ],
+      lectura: [['tareas_ver', () => herr.ver('hoy')]],
+      borrar: [['tareas_ver', null], ['tarea_mostrar', () => herr.mostrar('t-falsa9')]],
+      error: [['tarea_crear', () => ({ ...cambioBase('tarea_crear', 'error', null, null, 'Turno con el dentista'), motivo: 'No se pudo guardar. No cambió nada.', reintentable: true, args: { titulo: 'Turno con el dentista', lista: 'l-casa', fecha: diaAr(5) } })]],
+      nollego: [['tarea_crear', () => herr.crear({ titulo: 'Comprar pan', fecha: diaAr(1) })], ['tarea_crear', null]],
+    }[chatEsc]
+    // Con &tareas, el cambio llega después de que la mascota aterrizó: da tiempo a escribir en Tareas
+    let t = url.has('tareas') ? 2200 : 700
+    for (const [nombre, hacer] of pasos) {
+      luego((t += 500), () => {
+        emitirChat(c, turno, 'herramienta', { nombre: `mcp__avis__${nombre}`, detalle: '' })
+        const cambio = hacer?.()
+        if (cambio) emitirChat(c, turno, cambio.estado === 'lectura' ? 'lectura' : cambio.estado === 'mostrar' ? 'mostrar' : 'cambio', { cambio })
+      })
+    }
+    for (const p of trozos(RESPUESTAS_HERR[chatEsc])) luego((t += 60), () => emitirChat(c, turno, 'texto', { texto: p }))
+    luego(t + 120, () => { emitirChat(c, turno, 'fin', { ms: t + 120 }); terminar() })
+  }
+  /** Como `mcp_avis::deshacer`: vuelve a `antes` si la tarea sigue como `despues`; si no, «cambió después». */
+  function deshacerFalso(cambio) {
+    const l = listaDeTarea(cambio.tarea)
+    const t = l?.tareas.find(x => x.id === cambio.tarea)
+    const coincide = (campos, lid) => Object.entries(campos ?? {}).every(([k, v]) => (k === 'lista' ? v === lid : t[k] === v))
+    if (cambio.herramienta === 'tarea_crear') {
+      if (!t) return { estado: 'deshecho' }
+      if (!coincide(cambio.despues, l.id)) return { estado: 'cambio-despues' }
+      l.tareas = l.tareas.filter(x => x.id !== t.id)
+      avisarTareas(l.id, t.id)
+      return { estado: 'deshecho' }
+    }
+    if (!t) return { estado: 'cambio-despues' }
+    if (!coincide(cambio.despues, l.id)) return { estado: coincide(cambio.antes, l.id) ? 'deshecho' : 'cambio-despues' }
+    for (const [k, v] of Object.entries(cambio.antes)) if (k !== 'lista') t[k] = v
+    if (cambio.antes.lista !== l.id) {
+      l.tareas = l.tareas.filter(x => x.id !== t.id)
+      listasTareas.get(cambio.antes.lista).tareas.push(t)
+      avisarTareas(cambio.antes.lista, t.id)
+    }
+    avisarTareas(l.id, t.id)
+    return { estado: 'deshecho' }
+  }
+
   /**
    * El turno del modelo de esta PC (8), como Rust: `listo` cuando despertó el motor (1,2 s la primera
    * vez), `recibido` con el pedido aceptado, `pensando` con el primer tramo y el texto de a tramos.
@@ -923,6 +1056,14 @@
     luego(despierta + 30, () => emitirChat(c, turno, 'recibido'))
     luego(despierta + 600, () => emitirChat(c, turno, 'pensando'))
     const antes = (historia ?? []).filter(m => m.rol === 'usuario').length
+    // ?chat=local-herr: lo que dice la instrucción local de 11.3 cuando le piden tocar tareas
+    if (chatEsc === 'local-herr') {
+      const no = 'Con el modelo local todavía no puedo tocar tus tareas ni tus hábitos. Lo puedo hacer en una charla con Claude Code.'
+      let t2 = despierta + 600
+      for (const p of trozos(no)) luego((t2 += 45), () => emitirChat(c, turno, 'texto', { texto: p }))
+      luego(t2 + 80, () => { emitirChat(c, turno, 'fin', { ms: t2 + 80 }); if (enCurso?.turno === turno && enCurso.c === c) enCurso = null })
+      return
+    }
     const respuesta = `Sobre «${texto}»: **oficina** está trabajando y **catalogo** te hace una pregunta.${antes ? ` (Me acuerdo de ${antes} ${antes === 1 ? 'pregunta' : 'preguntas'} de antes.)` : ''}`
     let t = despierta + 600
     const lento = chatEsc === 'escribiendo' ? 420 : 45
@@ -1003,6 +1144,16 @@
       return prefsChat
     },
     elegir_carpeta: () => (url.has('cancelaCarpeta') ? null : `${ESCRITORIO}\\quintech-crm`),
+    // #43: Deshacer y Reintentar de un recibo, solo con el clic (chat-herramientas-ux.md 11.7 y 11.9)
+    chat_deshacer: ({ cambio }) => new Promise(r => setTimeout(() => {
+      const d = deshacerFalso(cambio)
+      console.info('[chat] deshacer', cambio.id, d.estado)
+      r({ ...d, motivo: null })
+    }, 350)),
+    chat_reintentar: ({ cambio }) => new Promise(r => setTimeout(() => {
+      const a = cambio.args ?? {}
+      r(herr.crear({ titulo: a.titulo, lista: listasTareas.has(a.lista) ? a.lista : 'l-casa', fecha: a.fecha ?? null }))
+    }, 300)),
     chat_adjunto: ({ ruta }) => adjuntoFalso(ruta),
     elegir_adjuntos: () => (url.has('cancelaAdjunto') ? [] : [`${DESCARGAS}\\presupuesto-2027.pdf`]),
   }
@@ -1051,6 +1202,40 @@
           break
         case 'error-adjunto':
           setTimeout(() => window.__soltarEnHoja([`${DESCARGAS}\\planilla.xlsx`]), 1300)
+          break
+        // #43, C2: los recibos (chat-herramientas-ux.md 11.11), por el mismo camino que el usuario
+        case 'recibo': case 'error': case 'nollego':
+          preguntar({ error: 'anotame el turno con el dentista el martes', nollego: 'anotame pan y yerba' }[chatEsc] ?? 'anotame comprar pan para mañana')
+          break
+        case 'recibos':
+          preguntar('tildá lo de la luz, pasá lo del PR al viernes y mové el cable a Trabajo')
+          break
+        case 'lectura':
+          preguntar('¿Qué tengo hoy?')
+          break
+        case 'borrar':
+          preguntar('borrá la del DNI')
+          break
+        case 'deshecho':
+          preguntar('anotame comprar pan para mañana')
+          cuandoListo(() => setTimeout(() => document.querySelector('#chat-hilo [data-accion="ch-deshacer"]')?.click(), 900))
+          break
+        case 'despues':
+          // La tarea se tilda en Tareas después de anotarla: Deshacer dice «Cambió después»
+          preguntar('anotame comprar pan para mañana')
+          cuandoListo(() => setTimeout(() => {
+            const l = listasTareas.get('l-compras')
+            const t = l.tareas.at(-1)
+            Object.assign(t, { hecha: true, hechaEn: Date.now() })
+            avisarTareas(l.id, t.id)
+            setTimeout(() => document.querySelector('#chat-hilo [data-accion="ch-deshacer"]')?.click(), 500)
+          }, 900))
+          break
+        case 'local-herr':
+          // Con Local: la línea punteada y, al pedir un cambio, la respuesta en texto (11.3); después, su globo
+          ch.despachar({ tipo: 'motor', motor: 'local' })
+          preguntar('anotame comprar pan para mañana')
+          cuandoListo(() => setTimeout(() => document.querySelector('#ch-puede')?.click(), 600))
           break
       }
     }, 1500)
