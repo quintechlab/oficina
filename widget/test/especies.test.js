@@ -19,8 +19,8 @@ const hace = min => new Date(AHORA - min * 60000).toISOString()
 
 // ------------------------------------------------------------------ la elección (9.1)
 
-test('las siete especies, en el orden de la dirección, y el Avi por defecto', () => {
-  assert.deepEqual(NOMBRES_ESPECIES, ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen'])
+test('las ocho especies, en el orden de la dirección (Nimbo al final, #46), y el Avi por defecto', () => {
+  assert.deepEqual(NOMBRES_ESPECIES, ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen', 'nimbo'])
   assert.equal(ESPECIE_POR_DEFECTO, 'avi')
 })
 
@@ -42,6 +42,7 @@ test('tokens de cada especie: los de la tabla 5.1 (copiados del boceto)', () => 
     bruma: ['Bruma', 'Regia', '#FF5FD2', '#B88CFF', '#170A33', [49, 71, 53, 4.6], [60, 28]],
     morro: ['Morro', 'Monolito', '#FFC24A', '#726E82', '#FFC24A', [47, 73, 60, 4], [60, 40]],
     lumen: ['Lumen', 'Aurora', '#FFB37A', '#F0C08F', '#1E1220', [48, 72, 63, 5], [60, 24]],
+    nimbo: ['Nimbo', 'Centella', '#FFE53D', '#F2F1FF', '#1C1A4A', [48, 72, 68, 4.6], [59, 24]],
   }
   assert.deepEqual(Object.keys(ESPECIES), NOMBRES_ESPECIES)
   for (const [id, [nombre, evoNombre, c, mano, trazo, [x1, x2, y, r], emisor]] of Object.entries(tabla)) {
@@ -51,8 +52,8 @@ test('tokens de cada especie: los de la tabla 5.1 (copiados del boceto)', () => 
     assert.deepEqual(d.emisor, emisor, id)
     assert.equal(typeof d.firma, 'string', id)
   }
-  // Solo Bruma flota (5.1: contacto de rx 20)
-  assert.deepEqual(NOMBRES_ESPECIES.filter(id => ESPECIES[id].flota), ['bruma'])
+  // Bruma y Nimbo flotan (5.1: contacto de rx 20)
+  assert.deepEqual(NOMBRES_ESPECIES.filter(id => ESPECIES[id].flota), ['bruma', 'nimbo'])
 })
 
 test('datosEspecie: la de la especie, o la del Avi si no se conoce', () => {
@@ -230,7 +231,7 @@ test('pantalla dividida: el Claude de cada mitad, las caras de "Conversan" y el 
 
 // ------------------------------------------------------------------ entrega 3: las especies nuevas (5.2, 5.3 y 5.5)
 
-const NUEVAS = ['ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']
+const NUEVAS = ['ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen', 'nimbo']
 /** Las 13 poses del boceto (13.3): las de POSES sin la voz del resumen, con "comando" (escribiendo con comando). */
 const POSES_13 = [['esperando'], ['escribiendo'], ['escribiendo', true], ['leyendo'], ['pensando'], ['coordinando'], ['teEspera'], ['proceso'], ['listo'], ['fallo'], ['durmiendo'], ['inactiva'], ['saluda']]
 const cuenta = (h, re) => (h.match(re) ?? []).length
@@ -241,7 +242,7 @@ const gBalanceado = h => {
   return n === 0
 }
 
-test('las seis especies nuevas traen las piezas de su forma base y las partes de su forma evolucionada (5.2 y 5.3)', () => {
+test('las siete especies nuevas traen las piezas de su forma base y las partes de su forma evolucionada (5.2 y 5.3)', () => {
   for (const id of NUEVAS) {
     const { piezas, evo } = ESPECIES[id]
     for (const k of ['atras', 'cuerpo', 'ojos', 'boca']) assert.ok(piezas?.[k]?.startsWith('<'), `${id}.${k}`)
@@ -259,6 +260,7 @@ test('la forma evolucionada de cada especie: sus partes .evo-p y sus envolturas 
     bruma: [4, ['tents-e']],
     morro: [3, ['puno-e']],
     lumen: [3, ['ala-e', 'ant-e']],
+    nimbo: [3, ['ala-e', 'mechon-e']],
   }
   for (const [id, [partes, envolturas]] of Object.entries(tabla)) {
     const h = svgAvi(claudeDe(id), 'esperando', false, { claveEvo: 's1' })
@@ -270,8 +272,8 @@ test('la forma evolucionada de cada especie: sus partes .evo-p y sus envolturas 
 
 test('forma chica: el detalle fino de cada forma lleva evo-fino; la silueta no (tabla 5.5)', () => {
   // Pira: vetas; Glaciar: hexágono, gema y órbita; Nodo Ω: aura; Regia: hilos, órbita y bandas;
-  // Monolito: runas extra y piedras; Aurora: cintas y tiara
-  const fino = { ascua: 1, escarcha: 3, nodo: 1, bruma: 3, morro: 2, lumen: 2 }
+  // Monolito: runas extra y piedras; Aurora: cintas y tiara; Centella: las tres estrellas que giran
+  const fino = { ascua: 1, escarcha: 3, nodo: 1, bruma: 3, morro: 2, lumen: 2, nimbo: 1 }
   for (const [id, n] of Object.entries(fino)) {
     const h = svgAvi(claudeDe(id), 'esperando', false, { claveEvo: 's1' })
     assert.equal(cuenta(h, /evo-fino/g), n, id)
@@ -382,10 +384,11 @@ const TABLA_7_1 = {
   bruma: [['Perla', '#FFB3D9'], ['Tinta', '#7CF7FF'], ['Coral', '#FF8A5C', 0.9], ['Sifón', '#5CE8B8']],
   morro: [['Guijarro', '#7DF9FF'], ['Pizarra', '#8FD694'], ['Ladrillo', '#FF8A6B'], ['Musgoso', '#9AD67A']],
   lumen: [['Pavesa', '#FF9A3D'], ['Seda', '#C9A6FF'], ['Luna', '#B8F07A'], ['Lucero', '#FFE08A', 0.9]],
+  nimbo: [['Llovizna', '#7FC4FF'], ['Celaje', '#FF9EB8'], ['Niebla', '#C9D2DC', 0.9], ['Iris', '#8FE3A0']],
 }
 const subDe = (especie, variante) => ({ especie, variante })
 
-test('las 24 variantes de la tabla 7.1: nombre, acento y talla', () => {
+test('las 28 variantes (tabla 7.1 y las cuatro de Nimbo, #46): nombre, acento y talla', () => {
   assert.deepEqual(Object.keys(VARIANTES), NUEVAS)
   for (const id of NUEVAS) {
     assert.deepEqual(VARIANTES[id].map(v => [v.nombre, v.c, ...(v.talla ? [v.talla] : [])]), TABLA_7_1[id], id)
@@ -453,7 +456,7 @@ test('defsAvis trae todos los degradés que usan las variantes (una vez cada uno
   for (const id of NUEVAS) for (let k = 0; k < 4; k++) for (const [pose, comando = false] of POSES_13) {
     for (const m of svgAvi(subDe(id, k), pose, comando).matchAll(/url\(#([\w-]+)\)/g)) usados.add(m[1])
   }
-  for (const g of ['gAsTizon', 'gEsNieve', 'gNoClaro', 'gBrPerla', 'gMoArena', 'gLuBulbo']) assert.ok(usados.has(g), g)
+  for (const g of ['gAsTizon', 'gEsNieve', 'gNoClaro', 'gBrPerla', 'gMoArena', 'gLuBulbo', 'gNiGris', 'gNiIris']) assert.ok(usados.has(g), g)
   for (const u of usados) assert.equal(cuenta(defs, new RegExp(`id="${u}"`, 'g')), 1, u)
 })
 
@@ -564,6 +567,7 @@ test('canalesEspecie: el apéndice (ant), la luz propia (luz) y la boca de cada 
   const esperados = {
     ascua: ['.ala', ['.brasa'], ['.brasa']], escarcha: ['.ala', ['.chisp'], ['.chisp']], nodo: ['.oreja', ['.led'], ['.led']],
     bruma: ['.tents', ['.spot'], ['.spot']], morro: ['.musgo', ['.ru', '.ruglow'], ['.ru', '.ruglow']], lumen: ['.ant', ['.ocelo-f'], ['.ocelo']],
+    nimbo: ['.ala', ['.rayo-f'], ['.rayo-n']],
   }
   for (const id of NUEVAS) {
     const k = canalesEspecie(id)
@@ -615,6 +619,17 @@ test('las cinco poses de la voz en las especies nuevas: su clase, sus ojos ∩ y
   }
 })
 
+test('Nimbo: el rayo de la coronilla (.rayo-n) y su brillo (.rayo-f, apagado en reposo) en mechon-e; Niebla va sin coronilla', () => {
+  const h = svgAvi(claudeDe('nimbo'), 'esperando', false, { claveEvo: 's1' })
+  assert.match(h, /<g class="mechon-e ev"><circle class="rayo-f" cx="59" cy="32" r="9" fill="#FFE53D" opacity="0"\/><path class="rayo-n" /)
+  // Las orejas de nube son un par (ala), como las alas de Ascua: el canal ant las mueve espejadas
+  assert.equal(cuenta(h, /class="ala ai"|class="ala ad"/g), 2)
+  // Centella: tres estrellas que giran (orb-ni) y diez gotas de lluvia para el acto
+  assert.match(h, /<g class="orb-ni">(<path d="[^"]+" fill="#FFE53D"\/>){3}<\/g>/)
+  assert.equal(cuenta(h, /class="pt gota"/g), 10)
+  assert.doesNotMatch(svgAvi(subDe('nimbo', 2), 'esperando'), /rayo-n|rayo-f/)
+})
+
 test('Lumen: el ocelo de las alas lleva su clase (la luz que se apaga); el dibujo no cambia', () => {
   const h = svgAvi(claudeDe('lumen'), 'esperando', false, { claveEvo: 's1' })
   assert.equal(h.match(/<circle class="ocelo" cx="19" cy="50" r="5\.6" fill="#5CE1E6"\/>/g).length, 2)
@@ -631,11 +646,12 @@ test('cada especie trae el tipo y el concepto del boceto de mascotas (M), para l
     bruma: ['Abisal · bioluz', 'Viene del fondo del mar de datos: no camina, flota, y brilla cuando piensa.'],
     morro: ['Gólem · runas', 'Un gólem petiso de basalto: lento, firme, y sus runas se encienden cuando algo importa.'],
     lumen: ['Polilla · luz', 'Una polilla mullida que junta la luz de las pantallas y la devuelve en polvo.'],
+    nimbo: ['Nube · tormenta', 'Una nube de bolsillo que flota sobre el escritorio: tranquila hasta que algo importa, y entonces truena.'],
   }
   for (const e of NOMBRES_ESPECIES) assert.deepEqual([ESPECIES[e].tipo, ESPECIES[e].concepto], esperado[e], e)
   // Sumar el tipo y el concepto no toca lo que ya había (nombre, forma evolucionada y acento)
   assert.deepEqual(NOMBRES_ESPECIES.map(e => [ESPECIES[e].nombre, ESPECIES[e].evoNombre, ESPECIES[e].c]), [
     ['Avi', 'Faro', '#F2B632'], ['Ascua', 'Pira', '#FF7A2E'], ['Escarcha', 'Glaciar', '#7DF9FF'], ['Nodo', 'Nodo Ω', '#C6FF3D'],
-    ['Bruma', 'Regia', '#FF5FD2'], ['Morro', 'Monolito', '#FFC24A'], ['Lumen', 'Aurora', '#FFB37A'],
+    ['Bruma', 'Regia', '#FF5FD2'], ['Morro', 'Monolito', '#FFC24A'], ['Lumen', 'Aurora', '#FFB37A'], ['Nimbo', 'Centella', '#FFE53D'],
   ])
 })

@@ -55,7 +55,7 @@ test('una pestaña desconocida no se abre: queda la de antes', () => {
 
 // ------------------------------------------------------------------ validarAjuste (caso 2, sin `motor`)
 
-test('validarAjuste: mascota acepta solo las siete especies', () => {
+test('validarAjuste: mascota acepta solo las ocho especies', () => {
   for (const e of NOMBRES_ESPECIES) assert.equal(validarAjuste('mascota', e), true, e)
   assert.equal(validarAjuste('mascota', 'Ascua'), false)
   assert.equal(validarAjuste('mascota', ''), false)
@@ -455,10 +455,11 @@ test('elegirForma: solo "base" o "evo"; otra cosa deja la que había', () => {
   assert.equal(elegirForma(c, undefined), c)
 })
 
-test('rotuloEspecie: "Especie {n} de 7 · {tipo}"', () => {
-  assert.equal(rotuloEspecie('avi'), 'Especie 1 de 7 · Familia · el de siempre')
-  assert.equal(rotuloEspecie('ascua'), 'Especie 2 de 7 · Dracónico · brasa')
-  assert.equal(rotuloEspecie('lumen'), 'Especie 7 de 7 · Polilla · luz')
+test('rotuloEspecie: "Especie {n} de 8 · {tipo}"', () => {
+  assert.equal(rotuloEspecie('avi'), 'Especie 1 de 8 · Familia · el de siempre')
+  assert.equal(rotuloEspecie('ascua'), 'Especie 2 de 8 · Dracónico · brasa')
+  assert.equal(rotuloEspecie('lumen'), 'Especie 7 de 8 · Polilla · luz')
+  assert.equal(rotuloEspecie('nimbo'), 'Especie 8 de 8 · Nube · tormenta')
 })
 
 test('los anuncios de la mascota: la especie elegida y el cambio de forma', () => {
@@ -486,7 +487,7 @@ test('Mascota: el escenario con el Avi de 120 evolucionable, el rótulo, el nomb
   assert.match(html, /class="esc-fig" data-parte="fig"><span class="avi" style="--t:120px/)
   assert.match(html, new RegExp(`data-evo="${CLAVE_VISTA_PREVIA}"`))
   assert.match(html, /class="[^"]*m-ascua/)
-  assert.match(html, />Especie 2 de 7 · Dracónico · brasa</)
+  assert.match(html, />Especie 2 de 8 · Dracónico · brasa</)
   assert.match(html, /<h3 class="esc-n">Ascua<\/h3>/)
   assert.match(html, />Un dragoncito que guarda una brasa en el pecho: cuanto más trabaja, más brilla.</)
   assert.match(html, />Evoluciona sola mientras Claude coordina un equipo</)
@@ -501,7 +502,7 @@ test('Mascota: "Base · {evo}" es un radiogroup con la forma elegida enfocable',
   assert.match(evo, /aria-checked="true" tabindex="0" data-accion="cfg-forma" data-valor="evo"/)
 })
 
-test('Mascota: siete fichas en un radiogroup, la elegida con ✓ y la única en el orden de tabulación', () => {
+test('Mascota: ocho fichas en un radiogroup, la elegida con ✓ y la única en el orden de tabulación', () => {
   const html = seccionConfiguracion('mascota', MASCOTA)
   assert.match(html, /class="especies" role="radiogroup" aria-label="Mascota de Claude"/)
   const fichas = [...html.matchAll(/<button type="button" class="esp" role="radio" aria-checked="(true|false)" tabindex="(0|-1)" data-accion="cfg-esp" data-valor="([a-z]+)"[^>]*aria-label="([^"]+)"/g)]
@@ -513,7 +514,7 @@ test('Mascota: siete fichas en un radiogroup, la elegida con ✓ y la única en 
   assert.equal((html.match(/class="esp-ok"/g) ?? []).length, 1)
   // Nombre y forma a la vista; el Avi de 54, en la base
   assert.match(html, /<span class="esp-n">Bruma<\/span><span class="esp-e">› Regia<\/span>/)
-  assert.equal((html.match(/class="avi" style="--t:54px/g) ?? []).length, 7)
+  assert.equal((html.match(/class="avi" style="--t:54px/g) ?? []).length, 8)
   // La luz de cada ficha es el acento de su especie
   assert.match(html, /data-valor="escarcha"[^>]*style="--c:#7DF9FF"/)
   // Celda 8

@@ -121,7 +121,7 @@
 //   Lo guardado queda en window.__ajustes.habitosResumen; cada pedido de frase, en window.__frases
 //   Lo guardado queda en window.__habitos (un Map por id); cada guardado se anota en window.__guardadosHabitos.
 //   Las cuentas son las de las listas falsas (2 para hoy y 2 vencidas, con ?tareas=… las de cada caso)
-//   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro o lumen;
+//   ?mascota=ascua  la mascota de preferencias.json (avi, ascua, escarcha, nodo, bruma, morro, lumen o nimbo;
 //                 docs/diseno/mascotas-avi-ux.md 9.1), con su forma evolucionada, sus bucles y sus actos;
 //                 los subagentes, sus variantes (7.3; con el Avi, el elenco por nombre)
 //   ?equipo=n     oficina arranca con n subagentes trabajando (0: ninguno; su Claude empieza en la base)
@@ -600,7 +600,7 @@
     : null
   window.__acople = acople
   /** preferencias.json falso (configuracion-ux.md 9.1): los interruptores; guardar_ajuste los cambia. */
-  const ESPECIES = ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']
+  const ESPECIES = ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen', 'nimbo']
   const ajustes = {
     arriba: true, avisar: true, pausa: url.has('pausa'), mascota: ESPECIES.includes(url.get('mascota')) ? url.get('mascota') : 'avi',
     // Los nombres (#37): ?nombre=Pancho&usuario=Nico

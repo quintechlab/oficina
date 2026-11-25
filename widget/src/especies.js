@@ -1,4 +1,4 @@
-// Las especies de la mascota (docs/diseno/mascotas-avi-ux.md): el Avi de hoy y seis nuevas. Datos
+// Las especies de la mascota (docs/diseno/mascotas-avi-ux.md): el Avi de hoy y siete nuevas. Datos
 // puros copiados de `M` y `FIRMA` del boceto aprobado (docs/diseno/bocetos/mascotas-avi.html): nombre,
 // nombre de la forma evolucionada, tokens (5.1: `--c` acento, `--mano`, trazo de los ojos ∪ ∩ x),
 // centro de los ojos, emisor de las ondas de "coordinando" y rasgo firma (5.2).
@@ -10,6 +10,9 @@
 // `evo-fino` en el detalle fino que la forma chica omite (5.5).
 // Entrega 4: las 24 variantes de subagente de las especies nuevas (`VARIANTES` del boceto, 7.1) y
 // `datosVariante`, que arma cada una igual que `datos` del boceto.
+// Entrega 6 (#46): Nimbo › Centella, la octava, copiada de `NIMBO`, `CENTELLA`, `VAR_NIMBO` y su
+// entrada de `PROPS` del boceto de la especie nueva (docs/diseno/bocetos/especie-nueva.html), con el
+// mismo agregado de `evo-fino`; con sus cuatro, las variantes son 28.
 
 /** Redondeo de las coordenadas generadas (`f` del boceto). */
 const f = n => +n.toFixed(2)
@@ -20,7 +23,10 @@ const par = (cls, s) => `<g class="${cls}-e ev ai"><g class="${cls}-s ai"><g cla
 /** Origen en unidades del viewBox y orden de aparición `--k` de una parte (3.2). */
 const org = (x, y, k = 0) => `style="transform-box:view-box;transform-origin:${x}px ${y}px;--k:${k}"`
 
-/** Borde mullido: n bultos sobre una elipse (la pelusa de Lumen). */
+/** Estrella de cuatro puntas de radio r (las estrellas que giran alrededor de Centella). */
+const estrella4 = (cx, cy, r) => `M${cx} ${f(cy - r)}L${f(cx + r * .3)} ${f(cy - r * .3)}L${f(cx + r)} ${cy}L${f(cx + r * .3)} ${f(cy + r * .3)}L${cx} ${f(cy + r)}L${f(cx - r * .3)} ${f(cy + r * .3)}L${f(cx - r)} ${cy}L${f(cx - r * .3)} ${f(cy - r * .3)}Z`
+
+/** Borde mullido: n bultos sobre una elipse (la pelusa de Lumen; el cuerpo y el nubarrón de Nimbo). */
 function festoneado(cx, cy, rx, ry, n, a) {
   let d = ''
   for (let i = 0; i < n; i++) {
@@ -238,6 +244,34 @@ const AURORA = {
   fx: `<g class="espiral" ${org(60, 66)}>${Array.from({ length: 12 }, (_, i) => `<circle class="pt mo" cx="60" cy="66" r="${1.5 + (i % 3) * .45}" fill="${i % 4 ? '#FFE9A8' : '#5CE1E6'}" opacity="0"/>`).join('')}</g>`,
 }
 
+// ------------------------------------------------------------------ Nimbo › Centella (#46)
+// Copia de `NIMBO` y `CENTELLA` del boceto de la especie nueva: una nube con orejas de nube (un par,
+// como las alas) y un rayo limón en la coronilla (`mechon-e`: `.rayo-n` y su brillo `.rayo-f`).
+const nubeNi = `<path d="M41 54C41 45 35 40.5 28.5 41.5C25.5 35 17 34 13 40C6 39 1.5 46 4.5 51C2.5 56.5 9 60.5 14 58.5C18 62.5 26 61.5 29 58.5C35 60.5 41 58.5 41 54Z" fill="#F7F6FF" stroke="#B9B6EA" stroke-width="1.1" stroke-linejoin="round"/>`
+  + `<path d="M31 51Q25 46.5 18.5 49.5M13.5 52.5Q10 50.5 8 52" stroke="#CFCDF5" stroke-width="1.2" fill="none" stroke-linecap="round"/>`
+const RAYO_NI = `<g class="mechon-e ev"><circle class="rayo-f" cx="59" cy="32" r="9" fill="#FFE53D" opacity="0"/><path class="rayo-n" d="M57 46L63 33.5H58.5L65 20L52.5 36.5H57.5L52 46Z" fill="url(#gNiRayo)" stroke="#E0A800" stroke-width=".8" stroke-linejoin="round"/></g>`
+const ojoNi = x => `<ellipse cx="${x}" cy="68" rx="5" ry="6.2" fill="#1C1A4A"/><circle cx="${x + 1.8}" cy="65.2" r="2" fill="#fff"/><circle cx="${x - 1.6}" cy="70.6" r=".9" fill="#FFE53D"/>`
+
+/** nimbo: las piezas de la forma base (`NIMBO` del boceto). */
+const NIMBO = {
+  atras: RAYO_NI + par('ala', nubeNi),
+  cuerpo: `<circle cx="48" cy="100.5" r="4.2" fill="#D2D0F5"/><circle cx="72" cy="100.5" r="4.2" fill="#D2D0F5"/>`
+    + `<path d="${festoneado(60, 72, 30, 28, 13, 2.3)}" fill="url(#gNiPiel)"/>`
+    + `<path d="M32 86Q60 100 88 86Q86 98 60 100Q34 98 32 86Z" fill="#9C99D8" opacity=".32"/>`
+    + `<ellipse cx="46" cy="54" rx="9" ry="4.4" transform="rotate(-30 46 54)" fill="#fff" opacity=".8"/>`
+    + `<ellipse cx="38" cy="77" rx="5" ry="2.7" fill="#FFB3D9" opacity=".55"/><ellipse cx="82" cy="77" rx="5" ry="2.7" fill="#FFB3D9" opacity=".55"/>`,
+  ojos: ojoNi(48) + ojoNi(72),
+  boca: `<path d="M56.6 77Q60 81 63.4 77" stroke="#1C1A4A" stroke-width="1.6" fill="none" stroke-linecap="round"/>`,
+}
+/** nimbo: las partes de su forma evolucionada (el nubarrón, la cola de rayo y las estrellas) y las partículas del acto. */
+const CENTELLA = {
+  evoAtras: `<g class="evo-p" ${org(60, 66)}><path d="${festoneado(60, 58, 40, 27, 15, 2.6)}" fill="url(#gNiTorm)" stroke="#A8A4E0" stroke-width="1.2" stroke-linejoin="round"/></g>`
+    + `<g class="evo-p" ${org(86, 90, 1)}><path d="M84 86L103 79L98 88.5L116 84L96 99L100.5 91L84 95Z" fill="url(#gNiRayo)" stroke="#E0A800" stroke-width=".8" stroke-linejoin="round"/></g>`,
+  evoFrente: `<g class="evo-p evo-fino" ${org(60, 64, 2)}><g class="orb-ni">${[0, 120, 240].map(g => { const a = (g - 90) * Math.PI / 180; return `<path d="${estrella4(f(60 + Math.cos(a) * 46), f(64 + Math.sin(a) * 46), 3.2)}" fill="#FFE53D"/>` }).join('')}</g></g>`,
+  fx: `<circle class="destello" cx="60" cy="66" r="42" fill="#FFF8C0" opacity="0" ${org(60, 66)}/><path class="descarga" d="M70 4L60 18H66L55 34" stroke="#FFE53D" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>`
+    + Array.from({ length: 10 }, (_, i) => `<ellipse class="pt gota" cx="${f(30 + i * 6.6)}" cy="${88 + (i % 3) * 3}" rx="1.3" ry="2.4" fill="#9AD4FF" opacity="0"/>`).join(''),
+}
+
 /**
  * Degradés y recortes de las especies, para `defsAvis()` (5.1): una vez por documento, con los ids del
  * boceto. Los haces del faro (Faro), las pieles, alas, llamas y brillos de las especies nuevas y la luz
@@ -264,21 +298,25 @@ export const DEGRADES_ESPECIES = [
   '<linearGradient id="gLuAlaS" x1="1" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FFB37A"/><stop offset=".45" stop-color="#FF7E6B"/><stop offset=".8" stop-color="#B8437A"/><stop offset="1" stop-color="#5E2350"/></linearGradient>',
   '<linearGradient id="gLuAlaI" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFC98F"/><stop offset=".55" stop-color="#E06A6A"/><stop offset="1" stop-color="#6B2A55"/></linearGradient>',
   '<radialGradient id="gLuHalo"><stop offset="0" stop-color="#FFE9A8" stop-opacity=".75"/><stop offset="1" stop-color="#FFB37A" stop-opacity="0"/></radialGradient>',
+  '<radialGradient id="gNiPiel" cx="38%" cy="28%" r="80%"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".33" stop-color="#F2F1FF"/><stop offset=".67" stop-color="#D2D0F5"/><stop offset="1" stop-color="#9C99D8"/></radialGradient>',
+  '<radialGradient id="gNiTorm" cx="38%" cy="28%" r="80%"><stop offset="0" stop-color="#8F8BCB"/><stop offset=".33" stop-color="#5E5A9C"/><stop offset=".67" stop-color="#3A366E"/><stop offset="1" stop-color="#24214A"/></radialGradient>',
+  '<linearGradient id="gNiRayo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF8C0"/><stop offset=".5" stop-color="#FFE53D"/><stop offset="1" stop-color="#F2B800"/></linearGradient>',
   '<radialGradient id="gSu-ascua"><stop offset="0" stop-color="#FF7A2E" stop-opacity=".26"/><stop offset="1" stop-color="#FF7A2E" stop-opacity="0"/></radialGradient>',
   '<radialGradient id="gSu-escarcha"><stop offset="0" stop-color="#7DF9FF" stop-opacity=".22"/><stop offset="1" stop-color="#7DF9FF" stop-opacity="0"/></radialGradient>',
   '<radialGradient id="gSu-nodo"><stop offset="0" stop-color="#C6FF3D" stop-opacity=".2"/><stop offset="1" stop-color="#C6FF3D" stop-opacity="0"/></radialGradient>',
   '<radialGradient id="gSu-bruma"><stop offset="0" stop-color="#FF5FD2" stop-opacity=".24"/><stop offset="1" stop-color="#FF5FD2" stop-opacity="0"/></radialGradient>',
   '<radialGradient id="gSu-morro"><stop offset="0" stop-color="#FFC24A" stop-opacity=".22"/><stop offset="1" stop-color="#FFC24A" stop-opacity="0"/></radialGradient>',
   '<radialGradient id="gSu-lumen"><stop offset="0" stop-color="#FFB37A" stop-opacity=".24"/><stop offset="1" stop-color="#FFB37A" stop-opacity="0"/></radialGradient>',
+  '<radialGradient id="gSu-nimbo"><stop offset="0" stop-color="#FFE53D" stop-opacity=".2"/><stop offset="1" stop-color="#FFE53D" stop-opacity="0"/></radialGradient>',
 ].join('')
 
 /** Las especies, en el orden de la dirección. Es la lista que acepta `preferencias.json` (9.1). */
-export const NOMBRES_ESPECIES = ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']
+export const NOMBRES_ESPECIES = ['avi', 'ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen', 'nimbo']
 
 /** Sin elección, con basura o con un valor desconocido: el Avi (9.1). */
 export const ESPECIE_POR_DEFECTO = 'avi'
 
-/** La especie si es una de las siete (texto exacto); si no, el Avi. */
+/** La especie si es una de las ocho (texto exacto); si no, el Avi. */
 export function especieValida(especie) {
   return NOMBRES_ESPECIES.includes(especie) ? especie : ESPECIE_POR_DEFECTO
 }
@@ -286,7 +324,7 @@ export function especieValida(especie) {
 /**
  * Datos de cada especie (tabla 5.1 y 5.2). `ojo`: centros y radio de los ojos (x1, x2, y, r), donde
  * se dibujan los ojos ∪, ∩ y x; `emisor`: el punto de donde salen las ondas de "coordinando";
- * `flota`: no camina (Bruma: contacto de `rx` 20); `piezas`: el dibujo de la forma base de las
+ * `flota`: no camina (Bruma y Nimbo: contacto de `rx` 20); `piezas`: el dibujo de la forma base de las
  * especies nuevas (el Avi se dibuja con el generador de siempre, avis.js); `evo`: su forma evolucionada.
  * `tipo` y `concepto`: los del boceto de mascotas (`M`), para la pestaña Mascota de la configuración
  * (configuracion-ux.md 5).
@@ -341,11 +379,18 @@ export const ESPECIES = {
     ojo: { x1: 48, x2: 72, y: 63, r: 5 }, emisor: [60, 24], firma: 'alas coral con ocelos turquesa',
     piezas: LUMEN, evo: AURORA,
   },
+  nimbo: {
+    nombre: 'Nimbo', evoNombre: 'Centella', c: '#FFE53D', mano: '#F2F1FF', trazo: '#1C1A4A',
+    tipo: 'Nube · tormenta',
+    concepto: 'Una nube de bolsillo que flota sobre el escritorio: tranquila hasta que algo importa, y entonces truena.',
+    ojo: { x1: 48, x2: 72, y: 68, r: 4.6 }, emisor: [59, 24], firma: 'nube lila y blanca con un rayo limón de coronilla', flota: true,
+    piezas: NIMBO, evo: CENTELLA,
+  },
 }
 
 /**
  * Las partes de la forma evolucionada de una especie (`{ evoAtras, evoFrente, fx }`): las de detrás y
- * delante del cuerpo y las partículas de su acto. Las siete las tienen.
+ * delante del cuerpo y las partículas de su acto. Las ocho las tienen.
  */
 export function partesEvolucion(especie) {
   return ESPECIES[especieValida(especie)].evo ?? null
@@ -362,11 +407,11 @@ export function datosEspecie(especie) {
  * Los canales de la marca en cada especie nueva (mascotas-avi-ux.md 10, P2 y P3): las pistas de
  * `ACTOS` y `VOCES` (marca.js) son las del Avi; cambia la pieza que mueve cada canal.
  * - `ant`: el apéndice que sigue, en lugar de la antena: alas (Ascua, Escarcha), orejas (Nodo),
- *   tentáculos (Bruma), el musgo de la coronilla (Morro) y las antenas (Lumen). Los pares giran
- *   espejados (`--s`).
+ *   tentáculos (Bruma), el musgo de la coronilla (Morro), las antenas (Lumen) y las orejas de nube
+ *   (Nimbo, un par `ala`). Los pares giran espejados (`--s`).
  * - `luz`: la luz propia, en lugar del foco (`crece`, con luz > 0) y del bulbo (`apaga`, con luz < 0):
- *   la brasa, el destello de la púa, los LEDs, las manchas, las runas y los ocelos (el destello y el
- *   ocelo mismo). Son las piezas que el acto de cada especie ya enciende (evolucionMotion.js).
+ *   la brasa, el destello de la púa, los LEDs, las manchas, las runas, los ocelos (el destello y el
+ *   ocelo mismo) y el rayo de la coronilla de Nimbo (su brillo crece, el rayo se apaga). Son las piezas que el acto de cada especie ya enciende (evolucionMotion.js).
  * - `boca`: donde se abre la boca de la especie (`y`, el centro de su trazo) y su color (el de su boca).
  * Con el Avi, `null`: la antena, el foco, el bulbo y el pico de siempre.
  */
@@ -377,6 +422,7 @@ const CANALES = {
   bruma: { ant: '.tents', luz: { crece: ['.spot'], apaga: ['.spot'] }, boca: { y: 62.5, color: '#170A33' } },
   morro: { ant: '.musgo', luz: { crece: ['.ru', '.ruglow'], apaga: ['.ru', '.ruglow'] }, boca: { y: 75, color: '#24222B' } },
   lumen: { ant: '.ant', luz: { crece: ['.ocelo-f'], apaga: ['.ocelo'] }, boca: { y: 75, color: '#8A4B3A' } },
+  nimbo: { ant: '.ala', luz: { crece: ['.rayo-f'], apaga: ['.rayo-n'] }, boca: { y: 78, color: '#1C1A4A' } },
 }
 
 /** Los canales de la marca de una especie nueva (`CANALES`); con el Avi o una desconocida, `null`. */
@@ -422,6 +468,8 @@ export const DEGRADES_VARIANTES = [
   G('gLuAlaLuna', ['#F0FFE0', '#B8E88A', '#6FAA4A'], 'l', DIAG2), G('gLuLunaPiel', ['#FFFFF4', '#F0F5E0', '#D6E0BC', '#A8B88A'], 'r', 'cx="40%" cy="30%" r="80%"'),
   G('gLuLucero', ['#FFE9C8', '#E0B880', '#B08A58', '#7A5A38'], 'r', 'cx="40%" cy="30%" r="80%"'), G('gLuAlaLucero', ['#A8784E', '#4A2A18'], 'l', DIAG),
   '<radialGradient id="gLuBulbo"><stop offset="0" stop-color="#FFF3A0" stop-opacity=".9"/><stop offset="1" stop-color="#FFE08A" stop-opacity="0"/></radialGradient>',
+  G('gNiGris', ['#F4F8FC', '#D6E0EA', '#A9B8C9', '#6C7E94']), G('gNiCelaje', ['#FFF6F0', '#FFD6D6', '#F5A8B8', '#C27090']),
+  G('gNiNiebla', ['#FAFAFA', '#E6E8EC', '#C8CCD4', '#9AA0AC']), G('gNiIris', ['#FFFFFF', '#F6F8FF', '#DDE2F2', '#A8B0CC']),
 ].join('')
 
 /** Polígono de púas (Granizo). */
@@ -444,11 +492,15 @@ const antPluma = `<path d="M55 38Q36 30 24 6Q46 10 52 24Q56 30 55 38Z" fill="#F5
 const antCorta = `<path d="M55 38Q50 30 46 25" stroke="#8A5A38" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="46" cy="25" r="2.4" fill="#FFE08A"/>`
 const colaLuna = `<path d="M30 94Q18 112 28 124Q31 110 37 100Z" fill="url(#gLuAlaLuna)" stroke="#E8FFD0" stroke-width=".8"/>`
 const alaLucero = `<path d="M44 56C34 40 20 44 19 56C18 68 30 74 42 70Z" fill="url(#gLuAlaLucero)" stroke="#FFD9B0" stroke-width=".9"/><circle cx="29" cy="58" r="3" fill="#FFE08A"/>`
+// Nimbo (#46): lo que reemplaza al rayo de la coronilla (`VAR_NIMBO` del boceto de la especie nueva)
+const GOTA_NI = `<path d="M60 22Q66 32 66 37A6 6 0 0 1 54 37Q54 32 60 22Z" fill="#7FC4FF" stroke="#E8F4FF" stroke-width=".8"/>`
+const SOL_NI = `<path d="M60 22v-5M48.7 26.7l-3.5-3.5M71.3 26.7l3.5-3.5M44 38h-5M76 38h5" stroke="#FFC46B" stroke-width="2.2" stroke-linecap="round"/><circle cx="60" cy="38" r="9" fill="#FFC46B"/>`
+const ARCO_NI = `<path d="M46 44A14 14 0 0 1 74 44" stroke="#FF7A6B" stroke-width="3" fill="none"/><path d="M49 44A11 11 0 0 1 71 44" stroke="#FFE08A" stroke-width="3" fill="none"/><path d="M52 44A8 8 0 0 1 68 44" stroke="#7FB3FF" stroke-width="3" fill="none"/>`
 
 
 /**
  * Las cuatro variantes de subagente de cada especie nueva (tabla 7.1; `VARIANTES` del boceto sin la fila
- * del Avi). Cada una: `nombre` y `rasgo` (solo internos, 4), acento `c`, `mano` y `trazo` propios si
+ * del Avi; las de Nimbo, de `VAR_NIMBO` del boceto de la especie nueva). Cada una: `nombre` y `rasgo` (solo internos, 4), acento `c`, `mano` y `trazo` propios si
  * cambian, `talla` si es más chica, piezas que cambia (`campos`), marcas debajo de los ojos (`mas`) y
  * colores o trazos reemplazados en todo el dibujo (`reemplazos`, en orden).
  */
@@ -539,6 +591,17 @@ export const VARIANTES = {
       campos: { atras: par('ant', antCorta) + par('ala', alaLucero) },
       mas: `<ellipse cx="60" cy="94" rx="15" ry="9" fill="url(#gLuBulbo)"/><ellipse class="bulbo-l" cx="60" cy="93" rx="11" ry="6.5" fill="#FFF3A0"/>`,
       reemplazos: [['url(#gLuPiel)', 'url(#gLuLucero)'], ['#FFF6EA', '#E8C890']] },
+  ],
+  nimbo: [
+    { nombre: 'Llovizna', rasgo: 'gris azulado, con una gota en la coronilla', c: '#7FC4FF', mano: '#D6E0EA', trazo: '#1F2C3D',
+      reemplazos: [[RAYO_NI, GOTA_NI], ['url(#gNiPiel)', 'url(#gNiGris)'], ['#B9B6EA', '#9FB2C8'], ['#F7F6FF', '#EEF3F8'], ['#CFCDF5', '#C6D2DE'], ['#D2D0F5', '#C6D2DE'], ['#9C99D8', '#6C7E94'], ['#FFB3D9', '#A9D4FF'], ['#FFE53D', '#7FC4FF'], ['#1C1A4A', '#1F2C3D']] },
+    { nombre: 'Celaje', rasgo: 'nube de atardecer con un sol chico', c: '#FF9EB8', mano: '#FFD6D6', trazo: '#4A1A2C',
+      reemplazos: [[RAYO_NI, SOL_NI], ['url(#gNiPiel)', 'url(#gNiCelaje)'], ['#B9B6EA', '#E8A0B4'], ['#F7F6FF', '#FFF1EE'], ['#CFCDF5', '#F5C6CF'], ['#D2D0F5', '#F5C6CF'], ['#9C99D8', '#C27090'], ['#FFE53D', '#FFC46B'], ['#1C1A4A', '#4A1A2C']] },
+    { nombre: 'Niebla', rasgo: 'chica y pálida, sin coronilla, con jirones', c: '#C9D2DC', mano: '#E6E8EC', trazo: '#2A2E38', talla: .9,
+      mas: `<path d="M16 93Q28 89 38 93T60 93M62 97Q74 93 86 97T106 97" stroke="#E6E8EC" stroke-width="2.4" fill="none" stroke-linecap="round" opacity=".85"/>`,
+      reemplazos: [[RAYO_NI, ''], ['url(#gNiPiel)', 'url(#gNiNiebla)'], ['#B9B6EA', '#C2C6CE'], ['#F7F6FF', '#F4F5F7'], ['#CFCDF5', '#DADDE3'], ['#D2D0F5', '#DADDE3'], ['#9C99D8', '#9AA0AC'], ['#FFB3D9', '#D9DCE2'], ['#FFE53D', '#C9D2DC'], ['#1C1A4A', '#2A2E38']] },
+    { nombre: 'Iris', rasgo: 'blanca con un arcoíris chico', c: '#8FE3A0', mano: '#F6F8FF', trazo: '#1C2240',
+      reemplazos: [[RAYO_NI, ARCO_NI], ['url(#gNiPiel)', 'url(#gNiIris)'], ['#FFE53D', '#8FE3A0'], ['#1C1A4A', '#1C2240']] },
   ],
 }
 

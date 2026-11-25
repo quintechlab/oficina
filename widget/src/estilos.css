@@ -1868,7 +1868,7 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .seg > button:active { transform: scale(.97) }
 #cfg .seg > button[aria-checked="true"] { background: var(--crema); color: var(--tinta) }
 
-/* Mascota (6.1): el escenario con la luz de la especie y las siete fichas. La luz (--cc) la pone
+/* Mascota (6.1): el escenario con la luz de la especie y las ocho fichas. La luz (--cc) la pone
    main.js en #cfg, que no se redibuja; registrada como color, cambia con su transición (8) */
 @property --cc { syntax: '<color>'; inherits: true; initial-value: #F2B632 }
 #cfg .esc-m {

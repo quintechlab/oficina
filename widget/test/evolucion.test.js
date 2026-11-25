@@ -299,11 +299,11 @@ const lineaFalsa = () => {
   return { pistas, add: (el, params, en = 0) => { pistas.push({ el, params, en }); return this } }
 }
 
-test('los actos de las siete especies: duración y revela de la tabla 8.2', () => {
+test('los actos de las ocho especies: duración y revela de la tabla 8.2 (Nimbo, del boceto de #46)', () => {
   assert.deepEqual(DURACION_ACTOS, {
     avi: { dur: 2300, revela: 820 }, ascua: { dur: 2400, revela: 1320 }, escarcha: { dur: 2300, revela: 960 },
     nodo: { dur: 1900, revela: 1000 }, bruma: { dur: 2600, revela: 700 }, morro: { dur: 2700, revela: 1352 },
-    lumen: { dur: 2600, revela: 950 },
+    lumen: { dur: 2600, revela: 950 }, nimbo: { dur: 2300, revela: 900 },
   })
 })
 
@@ -316,6 +316,7 @@ test('cada pista de la transformación y de la vuelta mueve una pieza que la esp
     bruma: [['trans', 'tents', 'contacto', 'anb', 'pl'], ['pl']],
     morro: [['ru', 'ruglow', 'puno-s', 'trans', 'contenedor', 'polvo', 'roca'], ['polvo']],
     lumen: [['ala-s', 'trans', 'halo-l', 'ocelo-f', 'espiral', 'mo'], ['mo']],
+    nimbo: [['trans', 'ala-s', 'rayo-n', 'descarga', 'destello', 'gota'], ['gota']],
   }
   for (const [id, [acto, vuelta]] of Object.entries(esperadas)) {
     const s = svgFalso(svgAvi(claudeDe(id), 'coordinando', false, { claveEvo: 's1', evolucionada: true }))
@@ -361,4 +362,31 @@ test('las pistas del boceto pasan tal cual: fotogramas con sus porcentajes y su 
   assert.deepEqual(Object.keys(brasa.params.keyframes), ['0%', '15%', '100%'])
   assert.equal(brasa.params.keyframes['15%'].opacity, 1)
   assert.equal(brasa.params.keyframes['15%'].translateX, 26 * 0.15)
+})
+
+test('Nimbo (#46): el acto del boceto pasa tal cual (se infla, retumba, cae el rayo, destella y llueve)', () => {
+  const s = svgFalso(svgAvi(claudeDe('nimbo'), 'coordinando', false, { claveEvo: 's1', evolucionada: true }))
+  const t = lineaFalsa()
+  ACTOS_EVOLUCION.nimbo.transformacion(t, s)
+  const de = cls => t.pistas.filter(p => p.el.clases.includes(cls))
+  // Se infla y retumba: los fotogramas en sus porcentajes, tramos lineales y la curva sobre toda la pista
+  const [trans] = de('trans')
+  assert.equal(trans.en, 0)
+  assert.equal(trans.params.duration, 2300)
+  assert.equal(trans.params.ease, 'linear')
+  assert.deepEqual(Object.keys(trans.params.keyframes), ['0%', '10%', '28%', '31%', '34%', '37%', '40%', '46%', '58%', '100%'])
+  assert.deepEqual(trans.params.keyframes['31%'], { translateX: -2, translateY: -3, scaleX: 1.14, scaleY: 1.1, rotate: 0 })
+  assert.deepEqual(trans.params.keyframes['46%'], { translateX: 0, translateY: 2, scaleX: 0.92, scaleY: 0.92, rotate: 0 })
+  // Las orejas, espejadas
+  const orejas = de('ala-s')
+  assert.deepEqual(orejas.map(p => [p.el.clases.includes('ai') ? 'ai' : 'ad', p.en, p.params.duration, p.params.keyframes['28%'].rotate]), [['ai', 0, 2000, 14], ['ad', 0, 2000, -14]])
+  // El rayo parpadea y cae la descarga; el destello tapa el cambio (revela 900)
+  assert.deepEqual([de('rayo-n')[0].en, de('rayo-n')[0].params.duration, de('rayo-n')[0].params.keyframes['20%'].opacity], [500, 1400, 0.25])
+  assert.deepEqual([de('descarga')[0].en, de('descarga')[0].params.duration], [760, 380])
+  assert.deepEqual([de('destello')[0].en, de('destello')[0].params.duration, de('destello')[0].params.keyframes['12%']], [830, 600, { opacity: 0.85, scale: 1 }])
+  // Llueve: diez gotas, 55 ms entre una y otra
+  assert.deepEqual(de('gota').map(p => p.en), Array.from({ length: 10 }, (_, i) => 950 + i * 55))
+  const v = lineaFalsa()
+  ACTOS_EVOLUCION.nimbo.vuelta(v, s)
+  assert.deepEqual(v.pistas.map(p => [p.en, p.params.duration]), Array.from({ length: 10 }, (_, i) => [200 + i * 40, 800]))
 })

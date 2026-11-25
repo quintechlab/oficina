@@ -5,7 +5,8 @@
    envolturas `-s` y las partículas de `fx`. Solo transform y opacity (8.5).
    Entrega 2: la estructura común y Faro (el Avi). Entrega 3: las seis especies nuevas (orígenes, luz
    de piso, ojos por pose, forma evolucionada y su vida propia, 8.1). Entrega 5: la luz propia en la
-   voz y los juegos de la marca (10, P2 y P3). */
+   voz y los juegos de la marca (10, P2 y P3). Entrega 6 (#46): Nimbo › Centella, con los valores del
+   boceto de la especie nueva (docs/diseno/bocetos/especie-nueva.html). */
 
 /* ------------------------------------------------------------------ capas comunes (3.2) */
 .avi .trans, .avi .talla, .avi .cambio { transform-box: view-box; transform-origin: 60px 104px }
@@ -44,13 +45,13 @@
 /* ------------------------------------------------------------------ las especies nuevas (3.2 y 5)
    Todos sus grupos giran en unidades del viewBox (los orígenes son los del boceto); los efectos de la
    pose que giran sobre sí mismos (burbuja, saludo, brillo del emisor) vuelven a su caja. */
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen) g { transform-box: view-box }
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen) :is(.vuela, .cuerpo) { transform-origin: 60px 104px }
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen) .ojos { transform-origin: 60px var(--oy) }
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen) :is(.burbuja, .saludo) { transform-box: fill-box; transform-origin: 30% 100% }
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen) .emisor { transform-box: fill-box; transform-origin: 50% 50% }
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo) g { transform-box: view-box }
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo) :is(.vuela, .cuerpo) { transform-origin: 60px 104px }
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo) .ojos { transform-origin: 60px var(--oy) }
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo) :is(.burbuja, .saludo) { transform-box: fill-box; transform-origin: 30% 100% }
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo) .emisor { transform-box: fill-box; transform-origin: 50% 50% }
 /* La muesca trabajando entorna los ojos desde su centro (muesca-avi-ux.md 5.2), que no es el del Avi */
-#muesca[data-modo="trabajando"] :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen) .parpado { transform-origin: 60px var(--oy) }
+#muesca[data-modo="trabajando"] :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo) .parpado { transform-origin: 60px var(--oy) }
 
 /* La luz de piso de cada especie (5.1) */
 .avi .m-ascua .suelo { fill: url(#gSu-ascua) }
@@ -59,18 +60,19 @@
 .avi .m-bruma .suelo { fill: url(#gSu-bruma) }
 .avi .m-morro .suelo { fill: url(#gSu-morro) }
 .avi .m-lumen .suelo { fill: url(#gSu-lumen) }
+.avi .m-nimbo .suelo { fill: url(#gSu-nimbo) }
 
 /* Los ojos (∪ cerrados, ∩ contentos, x falló) están todos dibujados: la pose elige cuál se ve. En la
    marca, `o-fe` y `o-ce` del SVG (marcaMotion.js) mandan sobre la pose */
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen) :is(.o-ab, .o-ce, .o-fe, .o-x) { transition: opacity .18s }
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen) :is(.o-ce, .o-fe, .o-x) { opacity: 0 }
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen):is(.e-durmiendo, .e-inactiva, .e-listo, .e-fallo) .o-ab { opacity: 0 }
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen):is(.e-durmiendo, .e-inactiva) .o-ce { opacity: 1 }
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen).e-listo .o-fe { opacity: 1 }
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen).e-fallo .o-x { opacity: 1 }
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen).es-marca:is(.o-fe, .o-ce) :is(.o-ab, .o-ce, .o-fe, .o-x) { opacity: 0 }
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen).es-marca.o-fe .o-fe,
-.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen).es-marca.o-ce .o-ce { opacity: 1 }
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo) :is(.o-ab, .o-ce, .o-fe, .o-x) { transition: opacity .18s }
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo) :is(.o-ce, .o-fe, .o-x) { opacity: 0 }
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo):is(.e-durmiendo, .e-inactiva, .e-listo, .e-fallo) .o-ab { opacity: 0 }
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo):is(.e-durmiendo, .e-inactiva) .o-ce { opacity: 1 }
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo).e-listo .o-fe { opacity: 1 }
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo).e-fallo .o-x { opacity: 1 }
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo).es-marca:is(.o-fe, .o-ce) :is(.o-ab, .o-ce, .o-fe, .o-x) { opacity: 0 }
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo).es-marca.o-fe .o-fe,
+.avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo).es-marca.o-ce .o-ce { opacity: 1 }
 
 /* Ascua › Pira */
 .avi .m-ascua [class^="ala"].ai { transform-origin: 36px 62px }
@@ -130,6 +132,16 @@
 .avi .m-lumen .mota-i { opacity: 0 }
 .avi .m-lumen.evol .ala-e { transform: scale(1.22) }
 .avi .m-lumen.evol .ant-e { transform: scale(1.2) }
+/* Nimbo › Centella (#46): flota, como Bruma (5.1). En la marca el contacto lo mueve marcaMotion.js, sin la sombra del bucle */
+.avi .m-nimbo .vuela { transform: translateY(-5px) }
+.avi .m-nimbo:not(.es-marca) .contacto { transform-box: fill-box; transform-origin: center }
+.avi .m-nimbo [class^="ala"].ai { transform-origin: 40px 52px }
+.avi .m-nimbo [class^="ala"].ad { transform-origin: 80px 52px }
+.avi .m-nimbo .mechon-e { transform-origin: 58px 46px }
+.avi .m-nimbo .orb-ni { transform-origin: 60px 64px }
+.avi .m-nimbo.evol .mechon-e { transform: scale(1.25) }
+.avi .m-nimbo.evol .ala-e { transform: scale(1.18) }
+.avi .m-nimbo:is(.e-durmiendo, .e-inactiva) .rayo-n { opacity: .4 }
 
 /* ------------------------------------------------------------------ bucles de la forma (8.1 y 5.3)
    Bajo `.evol`: no corren con la forma base aunque sus partes estén en el DOM con opacidad 0 (8.5) */
@@ -142,8 +154,8 @@
 
   /* Las especies nuevas: con ojos contentos o en x no parpadean; el emisor de "coordinando" late.
      Después, la vida propia de cada una (8.1; lo que sigue llega tarde) y los bucles de su forma */
-  body:not(.pausa) .avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen):is(.e-listo, .e-fallo) .ojos { animation: none }
-  body:not(.pausa) .avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen).e-coordinando .emisor { animation: pulso 1.1s ease-in-out infinite alternate }
+  body:not(.pausa) .avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo):is(.e-listo, .e-fallo) .ojos { animation: none }
+  body:not(.pausa) .avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo).e-coordinando .emisor { animation: pulso 1.1s ease-in-out infinite alternate }
   body:not(.pausa) .avi .m-ascua .ala { animation: aleteo 2.8s ease-in-out infinite var(--d, 0s) }
   body:not(.pausa) .avi .m-ascua .cola { animation: colea 3.4s ease-in-out infinite }
   body:not(.pausa) .avi .m-ascua .punta { animation: flama .45s ease-in-out infinite alternate }
@@ -203,6 +215,12 @@
   body:not(.pausa) .avi .m-lumen.evol:not(.chica) .aur.a2 { animation-delay: -2s }
   body:not(.pausa) .avi .m-lumen.evol:not(.chica) .tiara { animation: titila 1.6s ease-in-out infinite }
   body:not(.pausa) .avi .m-lumen:is(.e-durmiendo, .e-inactiva) .ala { animation: none }
+  body:not(.pausa) .avi .m-nimbo .vuela { animation: flota 3.6s ease-in-out infinite var(--d, 0s) }
+  body:not(.pausa) .avi .m-nimbo:not(.es-marca) .contacto { animation: sombra 3.6s ease-in-out infinite var(--d, 0s) }
+  body:not(.pausa) .avi .m-nimbo .ala { animation: nubla 3.6s ease-in-out infinite var(--d, 0s) }
+  body:not(.pausa) .avi .m-nimbo .rayo-n { animation: titila 2.8s ease-in-out infinite }
+  body:not(.pausa) .avi .m-nimbo.evol:not(.chica) .orb-ni { animation: gira 12s linear infinite }
+  body:not(.pausa) .avi .m-nimbo:is(.e-durmiendo, .e-inactiva) .vuela { animation-duration: 6s }
   /* Variantes de subagente (7.2): Lucero, la panza que brilla */
   body:not(.pausa) .avi .m-lumen .bulbo-l { animation: titila 1.4s ease-in-out infinite }
 }
@@ -241,29 +259,30 @@ body.pausa .avi .ev, body.pausa .avi .evol .ev, body.pausa .avi .talla, body.pau
 @keyframes antena { 0%, 100% { transform: rotate(0) } 50% { transform: rotate(calc(var(--s) * -6deg)) } }
 @keyframes mota { 0% { opacity: 0; transform: translate(0, 0) } 30% { opacity: 1 } 100% { opacity: 0; transform: translate(3px, -22px) } }
 @keyframes aurora { 0%, 100% { transform: translateY(0); opacity: .35 } 50% { transform: translateY(-3px); opacity: .75 } }
+@keyframes nubla { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.06, .96) } }
 
 /* Mientras corre un acto (evolucionMotion.js pone `actuando`), anime.js es el único dueño de las piezas
-   que su pista también mueve: la brasa de Ascua, el brillo de Escarcha, las runas de Morro y la sombra
-   de Bruma no corren su bucle (un bucle CSS pisaría el estilo en línea, 3.2). La sombra de Bruma se
-   achica desde su centro, también en la marca */
-.avi .actuando :is(.brasa, .barrido, .ru, .ruglow), .avi .m-bruma.actuando .contacto { animation: none !important }
+   que su pista también mueve: la brasa de Ascua, el brillo de Escarcha, las runas de Morro, el rayo de
+   Nimbo y la sombra de Bruma no corren su bucle (un bucle CSS pisaría el estilo en línea, 3.2). La
+   sombra de Bruma se achica desde su centro, también en la marca */
+.avi .actuando :is(.brasa, .barrido, .ru, .ruglow, .rayo-n), .avi .m-bruma.actuando .contacto { animation: none !important }
 .avi .m-bruma.actuando .contacto { transform-box: fill-box; transform-origin: center }
 
 /* ------------------------------------------------------------------ voz y juegos de la marca (10, P2 y P3)
    La luz propia de cada especie (`canalesEspecie`: la brasa, el destello de la púa, los LEDs, las
-   manchas, las runas y los ocelos) crece desde su centro. Mientras marcaMotion.js la sube o la apaga
+   manchas, las runas, los ocelos y el rayo de Nimbo) crece desde su centro. Mientras marcaMotion.js la sube o la apaga
    (`luz-sube`, `luz-baja`), su bucle no corre: la opacidad es la del canal. Subiendo, el destello de
    Escarcha deja su escala 0 de reposo y se ve */
-.avi .es-marca :is(.brasa, .chisp, .led, .spot, .ru, .ocelo, .ocelo-f) { transform-box: fill-box; transform-origin: center }
-.avi .es-marca:is(.luz-sube, .luz-baja) :is(.brasa, .chisp, .led, .spot, .ru, .ruglow, .ocelo, .ocelo-f) { animation: none !important }
+.avi .es-marca :is(.brasa, .chisp, .led, .spot, .ru, .ocelo, .ocelo-f, .rayo-n, .rayo-f) { transform-box: fill-box; transform-origin: center }
+.avi .es-marca:is(.luz-sube, .luz-baja) :is(.brasa, .chisp, .led, .spot, .ru, .ruglow, .ocelo, .ocelo-f, .rayo-n, .rayo-f) { animation: none !important }
 .avi .m-escarcha.es-marca:is(.luz-sube, .e-baja) .chisp { transform: none }
 @media (prefers-reduced-motion: no-preference) {
   /* La voz (P2), como la del Avi con su luz propia en lugar del foco: descargando, la luz titila;
      preparando, late fuerte (`calorLuz`; el cuerpo tiembla con la regla de avis.css). Contando respira rápido,
      feliz cierra los ojos ∩ y error apaga la luz (canal luz −1) con las cejas: todo eso ya lo hacen
      avis.css y los canales */
-  body:not(.pausa) .avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen).es-marca.voz.e-baja :is(.brasa, .chisp, .led, .spot, .ru, .ruglow, .ocelo-f) { animation: titila 1.3s ease-in-out infinite }
-  body:not(.pausa) .avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen).es-marca.voz.e-calienta :is(.brasa, .chisp, .led, .spot, .ru, .ruglow, .ocelo-f) { animation: calorLuz 1.6s ease-in-out infinite }
+  body:not(.pausa) .avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo).es-marca.voz.e-baja :is(.brasa, .chisp, .led, .spot, .ru, .ruglow, .ocelo-f, .rayo-f) { animation: titila 1.3s ease-in-out infinite }
+  body:not(.pausa) .avi :is(.m-ascua, .m-escarcha, .m-nodo, .m-bruma, .m-morro, .m-lumen, .m-nimbo).es-marca.voz.e-calienta :is(.brasa, .chisp, .led, .spot, .ru, .ruglow, .ocelo-f, .rayo-f) { animation: calorLuz 1.6s ease-in-out infinite }
 }
 /* El calor del foco (avis.css `calor`: el mismo ritmo y la misma escala) para una luz que ya es sólida: late
    hacia más brillo, no hacia el brillo tenue del halo del Avi */

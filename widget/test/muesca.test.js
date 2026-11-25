@@ -732,7 +732,7 @@ test('estiloMuesca: las manos del alféizar y la luz de cara, del color de la ma
   assert.deepEqual(estiloMuesca('avi'), { '--mano-muesca': '', '--c-muesca': '' })
   assert.deepEqual(estiloMuesca(), estiloMuesca('avi'))
   assert.deepEqual(estiloMuesca('basura'), estiloMuesca('avi'))
-  for (const e of ['ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen']) {
+  for (const e of ['ascua', 'escarcha', 'nodo', 'bruma', 'morro', 'lumen', 'nimbo']) {
     assert.deepEqual(estiloMuesca(e), { '--mano-muesca': datosEspecie(e).mano, '--c-muesca': datosEspecie(e).c }, e)
   }
 })

@@ -284,8 +284,8 @@ function efectosEspecie(pose, { c, mano, emisor: [ex, ey] }, comando) {
 const SELLO = '<ellipse class="sello" cx="60" cy="104" rx="40" ry="8"/>'
 
 /**
- * Una especie nueva (Ascua, Escarcha, Nodo, Bruma, Morro, Lumen), con las capas de 3.2: suelo propio
- * (`gSu-<especie>`, especies.css), anillo de suelo y contacto; `vuela` (Bruma flota) › `trans` (el
+ * Una especie nueva (Ascua, Escarcha, Nodo, Bruma, Morro, Lumen, Nimbo), con las capas de 3.2: suelo propio
+ * (`gSu-<especie>`, especies.css), anillo de suelo y contacto; `vuela` (Bruma y Nimbo flotan) › `trans` (el
  * acto) › `talla` (la forma) › [`actua` › `inclina`, solo la marca] › `cambio` › `cuerpo` (partes de la
  * forma detrás, piezas, ojos, boca y partes delante); la órbita que no respira (`extra`), los efectos
  * de la pose en `g.efectos` (la muesca los esconde) y las partículas del acto en `g.fx`. Los ojos ∪ ∩ x
