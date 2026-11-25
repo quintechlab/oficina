@@ -174,8 +174,7 @@ export function partesMascota(datos) {
       + `<p class="esc-c">${escapar(d.concepto)}</p>`
       + segmentos('cfg-forma', opcionesForma(especie), datos.forma === 'evo' ? 'evo' : 'base', 'Vista previa de la forma')
       + '<span class="esc-q">Evoluciona sola mientras Claude coordina un equipo</span>',
-    fichas: NOMBRES_ESPECIES.map((e, i) => fichaEspecie(e, e === especie, i)).join('')
-      + '<p class="esp-nota">Se ve en la marca, la muesca y cada sesión. Sus subagentes son de su especie.</p>',
+    fichas: NOMBRES_ESPECIES.map((e, i) => fichaEspecie(e, e === especie, i)).join(''),
     error: errorDe(datos, 'mascota'),
     nombres: '<h3 class="sub">Nombres</h3>'
       + fila('Su nombre', `Cómo se llama en la marca y en la charla. Vacío: ${escapar(d.nombre)}.`, campoNombre('cfg-nom-mascota', 'nombreMascota', datos.nombreMascota, d.nombre),

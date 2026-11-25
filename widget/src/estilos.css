@@ -1912,10 +1912,6 @@ p.det-rot { margin-top: var(--e-5) }
   position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
   background: var(--c); color: var(--negro); font: 800 11px/1 var(--f); font-style: normal;
 }
-#cfg .esp-nota {
-  margin: 0; display: grid; align-content: center; align-self: start; min-height: 96px; padding: var(--e-2) var(--e-3); border: 1px dashed var(--linea-hover);
-  border-radius: var(--r-ficha); font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue);
-}
 #cfg .esp-error:empty { display: none }
 #cfg .esp-error .aj-error { margin: var(--e-4) 0 0 }
 /* Nombres (#37): campos de texto con la letra del cuerpo, del ancho de un control */

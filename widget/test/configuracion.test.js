@@ -517,8 +517,8 @@ test('Mascota: ocho fichas en un radiogroup, la elegida con ✓ y la única en e
   assert.equal((html.match(/class="avi" style="--t:54px/g) ?? []).length, 8)
   // La luz de cada ficha es el acento de su especie
   assert.match(html, /data-valor="escarcha"[^>]*style="--c:#7DF9FF"/)
-  // Celda 8
-  assert.match(html, /<p class="esp-nota">Se ve en la marca, la muesca y cada sesión. Sus subagentes son de su especie.<\/p>/)
+  // Sin la nota de antes: con 8 especies quedaba sola en una tercera fila (pedido de Quintana del 25/11)
+  assert.doesNotMatch(html, /esp-nota/)
 })
 
 test('Mascota: un error al guardar la especie queda debajo de las fichas', () => {
