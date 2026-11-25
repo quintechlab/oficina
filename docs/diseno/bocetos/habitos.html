@@ -1,0 +1,1376 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Avis · Hábitos — boceto (#41)</title>
+<link rel="stylesheet" href="../../../widget/src/avis.css">
+<link rel="stylesheet" href="../../../widget/src/especies.css">
+<style>
+/* Boceto de los hábitos (#41). Servir desde la raíz del repo: importa avis.js y anime.js reales de widget/src.
+   Tokens: los de estilos.css, sin cambios de color ni de fuente; lo nuevo va marcado "nuevo".
+   Las notas violetas punteadas son del boceto, no del widget. */
+@font-face{font-family:"Manrope";src:url("../../../widget/src/fuentes/manrope-latin.woff2") format("woff2");font-weight:400 800;font-display:swap}
+@font-face{font-family:"Manrope";src:url("../../../widget/src/fuentes/manrope-simbolos.woff2") format("woff2");font-weight:400 800;unicode-range:U+2192,U+25BE,U+2713}
+@font-face{font-family:"Martian Mono";src:url("../../../widget/src/fuentes/martian-mono-latin.woff2") format("woff2");font-weight:400 600;font-stretch:75%;font-display:swap}
+:root{
+  --negro:#000;--s1:#0C0C0E;--s2:#141417;--s3:#1D1D21;--linea:#25252A;--linea-hover:#36363C;
+  --crema:#F3EBD8;--crema2:#BDB5A4;--tenue:#8A8478;--ambar:#F2B632;--ambar-osc:#1D1707;--pico:#E9A13B;
+  --violeta:#A58BFF;--celeste:#7FB3FF;--verde:#8FD694;--rosa:#E78FB3;--rojo:#FF7A6B;--tinta:#14110C;
+  --f:"Manrope","Segoe UI Variable",sans-serif;--m:"Martian Mono","Cascadia Mono",monospace;
+  --t-display:800 21px/1.1 var(--f);--t-titulo:800 14.5px/1.3 var(--f);--t-cuerpo-f:700 13px/1.3 var(--f);
+  --t-cuerpo:500 12.5px/1.45 var(--f);--t-chico:500 11.5px/1.35 var(--f);--t-mono:400 10.5px/1.5 var(--m);
+  --t-mono-s:500 10px/1.3 var(--m);--t-rotulo:500 10px/1 var(--m);
+  --r-ventana:26px;--r-tarjeta:18px;--r-cuadro:14px;--r-ficha:13px;--r-fila:11px;--r-campo:10px;--r-icono:7px;--r-pildora:999px;
+  --ease:cubic-bezier(.16,1,.3,1);--rebote:cubic-bezier(.34,1.56,.64,1);--d-presion:140ms;--d-color:200ms;--d-confirma:3s;
+  /* de #39 */
+  --ancho-indice:136px;--rojo-tinta:#B3321F;--ambar-tinta:#7A5A0E;
+  /* nuevo (#41): solo medidas */
+  --cel:16px;--brasa:rgba(242,182,50,.055);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html{background:#050506}
+body{color:var(--crema);font:var(--t-cuerpo);-webkit-font-smoothing:antialiased;min-height:100vh;
+  background:radial-gradient(900px 420px at 82% -8%,rgba(242,182,50,.08),transparent 70%),radial-gradient(1px 1px at 1px 1px,rgba(255,255,255,.05) 1px,transparent 0) 0 0/22px 22px,#050506}
+button,input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.oculto{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+code{font:var(--t-mono);color:var(--crema)}
+
+/* ---------------- página del boceto */
+.pagina{max-width:1440px;margin:0 auto;padding:44px 24px 96px}
+.kick{font:var(--t-rotulo);letter-spacing:.14em;text-transform:uppercase;color:var(--tenue)}
+.pag-h{display:grid;gap:12px;max-width:840px;margin-bottom:48px}
+.pag-h h1{font:800 clamp(30px,5vw,52px)/1 var(--f);letter-spacing:-.04em}
+.pag-h h1 em{font-style:normal;color:var(--ambar)}
+.pag-h p{color:var(--crema2);font:500 14px/1.55 var(--f);max-width:70ch}
+.pag-h p b{color:var(--crema)}
+.pag-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px}
+.opciones{display:grid;gap:80px}
+.op{display:grid;grid-template-areas:"h" "l" "t";gap:16px;min-width:0}
+@media (min-width:1180px){.op{grid-template-columns:696px minmax(0,1fr);grid-template-areas:"l h" "l t";grid-template-rows:auto 1fr;column-gap:44px}}
+.op-h{grid-area:h;display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.lienzo{grid-area:l;min-width:0}
+.op-t{grid-area:t;display:grid;align-content:start;gap:16px}
+.op-l{font:800 64px/.8 var(--f);color:transparent;-webkit-text-stroke:1.2px var(--crema2);letter-spacing:-.04em}
+.op.reco .op-l{-webkit-text-stroke-color:var(--ambar)}
+.op-n{font:800 22px/1.1 var(--f);letter-spacing:-.03em}
+.op-n small{display:block;margin-top:4px;font:var(--t-mono-s);color:var(--tenue);letter-spacing:.06em}
+.reco-b{padding:6px 10px;border-radius:var(--r-pildora);background:var(--ambar);color:var(--negro);font:600 10px/1 var(--m);letter-spacing:.1em;text-transform:uppercase;align-self:center}
+.op-p{display:grid;gap:6px;max-width:60ch;color:var(--crema2);font:500 13px/1.5 var(--f)}
+.op-p b{color:var(--crema)}
+.proba{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.proba .kick{width:100%;margin-bottom:2px}
+.nx{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border:1px dashed rgba(165,139,255,.6);border-radius:6px;color:var(--violeta);font:var(--t-mono-s);font-stretch:75%}
+.estados{margin-top:96px}
+.estados>h2,.nota-pag h2{font:800 22px/1.1 var(--f);letter-spacing:-.03em;margin-bottom:6px}
+.estados>p{color:var(--crema2);margin-bottom:24px;max-width:72ch}
+.grilla-e{display:grid;gap:20px;grid-template-columns:repeat(auto-fill,minmax(min(100%,400px),1fr))}
+.caja-e{display:grid;align-content:start;gap:10px;background:var(--negro);border:1px solid rgba(255,255,255,.07);border-radius:var(--r-tarjeta);padding:14px 16px 16px;min-width:0}
+.caja-e>.kick{color:var(--violeta)}
+.caja-e>p{font:var(--t-chico);color:var(--crema2)}
+.nota-pag{margin-top:72px;display:grid;gap:12px;max-width:860px;color:var(--crema2);font:500 13px/1.55 var(--f)}
+.nota-pag ul{display:grid;gap:6px;padding-left:18px}
+.nota-pag b{color:var(--crema)}
+
+/* pausa (como body.pausa del widget): todo al instante */
+body.pausa .marco *,body.pausa .marco *::before,body.pausa .marco *::after,body.pausa .caja-e *,body.pausa .caja-e *::before,body.pausa .caja-e *::after{animation:none!important;transition:none!important}
+
+/* ---------------- el tablero (copia fiel de estilos.css) */
+.marco{position:relative;width:694px;height:672px;display:flex;overflow:hidden;padding:16px 14px 16px 16px;gap:16px;background:var(--negro);border:1px solid rgba(255,255,255,.07);border-radius:var(--r-ventana);box-shadow:0 16px 32px -16px rgba(0,0,0,.8),0 50px 120px -60px rgba(242,182,50,.12)}
+.marco.angosto{width:494px}
+.marco.angosto .lado{display:none}
+.lado{width:188px;flex:none;display:flex;flex-direction:column;gap:14px;min-height:0}
+.marca{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;padding:4px 4px 2px}
+.marca-n{margin-top:4px;font:var(--t-display);letter-spacing:-.03em}
+.marca .estado{margin-top:6px;padding:4px 10px 4px 8px;background:var(--s2);border-radius:var(--r-pildora);font:var(--t-mono-s);color:var(--crema2);display:inline-flex;gap:6px;align-items:center}
+[data-globo-slot]{width:100%}
+.pt{display:inline-block;width:7px;height:7px;flex:none;border-radius:50%;background:var(--c,var(--ambar));box-shadow:0 0 0 3px color-mix(in srgb,var(--c,var(--ambar)) 20%,transparent)}
+.pj{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:6px 8px;border:0;border-radius:var(--r-fila);background:transparent;color:var(--crema2);font:var(--t-cuerpo-f);text-align:left;cursor:pointer;transition:background var(--d-color) ease,color var(--d-color) ease,transform var(--d-presion) ease}
+.pj:hover{background:var(--s2);color:var(--crema)}
+.pj:active{transform:scale(.97)}
+.pj-ic{width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:var(--r-icono);background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c);font:500 10px/1 var(--m)}
+.pj-n{flex:1}
+.chip{flex:none;padding:3px 6px;border-radius:var(--r-pildora);background:var(--s3);color:var(--crema2);font:500 10px/1 var(--m)}
+.lado-cfg{margin-top:auto;padding-top:10px;border-top:1px solid var(--linea);display:grid;gap:2px}
+.lado-pie{display:grid;gap:6px}
+.rot{display:block;margin:4px 0 0 8px;font:var(--t-rotulo);letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+.pie-w{margin:0 0 0 8px;font:var(--t-mono-s);color:var(--tenue)}
+.pj.engr,.pj.tar,.pj.hab{--c:var(--crema2)}
+.pj.engr .pj-ic,.pj.tar .pj-ic,.pj.hab .pj-ic{background:var(--s2);color:var(--crema2)}
+.pj.engr svg,.pj.tar svg,.pj.hab .pj-ic svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.pj kbd{flex:none;font:var(--t-mono-s);color:var(--tenue);font-stretch:75%}
+.chip.t-venc{display:inline-flex;align-items:center;gap:4px;background:color-mix(in srgb,var(--rojo) 22%,var(--s2));color:var(--rojo);font-weight:600}
+.chip.t-venc i{width:5px;height:5px;border-radius:50%;background:var(--rojo)}
+/* nuevo: la fila "Hábitos", entre Tareas y Configuración */
+.pj.hab .arco{stroke-dasharray:30;stroke-dashoffset:0}
+.pj.hab:not([aria-current]):hover .arco{animation:rearco .7s var(--ease)}
+@keyframes rearco{from{stroke-dashoffset:30}}
+.pj.hab[aria-current="page"]{background:var(--ambar-osc);color:var(--ambar)}
+.pj.hab[aria-current="page"] .pj-ic{background:color-mix(in srgb,var(--ambar) 18%,transparent);color:var(--ambar)}
+.anillo-c{flex:none;display:inline-flex;align-items:center;gap:5px;font:500 10px/1 var(--m);color:var(--crema2);font-variant-numeric:tabular-nums}
+.anillo-c svg{width:14px;height:14px;transform:rotate(-90deg);fill:none;stroke-width:2.6}
+.anillo-c .a-f{stroke:var(--linea-hover)}
+.anillo-c .a-l{stroke:var(--ambar);stroke-linecap:round;transition:stroke-dasharray .5s var(--ease)}
+.anillo-c.completo{color:var(--ambar)}
+.anillo-c.late{animation:late .5s var(--rebote)}
+@keyframes late{40%{transform:scale(1.25)}}
+
+.principal{position:relative;width:460px;flex:none;display:flex;flex-direction:column;min-height:0;min-width:0}
+.cab{display:flex;align-items:flex-start;gap:12px;padding-bottom:10px}
+.cab-t{flex:1;min-width:0;display:flex;gap:10px;align-items:center}
+.cab h1{font:var(--t-display);letter-spacing:-.035em}
+.cab h1:focus{outline:none}
+.cab p{margin-top:2px;font:var(--t-cuerpo);color:var(--crema2)}
+.mini{width:40px;height:40px;flex:none;display:grid;place-items:center}
+.controles{display:flex;align-items:center;flex:none;margin:-4px -6px 0 0}
+.tb{width:32px;height:32px;display:grid;place-items:center;border:0;border-radius:var(--r-fila);background:transparent;color:var(--crema2);cursor:pointer;transition:background var(--d-color) ease,color var(--d-color) ease}
+.tb:hover{background:var(--s2);color:var(--crema)}
+.tb svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.tb[aria-pressed="true"]{color:var(--ambar)}
+.volver{min-height:32px;padding:0 10px 0 8px;margin-right:4px;border:0;border-radius:var(--r-pildora);background:var(--s2);color:var(--crema);font:700 12px/1 var(--f);cursor:pointer}
+.volver:hover{background:var(--s3)}
+.sesion{display:flex;gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--linea);border-radius:var(--r-tarjeta);background:var(--s1)}
+.sesion b{display:block;font:var(--t-titulo)}
+.sesion span{font:var(--t-chico);color:var(--crema2)}
+.desplaza{position:relative;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--linea-hover) transparent;padding:2px 4px 8px 2px;margin-left:-2px}
+
+/* ---------------- piezas comunes (de Configuración y Tareas) */
+.sub{margin:12px 0 2px;font:var(--t-rotulo);letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+.btn{min-height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 14px;border:0;border-radius:var(--r-pildora);background:var(--ambar);color:var(--negro);font:800 12px/1 var(--f);cursor:pointer;white-space:nowrap;transition:transform var(--d-presion),filter var(--d-color)}
+.btn:hover{filter:brightness(1.08)}.btn:active{transform:scale(.97)}
+.btn:focus-visible{outline-color:var(--crema)}
+.btn.sec{background:var(--s3);color:var(--crema)}.btn.sec:focus-visible{outline-color:var(--ambar)}
+.btn.sec[aria-pressed="true"]{background:var(--crema);color:var(--tinta)}
+.lnk{min-height:32px;padding:0 6px;border:0;border-radius:6px;background:none;color:var(--crema2);font:700 12px/1 var(--f);cursor:pointer}
+.lnk:hover{color:var(--crema);text-decoration:underline;text-underline-offset:3px}
+.lnk.peligro{color:var(--rojo)}
+.armado{position:relative;overflow:hidden;min-height:32px;padding:0 12px;border:0;border-radius:var(--r-pildora);background:var(--rojo);color:var(--negro);font:800 12px/1 var(--f);cursor:pointer;white-space:nowrap}
+.armado::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--negro);opacity:.45;transform-origin:left;animation:drena var(--d-confirma) linear forwards}
+@keyframes drena{to{transform:scaleX(0)}}
+.acc{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px}
+.campo{display:flex;align-items:center;gap:6px;padding:0 6px 0 10px;min-height:38px;border:1px solid var(--linea);border-radius:var(--r-campo);background:var(--s1);transition:border-color var(--d-color),box-shadow var(--d-color)}
+.campo:focus-within{border-color:var(--ambar);box-shadow:0 0 0 3px rgba(242,182,50,.14)}
+.campo input{flex:1;min-width:0;border:0;background:none;outline:none;font:var(--t-cuerpo)}
+.campo input::placeholder{color:var(--tenue)}
+.campo kbd{font:var(--t-mono-s);font-stretch:75%;color:var(--tenue);padding:3px 5px;border:1px solid var(--linea);border-radius:5px;opacity:0;transition:opacity var(--d-color)}
+.campo:focus-within kbd{opacity:1}
+.cifras{font:var(--t-mono-s);color:var(--tenue);font-variant-numeric:tabular-nums}
+.prog{display:block;height:4px;border-radius:2px;background:var(--s3);overflow:hidden}
+.prog i{display:block;height:100%;width:var(--p);border-radius:2px;background:var(--ambar);transition:width .5s var(--ease)}
+.pane-s{display:flex;align-items:center;gap:8px;min-height:32px;font:var(--t-mono-s);color:var(--tenue)}
+.pane-s .prog{width:90px}
+.completo-t{color:var(--ambar);font-weight:600}
+.prog.destella i{animation:destella 1s var(--ease)}
+@keyframes destella{30%{filter:brightness(1.6);box-shadow:0 0 12px rgba(242,182,50,.9)}}
+.fc{min-height:30px;padding:0 11px;border:1px solid var(--linea);border-radius:var(--r-pildora);background:none;color:var(--crema2);font:700 11.5px/1 var(--f);display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;transition:background var(--d-color),color var(--d-color),border-color var(--d-color),transform var(--d-presion)}
+.fc:hover{color:var(--crema);border-color:var(--linea-hover)}
+.fc:active{transform:scale(.96)}
+.fc .pt{width:6px;height:6px;box-shadow:none}
+.fc[aria-checked="true"]{background:var(--crema);color:var(--tinta);border-color:var(--crema)}
+.fc .ct{font:500 10px/1 var(--m);color:var(--tenue)}
+.vac{display:grid;justify-items:center;text-align:center;gap:6px;padding:26px 16px 18px}
+.vac b{font:var(--t-titulo)}
+.vac p{font:var(--t-chico);color:var(--crema2);max-width:34ch}
+.primer{display:grid;justify-items:center;text-align:center;gap:8px;padding:26px 20px 22px;border:1px dashed var(--linea-hover);border-radius:var(--r-tarjeta);margin-top:6px;background:radial-gradient(180px 70px at 50% 108px,rgba(242,182,50,.16),transparent 72%)}
+.primer b{font:800 18px/1.2 var(--f);letter-spacing:-.02em}
+.primer p{font:var(--t-chico);color:var(--crema2);max-width:38ch}
+.primer .sug{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:6px}
+.err{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:start;padding:10px 12px;border:1px solid rgba(255,122,107,.35);border-radius:var(--r-cuadro);background:color-mix(in srgb,var(--rojo) 6%,var(--s1));font:var(--t-chico);color:var(--crema2)}
+.err b{display:block;font:var(--t-cuerpo-f);color:var(--crema)}
+.err .acc{grid-column:2;margin-left:-6px}
+.err>.pt{margin-top:5px;--c:var(--rojo)}
+.pista{margin:10px 0 0 2px;font:var(--t-chico);color:var(--tenue)}
+.atras{align-self:flex-start;margin:-2px 0 4px -6px}
+.fila.recien,.rg.recien,.ficha.recien{animation:recien 1.2s var(--ease)}
+@keyframes recien{0%{background:color-mix(in srgb,var(--ambar) 14%,transparent)}}
+
+/* ---------------- nuevo: el control de hoy */
+.ck{position:relative;width:36px;height:38px;flex:none;display:grid;place-items:center;border:0;background:none;cursor:pointer;border-radius:50%;padding:0}
+.ck::before{content:"";grid-area:1/1;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--linea-hover);transition:border-color var(--d-color),background var(--d-color)}
+.ck svg{grid-area:1/1;position:relative;width:12px;height:12px;fill:none;stroke:var(--negro);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:14;stroke-dashoffset:14}
+.ck:hover::before{border-color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent)}
+.ck[aria-checked="true"]::before{border-color:var(--ambar);background:var(--ambar)}
+.ck[aria-checked="true"] svg{stroke-dashoffset:0}
+.ck.tildando::before{animation:pop .42s var(--rebote)}
+.ck.tildando svg{animation:visto .26s var(--ease) .08s both}
+@keyframes pop{30%{transform:scale(.72)}}
+@keyframes visto{from{stroke-dashoffset:14}to{stroke-dashoffset:0}}
+.ck:focus-visible{outline-offset:-4px}
+.ck.g{width:56px;height:56px}
+.ck.g::before{width:34px;height:34px;border-width:2px}
+.ck.g svg{width:18px;height:18px;stroke-width:2.2}
+.libre-c{width:36px;height:38px;display:grid;place-items:center;color:var(--linea-hover);font:600 14px/1 var(--m)}
+.libre-c.g{width:56px;height:56px}
+/* sumador (cantidad): anillo de N tramos, se llena de a uno */
+.sum{position:relative;width:36px;height:38px;flex:none;display:grid;place-items:center;border:0;background:none;padding:0;cursor:pointer;border-radius:50%;color:var(--crema)}
+.sum>svg{grid-area:1/1;width:30px;height:30px;transform:rotate(-90deg);fill:none;stroke-width:3;overflow:visible}
+.sum .sg{stroke:var(--s3);transition:stroke var(--d-color)}
+.sum .sg.on{stroke:var(--ambar)}
+.sum:hover .sg:not(.on){stroke:color-mix(in srgb,var(--c) 45%,var(--s3))}
+.sum .num{grid-area:1/1;display:grid;place-items:center;font:800 11px/1 var(--f);font-variant-numeric:tabular-nums}
+.sum .num svg{width:12px;height:12px;fill:none;stroke:var(--ambar);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.sum .mas{position:absolute;right:0;bottom:3px;width:13px;height:13px;border-radius:50%;background:var(--ambar);color:var(--negro);font:700 10px/13px var(--m);text-align:center;font-style:normal;box-shadow:0 0 0 2px var(--fondo-cel,var(--negro));transition:transform var(--d-presion)}
+.sum:active .mas{transform:scale(.75)}
+.sum.lleno .mas{background:var(--s3);color:var(--crema2)}
+.sum .sg.nv{animation:segIn .5s var(--rebote)}
+@keyframes segIn{0%{stroke-width:0;stroke:var(--crema)}55%{stroke-width:6}}
+.sum .num.rueda{animation:rueda .36s var(--ease)}
+@keyframes rueda{from{transform:translateY(7px);opacity:0}}
+.sum.llega::before{content:"";grid-area:1/1;width:30px;height:30px;border-radius:50%;animation:llega .9s var(--ease)}
+@keyframes llega{from{box-shadow:0 0 0 0 rgba(242,182,50,.6)}to{box-shadow:0 0 0 14px rgba(242,182,50,0)}}
+.sum.g{width:56px;height:56px}
+.sum.g>svg{width:48px;height:48px;stroke-width:3.2}
+.sum.g .num{font-size:15px}
+.sum.g .num svg{width:18px;height:18px}
+.sum.g .mas{width:17px;height:17px;font-size:12px;line-height:17px;right:1px;bottom:3px}
+.chispa{position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;border-radius:50%;background:var(--c);pointer-events:none;opacity:0;font-style:normal}
+.chispa:nth-child(even){background:var(--ambar)}
+.gota{position:absolute;left:50%;top:50%;width:6px;height:8px;margin:-4px 0 0 -3px;border-radius:50% 50% 50% 50%/62% 62% 38% 38%;background:var(--c);pointer-events:none;opacity:0;font-style:normal}
+.onda{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:1.5px solid var(--c);pointer-events:none;opacity:0;font-style:normal}
+
+/* ---------------- nuevo: la semana en celdas */
+.sem{--gap:3px;--fondo-cel:var(--negro);display:grid;grid-template-columns:repeat(7,var(--cel));gap:var(--gap);flex:none}
+.cel{position:relative;width:var(--cel);height:var(--cel);display:grid;place-items:center;padding:0;border:0;border-radius:calc(var(--cel) * .32);background:none;color:inherit}
+.cel::after{content:""}
+.cel.hecho{background:var(--ambar)}
+.cel.parcial{background:linear-gradient(to top,var(--ambar) var(--p),var(--s3) 0)}
+.cel.falta,.cel.pend{box-shadow:inset 0 0 0 1.5px var(--linea-hover)}
+.cel.libre::after{width:6px;height:1.5px;border-radius:1px;background:var(--linea-hover)}
+.cel.nada::after{width:3px;height:3px;border-radius:50%;background:var(--linea-hover)}
+.cel.antes::after{width:2px;height:2px;border-radius:50%;background:var(--linea)}
+.cel.futuro{box-shadow:inset 0 0 0 1px var(--linea)}
+.cel.hoy.pend{box-shadow:inset 0 0 0 1.5px var(--crema2)}
+.cel.hoy.parcial{box-shadow:0 0 0 1.5px var(--fondo-cel),0 0 0 3px var(--crema2)}
+.cel.hoy.hecho{box-shadow:0 0 0 1.5px var(--fondo-cel),0 0 0 3px var(--ambar)}
+button.cel{cursor:pointer;transition:transform var(--d-presion),background var(--d-color)}
+button.cel.falta:hover,button.cel.pend:hover,button.cel.nada:hover{box-shadow:inset 0 0 0 1.5px var(--c,var(--crema2));background:color-mix(in srgb,var(--c,var(--crema2)) 16%,transparent)}
+button.cel.hecho:hover{filter:brightness(1.12)}
+button.cel:active{transform:scale(.86)}
+button.cel:focus-visible{outline-offset:2px}
+.cel.enciende{animation:celPop .55s var(--rebote)}
+@keyframes celPop{0%{transform:scale(.35)}}
+.letras{display:grid;grid-template-columns:repeat(7,var(--cel));gap:var(--gap,3px);font:500 9px/1 var(--m);color:var(--tenue);text-align:center}
+.letras .hoy{color:var(--ambar);font-weight:600}
+.letras small{display:block;margin-top:3px;font-size:8px;color:var(--tenue);font-weight:500}
+.letras .hoy small{color:var(--ambar)}
+.leyenda{--cel:12px;--fondo-cel:var(--negro);display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;font:var(--t-mono-s);color:var(--tenue)}
+.leyenda span{display:inline-flex;gap:6px;align-items:center}
+
+/* racha: una brasa que crece */
+.racha{display:inline-flex;align-items:center;gap:4px;font:var(--t-mono-s);font-stretch:75%;color:var(--tenue);white-space:nowrap}
+.racha svg{width:9px;height:11px;fill:currentColor;transform-origin:50% 90%}
+.racha b{display:inline-block;font-weight:600;font-variant-numeric:tabular-nums}
+.racha.r1{color:var(--pico)}
+.racha.r2,.racha.r3{color:var(--ambar)}
+.racha.r2 svg{filter:drop-shadow(0 0 3px rgba(242,182,50,.55))}
+.racha.r3 svg{width:11px;height:13px;filter:drop-shadow(0 0 5px rgba(242,182,50,.85));animation:titila 2.4s ease-in-out infinite}
+@keyframes titila{50%{transform:scale(1.06,.9)}}
+.racha.sube b{animation:rueda .42s var(--rebote)}
+.racha.sube svg{animation:brasa .62s var(--rebote)}
+@keyframes brasa{40%{transform:scale(1.55) translateY(-1px)}}
+.hito{position:absolute;left:0;right:0;top:4px;z-index:6;width:max-content;max-width:92%;margin:0 auto;display:flex;gap:7px;align-items:center;padding:8px 13px 8px 10px;border-radius:var(--r-pildora);background:var(--ambar);color:var(--negro);font:800 12px/1 var(--f);white-space:nowrap;box-shadow:0 12px 30px -8px rgba(242,182,50,.6);pointer-events:none}
+.hito svg{width:11px;height:13px;fill:currentColor}
+
+/* meta de una fila */
+.cuerpo{min-width:0;display:grid;gap:4px;justify-items:start;padding:7px 0}
+.nom{max-width:100%;padding:2px 4px;margin-left:-4px;border:0;border-radius:6px;background:none;color:var(--crema);font:var(--t-cuerpo-f);text-align:left;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nom:hover{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--linea-hover)}
+.meta{display:flex;flex-wrap:wrap;gap:3px 10px;align-items:center}
+.tag{display:inline-flex;align-items:center;gap:5px;font:var(--t-mono-s);font-stretch:75%;color:var(--tenue)}
+.tag.t-aviso{color:var(--ambar)}
+.tag svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.menos{min-height:22px;padding:0 7px;border:1px solid var(--linea);border-radius:var(--r-pildora);background:none;color:var(--crema2);font:500 10px/1 var(--m);cursor:pointer;margin-left:-4px}
+.menos:hover{border-color:var(--linea-hover);color:var(--crema)}
+
+/* ---------------- A · Renglón (nuevo) */
+.reng{flex:1;min-height:0;display:flex;flex-direction:column}
+.reng-h{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px;padding:0 6px 6px 2px;border-bottom:1px solid var(--linea)}
+.rgs{list-style:none;display:grid}
+.rg{position:relative;display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:center;gap:0 8px;padding:3px 6px 3px 0;border-radius:var(--r-fila);min-height:56px}
+.rg::before{content:"";position:absolute;left:42px;right:8px;top:0;height:1px;background:var(--linea)}
+.rg:first-child::before{opacity:0}
+.rg::after{content:"";position:absolute;top:0;bottom:0;right:calc(6px + (6 - var(--hoy)) * 19px - 3px);width:22px;background:var(--brasa);pointer-events:none}
+.rg>*{position:relative;z-index:1}
+.rg:hover{background:var(--s1)}
+.rg-c{display:grid;place-items:center}
+.rg.fuera .nom{color:var(--crema2)}
+.reng.completo .rg::after{animation:barre 1.1s var(--ease) calc(var(--i) * 70ms)}
+@keyframes barre{35%{background:rgba(242,182,50,.34)}}
+.rg-det{list-style:none;padding:10px 12px 14px 14px;border-radius:var(--r-cuadro);background:var(--s1);box-shadow:0 0 0 1px var(--linea) inset;margin:2px 0 8px}
+.mas-b{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;margin-top:8px;padding:0 10px;border:1px dashed var(--linea-hover);border-radius:var(--r-fila);background:none;color:var(--tenue);font:700 12px/1 var(--f);cursor:pointer;transition:color var(--d-color),border-color var(--d-color)}
+.mas-b:hover{color:var(--crema);border-color:var(--crema2)}
+.mas-b svg,.ficha-mas svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+
+/* ---------------- B · Carpeta (de Tareas) */
+.carpeta{flex:1;min-height:0;display:grid;grid-template-columns:var(--ancho-indice) minmax(0,1fr);gap:0 14px}
+.idx{display:flex;flex-direction:column;gap:2px;min-height:0;padding-right:10px;border-right:1px solid var(--linea);overflow-y:auto;scrollbar-width:none}
+.ix-b{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:0 8px 0 6px;border:0;border-radius:var(--r-fila);background:none;color:var(--crema2);font:700 12px/1.1 var(--f);text-align:left;cursor:pointer;transition:background var(--d-color),color var(--d-color),transform var(--d-presion)}
+.ix-b:hover{background:var(--s2);color:var(--crema)}
+.ix-b:active{transform:scale(.97)}
+.ix-b[aria-current="page"]{background:var(--ambar-osc);color:var(--ambar)}
+.ix-b .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ix-b .ct{font:500 10px/1 var(--m);color:var(--tenue)}
+.ix-b .ct.t-aviso{color:var(--ambar)}
+.ix-ic{width:20px;height:20px;flex:none;display:grid;place-items:center;border-radius:6px;background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c)}
+.ix-ic svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ix-ic.punto::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--c)}
+.rot-i{margin:12px 0 4px 8px;font:var(--t-rotulo);letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+.ix-mas{color:var(--tenue);font-weight:600}
+.ix-mas .ix-ic{background:none;border:1px dashed var(--linea-hover);color:var(--tenue)}
+.pane{min-width:0;min-height:0;display:flex;flex-direction:column}
+.pane-h{display:grid;gap:2px;margin:0 0 6px 2px}
+.pane-h h2{display:flex;align-items:center;gap:8px;font:800 19px/1.15 var(--f);letter-spacing:-.03em}
+.filas{list-style:none;display:grid}
+.fila{position:relative;display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:0 6px;padding:0 6px 0 0;border-radius:var(--r-fila);transition:background var(--d-color)}
+.fila::before{content:"";position:absolute;left:38px;right:8px;top:0;height:1px;background:var(--linea)}
+.fila:first-child::before{opacity:0}
+.fila:hover{background:var(--s1)}
+.rot-p{margin:14px 0 2px 6px;font:var(--t-rotulo);letter-spacing:.12em;text-transform:uppercase;color:var(--tenue);display:flex;gap:8px;align-items:center}
+.rot-p::after{content:"";flex:1;height:1px;background:var(--linea)}
+.fuera-l .fila{opacity:.7}
+.mat{display:grid}
+.mat-r{position:relative;--cel:20px;--gap:6px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;min-height:40px;padding:0 4px 0 0;border-top:1px solid var(--linea)}
+.mat-r .sem{--gap:6px}
+.mat-r.cab{border-top:0;min-height:32px;align-items:end;padding-bottom:7px}
+.mat-r::after{content:"";position:absolute;top:0;bottom:0;right:calc(4px + (6 - var(--hoy)) * 26px - 3px);width:26px;background:var(--brasa);pointer-events:none}
+.mat-r.cab::after{border-radius:8px 8px 0 0}
+.mat-r>*{position:relative;z-index:1}
+.mat-n{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 4px;border:0;background:none;color:var(--crema);font:700 12px/1.2 var(--f);cursor:pointer;border-radius:6px;text-align:left}
+.mat-n span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mat-n .pt{width:6px;height:6px;box-shadow:none}
+.mat-n:hover span{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--linea-hover)}
+.rot-m{font:var(--t-rotulo);letter-spacing:.12em;text-transform:uppercase;color:var(--tenue);padding-left:4px}
+.mat.completo .mat-r::after{animation:barre 1.1s var(--ease)}
+/* el hábito abierto */
+.det{display:grid;gap:12px}
+.hb-tit{display:grid;grid-template-columns:14px minmax(0,1fr);align-items:center;gap:6px}
+.hb-tit .pt{width:8px;height:8px}
+.tit-in{display:block;width:100%;min-height:34px;resize:none;field-sizing:content;border:0;background:none;outline:none;font:800 16px/1.25 var(--f);letter-spacing:-.015em;color:var(--crema);padding:4px 6px;border-radius:8px;transition:background var(--d-color)}
+.tit-in:hover{background:var(--s2)}
+.tit-in:focus,.tit-in:focus-visible{outline:none;background:var(--s2);box-shadow:0 0 0 1.5px var(--ambar) inset}
+.racha-g{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--linea);border-radius:var(--r-cuadro);background:radial-gradient(130px 70px at 28px 50%,rgba(242,182,50,.15),transparent 72%),var(--s1)}
+.racha-g svg{width:22px;height:27px;fill:var(--ambar);filter:drop-shadow(0 0 8px rgba(242,182,50,.6));transform-origin:50% 90%}
+.racha-g.r3 svg{animation:titila 2.4s ease-in-out infinite}
+.racha-g.r0 svg{fill:var(--s3);filter:none}
+.racha-g.r1 svg{fill:var(--pico);filter:none}
+.racha-g b{font:800 34px/1 var(--f);letter-spacing:-.05em;font-variant-numeric:tabular-nums}
+.racha-g span{font:700 12px/1.3 var(--f);color:var(--crema2)}
+.racha-g small{display:block;margin-top:3px;font:var(--t-mono-s);color:var(--tenue)}
+.cal{display:grid;gap:6px}
+.cal .sub{margin:0}
+.cal-g{--cel:14px;--gap:5px;display:grid;gap:5px;width:max-content}
+.cal-g .sem{--gap:5px}
+
+/* ---------------- formulario (nuevo, común) */
+.frm{display:grid;gap:10px}
+.det-g{display:grid;grid-template-columns:62px minmax(0,1fr);gap:9px 10px;align-items:center;padding:10px 0;border-top:1px solid var(--linea);border-bottom:1px solid var(--linea)}
+.det-l{font:var(--t-rotulo);letter-spacing:.1em;text-transform:uppercase;color:var(--tenue)}
+.det-f{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.fecha-in{min-height:30px;padding:0 8px;border:1px solid var(--linea);border-radius:var(--r-campo);background:var(--s1);font:var(--t-mono-s);color:var(--crema2);color-scheme:dark;cursor:pointer}
+.fecha-in:focus-visible{outline:0;border-color:var(--ambar);box-shadow:0 0 0 3px rgba(242,182,50,.14)}
+.paso{display:inline-flex;align-items:center;border:1px solid var(--linea);border-radius:var(--r-pildora);background:var(--s1)}
+.paso button{width:30px;height:28px;border:0;background:none;color:var(--crema2);font:600 14px/1 var(--m);cursor:pointer;border-radius:var(--r-pildora)}
+.paso button:hover{color:var(--crema);background:var(--s2)}
+.paso b{min-width:24px;text-align:center;font:600 12px/1 var(--m);font-variant-numeric:tabular-nums}
+.campo.mini{min-height:30px;width:92px;padding:0 8px}
+.campo.mini input{font:var(--t-mono-s)}
+.dsem{gap:4px}
+.dsem button{width:30px;height:30px;border:1px solid var(--linea);border-radius:9px;background:none;color:var(--crema2);font:700 11px/1 var(--f);cursor:pointer;transition:background var(--d-color),color var(--d-color),transform var(--d-presion)}
+.dsem button:hover{border-color:var(--linea-hover);color:var(--crema)}
+.dsem button:active{transform:scale(.92)}
+.dsem button[aria-pressed="true"]{background:var(--crema);color:var(--tinta);border-color:var(--crema)}
+.sw{position:relative;width:36px;height:22px;flex:none;border:0;border-radius:var(--r-pildora);background:var(--s3);cursor:pointer;transition:background var(--d-color)}
+.sw::after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--crema2);transition:transform .3s var(--rebote),background var(--d-color)}
+.sw[aria-checked="true"]{background:var(--ambar)}
+.sw[aria-checked="true"]::after{transform:translateX(14px);background:var(--negro)}
+.colores{gap:2px}
+.col{width:28px;height:28px;display:grid;place-items:center;border:0;border-radius:50%;background:none;cursor:pointer}
+.col::after{content:"";width:14px;height:14px;border-radius:50%;background:var(--c);transition:transform .2s var(--rebote)}
+.col[aria-checked="true"]{box-shadow:inset 0 0 0 1.5px var(--c)}
+.col:hover::after{transform:scale(1.18)}
+.frase{padding:9px 12px;border-radius:var(--r-campo);background:var(--s2);font:var(--t-mono-s);color:var(--crema2)}
+.frase b{color:var(--crema);font-weight:600}
+.e-form{display:flex;gap:7px;align-items:center;font:var(--t-chico);color:var(--rojo)}
+.e-form::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.det-pie{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.acc-c{display:flex;gap:6px;align-items:center}
+
+/* ---------------- C · Fichas (nuevo) */
+.cab-c{margin:0 0 6px 2px}
+.fichas{list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ficha{position:relative;--fondo-cel:var(--s1);display:grid;gap:6px;padding:8px 12px 12px;border:1px solid var(--linea);border-radius:var(--r-tarjeta);background:var(--s1);transition:border-color .45s var(--ease),background .45s var(--ease)}
+.ficha.hecha{border-color:color-mix(in srgb,var(--ambar) 42%,var(--linea));background:radial-gradient(170px 80px at 22% 112%,rgba(242,182,50,.14),transparent 70%),var(--s1)}
+.ficha.fuera{opacity:.62}
+.fi-top{display:flex;justify-content:space-between;align-items:flex-start;margin-left:-10px}
+.fi-top .racha{margin-top:8px}
+.ficha .nom{font:800 14px/1.2 var(--f);letter-spacing:-.01em}
+.ficha .cuerpo{padding:0}
+.ficha .sem{--cel:10px;--gap:6px;--fondo-cel:var(--s1);margin-top:4px}
+.ficha .cel{border-radius:50%}
+.ficha .cel.hoy.hecho,.ficha .cel.hoy.parcial{box-shadow:0 0 0 1.5px var(--s1),0 0 0 3px var(--ambar)}
+.ficha-mas{width:100%;height:100%;min-height:150px;display:grid;place-items:center;align-content:center;gap:8px;border:1px dashed var(--linea-hover);border-radius:var(--r-tarjeta);background:none;color:var(--tenue);font:700 12px/1 var(--f);cursor:pointer;transition:color var(--d-color),border-color var(--d-color)}
+.ficha-mas:hover{color:var(--crema);border-color:var(--crema2)}
+.fichas.completo .ficha{animation:ola .75s var(--rebote) calc(var(--i) * 70ms)}
+@keyframes ola{40%{transform:translateY(-5px);border-color:var(--ambar)}}
+.panel-c{flex:1;min-height:0;display:flex;flex-direction:column}
+
+/* ---------------- globos: recordatorio y resumen (nuevo); el de tareas, el de #39 */
+.globo-h,.globo{position:relative;width:100%;margin-top:12px;background:var(--crema);color:var(--tinta);border-radius:14px;box-shadow:0 14px 30px -14px rgba(242,182,50,.5),0 0 0 4px rgba(242,182,50,.07);transform-origin:50% -8px;text-align:left}
+.globo-h::before,.globo::before{content:"";position:absolute;top:-5px;left:50%;width:12px;height:12px;margin-left:-6px;background:var(--crema);border-radius:2px;transform:rotate(45deg)}
+.globo-h{display:grid;gap:8px;padding:10px 4px 10px 12px}
+.entra{animation:globoEntra .56s var(--rebote)}
+@keyframes globoEntra{0%{opacity:0;transform:translateY(-8px) scale(.82)}55%{opacity:1}100%{transform:none}}
+.sale{animation:globoSale .2s ease-in forwards}
+@keyframes globoSale{to{opacity:0;transform:scale(.9)}}
+.globo-fila{position:relative;display:flex;gap:2px;align-items:flex-start}
+.globo-t{flex:1;font:600 12px/1.35 var(--f);padding-top:1px}
+.globo-t b{font-weight:800}
+.globo-t b.r{color:var(--rojo-tinta)}
+.globo-x{width:28px;height:28px;flex:none;display:grid;place-items:center;margin-top:-5px;border:0;background:none;color:#5c554a;cursor:pointer;border-radius:8px;padding:0}
+.globo-x:hover{color:var(--tinta);background:rgba(20,17,12,.06)}
+.globo-x svg{width:12px;height:12px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round}
+.globo-acc{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-left:-2px}
+.g-hacer{min-height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 11px 0 9px;border:0;border-radius:var(--r-pildora);background:var(--tinta);color:var(--crema);font:800 11.5px/1 var(--f);cursor:pointer;transition:transform var(--d-presion)}
+.g-hacer:active{transform:scale(.95)}
+.g-hacer .pt{width:6px;height:6px;box-shadow:none}
+.g-ver,.globo-c{min-height:28px;padding:0 6px;border:0;background:none;color:var(--ambar-tinta);font:600 10px/1 var(--m);letter-spacing:.03em;cursor:pointer;border-radius:6px;display:inline-flex;align-items:center}
+.g-ver:hover,.globo-b:hover .globo-c,.globo-res:hover .globo-c{text-decoration:underline;text-underline-offset:3px}
+.globo-h :focus-visible,.globo :focus-visible{outline-color:var(--tinta);outline-offset:1px}
+.globo-ok{display:inline-flex;align-items:center;gap:6px}
+.globo-ok i{width:16px;height:16px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--tinta)}
+.globo-ok svg{width:10px;height:10px;fill:none;stroke:var(--ambar);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:14;animation:visto .3s var(--ease) .05s both}
+.globo-k{flex:1;padding-top:4px;font:600 9px/1 var(--m);letter-spacing:.12em;text-transform:uppercase;color:#5c554a}
+.globo-res{display:grid;gap:8px;padding:0 8px 0 0;border:0;background:none;color:inherit;text-align:left;cursor:pointer;border-radius:8px}
+.globo-res .globo-c{min-height:0;padding:2px 0}
+.barras{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;align-items:end}
+.barras span{display:grid;grid-template-rows:26px auto;gap:3px;justify-items:center;align-items:end;font:600 8.5px/1 var(--m);color:#5c554a}
+.barras i{display:block;width:100%;height:calc(26px * var(--h));min-height:3px;border-radius:3px;background:var(--tinta);transform-origin:bottom;animation:crece .6s var(--ease) both;animation-delay:calc(var(--i) * 45ms + 260ms)}
+@keyframes crece{from{transform:scaleY(0)}}
+.barras.osc span{color:var(--tenue)}
+.barras.osc i{background:var(--ambar)}
+/* el globo de tareas de #39, tal cual */
+.globo{display:flex;align-items:stretch}
+.globo-b{position:relative;flex:1;display:grid;gap:7px;padding:11px 2px 11px 12px;border:0;background:none;color:inherit;text-align:left;cursor:pointer;border-radius:14px 0 0 14px}
+.globo .globo-x{width:30px;height:auto;margin:0;place-items:start center;padding-top:10px;border-radius:0 14px 14px 0}
+.globo .globo-c{min-height:0;padding:0}
+/* sin barra (dividida): la fila de aviso */
+.aviso-f{display:flex;align-items:center;gap:6px;min-height:40px;padding:0 4px 0 14px;margin-bottom:10px;border:1px solid color-mix(in srgb,var(--ambar) 55%,transparent);border-radius:var(--r-pildora);background:var(--ambar-osc);font:600 12px/1.3 var(--f)}
+.aviso-f span{flex:1}
+.aviso-f b.r{color:var(--rojo)}
+.aviso-f .lnk{color:var(--ambar)}
+.aviso-f .mas1{min-height:28px;padding:0 10px;border:0;border-radius:var(--r-pildora);background:var(--ambar);color:var(--negro);font:800 11.5px/1 var(--f);cursor:pointer}
+.marco:not(.angosto) .aviso-f{display:none}
+/* la muesca acoplada */
+.escritorio{position:relative;height:132px;border-radius:12px;overflow:hidden;background:linear-gradient(160deg,#3d4a5c,#617288)}
+.muesca-m{position:absolute;top:0;left:50%;width:150px;height:54px;margin-left:-75px;background:#000;border-radius:0 0 22px 22px;overflow:hidden;display:grid;justify-items:center;box-shadow:0 12px 28px -14px rgba(0,0,0,.9)}
+.muesca-m .avi{margin-top:6px}
+.m-globo{position:absolute;top:64px;left:50%;transform:translateX(-50%);display:inline-flex;gap:8px;align-items:center;padding:8px 12px;border:0;border-radius:12px;background:var(--crema);color:var(--tinta);font:700 11.5px/1 var(--f);white-space:nowrap;cursor:pointer;box-shadow:0 10px 24px -10px rgba(0,0,0,.6)}
+.m-globo::before{content:"";position:absolute;top:-4px;left:50%;width:10px;height:10px;margin-left:-5px;background:var(--crema);transform:rotate(45deg);border-radius:2px}
+.m-globo span{font:600 10px/1 var(--m);color:var(--ambar-tinta)}
+.m-globo .ring{width:14px;height:14px;transform:rotate(-90deg);fill:none;stroke-width:2.6}
+/* la notificación de Windows (maqueta del sistema: Segoe es del sistema, no de Avis) */
+.win{position:relative;height:236px;border-radius:12px;overflow:hidden;background:radial-gradient(400px 200px at 20% 10%,#4b5d77,transparent),linear-gradient(160deg,#2a3442,#4b5a70)}
+.toast{position:absolute;right:12px;bottom:58px;width:min(352px,calc(100% - 24px));padding:12px 14px 14px;background:#2c2c2c;border:1px solid #3d3d3d;border-radius:8px;box-shadow:0 10px 28px rgba(0,0,0,.5);font-family:"Segoe UI Variable Text","Segoe UI",sans-serif;color:#fff;animation:tostada .6s var(--ease) both .2s}
+@keyframes tostada{from{opacity:0;transform:translateX(30px)}}
+.t-h{display:flex;align-items:center;gap:8px;font-size:12px;color:#c8c8c8}
+.t-h .sp{flex:1}
+.t-ic{width:16px;height:16px;border-radius:4px;background:var(--ambar);display:grid;place-items:center}
+.t-ic svg{width:12px;height:12px}
+.t-c{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:center;margin-top:10px}
+.t-c b{display:block;font-size:14px;font-weight:600;color:#fff}
+.t-c p{margin-top:2px;font-size:13px;line-height:1.35;color:#d4d4d4}
+.barra-w{position:absolute;left:0;right:0;bottom:0;height:44px;display:flex;justify-content:flex-end;align-items:center;padding:0 12px;background:rgba(28,28,28,.92);font:12px/1.25 "Segoe UI",sans-serif;color:#e8e8e8;text-align:right}
+/* la charla que abre el resumen */
+.charla{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+.burb{display:grid;grid-template-columns:40px minmax(0,1fr);gap:8px;align-items:start}
+.burb-t{display:grid;gap:10px;padding:11px 13px;border-radius:4px 14px 14px 14px;background:var(--s2);font:var(--t-cuerpo);color:var(--crema2)}
+.burb-t b{color:var(--crema);font-weight:800}
+.sugs{display:flex;flex-wrap:wrap;gap:6px;padding-left:48px}
+.charla .campo{margin-top:auto}
+/* uno por vez */
+.cola{list-style:none;display:grid;gap:8px;counter-reset:c}
+.cola li{display:grid;grid-template-columns:24px minmax(0,1fr);gap:10px;align-items:start;font:var(--t-chico);color:var(--crema2)}
+.cola li::before{counter-increment:c;content:counter(c);width:24px;height:24px;display:grid;place-items:center;border-radius:50%;background:var(--s3);font:600 10px/1 var(--m);color:var(--crema)}
+.cola li.yo::before{background:var(--ambar);color:var(--negro)}
+.cola b{display:block;font:var(--t-cuerpo-f);color:var(--crema)}
+.fantasma{height:44px;border-radius:var(--r-fila);background:var(--s1);margin-bottom:6px}
+
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important;animation-delay:0ms!important}}
+</style>
+</head>
+<body>
+<div id="defs"></div>
+<div class="pagina">
+  <header class="pag-h">
+    <span class="kick">Boceto · Issue #41 · 24/11/2026 · Delfina</span>
+    <h1>Hábitos, <em>de a un día</em></h1>
+    <p>Una fila <b>Hábitos</b> entre Tareas y Configuración abre su hoja en la columna principal, con el mismo molde que Tareas (<b>‹ Tablero</b> o <b>Esc</b> vuelven). Cuatro tipos: <b>sí/no</b> (Caminar), <b>cantidad</b> (Agua: 3 de 8 vasos), <b>algunos días</b> (Gimnasio lun, mié y vie) y <b>veces por semana</b> (Correr 3 por semana).</p>
+    <p>Las tres comparten el control de hoy (el círculo de Tareas para sí/no; un anillo que se llena de a uno para cantidad), la <b>racha como brasa</b> que crece, el formulario y los tres globos. Cambia cómo se ve la semana. Los tableros funcionan: tildá, sumá vasos, abrí un hábito, creá y borrá. El boceto vive en el <b>jueves 26/11</b> para que la semana tenga días cargados; Caminar está a un tilde de su primera semana seguida.</p>
+    <div class="pag-ctl"><button type="button" class="btn sec" id="pausa" aria-pressed="false">Pausar movimiento</button><span class="nx">con «reducir movimiento» del sistema, todo pasa a fundidos de 160 ms</span></div>
+  </header>
+
+  <div class="opciones">
+    <section class="op" aria-labelledby="op-a-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">A</span><h2 class="op-n" id="op-a-n">Renglón<small>UNA LISTA · LA SEMANA EN CADA FILA</small></h2></div>
+      <div class="lienzo" data-op="a"></div>
+      <div class="op-t">
+        <div class="op-p">
+          <p>Sin índice: cada hábito es un renglón con el control de hoy a la izquierda y sus siete días a la derecha. Una <b>franja ámbar</b> marca la columna de hoy en toda la lista y, al completar el día, la barre de arriba abajo.</p>
+          <p>Todo en una pantalla y cero navegación; la edición se abre debajo del renglón. Con más de 8 hábitos hay que desplazar y la semana se achica a celdas de 16.</p>
+        </div>
+        <div class="proba" data-op="a"></div>
+      </div>
+    </section>
+
+    <section class="op reco" aria-labelledby="op-b-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">B</span><h2 class="op-n" id="op-b-n">Carpeta<small>HOY · SEMANA · CADA HÁBITO</small></h2><span class="reco-b">Recomendada</span></div>
+      <div class="lienzo" data-op="b"></div>
+      <div class="op-t">
+        <div class="op-p">
+          <p>El molde de Tareas: índice con <b>Hoy</b>, <b>Semana</b> y tus hábitos con su racha. Hoy es para hacer (lo que no toca baja a «Hoy no toca»); Semana es la grilla para mirar y corregir un día que pasó.</p>
+          <p>Cada hábito abre su racha grande, sus últimas 5 semanas y su configuración. Se aprende una vez para las dos hojas y aguanta 3 o 15 hábitos igual.</p>
+        </div>
+        <div class="proba" data-op="b"></div>
+      </div>
+    </section>
+
+    <section class="op" aria-labelledby="op-c-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">C</span><h2 class="op-n" id="op-c-n">Fichas<small>DOS COLUMNAS · CONTROLES GRANDES</small></h2></div>
+      <div class="lienzo" data-op="c"></div>
+      <div class="op-t">
+        <div class="op-p">
+          <p>Una ficha por hábito con el control a 56 px: el anillo del agua se llena de a un vaso y la ficha se enciende al cumplir. La semana va en puntos al pie.</p>
+          <p>La más táctil y la que más festeja; entran 4 a 6 hábitos por pantalla y la vista de la semana queda chica para corregir.</p>
+        </div>
+        <div class="proba" data-op="c"></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="estados" aria-labelledby="h-estados">
+    <h2 id="h-estados">Lo común a las tres, en cada estado</h2>
+    <p>Fila de la barra, globos (uno por vez), la notificación de Windows, el acto de sumar y de tildar, la racha, crear y borrar, vacíos y errores. Lo que se ve acá vale para A, B y C.</p>
+    <div class="grilla-e" id="grilla-e"></div>
+  </section>
+
+  <section class="nota-pag" aria-labelledby="h-notas">
+    <h2 id="h-notas">Reglas que propongo para la dirección</h2>
+    <ul>
+      <li><b>Hecho es ámbar,</b> como el tilde de Tareas. El color del hábito solo pinta su punto, el borde al pasar y las chispas; nunca lleva texto. Un hábito hecho no se tacha: se enciende.</li>
+      <li><b>Racha:</b> sí/no y cantidad cuentan días seguidos (cantidad, los días con la meta cumplida); algunos días cuenta solo los días que tocan (los demás no la cortan); veces por semana cuenta semanas cumplidas. Hoy sin hacer no corta nada hasta la medianoche de Argentina. Hitos a los 7, 30 y 100.</li>
+      <li><b>Semana de lunes a domingo.</b> Un día que ya pasó de esta semana se corrige tocando su celda (sí/no, algunos días y por semana). La cantidad de un día anterior no se corrige en esta entrega.</li>
+      <li><b>Globos, uno por vez:</b> pregunta de Claude › recordatorio › tareas del día › resumen semanal. El de abajo espera y aparece cuando se va el de arriba. Un recordatorio se va si el hábito queda hecho por cualquier camino, con la × (por hoy) o a la medianoche.</li>
+      <li><b>Recordatorio:</b> globo y notificación de Windows a la vez (S4). La notificación no tiene botones; su clic muestra Avis en Hábitos › Hoy. <b>Nada se abre solo.</b></li>
+      <li><b>Resumen:</b> el domingo desde las 18, la primera vez que la mascota está a la vista; si ese domingo no hubo Avis, el primer arranque de la semana siguiente. Las cifras salen de los datos; el modelo local solo escribe la frase. Sin modelo, la misma frase armada con plantilla.</li>
+      <li><b>Sin fuentes ni colores nuevos.</b> Tokens nuevos solo de medida: <code>--cel</code> y <code>--brasa</code> (la franja de hoy).</li>
+    </ul>
+  </section>
+</div>
+
+<script type="module">
+import { avi, claudeDe, defsAvis } from '../../../widget/src/avis.js'
+import { animate, stagger } from '../../../widget/src/vendor/animejs/anime.esm.min.js'
+
+document.getElementById('defs').innerHTML = defsAvis()
+const mqReducido = matchMedia('(prefers-reduced-motion: reduce)')
+const pausa = () => document.body.classList.contains('pausa')
+const modo = () => pausa() ? 'pausa' : mqReducido.matches ? 'reducido' : 'normal'
+const quieto = () => modo() !== 'normal'
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const CLAUDE = claudeDe('avi')
+document.getElementById('pausa').addEventListener('click', e => {
+  const on = document.body.classList.toggle('pausa')
+  e.currentTarget.setAttribute('aria-pressed', on)
+  e.currentTarget.textContent = on ? 'Movimiento en pausa' : 'Pausar movimiento'
+})
+
+// ---------------------------------------------------------------- calendario (hoy: jueves 26/11/2026; semana lun 23 a dom 29)
+const DIAS = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom']
+const DIAS_L = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+const LETRAS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+const FECHAS = [23, 24, 25, 26, 27, 28, 29]
+const HOY = 3
+const COLORES = ['celeste', 'verde', 'rosa', 'violeta', 'ambar', 'rojo']
+const NOMBRE_COLOR = { celeste: 'Celeste', verde: 'Verde', rosa: 'Rosa', violeta: 'Violeta', ambar: 'Ámbar', rojo: 'Rojo' }
+const cv = c => `var(--${c})`
+
+// ---------------------------------------------------------------- datos de ejemplo
+const BASE = [
+  { id: 'agua', nombre: 'Agua', tipo: 'cantidad', meta: 8, unidad: 'vasos', c: 'celeste', rec: '16:00', sem: [8, 6, 8, 3, null, null, null], rachaPrev: 1, mejor: 9, creado: '2/11' },
+  { id: 'caminar', nombre: 'Caminar', tipo: 'diario', c: 'verde', rec: '19:00', sem: [1, 1, 1, 0, null, null, null], rachaPrev: 6, mejor: 21, creado: '28/10' },
+  { id: 'gym', nombre: 'Gimnasio', tipo: 'dias', dias: [0, 2, 4], c: 'rosa', rec: '07:30', sem: [1, 0, 1, 0, null, null, null], rachaPrev: 9, mejor: 9, creado: '19/10' },
+  { id: 'correr', nombre: 'Correr', tipo: 'semana', veces: 3, c: 'violeta', rec: null, sem: [0, 1, 0, 0, null, null, null], rachaPrev: 4, mejor: 6, creado: '5/10' },
+  { id: 'leer', nombre: 'Leer 20 minutos', tipo: 'diario', c: 'ambar', rec: '23:00', sem: [1, 0, 1, 0, null, null, null], rachaPrev: 1, mejor: 14, creado: '10/11' },
+]
+const TODOS = [0, 1, 2, 3, 4, 5, 6]
+const copia = h => ({ meta: 8, unidad: 'vasos', veces: 3, inicio: null, ...h, dias: [...(h.dias ?? TODOS)], sem: [...h.sem] })
+const copiaTodo = () => BASE.map(copia)
+const SUGS = [
+  { id: 'agua', t: 'Tomar agua', d: '8 vasos' },
+  { id: 'caminar', t: 'Caminar', d: 'todos los días' },
+  { id: 'gym', t: 'Gimnasio', d: 'lun, mié, vie' },
+  { id: 'correr', t: 'Correr', d: '3 por semana' },
+]
+
+// ---------------------------------------------------------------- consultas puras (habitos.js en el widget)
+const hab = (m, id) => m.habitos.find(h => h.id === id)
+const toca = (h, i) => h.tipo !== 'dias' || h.dias.includes(i)
+const hecho = (h, i) => h.tipo === 'cantidad' ? (h.sem[i] ?? 0) >= h.meta : h.sem[i] === 1
+const enSemana = h => h.sem.filter(v => v === 1).length
+const semanaCumplida = h => h.tipo === 'semana' && enSemana(h) >= h.veces
+const deHoy = h => toca(h, HOY) && !(semanaCumplida(h) && !hecho(h, HOY))
+const hoyLista = m => m.habitos.filter(deHoy)
+const hechosHoy = m => hoyLista(m).filter(h => hecho(h, HOY)).length
+const pendientes = m => hoyLista(m).length - hechosHoy(m)
+const racha = h => h.tipo === 'semana' ? h.rachaPrev + (semanaCumplida(h) ? 1 : 0) : h.rachaPrev + (toca(h, HOY) && hecho(h, HOY) ? 1 : 0)
+const unidadRacha = (h, n) => h.tipo === 'semana' ? (n === 1 ? 'semana' : 'semanas') : (n === 1 ? 'día' : 'días')
+const tier = n => n >= 30 ? 3 : n >= 7 ? 2 : n >= 1 ? 1 : 0
+const singular = u => (u || 'vez').replace(/es$/, '').replace(/s$/, '')
+function listaDias(ds) {
+  const n = [...ds].sort().map(i => DIAS[i])
+  return n.length <= 1 ? (n[0] ?? '') : `${n.slice(0, -1).join(', ')} y ${n.at(-1)}`
+}
+function proximo(h) {
+  for (let i = HOY + 1; i < 7; i++) if (toca(h, i)) return DIAS[i]
+  return DIAS[Math.min(...h.dias)]
+}
+function estado(h, i) {
+  if (h.inicio != null && i < h.inicio) return 'antes'
+  if (i > HOY) return toca(h, i) ? 'futuro' : 'libre'
+  if (!toca(h, i)) return 'libre'
+  const v = h.sem[i] ?? 0
+  if (h.tipo === 'semana') return v === 1 ? 'hecho' : i === HOY ? 'pend' : 'nada'
+  if (hecho(h, i)) return 'hecho'
+  if (h.tipo === 'cantidad' && v > 0) return 'parcial'
+  return i === HOY ? 'pend' : 'falta'
+}
+function textoCelda(h, i) {
+  const v = h.sem[i] ?? 0, e = estado(h, i)
+  const t = { hecho: h.tipo === 'cantidad' ? `${v} de ${h.meta}, cumplido` : 'hecho', parcial: `${v} de ${h.meta}`, falta: 'no se hizo', nada: 'sin salida', libre: 'no toca', futuro: 'por venir', antes: 'antes de crearlo', pend: h.tipo === 'cantidad' ? `${v} de ${h.meta}` : 'falta' }[e]
+  return `${DIAS[i]} ${FECHAS[i]}${i === HOY ? ' (hoy)' : ''}: ${t}`
+}
+function pctSemana(m) {
+  let si = 0, total = 0
+  for (const h of m.habitos) {
+    if (h.tipo === 'semana') { total += h.veces; si += Math.min(enSemana(h), h.veces); continue }
+    for (let i = 0; i <= HOY; i++) {
+      if (!toca(h, i) || (h.inicio != null && i < h.inicio)) continue
+      if (i < HOY || hecho(h, i)) { total++; if (hecho(h, i)) si++ }
+    }
+  }
+  return total ? Math.round(si / total * 100) : 0
+}
+/** 35 días: las 4 semanas anteriores (inventadas, coherentes con la racha) y esta. */
+function historia(h) {
+  const est = new Array(35), g0 = 28 + HOY
+  for (let g = 28; g < 35; g++) est[g] = estado(h, g - 28)
+  let cnt = 0, roto = false
+  for (let g = g0 - 1; g >= 0; g--) {
+    const i = g % 7
+    if (g >= 28) { const e = est[g]; if (e === 'hecho') cnt++; else if (e === 'falta' || e === 'parcial') roto = true; continue }
+    if (h.inicio != null) { est[g] = 'antes'; continue }
+    if (!toca(h, i)) { est[g] = 'libre'; continue }
+    if (h.tipo === 'semana') { est[g] = ((g * 7 + h.nombre.length) % 10) < 4 ? 'hecho' : 'nada'; continue }
+    if (!roto && cnt < h.rachaPrev) { est[g] = 'hecho'; cnt++ } else if (!roto) { est[g] = 'falta'; roto = true } else {
+      const r = (g * 7 + h.nombre.length * 3) % 10
+      est[g] = r < 7 ? 'hecho' : (h.tipo === 'cantidad' && r < 9 ? 'parcial' : 'falta')
+    }
+  }
+  return est
+}
+
+// ---------------------------------------------------------------- íconos
+const ICONO = {
+  habito: '<svg viewBox="0 0 16 16" aria-hidden="true"><path class="arco" d="M13.2 8.6A5.2 5.2 0 1 1 11.6 4.2"/><path d="M12.2 1.8v2.8H9.4"/><circle cx="8" cy="8.3" r="1.5" fill="currentColor" stroke="none"/></svg>',
+  tarea: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="3.2"/><path d="M5.3 8.2l1.9 1.9 3.6-4"/></svg>',
+  engranaje: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.14 6.72L14.93 7.01L14.93 8.99L13.14 9.28L12.54 10.73L13.60 12.20L12.20 13.60L10.73 12.54L9.28 13.14L8.99 14.93L7.01 14.93L6.72 13.14L5.27 12.54L3.80 13.60L2.40 12.20L3.46 10.73L2.86 9.28L1.07 8.99L1.07 7.01L2.86 6.72L3.46 5.27L2.40 3.80L3.80 2.40L5.27 3.46L6.72 2.86L7.01 1.07L8.99 1.07L9.28 2.86L10.73 3.46L12.20 2.40L13.60 3.80L12.54 5.27Z"/><circle cx="8" cy="8" r="2.1"/></svg>',
+  pin: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2h5M6.5 2v4.2L4.5 8.5h7L9.5 6.2V2M8 8.5V14"/></svg>',
+  mini: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10"/></svg>',
+  cerrar: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  mas: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>',
+  visto: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.4l2.9 2.9 6-6.3"/></svg>',
+  hoy: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.3"/><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/></svg>',
+  semana: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9" rx="2.5"/><path d="M2.5 8h11M6.2 3.5v9M9.8 3.5v9"/></svg>',
+  brasa: '<svg viewBox="0 0 12 14" aria-hidden="true"><path d="M6.2.8c.5 2.4 4.3 3.9 4.3 7.6A4.5 4.5 0 0 1 1.5 8.6c0-1.9 1-3.1 2-3.9.1 1.4.8 2.3 1.6 2.5C4.8 4.9 5.2 2.6 6.2.8z"/></svg>',
+  campana: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 8.3V5.6a3 3 0 0 1 6 0v2.7l1 1.1H2zM5 10.6h2"/></svg>',
+  app: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="4.2" cy="6" r="1.1" fill="#14110C"/><circle cx="7.8" cy="6" r="1.1" fill="#14110C"/></svg>',
+}
+
+// ---------------------------------------------------------------- piezas
+const confirmable = (m, id, texto, pregunta) => m.armado === id
+  ? `<button type="button" class="armado" data-a="confirmar" data-v="${id}" data-k="c-${id}" aria-live="polite">${pregunta}</button>`
+  : `<button type="button" class="lnk peligro" data-a="armar" data-v="${id}" data-k="c-${id}">${texto}</button>`
+const prog = (h, t) => `<span class="prog" role="progressbar" aria-label="Hechos hoy" aria-valuemin="0" aria-valuemax="${t}" aria-valuenow="${h}"><i style="--p:${t ? h / t * 100 : 0}%"></i></span>`
+const letras = (fechas = false) => LETRAS.map((l, i) => `<span class="${i === HOY ? 'hoy' : ''}">${l}${fechas ? `<small>${FECHAS[i]}</small>` : ''}</span>`).join('')
+
+function anilloMini(h, t, clase = 'a') {
+  const C = 2 * Math.PI * 5, p = t ? h / t : 0
+  const ring = clase === 'ring'
+  return `<svg viewBox="0 0 14 14" aria-hidden="true" class="${ring ? 'ring' : ''}"><circle cx="7" cy="7" r="5" class="a-f"${ring ? ' stroke="#cfc3a8"' : ''}/>${p ? `<circle cx="7" cy="7" r="5" class="a-l"${ring ? ' stroke="#14110C"' : ''} stroke-linecap="round" stroke-dasharray="${(C * p).toFixed(2)} ${C.toFixed(2)}"/>` : ''}</svg>`
+}
+function filaBarra(m) {
+  const t = hoyLista(m).length, h = hechosHoy(m), late = m.fx?.late ? ' late' : ''
+  const dcha = !m.habitos.length ? '<kbd aria-hidden="true">Ctrl H</kbd>' : t === 0 ? '<span class="anillo-c" aria-hidden="true">—</span>' : `<span class="anillo-c${h === t ? ' completo' : ''}${late}" aria-hidden="true">${anilloMini(h, t)}${h}/${t}</span>`
+  const nombre = !m.habitos.length ? 'Hábitos' : t === 0 ? 'Hábitos, hoy no toca ninguno' : h === t ? `Hábitos, los ${t} de hoy hechos` : `Hábitos, ${h} de ${t} hechos hoy`
+  return `<button type="button" class="pj hab" data-a="abrir-hoja" data-k="fila-hab" ${m.abierta && !m.chat ? 'aria-current="page"' : ''} aria-keyshortcuts="Control+H" aria-label="${nombre}"><span class="pj-ic">${ICONO.habito}</span><span class="pj-n">Hábitos</span>${dcha}</button>`
+}
+function rachaB(m, h, { larga = true } = {}) {
+  const n = racha(h), sube = m.fx?.id === h.id && m.fx.racha
+  const u = unidadRacha(h, n)
+  return `<span class="racha r${tier(n)}${sube ? ' sube' : ''}" title="Racha: ${n} ${u} · la mejor: ${Math.max(h.mejor, n)}">${ICONO.brasa}${n ? `<b>${n}</b>${larga ? `<span>${u}</span>` : ''}` : `<span>${larga ? 'sin racha' : '0'}</span>`}</span>`
+}
+function sumador(m, h, talla = '') {
+  const v = h.sem[HOY] ?? 0, n = h.meta, lleno = v >= n, fx = m.fx?.id === h.id && m.fx.tipo === 'suma'
+  const C = 2 * Math.PI * 15
+  let arcos = ''
+  if (n <= 12) {
+    const paso = C / n, gap = n > 1 ? 2.6 : 0, len = paso - gap
+    for (let i = 0; i < n; i++) arcos += `<circle cx="18" cy="18" r="15" class="sg${i < v ? ' on' : ''}${fx && m.fx.d > 0 && i === v - 1 ? ' nv' : ''}" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-i * paso - gap / 2).toFixed(2)}"/>`
+  } else arcos = `<circle cx="18" cy="18" r="15" class="sg"/><circle cx="18" cy="18" r="15" class="sg on" stroke-linecap="round" stroke-dasharray="${(C * Math.min(v, n) / n).toFixed(2)} ${C.toFixed(2)}"/>`
+  const lbl = lleno ? `${h.nombre}: meta cumplida, ${v} de ${n} ${h.unidad}. Sumar otro` : `Sumar 1 ${singular(h.unidad)} a ${h.nombre}. Van ${v} de ${n}`
+  return `<button type="button" class="sum ${talla}${lleno ? ' lleno' : ''}${fx && m.fx.llega ? ' llega' : ''}" data-a="sumar" data-v="${h.id}" data-k="sum-${h.id}" aria-label="${esc(lbl)}"><svg viewBox="0 0 36 36" aria-hidden="true">${arcos}</svg><b class="num${fx ? ' rueda' : ''}" aria-hidden="true">${lleno ? ICONO.visto : v}</b><i class="mas" aria-hidden="true">+</i></button>`
+}
+function control(m, h, talla = '') {
+  if (!toca(h, HOY)) return `<span class="libre-c ${talla}" title="Hoy no toca" aria-hidden="true">–</span>`
+  if (h.tipo === 'cantidad') return sumador(m, h, talla)
+  const on = hecho(h, HOY), fx = m.fx?.id === h.id && m.fx.tipo === 'tilde' && on
+  return `<button type="button" class="ck ${talla}${fx ? ' tildando' : ''}" role="checkbox" aria-checked="${on}" data-a="tildar" data-v="${h.id}" data-k="ck-${h.id}" aria-label="Hecho hoy: ${esc(h.nombre)}">${ICONO.visto}</button>`
+}
+function meta(m, h) {
+  const v = h.sem[HOY] ?? 0, p = []
+  if (!toca(h, HOY)) p.push(`<span class="tag">hoy no toca · vuelve el ${proximo(h)}</span>`)
+  else if (h.tipo === 'cantidad') p.push(`<span class="tag${v >= h.meta ? ' t-aviso' : ''}">${v} de ${h.meta} ${esc(h.unidad)}</span>${v > 0 ? `<button type="button" class="menos" data-a="restar" data-v="${h.id}" data-k="menos-${h.id}" aria-label="Restar 1 ${esc(singular(h.unidad))} a ${esc(h.nombre)}" title="Restar uno">−1</button>` : ''}`)
+  else if (h.tipo === 'semana') p.push(`<span class="tag${semanaCumplida(h) ? ' t-aviso' : ''}">${semanaCumplida(h) ? 'semana cumplida · ' : ''}${enSemana(h)} de ${h.veces} esta semana</span>`)
+  else if (h.tipo === 'dias') p.push(`<span class="tag">${listaDias(h.dias)}</span>`)
+  else p.push('<span class="tag">todos los días</span>')
+  if (h.rec) p.push(`<span class="tag" title="Aviso a las ${h.rec}">${ICONO.campana}${h.rec}</span>`)
+  return p.join('')
+}
+function celdas(m, h, { clic = true } = {}) {
+  return `<div class="sem" role="group" aria-label="Semana de ${esc(h.nombre)}">${h.sem.map((_, i) => {
+    const e = estado(h, i), v = h.sem[i] ?? 0, p = h.tipo === 'cantidad' ? Math.min(100, v / h.meta * 100) : 0
+    const cls = `cel ${e}${i === HOY ? ' hoy' : ''}${m.fx?.id === h.id && m.fx.dia === i && hecho(h, i) ? ' enciende' : ''}`
+    const sty = e === 'parcial' ? ` style="--p:${p}%"` : ''
+    const lbl = esc(textoCelda(h, i))
+    const editable = clic && i <= HOY && toca(h, i) && h.tipo !== 'cantidad' && e !== 'antes'
+    return editable
+      ? `<button type="button" class="${cls}"${sty} data-a="celda" data-v="${h.id}" data-d="${i}" data-k="cel-${h.id}-${i}" aria-pressed="${hecho(h, i)}" aria-label="${lbl}" title="${lbl}"></button>`
+      : `<span class="${cls}"${sty} role="img" aria-label="${lbl}" title="${lbl}"></span>`
+  }).join('')}</div>`
+}
+function leyenda() {
+  const c = (e, t, extra = '') => `<span><i class="cel ${e}"${extra}></i>${t}</span>`
+  return `<div class="leyenda" aria-hidden="true">${c('hecho', 'hecho')}${c('parcial', 'en parte', ' style="--p:50%"')}${c('falta', 'no se hizo')}${c('libre', 'no toca')}${c('futuro', 'por venir')}</div>`
+}
+function resumenHoy(m) {
+  const t = hoyLista(m).length, h = hechosHoy(m)
+  if (!t) return '<span>hoy no toca ninguno</span>'
+  return h === t ? `<span class="completo-t">¡Día completo!</span>${prog(h, t)}` : `<span>hoy · ${h} de ${t} hechos</span>${prog(h, t)}`
+}
+function frase(h) {
+  const base = { diario: 'todos los días', cantidad: `${h.meta} ${h.unidad || 'veces'} por día`, dias: h.dias.length ? listaDias(h.dias) : 'elegí los días', semana: `${h.veces} ${h.veces === 1 ? 'vez' : 'veces'} por semana, cualquier día` }[h.tipo]
+  return `<b>${esc(h.nombre || 'Tu hábito')}</b> · ${base} · ${h.rec ? `te aviso a las ${h.rec}` : 'sin aviso'}`
+}
+const paso = (campo, valor, etiqueta) => `<div class="paso" role="group" aria-label="${etiqueta}"><button type="button" data-a="paso" data-v="${campo}:-1" data-k="p-${campo}-m" aria-label="Uno menos">−</button><b aria-live="polite">${valor}</b><button type="button" data-a="paso" data-v="${campo}:1" data-k="p-${campo}-p" aria-label="Uno más">+</button></div>`
+function campos(m, h) {
+  const tipos = [['diario', 'Todos los días'], ['cantidad', 'Cantidad'], ['dias', 'Algunos días'], ['semana', 'Por semana']]
+  let extra = ''
+  if (h.tipo === 'cantidad') extra = `<span class="det-l">Meta</span><div class="det-f">${paso('meta', h.meta, 'Meta por día')}<label class="campo mini"><input data-f="unidad" data-k="f-unidad" value="${esc(h.unidad)}" placeholder="vasos" aria-label="Unidad"></label><span class="cifras">por día</span></div>`
+  if (h.tipo === 'dias') extra = `<span class="det-l">Días</span><div class="det-f dsem" role="group" aria-label="Días que toca">${DIAS_L.map((d, i) => `<button type="button" data-a="dia" data-v="${i}" data-k="dia-${i}" aria-pressed="${h.dias.includes(i)}" aria-label="${d}" title="${d}">${LETRAS[i]}</button>`).join('')}</div>`
+  if (h.tipo === 'semana') extra = `<span class="det-l">Veces</span><div class="det-f">${paso('veces', h.veces, 'Veces por semana')}<span class="cifras">por semana</span></div>`
+  return `<div class="det-g">
+    <span class="det-l">Tipo</span><div class="det-f" role="radiogroup" aria-label="Tipo de hábito">${tipos.map(([v, t]) => `<button type="button" class="fc" role="radio" aria-checked="${h.tipo === v}" data-a="tipo" data-v="${v}" data-k="tipo-${v}">${t}</button>`).join('')}</div>
+    ${extra}
+    <span class="det-l">Aviso</span><div class="det-f"><button type="button" class="sw" role="switch" aria-checked="${!!h.rec}" data-a="rec" data-k="sw-rec" aria-label="Recordatorio"></button>${h.rec ? `<input type="time" class="fecha-in" data-f="hora" data-k="f-hora" value="${h.rec}" aria-label="Hora del aviso"><span class="cifras">globo + Windows</span>` : '<span class="cifras">sin aviso</span>'}</div>
+    <span class="det-l">Color</span><div class="det-f colores" role="radiogroup" aria-label="Color">${COLORES.map(c => `<button type="button" class="col" role="radio" aria-checked="${h.c === c}" style="--c:${cv(c)}" data-a="color" data-v="${c}" data-k="col-${c}" aria-label="${NOMBRE_COLOR[c]}"></button>`).join('')}</div>
+  </div>
+  <p class="frase" data-frase>${frase(h)}</p>
+  ${m.errForm ? `<p class="e-form" role="alert">${m.errForm}</p>` : ''}`
+}
+const preguntaBorrar = h => { const n = racha(h); return n ? `¿Borrar con su racha de ${n} ${unidadRacha(h, n)}? Sí` : '¿Borrar? Sí' }
+function formulario(m, h, modoF) {
+  const nuevo = modoF === 'nuevo'
+  const nombre = nuevo
+    ? `<label class="campo"><input data-f="nombre" data-k="f-nombre" value="${esc(h.nombre)}" placeholder="Caminar, tomar agua, leer…" aria-label="Nombre del hábito"><kbd>Enter</kbd></label>`
+    : `<div class="hb-tit" style="--c:${cv(h.c)}"><i class="pt"></i><textarea class="tit-in" rows="1" data-f="nombre" data-k="f-nombre-${h.id}" aria-label="Nombre del hábito">${esc(h.nombre)}</textarea></div>`
+  const pie = nuevo
+    ? `<div class="acc-c"><button type="button" class="btn" data-a="crear" data-k="crear">Crear hábito</button><button type="button" class="lnk" data-a="cancelar" data-k="cancelar">Cancelar</button></div>`
+    : `<div class="det-pie"><span class="cifras">Creado el ${h.creado}</span>${confirmable(m, 'borrar:' + h.id, 'Borrar hábito', preguntaBorrar(h))}</div>`
+  return `<div class="frm" data-form="${nuevo ? 'nuevo' : h.id}">${nombre}${campos(m, h)}${pie}</div>`
+}
+function calendario(h) {
+  const est = historia(h)
+  const filas = [0, 1, 2, 3, 4].map(w => `<div class="sem">${[0, 1, 2, 3, 4, 5, 6].map(i => {
+    const e = est[w * 7 + i]
+    return `<span class="cel ${e}${w === 4 && i === HOY ? ' hoy' : ''}"${e === 'parcial' ? ' style="--p:50%"' : ''}></span>`
+  }).join('')}</div>`).join('')
+  const si = est.filter(e => e === 'hecho').length
+  return `<div class="cal-g" role="img" aria-label="Últimas 5 semanas de ${esc(h.nombre)}: ${si} días hechos"><div class="letras" aria-hidden="true">${letras()}</div>${filas}</div>`
+}
+function vistaHabito(m, h, atras) {
+  if (!h) return ''
+  const n = racha(h)
+  return `<button type="button" class="lnk atras" data-a="cerrar-det" data-k="atras">‹ ${atras}</button><div class="desplaza" data-scroll><div class="det frm" data-vista data-form="${h.id}">
+    <h2 class="oculto" id="hb-h">${esc(h.nombre)}</h2>
+    <div class="hb-tit" style="--c:${cv(h.c)}"><i class="pt"></i><textarea class="tit-in" rows="1" data-f="nombre" data-k="f-nombre-${h.id}" aria-label="Nombre del hábito">${esc(h.nombre)}</textarea></div>
+    <div class="racha-g r${tier(n)}">${ICONO.brasa}<b>${n}</b><span>${n ? `${unidadRacha(h, n)} ${h.tipo === 'semana' ? 'seguidas' : 'seguidos'}` : 'sin racha todavía'}<small>la mejor: ${Math.max(h.mejor, n)} · desde el ${h.creado}</small></span></div>
+    <div class="cal"><span class="sub">Últimas 5 semanas</span>${calendario(h)}</div>
+    ${campos(m, h)}
+    <div class="det-pie"><span class="cifras">Creado el ${h.creado}</span>${confirmable(m, 'borrar:' + h.id, 'Borrar hábito', preguntaBorrar(h))}</div>
+  </div></div>`
+}
+
+// ---------------------------------------------------------------- globos (uno por vez)
+const PRIO = { pregunta: 0, rec: 1, tareas: 2, resumen: 3 }
+const BARRAS = [1, .8, 1, .6, 1, .4, .75]
+const RESUMEN = 'Caminaste <b>5 de 7 días</b> y el gimnasio salió <b>completo</b>. El agua quedó corta: <b>3 días</b> llegaste a los 8 vasos.'
+const barras = (clase = '') => `<span class="barras ${clase}" aria-hidden="true">${BARRAS.map((h, i) => `<span><i style="--h:${h};--i:${i}"></i>${LETRAS[i]}</span>`).join('')}</span>`
+function textoRec(h, ok) {
+  const v = h.sem[HOY] ?? 0
+  if (ok) return h.tipo === 'cantidad'
+    ? `<span class="globo-ok"><i>${ICONO.visto}</i><span>Listo: <b>${v} de ${h.meta} ${esc(h.unidad)}</b>.${v >= h.meta ? ' ¡Meta del día!' : ''}</span></span>`
+    : `<span class="globo-ok"><i>${ICONO.visto}</i><span>¡Hecho! <b>${esc(h.nombre)}</b>: ${racha(h)} ${unidadRacha(h, racha(h))} ${h.tipo === 'semana' ? 'seguidas' : 'seguidos'}.</span></span>`
+  if (h.tipo === 'cantidad') return `<b>${h.rec}</b> · ${esc(h.nombre)}: van <b>${v} de ${h.meta} ${esc(h.unidad)}</b>. ¿Uno más?`
+  if (h.tipo === 'semana') return `<b>${h.rec ?? '18:00'}</b> · Te toca <b>${esc(h.nombre)}</b>: llevás ${enSemana(h)} de ${h.veces} esta semana.`
+  return `<b>${h.rec}</b> · Te toca <b>${esc(h.nombre)}</b>.`
+}
+function globoHTML(m, g = m.cola[0]) {
+  if (!g) return ''
+  const entra = m.globoEntra ? ' entra' : ''
+  const x = (lbl, t) => `<button type="button" class="globo-x" data-a="g-x" data-k="g-x" aria-label="${lbl}" title="${t}">${ICONO.cerrar}</button>`
+  if (g.tipo === 'rec') {
+    const h = hab(m, g.id); if (!h) return ''
+    const hacer = h.tipo === 'cantidad' ? `+1 ${esc(singular(h.unidad))}` : 'Hecho'
+    return `<div class="globo-h${entra}" data-globo-el><div class="globo-fila"><p class="globo-t">${textoRec(h, m.globoOk)}</p>${x(`Ahora no: no te recuerdo ${h.nombre} hasta mañana`, 'Ahora no')}</div>${m.globoOk ? '' : `<div class="globo-acc"><button type="button" class="g-hacer" data-a="g-hacer" data-k="g-hacer" style="--c:${cv(h.c)}"><i class="pt"></i>${hacer}</button><button type="button" class="g-ver" data-a="g-ver" data-k="g-ver">Ver hábitos →</button></div>`}</div>`
+  }
+  if (g.tipo === 'resumen') return `<div class="globo-h${entra}" data-globo-el><div class="globo-fila"><span class="globo-k">Tu semana · 16 al 22/11</span>${x('Más tarde: lo dejo para la semana que viene', 'Más tarde')}</div><button type="button" class="globo-res" data-a="g-res" data-k="g-res"><span class="globo-t">${RESUMEN}</span>${barras()}<span class="globo-c">Charlemos la semana →</span></button></div>`
+  return `<div class="globo${entra}" data-globo-el><button type="button" class="globo-b" data-a="g-tareas" data-k="g-tareas"><span class="globo-t">¡Buen día! Tenés <b>2 tareas para hoy</b> y <b class="r">2 vencidas</b>.</span><span class="globo-c">Ver tareas →</span></button><button type="button" class="globo-x" data-a="g-x" data-k="g-x" aria-label="Más tarde: avisame mañana" title="Más tarde">${ICONO.cerrar}</button></div>`
+}
+function avisoFila(m) {
+  const g = m.cola[0]; if (!g) return ''
+  const x = `<button type="button" class="tb" data-a="g-x" aria-label="Ahora no">${ICONO.cerrar}</button>`
+  if (g.tipo === 'rec') {
+    const h = hab(m, g.id); if (!h) return ''
+    const v = h.sem[HOY] ?? 0
+    const t = h.tipo === 'cantidad' ? `${h.rec} · ${esc(h.nombre)}: ${v} de ${h.meta}.` : `${h.rec} · Te toca ${esc(h.nombre)}.`
+    return `<div class="aviso-f"><span>${t}</span>${m.globoOk ? '' : `<button type="button" class="mas1" data-a="g-hacer">${h.tipo === 'cantidad' ? '+1' : 'Hecho'}</button><button type="button" class="lnk" data-a="g-ver">Ver →</button>`}${x}</div>`
+  }
+  if (g.tipo === 'resumen') return `<div class="aviso-f"><span>Tu semana: caminaste 5 de 7 días.</span><button type="button" class="lnk" data-a="g-res">Charlemos →</button>${x}</div>`
+  return `<div class="aviso-f"><span>¡Buen día! 2 para hoy y <b class="r">2 vencidas</b>.</span><button type="button" class="lnk" data-a="g-tareas">Ver →</button>${x}</div>`
+}
+const poseMarca = m => !m.cola[0] ? 'esperando' : m.cola[0].tipo === 'resumen' ? 'contando' : m.globoOk ? 'feliz' : 'saluda'
+
+// ---------------------------------------------------------------- marco
+function lado(m) {
+  m.pose = poseMarca(m)
+  return `<aside class="lado"><div class="marca"><span data-marca>${avi(CLAUDE, m.pose, 104, { alt: 'Avi' })}</span><b class="marca-n">Avis</b><span class="estado"><i class="pt" style="--c:var(--ambar)"></i>1 sesión</span><div data-globo-slot>${globoHTML(m)}</div></div>
+    <nav aria-label="Proyectos"><button type="button" class="pj" style="--c:var(--verde)" data-a="volver"><span class="pj-ic">o</span><span class="pj-n">oficina</span><span class="chip">1</span></button></nav>
+    <div class="lado-cfg"><button type="button" class="pj tar"><span class="pj-ic">${ICONO.tarea}</span><span class="pj-n">Tareas</span><span class="chip t-venc" aria-hidden="true"><i></i>4</span></button>${filaBarra(m)}<button type="button" class="pj engr"><span class="pj-ic">${ICONO.engranaje}</span><span class="pj-n">Configuración</span><kbd aria-hidden="true">Ctrl ,</kbd></button></div>
+    <section class="lado-pie"><span class="rot">Equipo</span><p class="pie-w">actualizado 16:00 · cada 1,5 s</p></section></aside>`
+}
+function cabecera(m) {
+  const fijos = `<button type="button" class="tb" aria-pressed="true" aria-label="Siempre arriba" title="Siempre arriba">${ICONO.pin}</button><button type="button" class="tb" aria-label="Minimizar a la tira" title="Minimizar a la tira">${ICONO.mini}</button><button type="button" class="tb" aria-label="Cerrar a la bandeja" title="Cerrar a la bandeja">${ICONO.cerrar}</button>`
+  if (!m.abierta) return `<header class="cab"><div class="cab-t"><div><h1>oficina</h1><p>1 sesión · esperando tu mensaje</p></div></div><div class="controles"><button type="button" class="tb solo-angosto" data-a="abrir-hoja" data-k="tb-hab" aria-label="Hábitos" title="Hábitos (Ctrl H)">${ICONO.habito}</button>${fijos}</div></header>`
+  const t = hoyLista(m).length, h = hechosHoy(m)
+  const sub = !m.habitos.length ? 'Se guardan en esta PC' : !t ? 'jueves 26/11 · hoy no toca ninguno' : h === t ? 'jueves 26/11 · día completo' : `jueves 26/11 · ${h} de ${t} hechos hoy`
+  return `<header class="cab"><div class="cab-t"><span class="mini" data-mini aria-hidden="true">${avi(CLAUDE, m.feliz ? 'feliz' : 'esperando', 40)}</span><div><h1 tabindex="-1" data-k="h1">Hábitos</h1><p>${sub}</p></div></div><div class="controles"><button type="button" class="volver" data-a="volver" data-k="volver" aria-keyshortcuts="Escape" title="Volver al tablero (Esc)">‹ Tablero</button>${fijos}</div></header>`
+}
+function primerUso(m) {
+  return `<div class="primer cfg-anim">${avi(CLAUDE, 'saluda', 96)}<b>Armá tu primer hábito</b><p>Algo chico que quieras hacer seguido. Queda en esta PC y, si querés, te aviso a la hora que elijas.</p><div class="sug">${SUGS.map(s => `<button type="button" class="fc" data-a="sug" data-v="${s.id}" data-k="sug-${s.id}"><i class="pt" style="--c:${cv(BASE.find(b => b.id === s.id).c)}"></i>${s.t}<span class="ct">${s.d}</span></button>`).join('')}</div><button type="button" class="lnk" data-a="nuevo" data-k="nuevo-b">+ Otro hábito…</button></div>`
+}
+function charla(m) {
+  return `<header class="cab"><div class="cab-t"><span class="mini" aria-hidden="true">${avi(CLAUDE, 'feliz', 40)}</span><div><h1 tabindex="-1" data-k="h1">Tu semana</h1><p>charla nueva · la abrió el resumen del domingo</p></div></div><div class="controles"><button type="button" class="volver" data-a="fin-charla" data-k="volver">‹ Tablero</button></div></header>
+  <div class="charla cfg-anim"><div class="burb"><span aria-hidden="true">${avi(CLAUDE, 'contando', 40)}</span><div class="burb-t"><span>${RESUMEN}</span>${barras('osc')}<span>¿Querés que lo ajustemos?</span></div></div>
+  <div class="sugs">${['¿Cómo llego a los 8 vasos?', '¿Bajo la meta del agua a 6?', 'Contame qué salió bien'].map(t => `<button type="button" class="fc">${t}</button>`).join('')}</div>
+  <span class="nx" style="margin-left:48px;justify-self:start">boceto: es la hoja del chat (#hoja), no la columna. Cambiar hábitos desde la charla va en otra entrega</span>
+  <label class="campo"><input placeholder="Escribile a Avi…" aria-label="Mensaje para Avi"><kbd>Enter</kbd></label></div>`
+}
+
+// ---------------------------------------------------------------- A · Renglón
+function filaA(m, h, i) {
+  const on = toca(h, HOY) && hecho(h, HOY)
+  return `<li class="rg${on ? ' hecha' : ''}${!toca(h, HOY) ? ' fuera' : ''}${m.recien === h.id ? ' recien' : ''}" style="--c:${cv(h.c)};--i:${i}"><div class="rg-c">${control(m, h)}</div><div class="cuerpo"><button type="button" class="nom" data-a="abrir" data-v="${h.id}" data-k="nom-${h.id}" aria-expanded="${m.det === h.id}">${esc(h.nombre)}</button><div class="meta">${rachaB(m, h)}${meta(m, h)}</div></div>${celdas(m, h)}</li>${m.det === h.id ? `<li class="rg-det" data-det>${formulario(m, h, 'editar')}</li>` : ''}`
+}
+function cuerpoA(m) {
+  const nuevo = m.det === 'nuevo' ? `<div class="rg-det" data-det>${formulario(m, m.borrador, 'nuevo')}</div>` : `<button type="button" class="mas-b" data-a="nuevo" data-k="nuevo-b">${ICONO.mas}Nuevo hábito</button>`
+  return `<div class="reng cfg-anim" style="--hoy:${HOY}"><div class="reng-h"><div class="pane-s">${resumenHoy(m)}</div><div class="letras" aria-hidden="true">${letras()}</div></div><div class="desplaza" data-scroll><ul class="rgs" data-vista>${m.habitos.map((h, i) => filaA(m, h, i)).join('')}</ul>${nuevo}</div></div>`
+}
+
+// ---------------------------------------------------------------- B · Carpeta
+function filaB(m, h) {
+  const on = toca(h, HOY) && hecho(h, HOY)
+  return `<li class="fila${on ? ' hecha' : ''}${m.recien === h.id ? ' recien' : ''}" style="--c:${cv(h.c)}">${control(m, h)}<div class="cuerpo"><button type="button" class="nom" data-a="abrir" data-v="${h.id}" data-k="nom-${h.id}">${esc(h.nombre)}</button><div class="meta">${meta(m, h)}</div></div>${rachaB(m, h)}</li>`
+}
+function paneHoyB(m) {
+  const dentro = hoyLista(m), fuera = m.habitos.filter(h => !dentro.includes(h))
+  const cuerpo = dentro.length
+    ? `<ul class="filas" data-vista>${dentro.map(h => filaB(m, h)).join('')}</ul>`
+    : `<div class="vac" data-vista>${avi(CLAUDE, 'esperando', 66)}<b>Hoy no toca nada.</b><p>Mañana: ${m.habitos.filter(h => toca(h, HOY + 1)).map(h => esc(h.nombre)).join(', ') || 'nada tampoco'}.</p></div>`
+  return `<header class="pane-h"><h2>Hoy</h2><div class="pane-s">${resumenHoy(m)}</div></header><div class="desplaza" data-scroll>${cuerpo}${fuera.length ? `<p class="rot-p">Hoy no toca</p><ul class="filas fuera-l">${fuera.map(h => filaB(m, h)).join('')}</ul>` : ''}</div>`
+}
+function paneSemana(m) {
+  const filas = m.habitos.map(h => `<div class="mat-r" style="--c:${cv(h.c)}"><button type="button" class="mat-n" data-a="abrir" data-v="${h.id}" data-k="mat-${h.id}"><i class="pt" style="--c:${cv(h.c)}"></i><span>${esc(h.nombre)}</span></button>${celdas(m, h)}</div>`).join('')
+  return `<header class="pane-h"><h2>Semana</h2><div class="pane-s"><span>23 al 29/11 · ${pctSemana(m)} % de lo que tocaba</span></div></header><div class="desplaza" data-scroll><div class="mat" style="--hoy:${HOY}" data-vista><div class="mat-r cab"><span class="rot-m">Hábito</span><div class="letras" aria-hidden="true">${letras(true)}</div></div>${filas}</div>${leyenda()}<p class="pista">Tocá un día que ya pasó para corregirlo.</p></div>`
+}
+function cuerpoB(m) {
+  const t = hoyLista(m).length, hh = hechosHoy(m)
+  const ix = (v, ic, c, n, ct = '') => `<button type="button" class="ix-b" data-a="ver" data-v="${v}" data-k="ix-${v}" ${m.ver === v ? 'aria-current="page"' : ''}><span class="ix-ic" style="--c:${c}">${ic}</span><span class="n">${n}</span>${ct}</button>`
+  const idx = ix('hoy', ICONO.hoy, 'var(--ambar)', 'Hoy', t ? `<span class="ct t-aviso">${hh}/${t}</span>` : '')
+    + ix('semana', ICONO.semana, 'var(--crema2)', 'Semana')
+    + '<span class="rot-i" aria-hidden="true">Hábitos</span>'
+    + m.habitos.map(h => { const n = racha(h); return `<button type="button" class="ix-b" data-a="ver" data-v="${h.id}" data-k="ix-${h.id}" ${m.ver === h.id ? 'aria-current="page"' : ''} title="${esc(h.nombre)}"><span class="ix-ic punto" style="--c:${cv(h.c)}"></span><span class="n">${esc(h.nombre)}</span>${rachaB(m, h, { larga: false })}<span class="oculto">, racha de ${n} ${unidadRacha(h, n)}</span></button>` }).join('')
+    + `<button type="button" class="ix-b ix-mas" data-a="nuevo" data-k="nuevo-b" ${m.ver === 'nuevo' ? 'aria-current="page"' : ''}><span class="ix-ic">${ICONO.mas}</span><span class="n">Nuevo hábito</span></button>`
+  let pane
+  if (m.ver === 'hoy') pane = paneHoyB(m)
+  else if (m.ver === 'semana') pane = paneSemana(m)
+  else if (m.ver === 'nuevo') pane = `<header class="pane-h"><h2>Nuevo hábito</h2></header><div class="desplaza" data-scroll><div data-vista>${formulario(m, m.borrador, 'nuevo')}</div></div>`
+  else pane = vistaHabito(m, hab(m, m.ver), m.desde === 'semana' ? 'Semana' : 'Hoy')
+  return `<div class="carpeta cfg-anim"><nav class="idx" aria-label="Vistas y hábitos">${idx}</nav><section class="pane" aria-label="Contenido">${pane}</section></div>`
+}
+
+// ---------------------------------------------------------------- C · Fichas
+function fichaC(m, h, i) {
+  const on = toca(h, HOY) && hecho(h, HOY)
+  return `<li class="ficha${on ? ' hecha' : ''}${!toca(h, HOY) || (semanaCumplida(h) && !on) ? ' fuera' : ''}${m.recien === h.id ? ' recien' : ''}" style="--c:${cv(h.c)};--i:${i}"><div class="fi-top">${control(m, h, 'g')}${rachaB(m, h)}</div><div class="cuerpo"><button type="button" class="nom" data-a="abrir" data-v="${h.id}" data-k="nom-${h.id}">${esc(h.nombre)}</button><div class="meta">${meta(m, h)}</div></div>${celdas(m, h)}</li>`
+}
+function cuerpoC(m) {
+  if (m.det) {
+    const panel = m.det === 'nuevo'
+      ? `<button type="button" class="lnk atras" data-a="cancelar" data-k="atras">‹ Hábitos</button><div class="desplaza" data-scroll><div data-vista>${formulario(m, m.borrador, 'nuevo')}</div></div>`
+      : vistaHabito(m, hab(m, m.det), 'Hábitos')
+    return `<div class="panel-c cfg-anim">${panel}</div>`
+  }
+  const dentro = hoyLista(m), orden = [...dentro, ...m.habitos.filter(h => !dentro.includes(h))]
+  return `<div class="reng cfg-anim"><div class="pane-s cab-c">${resumenHoy(m)}</div><div class="desplaza" data-scroll><ul class="fichas" data-vista>${orden.map((h, i) => fichaC(m, h, i)).join('')}<li><button type="button" class="ficha-mas" data-a="nuevo" data-k="nuevo-b">${ICONO.mas}Nuevo hábito</button></li></ul></div></div>`
+}
+
+// ---------------------------------------------------------------- estado y dibujo
+function nuevoEstado(op) {
+  return { op, abierta: true, ver: 'hoy', desde: 'hoy', det: null, habitos: copiaTodo(), borrador: null, errForm: null, armado: null, reloj: null, cola: [{ tipo: 'rec', id: 'agua' }], globoEntra: true, globoOk: false, feliz: false, fx: null, chat: false, recien: null }
+}
+function principal(m) {
+  const vivo = '<p class="oculto" role="status" data-vivo></p>'
+  if (m.chat) return charla(m) + vivo
+  if (!m.abierta) return cabecera(m) + avisoFila(m) + `<div class="sesion">${avi(CLAUDE, 'esperando', 96)}<div><b>main</b><span>ahora · esperando tu mensaje</span></div></div>` + vivo
+  if (!m.habitos.length && !m.borrador) return cabecera(m) + avisoFila(m) + primerUso(m) + vivo
+  return cabecera(m) + avisoFila(m) + { a: cuerpoA, b: cuerpoB, c: cuerpoC }[m.op](m) + vivo
+}
+const mocks = []
+function montar(lienzo) {
+  const m = nuevoEstado(lienzo.dataset.op)
+  m.lienzo = lienzo
+  lienzo.innerHTML = '<div class="marco"></div>'
+  m.el = lienzo.firstElementChild
+  pintarTodo(m)
+  m.el.addEventListener('click', e => clic(m, e))
+  m.el.addEventListener('keydown', e => tecla(m, e))
+  m.el.addEventListener('input', e => escribir(m, e))
+  m.el.addEventListener('change', e => cambiar(m, e))
+  mocks.push(m)
+  new ResizeObserver(() => ajustar(m)).observe(lienzo)
+  const proba = document.querySelector(`.proba[data-op="${m.op}"]`)
+  proba.innerHTML = '<span class="kick">Probá</span><button type="button" class="btn sec" data-p="rec">16:00 · aviso del agua</button><button type="button" class="btn sec" data-p="rec2">19:00 · caminar</button><button type="button" class="btn sec" data-p="res">Domingo · resumen</button><button type="button" class="btn sec" data-p="tres">Arranque con tres avisos</button><button type="button" class="btn sec" data-p="vacio">Primer uso</button><button type="button" class="btn sec" data-p="reset">Volver a empezar</button>'
+  proba.addEventListener('click', e => { const b = e.target.closest('[data-p]'); if (b) probar(m, b.dataset.p) })
+}
+function ajustar(m) {
+  const w = m.lienzo.clientWidth, angosto = w < 640
+  m.el.classList.toggle('angosto', angosto)
+  m.el.style.zoom = Math.min(1, w / (angosto ? 496 : 696)).toFixed(3)
+  m.el.querySelectorAll('.solo-angosto').forEach(b => { b.hidden = !angosto })
+}
+const focoPropio = m => m.el.contains(document.activeElement) ? document.activeElement.closest('[data-k]')?.dataset.k : null
+function restaurarFoco(m, k) { if (k) m.el.querySelector(`[data-k="${CSS.escape(k)}"]`)?.focus({ preventScroll: false }) }
+function pintarTodo(m) {
+  const k = focoPropio(m)
+  m.el.innerHTML = lado(m) + `<main class="principal">${principal(m)}</main>`
+  m.globoEntra = false
+  m.el.querySelectorAll('.solo-angosto').forEach(b => { b.hidden = !m.el.classList.contains('angosto') })
+  restaurarFoco(m, k)
+}
+/** Redibuja la columna y la fila de la barra; la marca no se toca (su Avi sigue con su acto). */
+function pintar(m, foco) {
+  const k = foco ?? focoPropio(m)
+  const scroll = m.el.querySelector('.principal [data-scroll]')?.scrollTop ?? 0
+  m.el.querySelector('.principal').innerHTML = principal(m)
+  const fila = m.el.querySelector('.lado-cfg .pj.hab')
+  if (fila) fila.outerHTML = filaBarra(m)
+  m.el.querySelectorAll('.solo-angosto').forEach(b => { b.hidden = !m.el.classList.contains('angosto') })
+  const s = m.el.querySelector('.principal [data-scroll]')
+  if (s) s.scrollTop = scroll
+  restaurarFoco(m, k)
+  m.recien = null
+}
+function pintarGlobo(m) {
+  const slot = m.el.querySelector('[data-globo-slot]'); if (!slot) return
+  const k = focoPropio(m)
+  slot.innerHTML = globoHTML(m)
+  const pose = poseMarca(m)
+  if (pose !== m.pose) { m.pose = pose; m.el.querySelector('[data-marca]').innerHTML = avi(CLAUDE, pose, 104, { alt: 'Avi' }) }
+  m.globoEntra = false
+  restaurarFoco(m, k)
+}
+const decir = (m, t) => { setTimeout(() => { const v = m.el.querySelector('[data-vivo]'); if (v) v.textContent = t }, 40) }
+
+// ---------------------------------------------------------------- movimiento (habitosMotion.js en el widget)
+function entrada(m) {
+  if (modo() === 'pausa') return
+  if (modo() === 'reducido') { animate(m.el.querySelectorAll('.principal .cab, .principal .cfg-anim'), { opacity: [0, 1], duration: 160 }); return }
+  animate(m.el.querySelectorAll('.principal .cab, .principal .cfg-anim'), { opacity: [0, 1], translateY: [8, 0], duration: 420, delay: stagger(55), ease: 'outQuart' })
+  animate(m.el.querySelectorAll('.principal [data-vista] > *, .principal .idx > *'), { opacity: [0, 1], translateY: [10, 0], duration: 460, delay: stagger(32, { start: 140 }), ease: 'outQuart' })
+}
+function animarVista(m) {
+  if (modo() === 'pausa') return
+  if (modo() === 'reducido') { animate(m.el.querySelectorAll('.pane, .panel-c, [data-det]'), { opacity: [0, 1], duration: 160 }); return }
+  animate(m.el.querySelectorAll('.pane-h, .pane .atras, [data-vista] > *, .panel-c .atras, [data-det]'), { opacity: [0, 1], translateX: [10, 0], duration: 300, delay: stagger(28), ease: 'outQuart' })
+}
+function chispas(m, id) {
+  if (quieto()) return
+  const c = m.el.querySelector(`.principal [data-k="ck-${id}"], .principal [data-k="sum-${id}"]`); if (!c) return
+  const r = c.classList.contains('g') ? 26 : 17
+  const ps = Array.from({ length: 8 }, () => { const i = document.createElement('i'); i.className = 'chispa'; c.appendChild(i); return i })
+  animate(ps, {
+    translateX: (_, i) => Math.cos(i / 8 * Math.PI * 2 + .3) * (r + (i % 2) * 7),
+    translateY: (_, i) => Math.sin(i / 8 * Math.PI * 2 + .3) * (r + (i % 2) * 7),
+    opacity: [1, 0], scale: [1.2, .3], duration: 600, ease: 'outQuart',
+    onComplete: () => ps.forEach(p => p.remove()),
+  })
+}
+function gota(m, id) {
+  if (quieto()) return
+  const c = m.el.querySelector(`.principal [data-k="sum-${id}"]`); if (!c) return
+  const big = c.classList.contains('g')
+  const g = document.createElement('i'); g.className = 'gota'; c.appendChild(g)
+  const o = document.createElement('i'); o.className = 'onda'; c.appendChild(o)
+  animate(g, { translateY: [big ? -34 : -22, 0], opacity: [0, 1, 0], scaleY: [1.3, .7], duration: 340, ease: 'inQuad' })
+  animate(o, { scale: [.35, big ? 1.9 : 1.4], opacity: [.8, 0], duration: 520, delay: 300, ease: 'outQuart', onComplete: () => { g.remove(); o.remove() } })
+}
+function festejar(m) {
+  m.feliz = true
+  const mini = m.el.querySelector('[data-mini]')
+  if (mini) mini.innerHTML = avi(CLAUDE, 'feliz', 40)
+  if (!quieto() && mini) animate(mini, { translateY: [0, -6, 0], duration: 420, ease: 'outQuad' })
+  clearTimeout(m.relojFeliz)
+  m.relojFeliz = setTimeout(() => { m.feliz = false; const x = m.el.querySelector('[data-mini]'); if (x) x.innerHTML = avi(CLAUDE, 'esperando', 40) }, 1500)
+}
+function hito(m, h, n) {
+  const txt = h.tipo !== 'semana' && n === 7 ? `${h.nombre}: ¡una semana seguida!` : `${h.nombre}: ¡${n} ${unidadRacha(h, n)} ${h.tipo === 'semana' ? 'seguidas' : 'seguidos'}!`
+  const el = document.createElement('div'); el.className = 'hito'; el.setAttribute('aria-hidden', 'true'); el.innerHTML = ICONO.brasa + esc(txt)
+  m.el.querySelector('.principal').appendChild(el)
+  setTimeout(() => decir(m, txt), 300)
+  if (quieto()) { setTimeout(() => el.remove(), 2400); return }
+  animate(el, { opacity: [0, 1], translateY: [-12, 0], scale: [.8, 1], duration: 560, ease: 'outBack(1.8)' })
+  animate(el, { opacity: 0, translateY: -6, duration: 300, delay: 2200, ease: 'inQuad', onComplete: () => el.remove() })
+}
+function diaCompleto(m) {
+  const sel = { a: '.reng', b: '.mat, .pane-s .prog', c: '.fichas' }[m.op]
+  m.el.querySelectorAll(`.principal ${sel.split(', ').join(', .principal ')}`).forEach(e => e.classList.add(e.classList.contains('prog') ? 'destella' : 'completo'))
+  const p = m.el.querySelector('.principal .prog'); if (p) p.classList.add('destella')
+  festejar(m)
+  setTimeout(() => decir(m, `Día completo: hiciste los ${hoyLista(m).length} de hoy.`), 500)
+}
+
+// ---------------------------------------------------------------- acciones
+function cambio(m, h, hacer, { foco, tipo }) {
+  const antes = racha(h), completoAntes = pendientes(m) === 0, hechoAntes = hecho(h, HOY)
+  hacer()
+  const despues = racha(h), ahora = hecho(h, HOY)
+  m.fx = { id: h.id, dia: HOY, tipo, racha: despues > antes, llega: !hechoAntes && ahora, d: tipo === 'suma' ? m.fxD : 0, late: hechoAntes !== ahora }
+  pintar(m, foco)
+  m.fx = null
+  if (m.cola[0]?.tipo === 'rec' && m.cola[0].id === h.id) {
+    if (ahora && !m.globoOk) quitarGlobo(m)
+    else pintarGlobo(m)
+  }
+  return { antes, despues, completoAntes, hechoAntes, ahora }
+}
+function despuesDe(m, h, r) {
+  if (!r.hechoAntes && r.ahora) { chispas(m, h.id); festejar(m) }
+  if (r.despues > r.antes && [7, 30, 100].includes(r.despues)) hito(m, h, r.despues)
+  if (!r.completoAntes && pendientes(m) === 0 && hoyLista(m).length) diaCompleto(m)
+}
+function tildar(m, id) {
+  const h = hab(m, id); if (!h || !toca(h, HOY)) return
+  const r = cambio(m, h, () => { h.sem[HOY] = h.sem[HOY] === 1 ? 0 : 1 }, { foco: `ck-${id}`, tipo: 'tilde' })
+  if (r.ahora) decir(m, `Hecho hoy: ${h.nombre}`); else decir(m, `«${h.nombre}» vuelve a pendiente`)
+  despuesDe(m, h, r)
+}
+function sumar(m, id, d) {
+  const h = hab(m, id); if (!h) return
+  if (d < 0 && !(h.sem[HOY] > 0)) return
+  m.fxD = d
+  const r = cambio(m, h, () => { h.sem[HOY] = Math.max(0, (h.sem[HOY] ?? 0) + d) }, { foco: d > 0 ? `sum-${id}` : (h.sem[HOY] > 1 ? `menos-${id}` : `sum-${id}`), tipo: 'suma' })
+  const v = h.sem[HOY]
+  decir(m, `${h.nombre}: ${v} de ${h.meta} ${h.unidad}${v >= h.meta && d > 0 && r.ahora && !r.hechoAntes ? '. Meta del día cumplida' : ''}`)
+  if (d > 0) gota(m, id)
+  despuesDe(m, h, r)
+}
+function celda(m, id, d) {
+  const h = hab(m, id); if (!h) return
+  if (d === HOY) return tildar(m, id)
+  h.sem[d] = h.sem[d] === 1 ? 0 : 1
+  m.fx = { id, dia: d }
+  pintar(m, `cel-${id}-${d}`)
+  m.fx = null
+  decir(m, `Corregido: ${h.nombre}, ${DIAS_L[d]} ${h.sem[d] === 1 ? 'hecho' : 'sin hacer'}`)
+}
+function abrirHoja(m) {
+  m.abierta = true; m.chat = false; m.armado = null
+  pintar(m, 'h1')
+  entrada(m)
+  m.el.querySelector('[data-k="h1"]')?.focus()
+}
+function cerrarHoja(m) {
+  m.abierta = false; m.det = null; m.borrador = null
+  pintar(m, m.el.classList.contains('angosto') ? 'tb-hab' : 'fila-hab')
+}
+function abrirHabito(m, id) {
+  m.armado = null; m.errForm = null
+  if (m.op === 'a') { m.det = m.det === id ? null : id; m.borrador = null; pintar(m, `nom-${id}`); if (m.det) animarVista(m); return }
+  if (m.op === 'b') { if (m.ver === 'hoy' || m.ver === 'semana') m.desde = m.ver; m.ver = id; pintar(m, 'atras'); animarVista(m); return }
+  m.det = id; pintar(m, 'atras'); animarVista(m)
+}
+function cerrarHabito(m) {
+  m.armado = null; m.errForm = null
+  if (m.op === 'b') { const v = m.ver; m.ver = m.desde; pintar(m, m.desde === 'semana' ? `mat-${v}` : `nom-${v}`); animarVista(m); return }
+  const v = m.det; m.det = null; pintar(m, `nom-${v}`); animarVista(m)
+}
+function cambiarVista(m, v) {
+  if (m.ver === v) return
+  m.ver = v; m.armado = null; m.errForm = null; m.borrador = null
+  if (v === 'hoy' || v === 'semana') m.desde = v
+  pintar(m, `ix-${v}`); animarVista(m)
+}
+function nuevo(m) {
+  m.armado = null; m.errForm = null
+  m.borrador = { id: null, nombre: '', tipo: 'diario', meta: 8, unidad: 'vasos', dias: [0, 2, 4], veces: 3, rec: null, c: COLORES[m.habitos.length % COLORES.length] }
+  if (m.op === 'b') m.ver = 'nuevo'; else m.det = 'nuevo'
+  pintar(m, 'f-nombre'); animarVista(m)
+}
+function cancelar(m) {
+  m.borrador = null; m.errForm = null
+  if (m.op === 'b') m.ver = m.desde; else m.det = null
+  pintar(m, m.habitos.length ? 'nuevo-b' : 'h1')
+}
+function crear(m) {
+  const b = m.borrador; if (!b) return
+  const nombre = b.nombre.trim()
+  m.errForm = !nombre ? 'Ponele un nombre.' : m.habitos.some(h => h.nombre.toLowerCase() === nombre.toLowerCase()) ? `Ya hay un hábito «${esc(nombre)}».` : b.tipo === 'dias' && !b.dias.length ? 'Elegí al menos un día.' : null
+  if (m.errForm) { pintar(m, b.tipo === 'dias' && nombre ? 'dia-0' : 'f-nombre'); return }
+  const h = copia({ ...b, id: 'h' + Date.now(), nombre, sem: [0, 0, 0, 0, null, null, null], rachaPrev: 0, mejor: 0, creado: '26/11', inicio: HOY })
+  m.habitos.push(h); m.borrador = null; m.recien = h.id
+  if (m.op === 'b') m.ver = 'hoy'; else m.det = null
+  pintar(m, `nom-${h.id}`)
+  decir(m, `Hábito «${nombre}» creado`)
+}
+function sugerencia(m, id) {
+  const s = SUGS.find(x => x.id === id), b = BASE.find(x => x.id === id)
+  const h = copia({ ...b, nombre: s.t, rec: null, sem: [0, 0, 0, 0, null, null, null], rachaPrev: 0, mejor: 0, creado: '26/11', inicio: HOY })
+  m.habitos.push(h); m.recien = h.id
+  pintar(m, `nom-${h.id}`); entrada(m)
+  decir(m, `Hábito «${s.t}» creado. Tocá su nombre para ponerle un aviso.`)
+}
+function objetivo(m, el) {
+  const f = el.closest('[data-form]'); if (!f) return null
+  return f.dataset.form === 'nuevo' ? m.borrador : hab(m, f.dataset.form)
+}
+function convertir(h, a) {
+  if (a === 'cantidad' && h.tipo !== 'cantidad') h.sem = h.sem.map(v => v == null ? null : v === 1 ? h.meta : 0)
+  else if (h.tipo === 'cantidad' && a !== 'cantidad') h.sem = h.sem.map(v => v == null ? null : v >= h.meta ? 1 : 0)
+  h.tipo = a
+}
+function editar(m, b, a, v) {
+  const h = objetivo(m, b); if (!h) return
+  m.errForm = null
+  if (a === 'tipo') { if (h.tipo === v) return; convertir(h, v) }
+  if (a === 'dia') {
+    const s = new Set(h.dias), i = +v
+    s.has(i) ? s.delete(i) : s.add(i)
+    if (!s.size && h.id) m.errForm = 'Tiene que quedar al menos un día.'
+    else h.dias = [...s].sort()
+  }
+  if (a === 'paso') { const [campo, d] = v.split(':'); const [lo, hi] = { meta: [1, 99], veces: [1, 6] }[campo]; h[campo] = Math.max(lo, Math.min(hi, h[campo] + (+d))) }
+  if (a === 'rec') { if (h.rec) { h.recAntes = h.rec; h.rec = null } else h.rec = h.recAntes || '09:00' }
+  if (a === 'color') h.c = v
+  pintar(m, b.dataset.k)
+}
+function armar(m, id) {
+  m.armado = id; pintar(m, `c-${id}`)
+  clearTimeout(m.reloj); m.reloj = setTimeout(() => { if (m.armado === id) { m.armado = null; pintar(m) } }, 3000)
+}
+function confirmar(m, id) {
+  clearTimeout(m.reloj)
+  const hid = id.replace('borrar:', ''), h = hab(m, hid); if (!h) return
+  m.habitos = m.habitos.filter(x => x.id !== hid)
+  m.cola = m.cola.filter((g, i) => !(g.id === hid && i > 0))
+  m.armado = null; m.det = null
+  if (m.op === 'b') m.ver = 'hoy'
+  pintar(m, m.op === 'b' ? 'ix-hoy' : 'nuevo-b')
+  if (m.cola[0]?.id === hid) quitarGlobo(m)
+  decir(m, `Borraste «${h.nombre}»`)
+}
+// globos
+function encolar(m, g) {
+  if (g.tipo === 'rec') {
+    const h = hab(m, g.id)
+    if (!h) { decir(m, 'Ese hábito ya no está'); return }
+    if (hecho(h, HOY)) { decir(m, `${h.nombre} ya está hecho hoy: el aviso no sale`); flash(m); return }
+  }
+  if (m.cola.some(x => x.tipo === g.tipo && x.id === g.id)) return
+  const antes = m.cola[0]
+  m.cola.push(g); m.cola.sort((a, b) => PRIO[a.tipo] - PRIO[b.tipo])
+  if (m.cola[0] !== antes) { m.globoEntra = true; m.globoOk = false }
+  pintarGlobo(m); pintar(m)
+}
+function flash(m) { const b = [...document.querySelectorAll(`.proba[data-op="${m.op}"] .btn`)]; b.forEach(x => x.blur()) }
+function quitarGlobo(m) {
+  const el = m.el.querySelector('[data-globo-el]')
+  const enGlobo = el?.contains(document.activeElement)
+  const fin = () => {
+    m.cola.shift(); m.globoOk = false; m.globoEntra = m.cola.length > 0
+    pintarGlobo(m); pintar(m)
+    if (enGlobo) (m.el.querySelector('[data-globo-el] button') ?? m.el.querySelector('[data-k="fila-hab"]'))?.focus()
+  }
+  if (el && !quieto()) { el.classList.add('sale'); setTimeout(fin, 200) } else fin()
+}
+function globoHacer(m) {
+  const g = m.cola[0]; if (g?.tipo !== 'rec') return
+  const h = hab(m, g.id); if (!h) return
+  m.globoOk = true
+  if (h.tipo === 'cantidad') sumar(m, h.id, 1); else if (!hecho(h, HOY)) tildar(m, h.id)
+  pintarGlobo(m)
+  m.el.querySelector('[data-globo-el] .globo-x')?.focus()
+  clearTimeout(m.relojGlobo)
+  m.relojGlobo = setTimeout(() => { if (m.globoOk) quitarGlobo(m) }, 1800)
+}
+function abrirCharla(m) { m.chat = true; quitarGlobo(m); setTimeout(() => { m.el.querySelector('[data-k="h1"]')?.focus(); entrada(m) }, quieto() ? 0 : 220) }
+function probar(m, p) {
+  if (p === 'rec') return encolar(m, { tipo: 'rec', id: hab(m, 'agua') ? 'agua' : m.habitos.find(h => h.rec)?.id })
+  if (p === 'rec2') return encolar(m, { tipo: 'rec', id: 'caminar' })
+  if (p === 'res') return encolar(m, { tipo: 'resumen' })
+  if (p === 'tres') { m.cola = []; m.globoOk = false; encolar(m, { tipo: 'resumen' }); encolar(m, { tipo: 'tareas' }); encolar(m, { tipo: 'rec', id: 'agua' }); decir(m, 'Tres avisos: primero el recordatorio, después tareas, al final el resumen'); return }
+  if (p === 'vacio') { Object.assign(m, nuevoEstado(m.op), { habitos: [], cola: [] }); pintarTodo(m); entrada(m); return }
+  if (p === 'reset') { Object.assign(m, nuevoEstado(m.op)); pintarTodo(m); entrada(m) }
+}
+
+// ---------------------------------------------------------------- eventos
+function clic(m, e) {
+  const b = e.target.closest('[data-a]'); if (!b || !m.el.contains(b)) return
+  const a = b.dataset.a, v = b.dataset.v
+  if (m.armado && a !== 'armar' && a !== 'confirmar') { clearTimeout(m.reloj); m.armado = null }
+  switch (a) {
+    case 'abrir-hoja': if (m.abierta && !m.chat) { m.el.querySelector('[data-k="h1"]')?.focus(); return } return abrirHoja(m)
+    case 'volver': return cerrarHoja(m)
+    case 'tildar': return tildar(m, v)
+    case 'sumar': return sumar(m, v, 1)
+    case 'restar': return sumar(m, v, -1)
+    case 'celda': return celda(m, v, +b.dataset.d)
+    case 'abrir': return abrirHabito(m, v)
+    case 'cerrar-det': return cerrarHabito(m)
+    case 'ver': return cambiarVista(m, v)
+    case 'nuevo': return nuevo(m)
+    case 'cancelar': return cancelar(m)
+    case 'crear': return crear(m)
+    case 'tipo': case 'dia': case 'paso': case 'rec': case 'color': return editar(m, b, a, v)
+    case 'armar': return armar(m, v)
+    case 'confirmar': return confirmar(m, v)
+    case 'sug': return sugerencia(m, v)
+    case 'g-hacer': return globoHacer(m)
+    case 'g-ver': quitarGlobo(m); m.det = null; if (m.op === 'b') m.ver = 'hoy'; return abrirHoja(m)
+    case 'g-x': { const g = m.cola[0]; decir(m, g?.tipo === 'rec' ? 'Listo, hoy no te lo recuerdo más' : g?.tipo === 'resumen' ? 'Te lo dejo para la semana que viene' : 'Te lo recuerdo mañana'); return quitarGlobo(m) }
+    case 'g-res': return abrirCharla(m)
+    case 'g-tareas': decir(m, 'En el widget, esto abre Tareas › Hoy'); return quitarGlobo(m)
+    case 'fin-charla': m.chat = false; return pintar(m, 'fila-hab')
+  }
+}
+function escribir(m, e) {
+  const t = e.target, f = t.dataset.f; if (!f || f === 'hora') return
+  const h = objetivo(m, t); if (!h) return
+  h[f] = t.value
+  if (m.errForm && f === 'nombre') { m.errForm = null; t.closest('[data-form]').querySelector('.e-form')?.remove() }
+  const fr = t.closest('[data-form]').querySelector('[data-frase]'); if (fr) fr.innerHTML = frase(h)
+}
+function cambiar(m, e) {
+  const t = e.target, f = t.dataset.f; if (!f) return
+  const h = objetivo(m, t); if (!h) return
+  if (f === 'hora') { h.rec = t.value || null; pintar(m, t.dataset.k); return }
+  if (f === 'nombre' && h.id) { if (!t.value.trim()) h.nombre = h.nombreAntes ?? h.nombre; pintar(m) }
+}
+function tecla(m, e) {
+  const t = e.target
+  if (e.key === 'Enter' && t.matches('textarea.tit-in')) { e.preventDefault(); t.blur(); return }
+  if (e.key === 'Enter' && t.dataset.f === 'nombre' && t.closest('[data-form="nuevo"]')) { e.preventDefault(); crear(m); return }
+  if (e.key !== 'Escape') return
+  e.preventDefault()
+  if (t.matches('input') && t.value && t.closest('[data-form="nuevo"]')) { t.value = ''; escribir(m, { target: t }); return }
+  if (m.armado) { const k = `c-${m.armado}`; m.armado = null; clearTimeout(m.reloj); pintar(m, k); return }
+  if (t.closest('[data-globo-el]')) { quitarGlobo(m); return }
+  if (m.chat) { m.chat = false; pintar(m, 'fila-hab'); return }
+  if (m.op === 'b' && m.ver === 'nuevo') return cancelar(m)
+  if (m.op === 'b' && m.ver !== 'hoy' && m.ver !== 'semana') return cerrarHabito(m)
+  if (m.det === 'nuevo') return cancelar(m)
+  if (m.det) return cerrarHabito(m)
+  if (m.abierta) cerrarHoja(m)
+}
+document.querySelectorAll('.lienzo').forEach(montar)
+mocks.forEach(m => entrada(m))
+
+// ---------------------------------------------------------------- estados congelados
+function muestra(titulo, desc, html, ancho = 460) {
+  return `<div class="caja-e"><span class="kick">${titulo}</span>${desc ? `<p>${desc}</p>` : ''}<div style="max-width:${ancho}px;width:100%">${html}</div></div>`
+}
+const con = fn => { const m = nuevoEstado('b'); m.el = document.createElement('div'); fn(m); return m }
+const base = con(() => {})
+const dos = con(m => { hab(m, 'caminar').sem[HOY] = 1; hab(m, 'leer').sem[HOY] = 1 })
+const todo = con(m => { hab(m, 'caminar').sem[HOY] = 1; hab(m, 'leer').sem[HOY] = 1; hab(m, 'agua').sem[HOY] = 8; hab(m, 'correr').sem[HOY] = 1 })
+const vacia = con(m => { m.habitos = [] })
+const agua = v => con(m => { hab(m, 'agua').sem[HOY] = v })
+const filaSum = (m, fx) => { m.fx = fx; const h = filaA(m, hab(m, 'agua'), 0); m.fx = null; return `<ul class="rgs" style="--hoy:${HOY}">${h}</ul>` }
+const marcaCon = (m, g, pose, ok = false) => `<div class="marca" style="padding:0">${avi(CLAUDE, pose, 104)}<b class="marca-n">Avis</b><span class="estado"><i class="pt"></i>1 sesión</span>${globoHTML({ ...m, globoEntra: false, globoOk: ok }, g)}</div>`
+const rachaDe = (n, tipo = 'diario') => rachaB(base, { id: 'x', nombre: 'x', tipo, rachaPrev: n, mejor: n, sem: [0, 0, 0, 0, null, null, null], dias: TODOS })
+const caminarListo = con(m => { hab(m, 'caminar').sem[HOY] = 1 })
+const formErr = con(m => { m.borrador = { id: null, nombre: 'Gimnasio', tipo: 'dias', meta: 8, unidad: 'vasos', dias: [], veces: 3, rec: '07:30', c: 'rosa' }; m.errForm = 'Elegí al menos un día.' })
+const armado = con(m => { m.armado = 'borrar:caminar'; hab(m, 'caminar').sem[HOY] = 1 })
+const win = `<div class="win"><div class="toast" role="img" aria-label="Notificación de Windows. Avis: Agua, 16:00. Van 3 de 8 vasos. ¿Uno más?"><div class="t-h"><span class="t-ic">${ICONO.app}</span><span>Avis</span><span class="sp"></span><span aria-hidden="true">···</span><span aria-hidden="true">✕</span></div><div class="t-c"><span>${avi(CLAUDE, 'saluda', 44)}</span><div><b>Agua · 16:00</b><p>Van 3 de 8 vasos. ¿Uno más?</p></div></div></div><div class="barra-w"><span>16:00<br>26/11/2026</span></div></div>`
+const grilla = [
+  muestra('Fila en la barra · cinco estados', 'Sin hábitos, el atajo. Con hábitos, un anillo con lo hecho hoy sobre lo que toca (late al cambiar). Completo, en ámbar. Abierta, como la fila de Tareas.',
+    `<div style="display:grid;gap:4px">${[vacia, base, dos, todo].map(x => filaBarra({ ...x, abierta: false })).join('')}${filaBarra(dos)}</div>`, 188),
+  muestra('Recordatorio · cantidad', 'A su hora. «+1 vaso» suma sin abrir nada; «Ver hábitos» abre la hoja; la × lo calla por hoy. El Avi saluda.',
+    marcaCon(base, { tipo: 'rec', id: 'agua' }, 'saluda'), 188),
+  muestra('Recordatorio · hecho desde el globo', 'El globo confirma 1,8 s y se va solo; si había otro aviso esperando, entra después.',
+    marcaCon(caminarListo, { tipo: 'rec', id: 'caminar' }, 'feliz', true), 188),
+  muestra('Resumen del domingo', 'Las barras son los datos de la semana (lo hecho sobre lo que tocaba, por día); la frase la escribe el modelo local. El clic abre una charla.',
+    marcaCon(base, { tipo: 'resumen' }, 'contando'), 188),
+  muestra('Uno por vez', 'Si llegan juntos, se muestran en este orden; el de abajo espera sin perderse. Probalo con «Arranque con tres avisos».',
+    `<ol class="cola"><li><span><b>Claude te hace una pregunta</b>Siempre primero (como hoy en la muesca).</span></li><li class="yo"><span><b>Recordatorio de un hábito</b>Tiene hora: si espera, pierde sentido. Se va si el hábito queda hecho por otro camino.</span></li><li><span><b>Tareas del día</b>El globo de #39, una vez por día.</span></li><li><span><b>Resumen semanal</b>No apura: va último.</span></li></ol>`),
+  muestra('Acoplada, con el panel cerrado', 'El mismo aviso cuelga de la muesca: el recordatorio con su anillo, el resumen con su cifra. El clic abre el panel en Hábitos › Hoy (o la charla).',
+    `<div style="display:grid;gap:10px"><div class="escritorio"><div class="muesca-m">${avi(CLAUDE, 'saluda', 58)}</div><button type="button" class="m-globo">${anilloMini(3, 8, 'ring')}16:00 · Agua 3 de 8<span>Ver →</span></button></div><div class="escritorio"><div class="muesca-m">${avi(CLAUDE, 'contando', 58)}</div><button type="button" class="m-globo">Tu semana: 5 de 7 caminando<span>Ver →</span></button></div></div>`),
+  muestra('Pantalla dividida (sin barra)', 'La fila de aviso de siempre, con la acción a mano.',
+    `<div class="marco angosto" style="height:auto;width:100%;padding:12px;display:block">${avisoFila({ ...base, cola: [{ tipo: 'rec', id: 'agua' }] })}${avisoFila({ ...base, cola: [{ tipo: 'resumen' }] })}</div>`),
+  muestra('Notificación de Windows', 'Sale junto con el globo, a la misma hora. Sin botones; su clic muestra Avis en Hábitos › Hoy. La cara del Avi es una imagen del aviso: sin verificar con el plugin.',
+    win),
+  muestra('Sumar un vaso, en tres tiempos', '3 de 8 · el tramo nuevo se llena con rebote, cae una gota y el número rueda · a los 8, el anillo se cierra, late una onda ámbar y saltan chispas.',
+    `<div style="display:grid;gap:4px">${filaSum(agua(3), null)}${filaSum(agua(4), { id: 'agua', tipo: 'suma', d: 1 })}${filaSum(agua(8), null)}</div>`),
+  muestra('La racha crece', 'Una brasa: apagada sin racha, naranja hasta 6, ámbar con brillo desde 7, titila desde 30. Al sumar, el número rueda y la brasa salta; a los 7, 30 y 100, una píldora festeja.',
+    `<div style="display:grid;gap:12px"><div class="meta" style="gap:14px">${rachaDe(0)}${rachaDe(3)}${rachaDe(7)}${rachaDe(34)}${rachaDe(4, 'semana')}</div><div style="position:relative;height:36px"><div class="hito" style="top:0">${ICONO.brasa}Caminar: ¡una semana seguida!</div></div></div>`),
+  muestra('La semana, celda por celda', 'Hoy lleva anillo. Lo que no toca es un guion: nunca cuenta como falta. Por semana, los días sin salida son un punto, no una falta.',
+    `<div style="display:grid;gap:10px">${celdas(base, hab(base, 'agua'), { clic: false })}${celdas(base, hab(base, 'gym'), { clic: false })}${celdas(base, hab(base, 'correr'), { clic: false })}${leyenda()}</div>`),
+  muestra('Crear · validación en el lugar', 'Lo escrito queda; el error dice qué falta. «Ya hay un hábito «Agua».» y «Ponele un nombre.» van igual.',
+    formulario(formErr, formErr.borrador, 'nuevo')),
+  muestra('Borrar un hábito', 'Confirma en el mismo botón 3 s y dice qué se pierde. Esc o 3 s sin clic lo desarman.',
+    `<div class="det-pie"><span class="cifras">Creado el 28/10</span>${confirmable(armado, 'borrar:caminar', 'Borrar hábito', preguntaBorrar(hab(armado, 'caminar')))}</div>`),
+  muestra('Primer uso', 'Cuatro sugeridas, una por tipo, o uno propio.', primerUso(base).replace(' cfg-anim', '')),
+  muestra('Hoy no toca nada', 'Pasa con solo «algunos días» y semanas ya cumplidas.',
+    `<div class="vac">${avi(CLAUDE, 'esperando', 66)}<b>Hoy no toca nada.</b><p>Mañana: Gimnasio y Caminar.</p></div>`),
+  muestra('Cargando', 'Más de 150 ms leyendo: tres filas fantasma, sin brillo animado. Nunca un spinner.',
+    `<div class="fantasma"></div><div class="fantasma" style="opacity:.7"></div><div class="fantasma" style="opacity:.45"></div>`),
+  muestra('No se guardó', 'Lo hecho queda en pantalla; reintenta solo a los 5 s.',
+    `<div class="err"><i class="pt"></i><div><b>No se guardó el último cambio.</b>Sigue en pantalla. Reintento solo en 5 s.</div><div class="acc"><button type="button" class="lnk">Reintentar ahora</button></div></div>`),
+  muestra('Un hábito no se pudo leer (S6)', 'El archivo roto no se pisa ni se borra; los demás andan y no cuenta para hoy.',
+    `<div class="err"><i class="pt"></i><div><b>Un hábito no se pudo leer.</b>El archivo quedó como estaba, en la carpeta de hábitos. Los demás andan.</div><div class="acc"><button type="button" class="lnk">Abrir la carpeta</button><button type="button" class="lnk">Volver a leer</button></div></div>`),
+]
+document.getElementById('grilla-e').innerHTML = grilla.join('')
+</script>
+</body>
+</html>

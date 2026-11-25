@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Avis · Módulos — boceto</title>
+<link rel="stylesheet" href="../../../widget/src/avis.css">
+<link rel="stylesheet" href="../../../widget/src/especies.css">
+<style>
+/* Boceto de la barra lateral como menú de módulos. Servir desde la raíz del repo: importa avis.js y anime.js reales.
+   Tokens de estilos.css sin cambios; las notas violetas punteadas son del boceto. */
+@font-face{font-family:"Manrope";src:url("../../../widget/src/fuentes/manrope-latin.woff2") format("woff2");font-weight:400 800;font-display:swap}
+@font-face{font-family:"Manrope";src:url("../../../widget/src/fuentes/manrope-simbolos.woff2") format("woff2");font-weight:400 800;unicode-range:U+2192,U+25BE,U+2713}
+@font-face{font-family:"Martian Mono";src:url("../../../widget/src/fuentes/martian-mono-latin.woff2") format("woff2");font-weight:400 600;font-stretch:75%;font-display:swap}
+:root{
+  --negro:#000;--s1:#0C0C0E;--s2:#141417;--s3:#1D1D21;--linea:#25252A;--linea-hover:#36363C;
+  --crema:#F3EBD8;--crema2:#BDB5A4;--tenue:#8A8478;--ambar:#F2B632;--ambar-osc:#1D1707;--pico:#E9A13B;
+  --violeta:#A58BFF;--celeste:#7FB3FF;--verde:#8FD694;--rosa:#E78FB3;--rojo:#FF7A6B;--tinta:#14110C;
+  --f:"Manrope","Segoe UI Variable",sans-serif;--m:"Martian Mono","Cascadia Mono",monospace;
+  --t-display:800 21px/1.1 var(--f);--t-titulo:800 14.5px/1.3 var(--f);--t-cuerpo-f:700 13px/1.3 var(--f);
+  --t-cuerpo:500 12.5px/1.45 var(--f);--t-chico:500 11.5px/1.35 var(--f);--t-mono:400 10.5px/1.5 var(--m);
+  --t-mono-s:500 10px/1.3 var(--m);--t-rotulo:500 10px/1 var(--m);
+  --r-ventana:26px;--r-tarjeta:18px;--r-cuadro:14px;--r-fila:11px;--r-campo:10px;--r-icono:7px;--r-pildora:999px;
+  --ease:cubic-bezier(.16,1,.3,1);--rebote:cubic-bezier(.34,1.56,.64,1);--d-presion:140ms;--d-color:200ms;
+  /* nuevo: solo medidas */
+  --alto-modulo:40px;--ancho-riel:56px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html{background:#050506}
+body{color:var(--crema);font:var(--t-cuerpo);-webkit-font-smoothing:antialiased;min-height:100vh;
+  background:radial-gradient(900px 420px at 18% -8%,rgba(242,182,50,.09),transparent 70%),radial-gradient(1px 1px at 1px 1px,rgba(255,255,255,.05) 1px,transparent 0) 0 0/22px 22px,#050506}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.oculto{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+code{font:var(--t-mono);color:var(--crema)}
+body.pausa .marco *,body.pausa .marco *::before,body.pausa .marco *::after,body.pausa .caja-e *,body.pausa .caja-e *::before,body.pausa .caja-e *::after{animation:none!important;transition:none!important}
+
+/* ---------------- página */
+.pagina{max-width:1440px;margin:0 auto;padding:44px 24px 96px}
+.kick{font:var(--t-rotulo);letter-spacing:.14em;text-transform:uppercase;color:var(--tenue)}
+.pag-h{display:grid;gap:12px;max-width:840px;margin-bottom:48px}
+.pag-h h1{font:800 clamp(30px,5vw,52px)/1 var(--f);letter-spacing:-.04em}
+.pag-h h1 em{font-style:normal;color:var(--ambar)}
+.pag-h p{color:var(--crema2);font:500 14px/1.55 var(--f);max-width:70ch}
+.pag-h p b{color:var(--crema)}
+.pag-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.opciones{display:grid;gap:80px}
+.op{display:grid;grid-template-areas:"h" "l" "t";gap:16px;min-width:0}
+@media (min-width:1180px){.op{grid-template-columns:750px minmax(0,1fr);grid-template-areas:"l h" "l t";grid-template-rows:auto 1fr;column-gap:40px}}
+.op-h{grid-area:h;display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.lienzo{grid-area:l;min-width:0}
+.op-t{grid-area:t;display:grid;align-content:start;gap:16px}
+.op-l{font:800 64px/.8 var(--f);color:transparent;-webkit-text-stroke:1.2px var(--crema2);letter-spacing:-.04em}
+.op.reco .op-l{-webkit-text-stroke-color:var(--ambar)}
+.op-n{font:800 22px/1.1 var(--f);letter-spacing:-.03em}
+.op-n small{display:block;margin-top:4px;font:var(--t-mono-s);color:var(--tenue);letter-spacing:.06em}
+.reco-b{padding:6px 10px;border-radius:var(--r-pildora);background:var(--ambar);color:var(--negro);font:600 10px/1 var(--m);letter-spacing:.1em;text-transform:uppercase;align-self:center}
+.op-p{display:grid;gap:6px;max-width:60ch;color:var(--crema2);font:500 13px/1.5 var(--f)}
+.op-p b{color:var(--crema)}
+.proba{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.proba .kick{width:100%;margin-bottom:2px}
+.nx{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border:1px dashed rgba(165,139,255,.6);border-radius:6px;color:var(--violeta);font:var(--t-mono-s);font-stretch:75%}
+.estados{margin-top:96px}
+.estados>h2,.nota-pag h2{font:800 22px/1.1 var(--f);letter-spacing:-.03em;margin-bottom:6px}
+.estados>p{color:var(--crema2);margin-bottom:24px;max-width:72ch}
+.grilla-e{display:grid;gap:20px;grid-template-columns:repeat(auto-fill,minmax(min(100%,400px),1fr))}
+.caja-e{display:grid;align-content:start;gap:10px;background:var(--negro);border:1px solid rgba(255,255,255,.07);border-radius:var(--r-tarjeta);padding:14px 16px 16px;min-width:0}
+.caja-e>.kick{color:var(--violeta)}
+.caja-e>p{font:var(--t-chico);color:var(--crema2)}
+.nota-pag{margin-top:72px;display:grid;gap:12px;max-width:860px;color:var(--crema2);font:500 13px/1.55 var(--f)}
+.nota-pag ul{display:grid;gap:6px;padding-left:18px}
+.nota-pag b{color:var(--crema)}
+.tabla{width:100%;border-collapse:collapse;font:var(--t-chico);color:var(--crema2)}
+.tabla th{font:var(--t-rotulo);letter-spacing:.1em;text-transform:uppercase;color:var(--tenue);text-align:left;padding:0 8px 8px 0}
+.tabla td{padding:8px 8px 8px 0;border-top:1px solid var(--linea)}
+.tabla kbd{font:var(--t-mono-s);color:var(--crema);padding:3px 6px;border:1px solid var(--linea-hover);border-radius:5px}
+
+/* ---------------- el tablero (de estilos.css) */
+.marco{position:relative;width:694px;height:640px;display:flex;overflow:hidden;padding:16px 14px 16px 16px;gap:16px;background:var(--negro);border:1px solid rgba(255,255,255,.07);border-radius:var(--r-ventana);box-shadow:0 16px 32px -16px rgba(0,0,0,.8),0 50px 120px -60px rgba(242,182,50,.12)}
+.marco.c{width:748px;gap:12px;padding-left:10px}
+.lado{width:188px;flex:none;display:flex;flex-direction:column;gap:12px;min-height:0}
+.marco.c .lado{width:172px}
+.marca{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;padding:4px 4px 2px}
+.marca-n{margin-top:4px;font:var(--t-display);letter-spacing:-.03em}
+.marca .estado{margin-top:6px;padding:4px 10px 4px 8px;background:var(--s2);border-radius:var(--r-pildora);font:var(--t-mono-s);color:var(--crema2);display:inline-flex;gap:6px;align-items:center}
+.pt{display:inline-block;width:7px;height:7px;flex:none;border-radius:50%;background:var(--c,var(--ambar));box-shadow:0 0 0 3px color-mix(in srgb,var(--c,var(--ambar)) 20%,transparent)}
+.chip{flex:none;display:inline-flex;align-items:center;gap:4px;padding:3px 6px;border-radius:var(--r-pildora);background:var(--s3);color:var(--crema2);font:500 10px/1 var(--m)}
+.chip-preg{background:var(--ambar);color:var(--negro);font-weight:600}
+.chip-venc{background:color-mix(in srgb,var(--rojo) 22%,var(--s2));color:var(--rojo);font-weight:600}
+.chip-venc i{width:5px;height:5px;border-radius:50%;background:var(--rojo)}
+.chip.late{animation:late .5s var(--rebote) 2}
+@keyframes late{40%{transform:scale(1.28)}}
+.bdg{display:inline-flex;gap:4px;flex:none;align-items:center}
+.anillo{display:inline-flex;align-items:center;gap:5px;font:500 10px/1 var(--m);color:var(--crema2);flex:none}
+.anillo svg{width:14px;height:14px;transform:rotate(-90deg);fill:none;stroke-width:2.6}
+.anillo .a-f{stroke:var(--linea-hover)}.anillo .a-l{stroke:var(--ambar);stroke-linecap:round}
+.rot{display:block;margin:4px 0 4px 8px;font:var(--t-rotulo);letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+kbd.k{flex:none;font:var(--t-mono-s);color:var(--tenue);font-stretch:75%}
+.lado-cfg{margin-top:auto;padding-top:10px;border-top:1px solid var(--linea);display:grid;gap:2px}
+.lado-pie{display:grid;gap:6px}
+.eq{display:flex;align-items:center;gap:8px;padding:2px 8px;min-width:0}
+.eq>div{min-width:0}
+.av{width:26px;height:26px;flex:none;display:grid;place-items:center;border-radius:50%;background:color-mix(in srgb,var(--violeta) 22%,var(--s2));color:var(--violeta);font:600 9.5px/1 var(--m)}
+.eq b{display:block;font:700 12px/1.2 var(--f)}
+.eq div span{display:block;font:var(--t-mono-s);color:var(--tenue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:128px}
+
+/* ---------------- nuevo: fila de módulo */
+.mods{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:2px}
+.mod{position:relative;z-index:1;display:flex;align-items:center;gap:10px;width:100%;min-height:var(--alto-modulo);padding:0 8px;border:0;border-radius:var(--r-fila);background:transparent;color:var(--crema2);font:var(--t-cuerpo-f);text-align:left;cursor:pointer;transition:background var(--d-color),color var(--d-color),transform var(--d-presion)}
+.mod:hover{background:var(--s2);color:var(--crema)}
+.mod:active{transform:scale(.97)}
+.mod-ic{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--r-icono);background:var(--s2);color:var(--crema2);transition:background var(--d-color),color var(--d-color)}
+.mod-ic svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.45;stroke-linecap:round;stroke-linejoin:round}
+.mod-n{flex:1;min-width:0}
+.mod[aria-current="page"]{color:var(--ambar)}
+.mod[aria-current="page"] .mod-ic{background:color-mix(in srgb,var(--ambar) 18%,transparent);color:var(--ambar)}
+.lado-cfg .mod[aria-current="page"],.marco:not(.a) .mod[aria-current="page"]{background:var(--ambar-osc)}
+.ind-mod{position:absolute;left:0;right:0;top:0;height:var(--alto-modulo);border-radius:var(--r-fila);background:var(--ambar-osc);box-shadow:inset 3px 0 0 var(--ambar);pointer-events:none}
+.mod .flecha{width:22px;height:22px;flex:none;display:grid;place-items:center;margin-right:-4px;border-radius:6px;color:var(--tenue)}
+.mod .flecha svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:1.8;transition:transform .3s var(--ease)}
+.mod[aria-expanded="true"] .flecha svg{transform:rotate(90deg)}
+/* B: los proyectos colgados de Sesiones */
+.lado,.lado>*{min-width:0}
+.sub-pj{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:1px;margin:0 0 4px 19px;padding-left:10px;border-left:1px solid var(--linea)}
+.pj{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;padding:0 8px;border:0;border-radius:var(--r-fila);background:transparent;color:var(--crema2);font:700 12px/1.2 var(--f);text-align:left;cursor:pointer;transition:background var(--d-color),color var(--d-color)}
+.pj:hover{background:var(--s2);color:var(--crema)}
+.pj[aria-current="page"]{background:var(--s2);color:var(--crema)}
+.pj-ic{width:20px;height:20px;flex:none;display:grid;place-items:center;border-radius:6px;background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c);font:500 9.5px/1 var(--m)}
+.pj-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* C: el riel */
+.riel{width:var(--ancho-riel);flex:none;position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px 0 0;border-right:1px solid var(--linea);margin-right:2px}
+.riel-sp{flex:1}
+.rb{position:relative;width:44px;height:44px;display:grid;place-items:center;border:0;border-radius:14px;background:none;color:var(--crema2);cursor:pointer;transition:background var(--d-color),color var(--d-color),transform var(--d-presion)}
+.rb:hover{background:var(--s2);color:var(--crema)}
+.rb:active{transform:scale(.94)}
+.rb svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.45;stroke-linecap:round;stroke-linejoin:round}
+.rb[aria-current="page"]{background:var(--ambar-osc);color:var(--ambar)}
+.rb .chip{position:absolute;top:1px;right:-3px;padding:2px 4px;font-size:9px;box-shadow:0 0 0 2px var(--negro)}
+.rb .anillo{position:absolute;bottom:2px;right:0;font-size:0;gap:0}
+.rb .anillo svg{width:12px;height:12px;background:var(--negro);border-radius:50%;box-shadow:0 0 0 2px var(--negro)}
+.ind-riel{position:absolute;left:-10px;top:0;width:3px;height:22px;border-radius:0 3px 3px 0;background:var(--ambar);box-shadow:0 0 10px rgba(242,182,50,.6)}
+.riel-av{margin-top:2px;width:32px;height:32px;display:grid;place-items:center;border-radius:50%;background:color-mix(in srgb,var(--violeta) 22%,var(--s2));color:var(--violeta);font:600 10px/1 var(--m);border:0}
+.ctx{display:grid;grid-template-columns:minmax(0,1fr);gap:2px}
+.ix-b{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;padding:0 8px 0 6px;border:0;border-radius:var(--r-fila);background:none;color:var(--crema2);font:700 12px/1.1 var(--f);text-align:left;cursor:pointer}
+.ix-b:hover{background:var(--s2);color:var(--crema)}
+.ix-b[aria-current="page"]{background:var(--ambar-osc);color:var(--ambar)}
+.ix-b .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ix-b .ct{font:500 10px/1 var(--m);color:var(--tenue)}
+.ix-ic{width:20px;height:20px;flex:none;display:grid;place-items:center;border-radius:6px;background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c)}
+.ix-ic.punto::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--c)}
+
+/* ---------------- columna */
+.principal{position:relative;width:460px;flex:none;display:flex;flex-direction:column;min-height:0;min-width:0}
+.cab{display:flex;align-items:flex-start;gap:12px;padding-bottom:10px}
+.cab-t{flex:1;min-width:0}
+.cab h1{font:var(--t-display);letter-spacing:-.035em}
+.cab h1:focus{outline:none}
+.cab p{margin-top:2px;font:var(--t-cuerpo);color:var(--crema2)}
+.cab .kick{display:block;margin-bottom:5px}
+.controles{display:flex;align-items:center;flex:none;margin:-4px -6px 0 0}
+.tb{width:32px;height:32px;display:grid;place-items:center;border:0;border-radius:var(--r-fila);background:transparent;color:var(--crema2);cursor:pointer}
+.tb:hover{background:var(--s2);color:var(--crema)}
+.tb svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.tb[aria-pressed="true"]{color:var(--ambar)}
+.cuerpo-m{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+/* aviso de pregunta en otro módulo (evoluciona avisoOtroProyecto) */
+.aviso-p{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:0 6px 0 6px;margin-bottom:10px;border:1px solid color-mix(in srgb,var(--ambar) 60%,transparent);border-radius:var(--r-pildora);background:linear-gradient(90deg,rgba(242,182,50,.14),var(--ambar-osc) 60%);color:var(--crema);font:600 12px/1.3 var(--f);text-align:left;cursor:pointer;box-shadow:0 10px 26px -16px rgba(242,182,50,.7)}
+.aviso-p .cara{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--negro)}
+.aviso-p span.t{flex:1}
+.aviso-p span.t small{display:block;font:var(--t-mono-s);color:var(--crema2)}
+.aviso-p .ir{padding:8px 12px;border-radius:var(--r-pildora);background:var(--ambar);color:var(--negro);font:800 11.5px/1 var(--f);white-space:nowrap}
+.aviso-p:hover .ir{filter:brightness(1.08)}
+/* A: proyectos dentro de Sesiones */
+.proys{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:1px 1px 2px;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
+.pch{flex:none;display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:0 8px 0 6px;border:1px solid var(--linea);border-radius:var(--r-pildora);background:none;color:var(--crema2);font:700 12px/1 var(--f);cursor:pointer;transition:background var(--d-color),color var(--d-color),border-color var(--d-color)}
+.pch:hover{color:var(--crema);border-color:var(--linea-hover)}
+.pch .pj-ic{width:20px;height:20px;border-radius:50%}
+.pch[aria-current="page"]{background:var(--crema);color:var(--tinta);border-color:var(--crema)}
+.pch[aria-current="page"] .chip:not(.chip-preg){background:rgba(20,17,12,.12);color:var(--tinta)}
+/* sesión (de la columna actual, resumida) */
+.preg{display:grid;gap:10px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--ambar) 70%,transparent);border-radius:var(--r-tarjeta);background:var(--s1);box-shadow:0 0 0 4px rgba(242,182,50,.06),0 18px 40px -24px rgba(242,182,50,.6)}
+.preg-h{display:flex;align-items:center;gap:8px;font:var(--t-chico);color:var(--crema2)}
+.preg-h b{color:var(--crema)}
+.preg q{font:800 13.5px/1.3 var(--f);quotes:none}
+.op-r{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:var(--s2)}
+.op-r i{width:26px;height:26px;display:grid;place-items:center;border-radius:8px;background:color-mix(in srgb,var(--violeta) 22%,var(--s3));color:var(--violeta);font:600 11px/1 var(--m);font-style:normal}
+.op-r b{display:block;font:var(--t-cuerpo-f)}
+.op-r span{font:var(--t-chico);color:var(--crema2)}
+.conteos{display:flex;gap:6px;flex-wrap:wrap}
+.conteo{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--linea);border-radius:var(--r-pildora);font:var(--t-mono-s);color:var(--crema2)}
+.conteo b{font:800 12px/1 var(--f);color:var(--crema)}
+.ses{display:grid;gap:4px;padding:12px 14px 0;border:1px solid var(--linea);border-radius:var(--r-tarjeta);background:var(--s1);overflow:hidden}
+.ses-h{display:flex;align-items:center;gap:8px;font:800 14px/1.2 var(--f)}
+.ses-h .n{padding:2px 6px;border-radius:6px;background:var(--ambar);color:var(--negro);font:600 10px/1 var(--m)}
+.ses-h small{margin-left:auto;font:var(--t-mono-s);color:var(--tenue)}
+.ses-e{display:flex;align-items:center;gap:6px;font:700 12px/1.3 var(--f);color:var(--c)}
+.ses-e::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.esc{display:flex;align-items:flex-end;gap:14px;height:112px;padding:0 0 6px 10px;background:radial-gradient(120px 30px at 60px 108px,rgba(242,182,50,.22),transparent 70%)}
+.esc span.r{margin-bottom:14px;font:var(--t-mono-s);color:var(--tenue)}
+/* tareas, hábitos y configuración (resumidos, ya diseñados) */
+.carpeta{flex:1;min-height:0;display:grid;grid-template-columns:136px minmax(0,1fr);gap:0 14px}
+.idx{display:flex;flex-direction:column;gap:2px;padding-right:10px;border-right:1px solid var(--linea)}
+.rot-i{margin:12px 0 4px 8px;font:var(--t-rotulo);letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+.pane h2{font:800 19px/1.15 var(--f);letter-spacing:-.03em;margin:0 0 4px 2px}
+.pane-s{display:flex;align-items:center;gap:8px;min-height:28px;font:var(--t-mono-s);color:var(--tenue);margin-left:2px}
+.prog{display:block;width:90px;height:4px;border-radius:2px;background:var(--s3);overflow:hidden}
+.prog i{display:block;height:100%;width:var(--p);background:var(--ambar)}
+.fil{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;min-height:50px;border-top:1px solid var(--linea)}
+.fil:first-of-type{border-top:0}
+.cir{width:18px;height:18px;margin:0 auto;border-radius:50%;border:1.5px solid var(--linea-hover)}
+.cir.on{background:var(--ambar);border-color:var(--ambar)}
+.fil b{display:block;font:var(--t-cuerpo-f)}
+.fil small{font:var(--t-mono-s);color:var(--tenue)}
+.fil small.h{color:var(--ambar)}
+.fil small.v{color:var(--rojo)}
+.racha{font:var(--t-mono-s);color:var(--ambar);padding-right:6px}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--linea);margin-bottom:10px}
+.tab{min-height:34px;padding:0 10px;border:0;background:none;color:var(--crema2);font:700 12px/1 var(--f);border-bottom:2px solid transparent}
+.tab[aria-selected="true"]{color:var(--crema);border-color:var(--ambar)}
+.cfg-f{display:flex;justify-content:space-between;align-items:center;min-height:44px;border-top:1px solid var(--linea);font:var(--t-cuerpo-f)}
+.cfg-f small{display:block;font:var(--t-chico);color:var(--tenue)}
+.sw{width:36px;height:22px;border-radius:999px;background:var(--ambar);position:relative}
+.sw::after{content:"";position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--negro)}
+/* muesca y tira */
+.escritorio{position:relative;height:150px;border-radius:12px;overflow:hidden;background:linear-gradient(160deg,#3d4a5c,#617288)}
+.muesca-m{position:absolute;top:0;left:50%;width:150px;height:54px;margin-left:-75px;background:#000;border-radius:0 0 22px 22px;overflow:hidden;display:grid;justify-items:center;box-shadow:0 12px 28px -14px rgba(0,0,0,.9)}
+.muesca-m .avi{margin-top:6px}
+.m-globo{position:absolute;top:64px;left:50%;transform:translateX(-50%);display:inline-flex;gap:8px;align-items:center;padding:8px 12px;border:0;border-radius:12px;background:var(--crema);color:var(--tinta);font:700 11.5px/1 var(--f);white-space:nowrap;box-shadow:0 10px 24px -10px rgba(0,0,0,.6)}
+.m-globo::before{content:"";position:absolute;top:-4px;left:50%;width:10px;height:10px;margin-left:-5px;background:var(--crema);transform:rotate(45deg);border-radius:2px}
+.m-globo span{font:600 10px/1 var(--m);color:#7A5A0E}
+.tira{position:absolute;left:50%;bottom:14px;width:400px;max-width:calc(100% - 20px);height:56px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:0 6px 0 10px;background:#000;border-radius:28px;box-shadow:0 14px 30px -12px rgba(0,0,0,.8)}
+.tira .cabs{display:flex}
+.tira .cabs>*{margin-right:-10px;border-radius:50%;box-shadow:0 0 0 2px var(--s1);background:var(--s1)}
+.tira .tx{flex:1;min-width:0;margin-left:8px}
+.tira .tx b{display:block;font:800 13.5px/1.1 var(--f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tira .tx span{font:400 11px/1.2 var(--m);color:var(--tenue)}
+.tira .mods-t{display:flex;gap:4px}
+.tira .tb{width:40px;height:40px}
+
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="defs"></div>
+<div class="pagina">
+  <header class="pag-h">
+    <span class="kick">Boceto · Módulos de Avis · 24/11/2026 · Delfina</span>
+    <h1>La barra, <em>como menú</em> de módulos</h1>
+    <p>Lo que hoy es el tablero (proyectos en la barra y tarjetas de sesión en la columna) pasa a ser el módulo <b>Sesiones</b>, par de <b>Tareas</b>, <b>Hábitos</b> y <b>Configuración</b>, y deja lugar para más (por ejemplo, Proyectos). Cada módulo lleva su cuenta: Sesiones «3 · 1 ?», Tareas «● 4», Hábitos «2/5».</p>
+    <p>Regla de las tres: <b>una pregunta de Claude nunca se pierde.</b> En cualquier módulo se ve por tres caminos a la vez: la cuenta ámbar de Sesiones, el aviso arriba de la columna (el «Claude te hace una pregunta · Ver →» de hoy, más fuerte) y el Avi de la marca con su «!». Probá «Llega una pregunta» y cambiá de módulo.</p>
+    <div class="pag-ctl"><button type="button" class="btn-p" id="pausa" aria-pressed="false" style="min-height:32px;padding:0 14px;border:0;border-radius:999px;background:var(--s3);color:var(--crema);font:800 12px/1 var(--f);cursor:pointer">Pausar movimiento</button></div>
+  </header>
+
+  <div class="opciones">
+    <section class="op reco" aria-labelledby="op-a-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">A</span><h2 class="op-n" id="op-a-n">Menú<small>MÓDULOS EN LA BARRA · PROYECTOS ADENTRO DE SESIONES</small></h2><span class="reco-b">Recomendada</span></div>
+      <div class="lienzo" data-op="a"></div>
+      <div class="op-t">
+        <div class="op-p">
+          <p>La barra queda con la mascota y cuatro filas iguales; una píldora ámbar viaja al módulo elegido. Los proyectos pasan a una tira arriba de las sesiones (no a un índice lateral: dejaría 310 px a la tarjeta y el escenario no entra).</p>
+          <p>Es el cambio más chico que vuelve a los módulos pares. Tareas y Hábitos (opción B · Carpeta) entran tal cual, sin «‹ Tablero»: el menú siempre está.</p>
+        </div>
+        <div class="proba" data-op="a"></div>
+      </div>
+    </section>
+
+    <section class="op" aria-labelledby="op-b-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">B</span><h2 class="op-n" id="op-b-n">Árbol<small>SESIONES DESPLEGADO CON SUS PROYECTOS</small></h2></div>
+      <div class="lienzo" data-op="b"></div>
+      <div class="op-t">
+        <div class="op-p">
+          <p>Igual que hoy, con los módulos como menú: debajo de «Sesiones» cuelgan los proyectos con su «1 ?». La pregunta se ve en el proyecto mismo, desde cualquier módulo.</p>
+          <p>Lo más conocido y un clic menos para cambiar de proyecto; con 6 proyectos los demás módulos bajan, y mezcla dos niveles en la misma lista. Plegado, Sesiones muestra «3 · 1 ?».</p>
+        </div>
+        <div class="proba" data-op="b"></div>
+      </div>
+    </section>
+
+    <section class="op" aria-labelledby="op-c-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">C</span><h2 class="op-n" id="op-c-n">Riel<small>ÍCONOS A LA IZQUIERDA · BARRA SEGÚN EL MÓDULO</small></h2></div>
+      <div class="lienzo" data-op="c"></div>
+      <div class="op-t">
+        <div class="op-p">
+          <p>Un riel de íconos con sus cuentas elige el módulo; la barra cambia de contenido: en Sesiones, proyectos y Equipo; en Tareas, sus listas; en Hábitos, Hoy, Semana y cada hábito. La columna queda entera para el contenido.</p>
+          <p>La que mejor escala a 6 u 8 módulos, pero suma 54 px de ancho y obliga a mudar el índice de Tareas a la barra.</p>
+        </div>
+        <div class="proba" data-op="c"></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="estados" aria-labelledby="h-estados">
+    <h2 id="h-estados">Lo común, en cada estado</h2>
+    <p>La pregunta en otro módulo, la muesca y la tira acopladas, los atajos, dónde queda Equipo y cómo crece el menú.</p>
+    <div class="grilla-e" id="grilla-e"></div>
+  </section>
+
+  <section class="nota-pag" aria-labelledby="h-notas">
+    <h2 id="h-notas">Reglas que propongo</h2>
+    <ul>
+      <li><b>Sesiones es la portada:</b> abre ahí al arrancar y <b>Esc</b> vuelve ahí desde cualquier módulo (lo que hoy hace «‹ Tablero», que se va: el menú siempre está a la vista).</li>
+      <li><b>Pregunta de Claude:</b> cuenta ámbar «1 ?» que late dos veces al llegar, aviso arriba de la columna en cualquier otro módulo (o en otro proyecto) con «Responder», y el Avi de la marca en pose de pregunta. El clic lleva a Sesiones › ese proyecto con el foco en la pregunta.</li>
+      <li><b>La muesca no cambia:</b> pregunta › trabajando › reposo › duerme, y debajo el globo que toque (uno por vez, como en Hábitos). Abrirla abre el último módulo usado; con una pregunta, Sesiones en la pregunta.</li>
+      <li><b>La tira:</b> la de hoy (cabecitas, resumen de sesiones, chip de preguntas) más dos cuentas chicas de Tareas y Hábitos antes de «Expandir». Si no entran en 400 px, se van ellas, nunca el chip de la pregunta.</li>
+      <li><b>Un módulo nuevo</b> es una fila más con su ícono, su cuenta y su atajo; Configuración queda siempre abajo, separada.</li>
+    </ul>
+  </section>
+</div>
+
+<script type="module">
+import { avi, claudeDe, defsAvis } from '../../../widget/src/avis.js'
+import { animate, stagger } from '../../../widget/src/vendor/animejs/anime.esm.min.js'
+
+document.getElementById('defs').innerHTML = defsAvis()
+const mq = matchMedia('(prefers-reduced-motion: reduce)')
+const pausa = () => document.body.classList.contains('pausa')
+const quieto = () => pausa() || mq.matches
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const CLAUDE = claudeDe('avi')
+document.getElementById('pausa').addEventListener('click', e => {
+  const on = document.body.classList.toggle('pausa')
+  e.currentTarget.setAttribute('aria-pressed', on); e.currentTarget.textContent = on ? 'Movimiento en pausa' : 'Pausar movimiento'
+})
+
+const IC = {
+  sesiones: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="9" rx="2.6"/><path d="M5 14h6M6 7.2h.01M10 7.2h.01"/></svg>',
+  tareas: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="3.2"/><path d="M5.3 8.2l1.9 1.9 3.6-4"/></svg>',
+  habitos: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8.6A5.2 5.2 0 1 1 11.6 4.2"/><path d="M12.2 1.8v2.8H9.4"/><circle cx="8" cy="8.3" r="1.5" fill="currentColor" stroke="none"/></svg>',
+  config: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.14 6.72L14.93 7.01L14.93 8.99L13.14 9.28L12.54 10.73L13.60 12.20L12.20 13.60L10.73 12.54L9.28 13.14L8.99 14.93L7.01 14.93L6.72 13.14L5.27 12.54L3.80 13.60L2.40 12.20L3.46 10.73L2.86 9.28L1.07 8.99L1.07 7.01L2.86 6.72L3.46 5.27L2.40 3.80L3.80 2.40L5.27 3.46L6.72 2.86L7.01 1.07L8.99 1.07L9.28 2.86L10.73 3.46L12.20 2.40L13.60 3.80L12.54 5.27Z"/><circle cx="8" cy="8" r="2.1"/></svg>',
+  proyectos: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.2V12a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5A1.5 1.5 0 0 0 12 5H8L6.6 3.2H4A1.5 1.5 0 0 0 2.5 4.7z"/></svg>',
+  flecha: '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M3.5 2l3 3-3 3"/></svg>',
+  pin: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2h5M6.5 2v4.2L4.5 8.5h7L9.5 6.2V2M8 8.5V14"/></svg>',
+  mini: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10"/></svg>',
+  cerrar: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  expandir: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 10V13h3M13 6V3h-3M3 13l4-4M13 3l-4 4"/></svg>',
+}
+const MODS = {
+  sesiones: { n: 'Sesiones', k: 'Escape', kt: 'Esc' },
+  tareas: { n: 'Tareas', k: 'Control+T', kt: 'Ctrl T' },
+  habitos: { n: 'Hábitos', k: 'Control+H', kt: 'Ctrl H' },
+  config: { n: 'Configuración', k: 'Control+Comma', kt: 'Ctrl ,' },
+}
+const PROYS = [
+  { id: 'catalogo', n: 'catalogo', c: 'var(--violeta)', i: 'c', ses: 1 },
+  { id: 'central', n: 'central-nucleo-main', c: 'var(--verde)', i: 'cn', ses: 1 },
+  { id: 'oficina', n: 'oficina', c: 'var(--celeste)', i: 'o', ses: 1 },
+]
+const anillo = (h, t) => { const C = 2 * Math.PI * 5; return `<span class="anillo" aria-hidden="true"><svg viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" class="a-f"/><circle cx="7" cy="7" r="5" class="a-l" stroke-dasharray="${(C * h / t).toFixed(2)} ${C.toFixed(2)}"/></svg>${h}/${t}</span>` }
+
+// ---------------------------------------------------------------- piezas
+function cuenta(m, id, { plegado = true, corta = false } = {}) {
+  if (id === 'sesiones') {
+    const preg = m.preg && plegado ? `<span class="chip chip-preg${m.late ? ' late' : ''}">1 ?</span>` : ''
+    return corta ? (m.preg ? `<span class="chip chip-preg${m.late ? ' late' : ''}">?</span>` : '<span class="chip">3</span>') : `<span class="bdg" aria-hidden="true"><span class="chip">3</span>${preg}</span>`
+  }
+  if (id === 'tareas') return corta ? '<span class="chip chip-venc" aria-hidden="true">4</span>' : '<span class="chip chip-venc" aria-hidden="true"><i></i>4</span>'
+  if (id === 'habitos') return anillo(2, 5)
+  return `<kbd class="k" aria-hidden="true">${MODS.config.kt}</kbd>`
+}
+function nombreMod(m, id) {
+  return { sesiones: `Sesiones, 3 abiertas${m.preg ? ', 1 te hace una pregunta' : ''}`, tareas: 'Tareas, 2 para hoy, 2 vencidas', habitos: 'Hábitos, 2 de 5 hechos hoy', config: 'Configuración' }[id]
+}
+function filaMod(m, id, extra = '') {
+  return `<button type="button" class="mod" data-a="mod" data-v="${id}" data-k="mod-${id}" ${m.mod === id ? 'aria-current="page"' : ''} aria-keyshortcuts="${MODS[id].k}" aria-label="${nombreMod(m, id)}" title="${MODS[id].n} (${MODS[id].kt})"${extra}><span class="mod-ic">${IC[id]}</span><span class="mod-n">${MODS[id].n}</span>${cuenta(m, id, { plegado: m.op !== 'b' || m.plegado })}</button>`
+}
+const marca = (m, talla = 104) => `<div class="marca"><span data-marca>${avi(CLAUDE, m.preg ? 'teEspera' : 'esperando', talla, { alt: m.preg ? 'Avi, Claude te hace una pregunta' : 'Avi' })}</span><b class="marca-n">Avis</b><span class="estado"><i class="pt" style="--c:${m.preg ? 'var(--ambar)' : 'var(--verde)'}"></i>3 sesiones</span></div>`
+const equipo = `<section class="lado-pie"><span class="rot">Equipo</span><div class="eq"><span class="av">NC</span><div><b>Nicolás Campos</b><span>en catalogo · hace 4 min</span></div></div></section>`
+const filaPj = (m, p) => `<button type="button" class="pj" data-a="proy" data-v="${p.id}" data-k="pj-${p.id}" ${m.mod === 'sesiones' && m.proj === p.id ? 'aria-current="page"' : ''} style="--c:${p.c}" title="${p.n}"><span class="pj-ic">${p.i}</span><span class="pj-n">${p.n}</span>${p.id === 'catalogo' && m.preg ? `<span class="chip chip-preg${m.late ? ' late' : ''}" aria-label="1 sesión, te hace una pregunta">1 ?</span>` : `<span class="chip" aria-label="1 sesión">${p.ses}</span>`}</button>`
+
+function lado(m) {
+  if (m.op === 'a') return `<aside class="lado">${marca(m)}<nav class="mods" aria-label="Módulos"><span class="ind-mod" aria-hidden="true"></span>${['sesiones', 'tareas', 'habitos'].map(id => filaMod(m, id)).join('')}</nav><div class="lado-cfg">${filaMod(m, 'config')}</div>${equipo}</aside>`
+  if (m.op === 'b') {
+    const ses = `<div style="display:grid;grid-template-columns:minmax(0,1fr) 28px;align-items:center;gap:2px">${filaMod(m, 'sesiones')}<button type="button" class="tb" data-a="plegar" data-k="plegar" aria-expanded="${!m.plegado}" aria-label="${m.plegado ? 'Mostrar' : 'Ocultar'} proyectos" style="width:28px;flex:none"><span class="flecha" style="display:grid;place-items:center">${IC.flecha.replace('<svg', `<svg style="width:10px;height:10px;transform:rotate(${m.plegado ? 0 : 90}deg);transition:transform .3s var(--ease)"`)}</span></button></div>`
+    const pjs = m.plegado ? '' : `<div class="sub-pj">${PROYS.map(p => filaPj(m, p)).join('')}</div>`
+    return `<aside class="lado">${marca(m)}<nav class="mods" aria-label="Módulos">${ses}${pjs}${filaMod(m, 'tareas')}${filaMod(m, 'habitos')}</nav><div class="lado-cfg">${filaMod(m, 'config')}</div>${equipo}</aside>`
+  }
+  // C: riel + barra según el módulo
+  const rb = id => `<button type="button" class="rb" data-a="mod" data-v="${id}" data-k="mod-${id}" ${m.mod === id ? 'aria-current="page"' : ''} aria-label="${nombreMod(m, id)}" aria-keyshortcuts="${MODS[id].k}" title="${MODS[id].n} (${MODS[id].kt})">${IC[id]}${id === 'config' ? '' : cuenta(m, id, { corta: true })}</button>`
+  const riel = `<nav class="riel" aria-label="Módulos"><span class="ind-riel" aria-hidden="true"></span>${['sesiones', 'tareas', 'habitos'].map(rb).join('')}<span class="riel-sp"></span>${rb('config')}<button type="button" class="riel-av" title="Equipo: Nicolás Campos, en catalogo" aria-label="Equipo: Nicolás Campos, en catalogo">NC</button></nav>`
+  const ix = (v, c, n, ct, cur) => `<button type="button" class="ix-b" ${cur ? 'aria-current="page"' : ''}><span class="ix-ic punto" style="--c:${c}"></span><span class="n">${n}</span>${ct ? `<span class="ct">${ct}</span>` : ''}</button>`
+  const ctx = {
+    sesiones: `<span class="rot">Proyectos</span><div class="ctx">${PROYS.map(p => filaPj(m, p)).join('')}</div>`,
+    tareas: `<span class="rot">Tareas</span><div class="ctx">${ix('hoy', 'var(--ambar)', 'Hoy', '2', true)}${ix('v', 'var(--rojo)', 'Vencidas', '2')}<span class="rot" style="margin-top:10px">Listas</span>${ix('t', 'var(--celeste)', 'Trabajo', '5')}${ix('c', 'var(--verde)', 'Casa', '3')}${ix('m', 'var(--rosa)', 'Compras', '3')}</div>`,
+    habitos: `<span class="rot">Hábitos</span><div class="ctx">${ix('hoy', 'var(--ambar)', 'Hoy', '2/5', true)}${ix('s', 'var(--crema2)', 'Semana')}<span class="rot" style="margin-top:10px">Tus hábitos</span>${ix('a', 'var(--celeste)', 'Agua', '2')}${ix('c', 'var(--verde)', 'Caminar', '7')}${ix('g', 'var(--rosa)', 'Gimnasio', '9')}</div>`,
+    config: `<span class="rot">Configuración</span><div class="ctx">${['Panel', 'Mascota', 'Instalación', 'Modelos', 'Datos'].map((t, i) => ix(t, 'var(--crema2)', t, '', i === 0)).join('')}</div>`,
+  }[m.mod]
+  return `${riel}<aside class="lado">${marca(m, 88)}${ctx}${m.mod === 'sesiones' ? `<div style="margin-top:auto">${equipo}</div>` : ''}</aside>`
+}
+
+const fijos = `<div class="controles"><button type="button" class="tb" aria-pressed="true" aria-label="Siempre arriba" title="Siempre arriba">${IC.pin}</button><button type="button" class="tb" aria-label="Minimizar a la tira" title="Minimizar a la tira">${IC.mini}</button><button type="button" class="tb" aria-label="Cerrar a la bandeja" title="Cerrar a la bandeja">${IC.cerrar}</button></div>`
+function cabecera(m) {
+  const p = PROYS.find(x => x.id === m.proj)
+  const t = {
+    sesiones: m.op === 'a' ? ['Sesiones', `${p.n} · 1 sesión · ${m.preg && p.id === 'catalogo' ? 'te hace una pregunta' : 'trabajando'}`] : [p.n, `1 sesión · ${m.preg && p.id === 'catalogo' ? 'te hace una pregunta' : 'trabajando'}`],
+    tareas: ['Tareas', 'jueves 26/11 · 2 para hoy · 2 vencidas'],
+    habitos: ['Hábitos', 'jueves 26/11 · 2 de 5 hechos hoy'],
+    config: ['Configuración', 'Panel, mascota, modelos y datos'],
+  }[m.mod]
+  return `<header class="cab"><div class="cab-t"><h1 tabindex="-1" data-k="h1">${esc(t[0])}</h1><p>${t[1]}</p></div>${fijos}</header>`
+}
+function avisoPreg(m) {
+  if (!m.preg || (m.mod === 'sesiones' && m.proj === 'catalogo')) return ''
+  return `<button type="button" class="aviso-p" data-a="ir-preg" data-k="ir-preg"><span class="cara" aria-hidden="true">${avi(CLAUDE, 'teEspera', 30)}</span><span class="t">Claude te hace una pregunta<small>catalogo · #48 · hace 2 min</small></span><span class="ir">Responder →</span></button>`
+}
+const PREG = `<div class="preg" data-preg tabindex="-1"><div class="preg-h">${avi(CLAUDE, 'teEspera', 22)}<span><b>Claude</b> te pregunta · #48 · hace 2 min</span></div><q>¿Cómo mostramos los precios con descuento?</q><div class="op-r"><i>1</i><div><b>Precio tachado y el nuevo al lado</b><span>Se ve el ahorro de un vistazo.</span></div></div><div class="op-r"><i>2</i><div><b>Solo el precio nuevo</b><span>Más limpio, sin comparación.</span></div></div></div>`
+function sesion(m) {
+  const p = m.proj
+  const datos = {
+    catalogo: ['#48', 'feat/48-precios', '18 min', m.preg ? 'ahora · te hace una pregunta' : 'ahora · escribiendo', m.preg ? 'var(--ambar)' : 'var(--verde)', m.preg ? 'teEspera' : 'escribiendo'],
+    central: ['', 'main', '42 min', 'hace 1 min · pensando', 'var(--celeste)', 'pensando'],
+    oficina: ['#41', 'feat/41-habitos', '1 h 05', 'ahora · leyendo', 'var(--verde)', 'leyendo'],
+  }[p]
+  return `${p === 'catalogo' && m.preg ? PREG : ''}<div class="conteos"><span class="conteo"><i class="pt" style="--c:var(--ambar);width:6px;height:6px"></i><b>${p === 'oficina' ? 2 : 0}</b>trabajando</span><span class="conteo"><i class="pt" style="--c:var(--verde);width:6px;height:6px"></i><b>0</b>terminados</span></div>
+  <div class="ses"><div class="ses-h">${datos[0] ? `<span class="n">${datos[0]}</span>` : ''}${datos[1]}<small>${datos[2]}</small></div><span class="ses-e" style="--c:${datos[4]}">${datos[3]}</span><div class="esc">${avi(CLAUDE, datos[5], 96)}<span class="r">sin subagentes</span></div></div>`
+}
+function cuerpo(m) {
+  if (m.mod === 'sesiones') {
+    const tira = m.op === 'a' ? `<nav class="proys" aria-label="Proyectos">${PROYS.map(p => `<button type="button" class="pch" data-a="proy" data-v="${p.id}" data-k="pch-${p.id}" ${m.proj === p.id ? 'aria-current="page"' : ''} style="--c:${p.c}"><span class="pj-ic">${p.i}</span>${p.n}${p.id === 'catalogo' && m.preg ? `<span class="chip chip-preg${m.late ? ' late' : ''}">1 ?</span>` : `<span class="chip">${p.ses}</span>`}</button>`).join('')}</nav>` : ''
+    return `<div class="cuerpo-m" data-cuerpo>${tira}${sesion(m)}</div>`
+  }
+  if (m.mod === 'tareas') {
+    const filas = `<div class="fil"><span class="cir"></span><span><b>Revisar el PR #36 del modelo del chat</b><small class="h">hoy</small> <small>· Trabajo</small></span></div><div class="fil"><span class="cir"></span><span><b>Pagar la boleta de la luz</b><small class="h">hoy</small> <small>· Casa</small></span></div><div class="fil"><span class="cir"></span><span><b>Pagar el monotributo</b><small class="v">● venció 20/11</small></span></div>`
+    const pane = `<section class="pane"><h2>Hoy</h2><div class="pane-s">2 para hoy <span class="prog"><i style="--p:33%"></i></span></div>${filas}</section>`
+    if (m.op === 'c') return `<div class="cuerpo-m" data-cuerpo>${pane}<span class="nx" style="justify-self:start">C: el índice de Tareas vive en la barra; el panel usa los 460</span></div>`
+    return `<div class="cuerpo-m" data-cuerpo><div class="carpeta"><nav class="idx"><button class="ix-b" aria-current="page"><span class="ix-ic punto" style="--c:var(--ambar)"></span><span class="n">Hoy</span><span class="ct">2</span></button><button class="ix-b"><span class="ix-ic punto" style="--c:var(--rojo)"></span><span class="n">Vencidas</span><span class="ct">2</span></button><span class="rot-i">Listas</span><button class="ix-b"><span class="ix-ic punto" style="--c:var(--celeste)"></span><span class="n">Trabajo</span><span class="ct">5</span></button><button class="ix-b"><span class="ix-ic punto" style="--c:var(--verde)"></span><span class="n">Casa</span><span class="ct">3</span></button></nav>${pane}</div></div>`
+  }
+  if (m.mod === 'habitos') {
+    const f = (on, n, s, r) => `<div class="fil"><span class="cir${on ? ' on' : ''}"></span><span><b>${n}</b><small>${s}</small></span><span class="racha"><svg viewBox="0 0 12 14" aria-hidden="true" style="width:9px;height:11px;fill:currentColor;vertical-align:-1px;margin-right:4px"><path d="M6.2.8c.5 2.4 4.3 3.9 4.3 7.6A4.5 4.5 0 0 1 1.5 8.6c0-1.9 1-3.1 2-3.9.1 1.4.8 2.3 1.6 2.5C4.8 4.9 5.2 2.6 6.2.8z"/></svg>${r}</span></div>`
+    const filas = f(false, 'Agua', '3 de 8 vasos · 16:00', '1 día') + f(true, 'Caminar', 'todos los días · 19:00', '7 días') + f(true, 'Leer 20 minutos', 'todos los días', '2 días') + f(false, 'Correr', '1 de 3 esta semana', '4 semanas')
+    const pane = `<section class="pane"><h2>Hoy</h2><div class="pane-s">hoy · 2 de 5 hechos <span class="prog"><i style="--p:40%"></i></span></div>${filas}</section>`
+    if (m.op === 'c') return `<div class="cuerpo-m" data-cuerpo>${pane}</div>`
+    return `<div class="cuerpo-m" data-cuerpo><div class="carpeta"><nav class="idx"><button class="ix-b" aria-current="page"><span class="ix-ic punto" style="--c:var(--ambar)"></span><span class="n">Hoy</span><span class="ct">2/5</span></button><button class="ix-b"><span class="ix-ic punto" style="--c:var(--crema2)"></span><span class="n">Semana</span></button><span class="rot-i">Hábitos</span><button class="ix-b"><span class="ix-ic punto" style="--c:var(--celeste)"></span><span class="n">Agua</span></button><button class="ix-b"><span class="ix-ic punto" style="--c:var(--verde)"></span><span class="n">Caminar</span></button></nav>${pane}</div></div>`
+  }
+  return `<div class="cuerpo-m" data-cuerpo>${m.op === 'c' ? '' : `<div class="tabs" role="tablist">${['Panel', 'Mascota', 'Instalación', 'Modelos', 'Datos'].map((t, i) => `<button class="tab" role="tab" aria-selected="${i === 0}">${t}</button>`).join('')}</div>`}<div class="cfg-f"><span>Siempre arriba<small>El panel queda encima de las ventanas</small></span><span class="sw"></span></div><div class="cfg-f"><span>Avisar<small>Globos y notificaciones de Windows</small></span><span class="sw"></span></div><div class="cfg-f"><span>Arrancar con Windows<small>Apagado</small></span><span class="sw" style="background:var(--s3)"></span></div></div>`
+}
+const principal = m => cabecera(m) + avisoPreg(m) + cuerpo(m) + '<p class="oculto" role="status" data-vivo></p>'
+
+// ---------------------------------------------------------------- montaje
+const mocks = []
+const nuevo = op => ({ op, mod: 'sesiones', proj: 'catalogo', preg: true, plegado: false, late: false })
+function montar(l) {
+  const m = nuevo(l.dataset.op); m.l = l
+  l.innerHTML = `<div class="marco ${m.op}"></div>`; m.el = l.firstElementChild
+  pintarTodo(m)
+  m.el.addEventListener('click', e => clic(m, e))
+  m.el.addEventListener('keydown', e => { if (e.key === 'Escape' && m.mod !== 'sesiones') { e.preventDefault(); irMod(m, 'sesiones') } })
+  new ResizeObserver(() => ajustar(m)).observe(l)
+  const p = document.querySelector(`.proba[data-op="${m.op}"]`)
+  p.innerHTML = '<span class="kick">Probá</span><button type="button" class="btn-s" data-p="preg">Llega una pregunta</button><button type="button" class="btn-s" data-p="resp">Responderla</button><button type="button" class="btn-s" data-p="tareas">Ir a Tareas</button><button type="button" class="btn-s" data-p="habitos">Ir a Hábitos</button>'
+  p.querySelectorAll('.btn-s').forEach(b => b.setAttribute('style', 'min-height:32px;padding:0 14px;border:0;border-radius:999px;background:var(--s3);color:var(--crema);font:800 12px/1 var(--f);cursor:pointer'))
+  p.addEventListener('click', e => { const b = e.target.closest('[data-p]'); if (!b) return; const v = b.dataset.p; if (v === 'preg') llega(m); else if (v === 'resp') responder(m); else irMod(m, v) })
+  mocks.push(m)
+}
+function ajustar(m) {
+  const w = m.l.clientWidth, nat = m.op === 'c' ? 750 : 696
+  m.el.style.zoom = Math.min(1, w / nat).toFixed(3)
+  indicador(m, false)
+}
+const focoPropio = m => m.el.contains(document.activeElement) ? document.activeElement.closest('[data-k]')?.dataset.k : null
+function pintarTodo(m, foco) {
+  const k = foco ?? focoPropio(m)
+  m.el.innerHTML = lado(m) + `<main class="principal">${principal(m)}</main>`
+  indicador(m, false)
+  if (k) m.el.querySelector(`[data-k="${CSS.escape(k)}"]`)?.focus()
+}
+function indicador(m, animado) {
+  const ind = m.el.querySelector(m.op === 'c' ? '.ind-riel' : '.ind-mod'); if (!ind) return
+  const act = m.el.querySelector(m.op === 'c' ? `.rb[aria-current="page"]` : `.mods .mod[aria-current="page"]`)
+  if (!act) { ind.style.opacity = 0; return }
+  const y = m.op === 'c' ? act.offsetTop + (act.offsetHeight - 22) / 2 : act.offsetTop
+  ind.style.opacity = 1
+  if (animado && !quieto()) animate(ind, { translateY: y, duration: 380, ease: 'outBack(1.3)' })
+  else ind.style.transform = `translateY(${y}px)`
+}
+function entrar(m) {
+  if (pausa()) return
+  if (mq.matches) { animate(m.el.querySelectorAll('.principal > *'), { opacity: [0, 1], duration: 160 }); return }
+  animate(m.el.querySelectorAll('.principal .cab, .principal .aviso-p, [data-cuerpo] > *'), { opacity: [0, 1], translateX: [10, 0], duration: 320, delay: stagger(34), ease: 'outQuart' })
+}
+const decir = (m, t) => setTimeout(() => { const v = m.el.querySelector('[data-vivo]'); if (v) v.textContent = t }, 40)
+function irMod(m, id, proj) {
+  const viejoY = m.el.querySelector(m.op === 'c' ? '.ind-riel' : '.ind-mod')?.style.transform
+  m.mod = id; if (proj) m.proj = proj
+  pintarTodo(m, `mod-${id}`)
+  const ind = m.el.querySelector(m.op === 'c' ? '.ind-riel' : '.ind-mod')
+  if (ind && viejoY) { ind.style.transform = viejoY; indicador(m, true) }
+  entrar(m)
+}
+function llega(m) {
+  if (m.preg) { m.preg = false; pintarTodo(m) }
+  if (m.mod === 'sesiones') m.mod = 'tareas'
+  pintarTodo(m)
+  setTimeout(() => {
+    m.preg = true; m.late = !quieto()
+    pintarTodo(m); m.late = false
+    const a = m.el.querySelector('.aviso-p')
+    if (a && !pausa()) animate(a, mq.matches ? { opacity: [0, 1], duration: 160 } : { opacity: [0, 1], translateY: [-12, 0], scale: [.96, 1], duration: 460, ease: 'outBack(1.5)' })
+    decir(m, 'Claude te hace una pregunta en catalogo')
+  }, 450)
+}
+function responder(m) { m.preg = false; pintarTodo(m); decir(m, 'Pregunta respondida') }
+function clic(m, e) {
+  const b = e.target.closest('[data-a]'); if (!b) return
+  const a = b.dataset.a, v = b.dataset.v
+  if (a === 'mod') return irMod(m, v)
+  if (a === 'proy') { m.proj = v; if (m.mod !== 'sesiones') return irMod(m, 'sesiones', v); pintarTodo(m, b.dataset.k); return entrar(m) }
+  if (a === 'plegar') { m.plegado = !m.plegado; return pintarTodo(m, 'plegar') }
+  if (a === 'ir-preg') { irMod(m, 'sesiones', 'catalogo'); m.el.querySelector('[data-preg]')?.focus(); return }
+}
+document.querySelectorAll('.lienzo').forEach(montar)
+mocks.forEach(entrar)
+
+// ---------------------------------------------------------------- estados
+const caja = (t, d, h, w = 460) => `<div class="caja-e"><span class="kick">${t}</span>${d ? `<p>${d}</p>` : ''}<div style="max-width:${w}px;width:100%">${h}</div></div>`
+const mA = { ...nuevo('a'), mod: 'habitos' }
+const mPreg = { ...nuevo('a'), mod: 'tareas' }
+const tira = (preg) => `<div class="tira">${'<span class="cabs">' + avi(CLAUDE, preg ? 'teEspera' : 'escribiendo', 32) + avi(CLAUDE, 'pensando', 32) + '</span>'}<span class="tx"><b>${preg ? 'catalogo te pregunta' : '3 sesiones · 2 trabajando'}</b><span>${preg ? '#48 · hace 2 min' : 'oficina · leyendo'}</span></span><span class="mods-t">${preg ? '<span class="chip chip-preg">1 ?</span>' : ''}<span class="chip chip-venc"><i></i>4</span>${anillo(2, 5)}</span><button class="tb" aria-label="Expandir">${IC.expandir}</button></div>`
+const grilla = [
+  caja('Una pregunta, estando en Tareas', 'Tres caminos a la vez: la cuenta ámbar de Sesiones (late dos veces al llegar), el aviso arriba de la columna con «Responder» y el Avi de la marca. El clic lleva a la pregunta con el foco en ella.',
+    `<div style="display:grid;gap:12px"><div class="mods" style="width:188px">${filaMod(mPreg, 'sesiones')}${filaMod(mPreg, 'tareas')}${filaMod(mPreg, 'habitos')}</div>${avisoPreg(mPreg)}</div>`),
+  caja('Las filas de módulo, una por una', 'Cada una con su cuenta. Sin nada que contar, el atajo; abierta, ámbar con la píldora que viaja.',
+    `<div class="mods" style="width:188px">${filaMod({ ...nuevo('b'), preg: false, mod: 'x' }, 'sesiones')}${filaMod({ ...nuevo('a'), mod: 'x' }, 'sesiones')}${filaMod({ ...nuevo('b'), mod: 'x' }, 'tareas')}${filaMod({ ...nuevo('b'), mod: 'habitos' }, 'habitos')}${filaMod({ ...nuevo('b'), mod: 'x' }, 'config')}</div>`, 188),
+  caja('Crece sin romperse', 'Un módulo nuevo es una fila más (acá, Proyectos). Configuración siempre abajo y aparte.',
+    `<div class="mods" style="width:188px">${filaMod(mA, 'sesiones')}${filaMod(mA, 'tareas')}${filaMod(mA, 'habitos')}<button type="button" class="mod"><span class="mod-ic">${IC.proyectos}</span><span class="mod-n">Proyectos</span><kbd class="k">pronto</kbd></button><div class="lado-cfg" style="margin-top:8px">${filaMod(mA, 'config')}</div></div>`, 188),
+  caja('Acoplada: la muesca', 'No cambia: la pregunta manda (y esconde cualquier globo hasta responderla); si no hay, el globo que toque de Tareas o Hábitos, uno por vez.',
+    `<div style="display:grid;gap:10px"><div class="escritorio"><div class="muesca-m">${avi(CLAUDE, 'teEspera', 58)}</div><span class="m-globo">Claude te pregunta · catalogo<span>Ver →</span></span></div><div class="escritorio"><div class="muesca-m">${avi(CLAUDE, 'saluda', 58)}</div><span class="m-globo">16:00 · Agua 3 de 8<span>Ver →</span></span></div></div>`),
+  caja('Minimizada: la tira', 'La de hoy (cabecitas, resumen, chip de la pregunta) más las cuentas chicas de Tareas y Hábitos. Si no entran, se van ellas; la pregunta nunca.',
+    `<div style="display:grid;gap:10px"><div class="escritorio" style="height:84px">${tira(true)}</div><div class="escritorio" style="height:84px">${tira(false)}</div></div>`),
+  caja('Atajos', 'Ctrl , y Ctrl T ya existen. Esc vuelve a Sesiones desde cualquier módulo (reemplaza a «‹ Tablero»).',
+    `<table class="tabla"><thead><tr><th>Módulo</th><th>Atajo</th><th>Estado</th></tr></thead><tbody><tr><td>Sesiones</td><td><kbd>Esc</kbd></td><td>portada; hoy es «‹ Tablero»</td></tr><tr><td>Tareas</td><td><kbd>Ctrl T</kbd></td><td>existe</td></tr><tr><td>Hábitos</td><td><kbd>Ctrl H</kbd></td><td>nuevo, sin verificar en WebView2</td></tr><tr><td>Configuración</td><td><kbd>Ctrl ,</kbd></td><td>existe</td></tr><tr><td>Proyectos (futuro)</td><td>a definir</td><td>Ctrl P y Ctrl J son del navegador</td></tr></tbody></table>`),
+  caja('Dónde queda Equipo', 'A y B: al pie de la barra, como hoy (es presencia, se mira de reojo desde cualquier módulo). C: adentro de la barra de Sesiones, y en el riel solo las caras.',
+    `<div style="width:188px">${equipo}</div>`, 188),
+]
+document.getElementById('grilla-e').innerHTML = grilla.join('')
+</script>
+</body>
+</html>

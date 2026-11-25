@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Avis · Charla con herramientas — boceto</title>
+<link rel="stylesheet" href="../../../widget/src/avis.css">
+<link rel="stylesheet" href="../../../widget/src/especies.css">
+<style>
+/* Boceto de #43: la mascota maneja tareas y hábitos desde la charla. Servir desde la raíz del repo: importa avis.js y
+   anime.js reales. Tokens de estilos.css sin cambios; la hoja es la de chat-avis-ux.md (opción C). */
+@font-face{font-family:"Manrope";src:url("../../../widget/src/fuentes/manrope-latin.woff2") format("woff2");font-weight:400 800;font-display:swap}
+@font-face{font-family:"Manrope";src:url("../../../widget/src/fuentes/manrope-simbolos.woff2") format("woff2");font-weight:400 800;unicode-range:U+2192,U+25BE,U+2713}
+@font-face{font-family:"Martian Mono";src:url("../../../widget/src/fuentes/martian-mono-latin.woff2") format("woff2");font-weight:400 600;font-stretch:75%;font-display:swap}
+:root{
+  --negro:#000;--s1:#0C0C0E;--s2:#141417;--s3:#1D1D21;--linea:#25252A;--linea-hover:#36363C;
+  --crema:#F3EBD8;--crema2:#BDB5A4;--tenue:#8A8478;--ambar:#F2B632;--ambar-osc:#1D1707;--pico:#E9A13B;
+  --violeta:#A58BFF;--celeste:#7FB3FF;--verde:#8FD694;--rosa:#E78FB3;--rojo:#FF7A6B;--tinta:#14110C;
+  --f:"Manrope","Segoe UI Variable",sans-serif;--m:"Martian Mono","Cascadia Mono",monospace;
+  --t-display:800 21px/1.1 var(--f);--t-titulo:800 14.5px/1.3 var(--f);--t-cuerpo-f:700 13px/1.3 var(--f);
+  --t-cuerpo:500 12.5px/1.45 var(--f);--t-chico:500 11.5px/1.35 var(--f);--t-mono:400 10.5px/1.5 var(--m);
+  --t-mono-s:500 10px/1.3 var(--m);--t-rotulo:500 10px/1 var(--m);
+  --ease:cubic-bezier(.16,1,.3,1);--rebote:cubic-bezier(.34,1.56,.64,1);--d-presion:140ms;--d-color:200ms;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html{background:#050506}
+body{color:var(--crema);font:var(--t-cuerpo);-webkit-font-smoothing:antialiased;min-height:100vh;
+  background:radial-gradient(900px 420px at 18% -8%,rgba(242,182,50,.08),transparent 70%),radial-gradient(1px 1px at 1px 1px,rgba(255,255,255,.05) 1px,transparent 0) 0 0/22px 22px,#050506}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.oculto{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+body.pausa .hoja *,body.pausa .hoja *::before,body.pausa .hoja *::after{animation:none!important;transition:none!important}
+
+/* ---------------- página */
+.pagina{max-width:1440px;margin:0 auto;padding:44px 24px 96px}
+.kick{font:var(--t-rotulo);letter-spacing:.14em;text-transform:uppercase;color:var(--tenue)}
+.pag-h{display:grid;gap:12px;max-width:860px;margin-bottom:48px}
+.pag-h h1{font:800 clamp(30px,5vw,52px)/1 var(--f);letter-spacing:-.04em}
+.pag-h h1 em{font-style:normal;color:var(--ambar)}
+.pag-h p{color:var(--crema2);font:500 14px/1.55 var(--f);max-width:72ch}
+.pag-h p b{color:var(--crema)}
+.btn-p{min-height:32px;padding:0 14px;border-radius:999px;background:var(--s3);color:var(--crema);font:800 12px/1 var(--f)}
+.btn-p[aria-pressed="true"]{background:var(--crema);color:var(--tinta)}
+.opciones{display:grid;gap:88px}
+.op{display:grid;gap:18px;min-width:0;grid-template-columns:minmax(0,1fr)}
+@media (min-width:1000px){.op{grid-template-columns:476px minmax(0,1fr);grid-template-areas:"l h" "l t";grid-template-rows:auto 1fr;column-gap:44px}.op-h{grid-area:h}.lienzo{grid-area:l}.op-t{grid-area:t}}
+.op-h{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.op-l{font:800 64px/.8 var(--f);color:transparent;-webkit-text-stroke:1.2px var(--crema2);letter-spacing:-.04em}
+.op.reco .op-l{-webkit-text-stroke-color:var(--ambar)}
+.op-n{font:800 22px/1.1 var(--f);letter-spacing:-.03em}
+.op-n small{display:block;margin-top:4px;font:var(--t-mono-s);color:var(--tenue);letter-spacing:.06em}
+.reco-b{padding:6px 10px;border-radius:999px;background:var(--ambar);color:var(--negro);font:600 10px/1 var(--m);letter-spacing:.1em;text-transform:uppercase;align-self:center}
+.op-t{display:grid;gap:18px;align-content:start}
+.op-p{display:grid;gap:6px;color:var(--crema2);font:500 13px/1.55 var(--f);max-width:62ch}
+.op-p b{color:var(--crema)}
+.proba{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.proba .kick{width:100%;margin-bottom:2px}
+.proba button{min-height:32px;padding:0 12px;border-radius:999px;background:var(--s3);color:var(--crema2);font:700 12px/1 var(--f)}
+.proba button:hover{color:var(--crema)}
+.proba button[aria-pressed="true"]{background:var(--crema);color:var(--tinta)}
+.lienzo{min-width:0;padding:18px;border-radius:24px;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);overflow:hidden}
+.esc-l{width:max-content;transform-origin:0 0}
+.comun{margin-top:96px;display:grid;gap:12px;max-width:900px;color:var(--crema2);font:500 13px/1.55 var(--f)}
+.comun h2{font:800 22px/1.1 var(--f);letter-spacing:-.03em;color:var(--crema)}
+.comun ul{display:grid;gap:6px;padding-left:18px}
+.comun b{color:var(--crema)}
+.nx{display:inline-block;padding:2px 7px;border:1px dashed rgba(165,139,255,.6);border-radius:6px;color:var(--violeta);font:var(--t-mono-s)}
+
+/* ---------------- hoja (chat-avis-ux.md, opción C) */
+.hoja{--c:var(--ambar);position:relative;width:420px;height:640px;border-radius:26px;background:var(--negro);overflow:hidden;display:flex;flex-direction:column;
+  box-shadow:0 16px 32px -16px rgba(0,0,0,.8),0 40px 90px -40px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,255,255,.06)}
+.escenario{position:relative;height:150px;flex:none;display:grid;justify-items:center;align-content:end;gap:3px;padding-bottom:12px;
+  background:radial-gradient(200px 80px at 50% 100px,color-mix(in srgb,var(--c) 24%,transparent),transparent 70%),linear-gradient(var(--s1),var(--negro))}
+.escenario::after{content:"";position:absolute;left:50%;top:104px;width:180px;height:1px;transform:translateX(-50%);background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--c) 75%,transparent),transparent)}
+.escenario .avi{position:relative;z-index:1}
+.esc-nom{font:800 15px/1.1 var(--f);position:relative;z-index:1}
+.esc-est{font:var(--t-mono-s);color:var(--crema2);display:flex;gap:6px;align-items:center;position:relative;z-index:1}
+.esc-est i{width:6px;height:6px;border-radius:50%;background:var(--verde)}
+.arriba{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;z-index:2}
+.ic{width:32px;height:32px;display:grid;place-items:center;border-radius:10px;color:var(--crema2);transition:background .2s,color .2s}
+.ic:hover{background:var(--s3);color:var(--crema)}
+.ic svg,.mini svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.chat{flex:1;min-height:0;display:flex;flex-direction:column;padding:10px 14px 14px;position:relative}
+.ch-cab{display:flex;align-items:center;gap:6px;padding-bottom:8px;flex:none}
+.carpeta{display:flex;align-items:center;gap:6px;height:32px;max-width:130px;padding:0 9px;border-radius:10px;background:var(--s2);border:1px solid var(--linea);font:var(--t-cuerpo-f)}
+.carpeta svg{width:14px;height:14px;flex:none;fill:none;stroke:var(--crema2);stroke-width:1.5}
+.carpeta span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.motor{display:flex;padding:3px;border-radius:999px;background:var(--s2);border:1px solid var(--linea)}
+.motor button{height:26px;padding:0 10px;border-radius:999px;font:var(--t-mono-s);color:var(--crema2);transition:background .25s var(--ease),color .25s}
+.motor button[aria-checked="true"]{background:var(--crema);color:var(--tinta)}
+.motor button .d{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--ambar);margin-left:5px;vertical-align:1px}
+.modelo{display:flex;align-items:center;gap:4px;height:32px;padding:0 8px;border-radius:10px;font:var(--t-mono-s);color:var(--crema2)}
+/* la marca de herramientas: dice qué puede tocar la mascota en esta charla */
+.puede{position:relative;display:flex;align-items:center;gap:8px;flex:none;min-height:30px;margin-bottom:6px;padding:0 10px 0 8px;border-radius:10px;background:var(--s1);border:1px solid var(--linea);font:var(--t-mono-s);color:var(--crema2);text-align:left;width:100%}
+.puede .ico{width:18px;height:18px;display:grid;place-items:center;border-radius:6px;background:color-mix(in srgb,var(--ambar) 18%,transparent);color:var(--ambar)}
+.puede .ico svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.puede b{color:var(--crema);font-weight:500}
+.puede .mas{margin-left:auto;color:var(--tenue)}
+.puede.no{border-style:dashed;color:var(--tenue)}
+.puede.no .ico{background:var(--s3);color:var(--tenue)}
+.hilo{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:6px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--linea-hover) transparent}
+.m-u{align-self:flex-end;max-width:84%;background:var(--s3);padding:9px 12px;border-radius:14px 14px 4px 14px;font:var(--t-cuerpo)}
+.m-m{position:relative;padding-left:16px;font:500 13px/1.6 var(--f);display:grid;gap:8px}
+.m-m::before{content:"";position:absolute;left:0;top:3px;bottom:3px;width:2px;border-radius:2px;background:linear-gradient(var(--ambar),rgba(242,182,50,.1))}
+.m-m b{font-weight:800}
+.sug-l{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.sug{padding:8px 12px;border-radius:12px;border:1px solid var(--linea);background:var(--s2);font:600 12px/1.3 var(--f);text-align:left;transition:border-color .2s,transform .2s var(--ease)}
+.sug:hover{border-color:var(--ambar);transform:translateX(3px)}
+.sug::before{content:"↳ ";color:var(--tenue)}
+.comp{display:grid;gap:6px;flex:none;padding-top:8px}
+.campo{display:flex;align-items:flex-end;gap:4px;background:var(--s1);border:1px solid var(--linea);border-radius:14px;padding:5px}
+.campo span{flex:1;padding:9px 4px;color:var(--tenue);font:var(--t-cuerpo)}
+.enviar{width:36px;height:36px;border-radius:50%;background:var(--s3);color:var(--tenue);display:grid;place-items:center;flex:none}
+.enviar svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.pie-comp{font:var(--t-mono-s);color:var(--tenue);display:flex;justify-content:space-between;padding:0 4px}
+
+/* piezas de tarea (las de Tareas, en chico) */
+.cir{position:relative;width:18px;height:18px;flex:none;border-radius:50%;border:1.5px solid var(--linea-hover);display:grid;place-items:center}
+.cir.on{background:var(--ambar);border-color:var(--ambar)}
+.cir.on svg{width:11px;height:11px;fill:none;stroke:var(--negro);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:14;stroke-dashoffset:0}
+.cir.on.dibuja svg{animation:traza .5s .25s var(--ease) both}
+@keyframes traza{from{stroke-dashoffset:14}}
+.tg{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:6px;background:var(--s3);font:var(--t-mono-s);color:var(--crema2);white-space:nowrap}
+.tg i{width:6px;height:6px;border-radius:50%;background:var(--c)}
+.tg.h{color:var(--ambar)}
+.tg.v{color:var(--rojo);background:color-mix(in srgb,var(--rojo) 14%,var(--s2))}
+.anillo{width:18px;height:18px;flex:none;transform:rotate(-90deg)}
+.anillo circle{fill:none;stroke-width:2.6}
+.anillo .f{stroke:var(--linea-hover)}.anillo .l{stroke:var(--celeste);stroke-linecap:round;transition:stroke-dasharray .6s var(--ease)}
+.mini{display:inline-flex;align-items:center;gap:5px;min-height:28px;padding:0 10px;border-radius:999px;font:700 11.5px/1 var(--f);color:var(--crema);border:1px solid var(--linea-hover);white-space:nowrap;transition:background .2s,color .2s,border-color .2s}
+.mini:hover{background:var(--s3)}
+.mini.pri{background:var(--crema);color:var(--tinta);border-color:var(--crema)}
+.mini.sutil{border-color:transparent;color:var(--crema2)}
+.mini.sutil:hover{color:var(--crema)}
+.mini svg{width:12px;height:12px}
+
+/* A · recibo */
+.rec{position:relative;display:grid;border-radius:14px;background:var(--s1);border:1px solid var(--linea);overflow:hidden}
+.rec::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--ambar),transparent);transform:translateX(-100%)}
+.rec.sello::before{animation:barre .9s .1s var(--ease) both}
+@keyframes barre{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.rec-h{display:flex;align-items:center;gap:8px;padding:9px 12px 0;font:var(--t-rotulo);letter-spacing:.12em;text-transform:uppercase;color:var(--ambar)}
+.rec-h .lnk{margin-left:auto;letter-spacing:0;text-transform:none;font:var(--t-mono-s);color:var(--crema2);padding:4px 6px;margin-right:-6px;border-radius:6px}
+.rec-h .lnk:hover{background:var(--s3);color:var(--crema)}
+.rf{position:relative;display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:10px;align-items:center;min-height:52px;padding:8px 8px 8px 12px;border-top:1px solid var(--linea)}
+.rec-h+.rf{border-top:0}
+.rf .tx{min-width:0;display:grid;gap:3px}
+.rf .tx b{font:var(--t-cuerpo-f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;justify-self:start;max-width:100%}
+.rf .tx b::after{content:"";position:absolute;left:0;top:52%;height:1.5px;width:0;background:var(--crema2);transition:width .4s var(--ease)}
+.rf .meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.rf .vb{font:var(--t-mono-s);color:var(--tenue)}
+.rf.deshecho .tx b{color:var(--tenue)}
+.rf.deshecho .tx b::after{width:100%}
+.rf.deshecho .cir,.rf.deshecho .meta .tg{opacity:.45}
+.deshacer{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:0 10px;border-radius:999px;font:700 11.5px/1 var(--f);color:var(--crema2);border:1px solid var(--linea-hover);transition:background .2s,color .2s}
+.deshacer:hover{background:var(--s3);color:var(--crema)}
+.deshacer svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.deshacer.solo{width:32px;padding:0;justify-content:center}
+.estado-d{font:var(--t-mono-s);color:var(--tenue);padding-right:6px}
+.rec-pie{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px 8px 12px;border-top:1px solid var(--linea);font:var(--t-mono-s);color:var(--tenue)}
+.rec.mal{border-color:rgba(255,122,107,.45);background:linear-gradient(170deg,rgba(255,122,107,.08),var(--s1) 70%)}
+.rec.mal::before{background:linear-gradient(90deg,transparent,var(--rojo),transparent)}
+.rec.mal .rec-h{color:var(--rojo)}
+.rec.mal p{padding:4px 12px 0;font:var(--t-chico);color:var(--crema2)}
+.rec.mal .rec-pie{border-top:0;justify-content:flex-start}
+.rec.lee .rec-h{color:var(--crema2)}
+.rec.lee::before{display:none}
+.prog{display:block;width:70px;height:4px;border-radius:2px;background:var(--s3);overflow:hidden}
+.prog i{display:block;height:100%;width:var(--p);background:var(--ambar)}
+.rf.hecha .tx b{color:var(--tenue);text-decoration:line-through}
+.hab{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--linea)}
+.hab span{display:inline-flex;align-items:center;gap:6px;padding:4px 8px 4px 5px;border-radius:999px;background:var(--s2);font:var(--t-mono-s);color:var(--crema2)}
+.rec.neutro .rec-h{color:var(--crema2)}
+.rec.neutro::before{display:none}
+
+/* B · ficha viva */
+.cont{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:2}
+.cont span{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:999px;background:var(--s2);border:1px solid var(--linea);font:var(--t-mono-s);color:var(--crema2)}
+.cont span b{font:800 11.5px/1 var(--f);color:var(--crema)}
+.cont span.late{border-color:var(--ambar);animation:popc .6s var(--rebote)}
+@keyframes popc{40%{transform:scale(1.18)}}
+.viva{display:grid;gap:4px}
+.dest{display:flex;align-items:center;gap:6px;font:var(--t-mono-s);color:var(--tenue);padding-left:2px}
+.dest b{font-weight:500;color:var(--ambar)}
+.dest .lnk{margin-left:auto;color:var(--crema2);padding:3px 6px;border-radius:6px}
+.dest .lnk:hover{background:var(--s3);color:var(--crema)}
+.fila{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;min-height:50px;padding-right:6px;border-radius:12px;background:var(--s1);border:1px solid var(--linea);box-shadow:0 0 0 3px rgba(242,182,50,0);transition:box-shadow .6s var(--ease)}
+.fila.llega{box-shadow:0 0 0 3px rgba(242,182,50,.16)}
+.fila .cir{margin:0 auto}
+.fila .tx{min-width:0;display:grid;gap:3px}
+.fila .tx b{font:var(--t-cuerpo-f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fila .meta{display:flex;gap:5px}
+.fila.deshecho{opacity:.5}
+.fila.deshecho .tx b{text-decoration:line-through}
+.chispa{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--ambar);box-shadow:0 0 12px 3px rgba(242,182,50,.7);pointer-events:none;z-index:5}
+
+/* C · sello */
+.libro{flex:none;margin-bottom:6px;border-radius:10px;border:1px solid var(--linea);background:var(--s1);overflow:hidden}
+.libro>button{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;padding:0 10px;font:var(--t-mono-s);color:var(--crema2);text-align:left}
+.libro>button b{font:800 12px/1 var(--f);color:var(--ambar)}
+.libro>button .fl{margin-left:auto;transition:transform .3s var(--ease)}
+.libro[open-l]>button .fl{transform:rotate(180deg)}
+.libro ul{list-style:none;display:grid;border-top:1px solid var(--linea)}
+.libro li{display:flex;align-items:center;gap:8px;min-height:36px;padding:0 4px 0 10px;font:var(--t-chico);border-top:1px solid var(--linea)}
+.libro li:first-child{border-top:0}
+.libro li span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sellos{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+.sello-p{display:inline-flex;align-items:center;gap:7px;min-height:32px;max-width:100%;padding:0 4px 0 9px;border-radius:999px;background:var(--ambar-osc);border:1px solid color-mix(in srgb,var(--ambar) 45%,transparent);font:600 12px/1 var(--f)}
+.sello-p .s{font:600 11px/1 var(--m);color:var(--ambar)}
+.sello-p em{font:var(--t-mono-s);font-style:normal;color:var(--crema2);white-space:nowrap}
+.sello-p .x{display:inline-flex;align-items:center;min-height:24px;padding:0 8px;border-radius:999px;font:700 11px/1 var(--f);color:var(--crema2)}
+.sello-p .x:hover{background:rgba(242,182,50,.14);color:var(--crema)}
+.sello-p.mal{background:color-mix(in srgb,var(--rojo) 12%,transparent);border-color:rgba(255,122,107,.5)}
+.sello-p.mal .s{color:var(--rojo)}
+.sello-p.deshecho{background:none;border-style:dashed;border-color:var(--linea-hover);color:var(--tenue)}
+.sello-p.deshecho .s{color:var(--tenue)}
+.sello-p.deshecho .tt{text-decoration:line-through}
+.sello-p.neutro{background:var(--s2);border-color:var(--linea-hover)}
+.sello-p.neutro .s{color:var(--crema2)}
+.m-m ul.l{padding-left:18px;display:grid;gap:2px}
+.m-m ul.l .v{color:var(--rojo)}
+.m-m ul.l .ok{color:var(--tenue);text-decoration:line-through}
+
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+@media (max-width:720px){.pagina{padding:28px 14px 72px}.lienzo{padding:10px;border-radius:16px}.op-l{font-size:48px}}
+</style>
+</head>
+<body>
+<div id="defs" hidden></div>
+<p class="oculto" role="status" id="vivo"></p>
+<div class="pagina">
+  <header class="pag-h">
+    <span class="kick">Boceto · Charla con herramientas (#43) · 25/11/2026 · Delfina</span>
+    <h1>«Anotame comprar pan <em>para mañana</em>»</h1>
+    <p>En la charla de Avis, la mascota ve, anota, edita y tilda tareas, y ve y marca hábitos. <b>Cada cambio queda en el hilo con «Deshacer».</b> Borrar, nunca por charla: la mascota deja un botón que lleva a la tarea. Leer («¿qué tengo hoy?») trae un resumen con el camino a Tareas.</p>
+    <p>Arriba del hilo, una línea dice <b>qué puede tocar la mascota en esta charla</b>: con Claude Code, «Tareas y hábitos»; con Local, «todavía no» (el modelo local se suma después, si al medirlo se equivoca poco). Las tres opciones cambian solo cómo se ve el cambio en el hilo.</p>
+    <div><button type="button" class="btn-p" id="pausa" aria-pressed="false">Pausar movimiento</button></div>
+  </header>
+
+  <div class="opciones">
+    <section class="op reco" aria-labelledby="op-a-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">A</span><h2 class="op-n" id="op-a-n">Recibo<small>UNA TARJETA POR RESPUESTA · DESHACER EN CADA FILA</small></h2><span class="reco-b">Recomendada</span></div>
+      <div class="lienzo" data-op="a"></div>
+      <div class="op-t">
+        <div class="op-p"><p>Cada respuesta que cambia algo trae un recibo: qué hizo (anotada, tildada, movida) sobre la misma fila de Tareas en chico, con «Deshacer» a la derecha. Varios cambios, un solo recibo con una fila cada uno y «Deshacer los 3».</p><p>Es la que mejor se lee de un vistazo y se recorre con Tab: una fila, un botón. El sello: una luz ámbar barre el borde y el tilde se dibuja.</p></div>
+        <div class="proba" data-op="a"></div>
+      </div>
+    </section>
+    <section class="op" aria-labelledby="op-b-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">B</span><h2 class="op-n" id="op-b-n">Ficha viva<small>LA FILA REAL · UNA CHISPA LA LLEVA A SU MÓDULO</small></h2></div>
+      <div class="lienzo" data-op="b"></div>
+      <div class="op-t">
+        <div class="op-p"><p>El cambio es la fila real de Tareas (se puede tildar desde ahí) con su destino arriba («Tareas › Compras»). Una chispa viaja de la fila al contador del escenario, que suma uno: se ve adónde fue a parar.</p><p>La más memorable, pero la fila editable en el hilo compite con la hoja de Tareas, y con varios cambios ocupa mucho alto.</p></div>
+        <div class="proba" data-op="b"></div>
+      </div>
+    </section>
+    <section class="op" aria-labelledby="op-c-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">C</span><h2 class="op-n" id="op-c-n">Sello<small>PÍLDORAS EN EL TEXTO · LIBRO DE CAMBIOS ARRIBA</small></h2></div>
+      <div class="lienzo" data-op="c"></div>
+      <div class="op-t">
+        <div class="op-p"><p>El texto manda; cada cambio es una píldora ámbar debajo de la frase («＋ Comprar pan · mañana · Deshacer»). Arriba del hilo, «3 cambios en esta charla» se despliega con todos y su «Deshacer».</p><p>La más liviana y densa; contra: la píldora dice menos (sin lista ni estado) y el deshacer queda chico.</p></div>
+        <div class="proba" data-op="c"></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="comun" aria-labelledby="h-comun">
+    <h2 id="h-comun">Lo mismo en las tres</h2>
+    <ul>
+      <li><b>Solo con Claude Code.</b> La línea «Puede tocar: tareas y hábitos» bajo la cabecera, siempre a la vista (clic: qué puede y qué no). Con Local, la misma línea punteada: «Tareas y hábitos: todavía no con Local». Si se le pide un cambio con Local, la mascota contesta en texto y ofrece «Cambiar a Claude Code»; nunca simula un recibo.</li>
+      <li><b>Borrar:</b> la mascota explica en una línea por qué no y deja «Ir a la tarea →», que abre Tareas con esa fila enfocada (ahí está el borrar de siempre, que confirma en el mismo botón).</li>
+      <li><b>Deshacer</b> vuelve la tarea o el hábito a como estaba antes de ese cambio, sin mandar mensaje. La fila queda tachada con «Deshecho». Si la tarea cambió después en Tareas, el botón se apaga con «Cambió después» <span class="nx">propuesto</span>.</li>
+      <li><b>Error:</b> el recibo en rojo dice qué no se hizo y que no cambió nada; «Reintentar» repite solo ese cambio.</li>
+      <li><b>Accesible:</b> cada cambio se anuncia en una región viva («Anotada: Comprar pan, mañana»); cada «Deshacer» nombra lo que deshace. Movimiento: 420–600 ms con <code>outExpo</code>; reducido, fundidos de 160 ms; pausa, todo quieto.</li>
+    </ul>
+  </section>
+</div>
+
+<script type="module">
+import { avi, claudeDe, defsAvis } from '../../../widget/src/avis.js'
+import { animate, stagger } from '../../../widget/src/vendor/animejs/anime.esm.min.js'
+
+document.getElementById('defs').innerHTML = defsAvis()
+const CLAUDE = claudeDe('avi')
+const vivo = document.getElementById('vivo')
+document.getElementById('pausa').addEventListener('click', e => {
+  const on = document.body.classList.toggle('pausa')
+  e.currentTarget.setAttribute('aria-pressed', on); e.currentTarget.textContent = on ? 'Movimiento en pausa' : 'Pausar movimiento'
+})
+const quieto = () => document.body.classList.contains('pausa')
+const reducido = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+
+const IC = {
+  hist: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h6"/></svg>',
+  cerrar: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  carpeta: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.2V12a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5A1.5 1.5 0 0 0 12 5H8L6.6 3.2H4A1.5 1.5 0 0 0 2.5 4.7z"/></svg>',
+  enviar: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M4 7l4-4 4 4"/></svg>',
+  tilde: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2l2.2 2.2 4.8-5"/></svg>',
+  deshacer: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 4L2.5 6.5 5 9"/><path d="M2.5 6.5H10a3.5 3.5 0 0 1 0 7H7"/></svg>',
+  herr: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="3.2"/><path d="M5.3 8.2l1.9 1.9 3.6-4"/></svg>',
+  abajo: '<svg viewBox="0 0 10 10" aria-hidden="true" style="width:9px;height:9px;fill:none;stroke:currentColor;stroke-width:1.6"><path d="M2 3.5l3 3 3-3"/></svg>',
+}
+const anillo = (h, t, c = 'var(--celeste)') => { const C = 2 * Math.PI * 7; return `<svg class="anillo" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" class="f"/><circle cx="9" cy="9" r="7" class="l" style="stroke:${c}" stroke-dasharray="${(C * h / t).toFixed(2)} ${C.toFixed(2)}"/></svg>` }
+const cir = (on, dibuja) => `<span class="cir${on ? ' on' : ''}${dibuja ? ' dibuja' : ''}" aria-hidden="true">${on ? IC.tilde : ''}</span>`
+const lista = (n, c) => `<span class="tg" style="--c:${c}"><i></i>${n}</span>`
+
+// ---------------------------------------------------------------- cambios (contenido propuesto; hoy es miércoles 25/11)
+const PAN = { v: 'Anotada', s: '＋', t: 'Comprar pan', on: false, meta: ['<span class="tg h">mañana · jue 26/11</span>', lista('Compras', 'var(--rosa)')], corto: 'mañana · Compras', dest: 'Tareas › Compras', mod: 't' }
+const VARIOS = [
+  { v: 'Tildada', s: '✓', t: 'Pasar por la verdulería', on: true, meta: ['<span class="tg">hoy</span>', lista('Casa', 'var(--verde)')], corto: 'hecha', dest: 'Tareas › Casa', mod: 't' },
+  { v: 'Movida', s: '→', t: 'Llamar al contador', on: false, meta: ['<span class="tg h">hoy → vie 27/11</span>', lista('Trabajo', 'var(--celeste)')], corto: 'al viernes', dest: 'Tareas › Trabajo', mod: 't' },
+  { v: 'Marcado', s: '◔', t: 'Agua', hab: [3, 8], meta: ['<span class="tg">3 de 8 vasos hoy</span>'], corto: '3 de 8', dest: 'Hábitos › Hoy', mod: 'h' },
+]
+const DENTISTA = { v: 'No se anotó', s: '!', t: 'Turno con el dentista', on: false, meta: ['<span class="tg">lun 30/11 · 10:00</span>'] }
+
+const ESTADOS = [['vacio', 'Charla nueva'], ['anotar', 'Anotar'], ['varios', 'Varios cambios'], ['deshecho', 'Deshacer'], ['leer', '¿Qué tengo hoy?'], ['borrar', 'Pedir borrar'], ['error', 'Error'], ['local', 'Con Local']]
+const PEDIDO = {
+  anotar: 'anotame comprar pan para mañana', deshecho: 'anotame comprar pan para mañana',
+  varios: 'tildá lo de la verdulería, pasá lo del contador al viernes y marcá que ya tomé 3 vasos de agua',
+  leer: '¿qué tengo hoy?', borrar: 'borrá la tarea del gimnasio', error: 'anotame el turno con el dentista el lunes a las 10',
+  local: 'anotame comprar pan para mañana',
+}
+
+// ---------------------------------------------------------------- A · recibo
+function filaA(c, i, { deshecho = false, dibuja = false } = {}) {
+  const marca = c.hab ? anillo(c.hab[0], c.hab[1]) : cir(c.on, dibuja)
+  const acc = deshecho ? '<span class="estado-d">Deshecho</span>' : `<button type="button" class="deshacer${i != null ? ' solo' : ''}" data-a="deshacer" aria-label="Deshacer: ${c.v.toLowerCase()} ${c.t}" title="Deshacer">${IC.deshacer}${i != null ? '' : 'Deshacer'}</button>`
+  return `<div class="rf${deshecho ? ' deshecho' : ''}" role="group" aria-label="${c.v}: ${c.t}">${marca}<span class="tx"><b>${c.t}</b><span class="meta"><span class="vb">${c.v.toLowerCase()} ·</span>${c.meta.join('')}</span></span>${acc}</div>`
+}
+function hiloA(m) {
+  const e = m.est
+  if (e === 'anotar' || e === 'deshecho') return `<div class="m-m">Listo, para mañana en Compras.</div><div class="rec${e === 'anotar' ? ' sello' : ''}"><div class="rec-h">Anoté en Tareas<button type="button" class="lnk">Ver en Tareas →</button></div>${filaA(PAN, null, { deshecho: e === 'deshecho', dibuja: e === 'anotar' })}</div>`
+  if (e === 'varios') return `<div class="m-m">Hecho, tres cambios:</div><div class="rec sello"><div class="rec-h">3 cambios<button type="button" class="lnk">Ver en Tareas →</button></div>${VARIOS.map((c, i) => filaA(c, i, { dibuja: true })).join('')}<div class="rec-pie"><span>tareas y hábitos</span><button type="button" class="deshacer" data-a="deshacer">${IC.deshacer}Deshacer los 3</button></div></div>`
+  if (e === 'leer') return `<div class="m-m">Tenés tres para hoy y una vencida. Arrancaría por el monotributo.</div><div class="rec lee"><div class="rec-h">Hoy · miércoles 25/11<span class="prog" style="margin-left:auto;--p:25%"><i></i></span><span style="letter-spacing:0;text-transform:none;font:var(--t-mono-s);color:var(--tenue)">1 de 4</span></div>
+    <div class="rf"><span class="cir" aria-hidden="true" style="border-color:var(--rojo)"></span><span class="tx"><b>Pagar el monotributo</b><span class="meta"><span class="tg v">venció ayer</span></span></span></div>
+    <div class="rf"><span class="cir" aria-hidden="true"></span><span class="tx"><b>Llamar al contador</b><span class="meta"><span class="tg h">hoy · 15:00</span>${lista('Trabajo', 'var(--celeste)')}</span></span></div>
+    <div class="rf"><span class="cir" aria-hidden="true"></span><span class="tx"><b>Mandar el presupuesto a La Espiga</b><span class="meta"><span class="tg h">hoy</span></span></span></div>
+    <div class="rf hecha">${cir(true)}<span class="tx"><b>Pasar por la verdulería</b><span class="meta">${lista('Casa', 'var(--verde)')}</span></span></div>
+    <div class="hab"><span>${anillo(3, 8)}Agua 3/8</span><span>${anillo(1, 1, 'var(--verde)')}Caminar</span><span>${anillo(0, 1, 'var(--rosa)')}Leer 20 min</span></div>
+    <div class="rec-pie"><span>solo lectura · no cambió nada</span><span style="display:flex;gap:4px"><button type="button" class="mini sutil">Hábitos →</button><button type="button" class="mini pri">Abrir Tareas →</button></span></div></div>`
+  if (e === 'borrar') return `<div class="m-m">Borrar lo hacés vos, con un clic: así nada se va por un malentendido. Te la dejo a mano:</div><div class="rec neutro"><div class="rec-h">Para borrar</div><div class="rf"><span class="cir" aria-hidden="true"></span><span class="tx"><b>Ir al gimnasio</b><span class="meta"><span class="tg">lun, mié y vie</span>${lista('Salud', 'var(--verde)')}</span></span><button type="button" class="mini pri">Ir a la tarea →</button></div></div>`
+  if (e === 'error') return `<div class="rec mal"><div class="rec-h">No se anotó</div>${filaA(DENTISTA, null, { deshecho: false }).replace(/<button[\s\S]*?<\/button>/, '')}<p>Avis no respondió a tiempo. No cambió nada en Tareas.</p><div class="rec-pie"><button type="button" class="mini pri">Reintentar</button><button type="button" class="mini sutil">Anotarla yo</button></div></div>`
+  return ''
+}
+
+// ---------------------------------------------------------------- B · ficha viva
+function filaB(c, { deshecho = false, llega = false } = {}) {
+  const marca = c.hab ? `<span style="display:grid;place-items:center">${anillo(c.hab[0], c.hab[1])}</span>` : `<span style="display:grid;place-items:center">${cir(c.on, llega)}</span>`
+  return `<div class="viva"><div class="dest">${c.s} ${c.v.toLowerCase()} en <b>${c.dest}</b>${deshecho ? '<span class="lnk">Deshecho</span>' : `<button type="button" class="lnk" data-a="deshacer" aria-label="Deshacer: ${c.v.toLowerCase()} ${c.t}">Deshacer</button>`}</div><div class="fila${deshecho ? ' deshecho' : ''}${llega ? ' llega' : ''}" data-mod="${c.mod}">${marca}<span class="tx"><b>${c.t}</b><span class="meta">${c.meta.join('')}</span></span><button type="button" class="ic" aria-label="Abrir ${c.t} en ${c.mod === 'h' ? 'Hábitos' : 'Tareas'}" title="Abrir">→</button></div></div>`
+}
+function hiloB(m) {
+  const e = m.est
+  if (e === 'anotar' || e === 'deshecho') return `<div class="m-m">Listo, para mañana en Compras.</div>${filaB(PAN, { deshecho: e === 'deshecho', llega: e === 'anotar' })}`
+  if (e === 'varios') return `<div class="m-m">Hecho, tres cambios:</div>${VARIOS.map(c => filaB(c, { llega: true })).join('')}`
+  if (e === 'leer') return `<div class="m-m">Tenés tres para hoy y una vencida:</div><div class="viva"><div class="dest">Tareas › <b>Hoy</b><button type="button" class="lnk">Abrir Tareas →</button></div>
+    <div class="fila"><span style="display:grid;place-items:center"><span class="cir" style="border-color:var(--rojo)"></span></span><span class="tx"><b>Pagar el monotributo</b><span class="meta"><span class="tg v">venció ayer</span></span></span><span></span></div>
+    <div class="fila"><span style="display:grid;place-items:center"><span class="cir"></span></span><span class="tx"><b>Llamar al contador</b><span class="meta"><span class="tg h">hoy · 15:00</span></span></span><span></span></div>
+    <div class="fila"><span style="display:grid;place-items:center"><span class="cir"></span></span><span class="tx"><b>Mandar el presupuesto a La Espiga</b><span class="meta"><span class="tg h">hoy</span></span></span><span></span></div></div>`
+  if (e === 'borrar') return `<div class="m-m">Borrar lo hacés vos, con un clic. Te la dejo a mano:</div><div class="viva"><div class="dest">en <b>Tareas › Salud</b></div><div class="fila"><span style="display:grid;place-items:center"><span class="cir"></span></span><span class="tx"><b>Ir al gimnasio</b><span class="meta"><span class="tg">lun, mié y vie</span></span></span><button type="button" class="mini pri">Ir a la tarea →</button></div></div>`
+  if (e === 'error') return `<div class="viva"><div class="dest" style="color:var(--rojo)">! no se anotó · Avis no respondió a tiempo, no cambió nada</div><div class="fila" style="border-color:rgba(255,122,107,.45);border-style:dashed"><span style="display:grid;place-items:center"><span class="cir" style="opacity:.4"></span></span><span class="tx"><b style="color:var(--crema2)">Turno con el dentista</b><span class="meta"><span class="tg">lun 30/11 · 10:00</span></span></span><button type="button" class="mini pri">Reintentar</button></div></div>`
+  return ''
+}
+
+// ---------------------------------------------------------------- C · sello
+const selloP = (c, { deshecho = false, mal = false } = {}) => `<span class="sello-p${deshecho ? ' deshecho' : ''}${mal ? ' mal' : ''}" role="group" aria-label="${c.v}: ${c.t}"><span class="s" aria-hidden="true">${c.s}</span><span class="tt">${c.t}</span><em>${c.corto ?? ''}</em>${deshecho ? '<em style="padding-right:8px">· deshecho</em>' : mal ? '<button type="button" class="x">Reintentar</button>' : `<button type="button" class="x" data-a="deshacer" aria-label="Deshacer: ${c.v.toLowerCase()} ${c.t}">Deshacer</button>`}</span>`
+function hiloC(m) {
+  const e = m.est
+  if (e === 'anotar' || e === 'deshecho') return `<div class="m-m"><span>Listo, para mañana en Compras.</span><div class="sellos">${selloP(PAN, { deshecho: e === 'deshecho' })}</div></div>`
+  if (e === 'varios') return `<div class="m-m"><span>Hecho: tildé la verdulería, pasé lo del contador al viernes y te anoté 3 vasos.</span><div class="sellos">${VARIOS.map(c => selloP(c)).join('')}</div></div>`
+  if (e === 'leer') return `<div class="m-m"><span>Para hoy, miércoles 25/11:</span><ul class="l"><li class="v">Pagar el monotributo (venció ayer)</li><li>Llamar al contador, 15:00</li><li>Mandar el presupuesto a La Espiga</li><li class="ok">Pasar por la verdulería</li></ul><span>Hábitos: agua 3 de 8, caminar hecho.</span><div class="sellos"><span class="sello-p neutro"><span class="s">◷</span>Abrir Tareas · Hoy<button type="button" class="x">→</button></span></div></div>`
+  if (e === 'borrar') return `<div class="m-m"><span>Borrar lo hacés vos, con un clic. Te la dejo a mano:</span><div class="sellos"><span class="sello-p neutro"><span class="s">→</span>Ir al gimnasio<em>Salud</em><button type="button" class="x">Ir a la tarea</button></span></div></div>`
+  if (e === 'error') return `<div class="m-m"><span>No pude anotarla: Avis no respondió a tiempo. No cambió nada.</span><div class="sellos">${selloP({ ...DENTISTA, corto: 'lun 30/11' }, { mal: true })}</div></div>`
+  return ''
+}
+function libroC(m) {
+  const n = { anotar: 1, deshecho: 1, varios: 3 }[m.est]
+  if (!n) return ''
+  const items = m.est === 'varios' ? VARIOS : [PAN]
+  return `<div class="libro"${m.libro ? ' open-l' : ''}><button type="button" data-a="libro" aria-expanded="${!!m.libro}"><b>${n}</b>${n === 1 ? 'cambio' : 'cambios'} en esta charla<span class="fl">${IC.abajo}</span></button>${m.libro ? `<ul>${items.map(c => `<li><span>${c.s} ${c.t} · ${c.corto}</span>${m.est === 'deshecho' ? '<span class="estado-d" style="flex:none">Deshecho</span>' : `<button type="button" class="deshacer solo" aria-label="Deshacer: ${c.t}">${IC.deshacer}</button>`}</li>`).join('')}</ul>` : ''}</div>`
+}
+
+// ---------------------------------------------------------------- hoja
+function hoja(m) {
+  const loc = m.est === 'local'
+  const cont = m.op === 'b' && !loc ? `<div class="cont" aria-label="Tareas para hoy y hábitos"><span data-c="t">Tareas <b>${m.est === 'anotar' ? 6 : 5}</b></span><span data-c="h">Hábitos <b>${m.est === 'varios' ? '3/5' : '2/5'}</b></span></div>` : ''
+  const pose = loc ? 'pensando' : { vacio: 'saluda', error: 'error', borrar: 'esperando', leer: 'leyendo', deshecho: 'esperando' }[m.est] ?? 'feliz'
+  const esc = `<div class="escenario"><div class="arriba"><button type="button" class="ic" aria-label="Charlas">${IC.hist}</button>${cont}<button type="button" class="ic" aria-label="Cerrar la hoja">${IC.cerrar}</button></div>${avi(CLAUDE, pose, 72, { alt: 'Avi' })}<b class="esc-nom">Avi</b><span class="esc-est"><i></i>${loc ? 'Local · en esta PC' : 'Claude Code · Sonnet'}</span></div>`
+  const cabC = `<div class="ch-cab"><button type="button" class="carpeta" aria-label="Carpeta: trabajo">${IC.carpeta}<span>trabajo</span></button><div class="motor" role="radiogroup" aria-label="Motor"><button type="button" role="radio" aria-checked="${!loc}">Claude Code</button><button type="button" role="radio" aria-checked="${loc}">Local</button></div>${loc ? '' : `<button type="button" class="modelo">Sonnet ${IC.abajo}</button>`}</div>`
+  const puede = loc
+    ? `<button type="button" class="puede no" aria-label="Tareas y hábitos: todavía no con el modelo local. Ver más"><span class="ico">${IC.herr}</span>Tareas y hábitos: <b>todavía no con Local</b><span class="mas">?</span></button>`
+    : `<button type="button" class="puede" aria-label="Puede tocar tus tareas y hábitos. Ver qué puede y qué no"><span class="ico">${IC.herr}</span>Puede tocar <b>tus tareas y hábitos</b><span class="mas">borrar, no ›</span></button>`
+  let hilo = ''
+  if (m.est === 'vacio') hilo = `<div class="m-m" style="font:600 15px/1.45 var(--f)">Hola. Además de charlar, te anoto tareas y te marco hábitos. Probá:</div><div class="sug-l"><button type="button" class="sug" data-p="anotar">Anotame comprar pan para mañana</button><button type="button" class="sug" data-p="leer">¿Qué tengo hoy?</button><button type="button" class="sug" data-p="varios">Marcá que tomé 3 vasos de agua</button></div>`
+  else if (loc) hilo = `<div class="m-u">${PEDIDO.local}</div><div class="m-m">Con el modelo local todavía no puedo tocar tus tareas. Anotala vos en Tareas, o cambiá a <b>Claude Code</b> y te la anoto.</div><div class="sug-l"><button type="button" class="sug" data-p="anotar">Cambiar a Claude Code</button></div>`
+  else hilo = `<div class="m-u">${PEDIDO[m.est]}</div>` + { a: hiloA, b: hiloB, c: hiloC }[m.op](m)
+  const libro = m.op === 'c' && !loc ? libroC(m) : ''
+  return `<section class="hoja" aria-label="Charla con Avi">${esc}<div class="chat">${cabC}${puede}${libro}<div class="hilo">${hilo}</div><div class="comp"><div class="campo"><span>Escribile a Avi…</span><button type="button" class="enviar" aria-label="Enviar" disabled>${IC.enviar}</button></div><div class="pie-comp"><span>Enter envía</span><span>${loc ? 'Local · sin herramientas' : 'Claude Code · con tareas y hábitos'}</span></div></div></div></section>`
+}
+
+// ---------------------------------------------------------------- movimiento
+function sellar(m) {
+  if (quieto()) return
+  const nuevos = [...m.el.querySelectorAll('.hilo > *')]
+  if (reducido()) return animate(nuevos, { opacity: [0, 1], duration: 160 })
+  animate(nuevos, { opacity: [0, 1], translateY: [10, 0], delay: stagger(90), duration: 480, ease: 'outExpo' })
+  const tarj = m.el.querySelectorAll('.rec.sello, .sello-p:not(.deshecho), .fila.llega')
+  if (tarj.length) animate(tarj, { scale: [.96, 1], delay: stagger(70, { start: 180 }), duration: 600, ease: 'outBack(1.6)' })
+  if (m.op === 'b') chispas(m)
+}
+function chispas(m) {
+  const hoja = m.el.querySelector('.hoja'); const zoom = parseFloat(m.el.style.zoom) || 1
+  const hr = hoja.getBoundingClientRect()
+  m.el.querySelectorAll('.fila.llega').forEach((f, i) => {
+    const dest = m.el.querySelector(`.cont [data-c="${f.dataset.mod}"]`); if (!dest) return
+    const a = f.getBoundingClientRect(), b = dest.getBoundingClientRect()
+    const x0 = (a.left - hr.left) / zoom + 17, y0 = (a.top - hr.top) / zoom + 25
+    const x1 = (b.left - hr.left + b.width / 2) / zoom, y1 = (b.top - hr.top + b.height / 2) / zoom
+    const ch = document.createElement('span'); ch.className = 'chispa'; ch.style.left = x0 - 4 + 'px'; ch.style.top = y0 - 4 + 'px'; hoja.appendChild(ch)
+    animate(ch, { translateX: [0, x1 - x0], translateY: [0, y1 - y0], scale: [1, .6], opacity: [{ to: 1, duration: 100 }, { to: 0, duration: 200, delay: 600 }], duration: 900, delay: 500 + i * 160, ease: 'inOutQuad',
+      onComplete: () => { ch.remove(); dest.classList.remove('late'); dest.offsetWidth; dest.classList.add('late') } })
+  })
+}
+
+// ---------------------------------------------------------------- montaje
+function pintar(m, animar = true) {
+  m.el.innerHTML = hoja(m)
+  ajustar(m)
+  const h = m.el.querySelector('.hilo'); const abajo = () => { h.scrollTop = h.scrollHeight }
+  abajo(); requestAnimationFrame(abajo); setTimeout(abajo, 700)
+  m.p.querySelectorAll('[data-e]').forEach(b => b.setAttribute('aria-pressed', b.dataset.e === m.est))
+  const txt = { anotar: 'Anotada: Comprar pan, mañana', varios: '3 cambios: tildada Pasar por la verdulería; movida Llamar al contador; marcado Agua', deshecho: 'Deshecho: Comprar pan', error: 'No se anotó: Turno con el dentista' }[m.est]
+  if (txt && animar) vivo.textContent = txt
+  if (animar) sellar(m)
+}
+function ajustar(m) { m.el.style.zoom = Math.min(1, (m.l.clientWidth - (m.l.clientWidth < 600 ? 20 : 36)) / 420).toFixed(3) }
+document.querySelectorAll('.lienzo').forEach(l => {
+  const m = { op: l.dataset.op, est: 'varios', l, libro: false }
+  l.innerHTML = '<div class="esc-l"></div>'; m.el = l.firstElementChild
+  m.p = document.querySelector(`.proba[data-op="${m.op}"]`)
+  m.p.innerHTML = '<span class="kick">Probá cada caso</span>' + ESTADOS.map(([v, t]) => `<button type="button" data-e="${v}" aria-pressed="false">${t}</button>`).join('')
+  m.p.addEventListener('click', e => { const b = e.target.closest('[data-e]'); if (b) { m.est = b.dataset.e; pintar(m) } })
+  m.el.addEventListener('click', e => {
+    const s = e.target.closest('[data-p]'); if (s) { m.est = s.dataset.p; pintar(m); return }
+    const b = e.target.closest('[data-a]'); if (!b) return
+    if (b.dataset.a === 'libro') { m.libro = !m.libro; pintar(m, false); return }
+    if (b.dataset.a === 'deshacer') {
+      if (m.est === 'anotar') { m.est = 'deshecho'; pintar(m, false); vivo.textContent = 'Deshecho: Comprar pan'; return }
+      const fila = b.closest('.rf, .viva, .sello-p, li')
+      if (fila) { fila.classList.add('deshecho'); fila.querySelector('.fila')?.classList.add('deshecho'); b.outerHTML = '<span class="estado-d">Deshecho</span>'; vivo.textContent = 'Deshecho' }
+    }
+  })
+  new ResizeObserver(() => ajustar(m)).observe(l)
+  pintar(m)
+})
+</script>
+</body>
+</html>

@@ -13,7 +13,7 @@ import {
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
   prepararProyecto, firmaEscenas, sesiones, carasMini, companero, firmaCompanero,
-  barraProyectos, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, chips, lineaEncabezado, colorProyecto, animoTexto,
+  tiraRepos, encabezadoSesiones, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, chips, colorProyecto, animoTexto,
 } from './tablero.js'
 import {
   vistaBarra, clicFrenar, validarTexto, teclaControl, lineaResultado, lineaError, pasoOrden,
@@ -65,7 +65,7 @@ import {
   ANUNCIO_CLAVE_BORRADA, empezarClave, retieneConfig, detalleErrorClave, marcoBajo,
 } from './configuracion.js'
 import {
-  esqueletoConfiguracion, avisoPreguntaConfiguracion, seccionConfiguracion, partesMascota, partesModelos, miniConfiguracion, nombrePestana,
+  esqueletoConfiguracion, seccionConfiguracion, partesMascota, partesModelos, miniConfiguracion, nombrePestana,
 } from './configuracionVista.js'
 import * as movimientoConfig from './configuracionMotion.js'
 import {
@@ -77,10 +77,13 @@ import {
   MAX_SUBTAREAS, AVISO_INICIAL, evaluarAviso, verAviso, soltarAviso, lugarAviso, textoGlobo, horaGlobo, anuncioGlobo,
 } from './tareas.js'
 import {
-  ladoFilaTareas, esqueletoTareas, CARPETA, avisoPreguntaTareas, miniTareas, indiceTareas, cabeceraPanel, campoNueva, cuerpoLista,
+  ladoFilaTareas, esqueletoTareas, CARPETA, miniTareas, indiceTareas, cabeceraPanel, campoNueva, cuerpoLista,
   primerUso, errorGuardar, errorRota, errorCarpeta, atrasTarea, esqueletoDetalle, partesDetalle, globoMarca, globoMuesca, filaAviso,
 } from './tareasVista.js'
 import * as movimientoTareas from './tareasMotion.js'
+import { MODULOS, irModulo as planModulo, alEscModulo, cuentaModulo, nombreModulo, avisoPregunta, moduloAlExpandir, cuentasModulosMini, desplazarTira } from './modulos.js'
+import { avisoPreguntaHtml, cuentasMiniHtml } from './modulosVista.js'
+import * as movimientoModulos from './modulosMotion.js'
 
 const INTERVALO_MS = 1500
 const INTERVALO_EQUIPO_MS = 60000
@@ -125,6 +128,14 @@ const st = {
   avisar: true,
   pausa: false,
   /** "Arrancar con Windows": la marca real del sistema (`leer_configuracion`, `poner_arranque`). */
+  /**
+   * El módulo a la vista (#42, modulos-ux.md 3.5): 'sesiones' | 'tareas' | 'config' ('habitos' con #41). Es la
+   * única fuente de qué se ve y solo lo cambia `irModulo`; `config.abierta` y `tareas.abierta` son sus
+   * derivados (los escribe `irModulo` al abrir o cerrar la hoja). Al arrancar, Sesiones (D-m8).
+   */
+  modulo: 'sesiones',
+  /** Las preguntas pendientes de la última vez que se dibujó el menú: el chip de Sesiones late cuando suben (4.2). */
+  preguntasMenu: null,
   arranque: false,
   /**
    * La configuración dentro del panel (#23, configuracion-ux.md 4.6): abierta, la pestaña (la última
@@ -448,7 +459,7 @@ async function despedirCerradas(nuevas) {
 function trasCierre(c) {
   anunciar(c.anuncio)
   if (!c.focoAdentro) return
-  const destino = (c.destino && botonHistorial(c.destino)) || $('#proyectos .pj.activo')
+  const destino = (c.destino && botonHistorial(c.destino)) || $('#repos [aria-current]')
   destino?.focus({ preventScroll: true })
 }
 
@@ -737,12 +748,34 @@ function pintarPie() {
   pie.textContent = `actualizado ${hora} · cada 1,5 s`
 }
 
-/** Tira mini: caras, resumen y cuenta de preguntas. */
+/**
+ * Tira mini: caras, resumen y cuenta de preguntas, que nunca se esconde; después, las cuentas chicas de
+ * los módulos que entran sin dejar el resumen por debajo de 120 (modulos-ux.md 8, M2).
+ */
 function pintarTira(ahora) {
   const r = resumenMini(st.proyectos, ahora, st.mascota)
   poner('#tira-caras', carasMini(r.caras, st.mascota, st.formas), r.caras.map(c => `${c.nombre}:${c.animo}:${c.variante ?? ''}`).join(','))
   poner('#tira-resumen', `<b>${escapar(r.titulo)}</b><span class="dim">${escapar(r.detalle)}</span>`)
   poner('#tira-pend', insignia(r.pendientes))
+  // Escondida no se mide: queda lo último (al mostrarse, el ciclo siguiente decide con la medida real)
+  const libre = anchoLibreTira()
+  if (libre == null) return
+  const tareas = st.tareas.leido ? cuentas(st.tareas.listas, hoyTareas()) : null
+  poner('#tira-mods', cuentasMiniHtml(tareas, null, cuentasModulosMini(tareas, null, libre)))
+}
+
+/**
+ * Lo que tendría `#tira-resumen` sin las cuentas de los módulos: el ancho de su caja (la que estira) menos
+ * las caras y su separación, más lo que hoy ocupan las cuentas. null si la tira no se ve.
+ */
+function anchoLibreTira() {
+  const arrastre = $('#tira .arrastre')
+  if (!arrastre?.clientWidth) return null
+  const mods = $('#tira-mods')
+  const estilo = getComputedStyle(arrastre)
+  const separacion = parseFloat(getComputedStyle($('#tira')).columnGap) || 0
+  const conMods = mods.offsetWidth ? mods.offsetWidth + separacion : 0
+  return arrastre.clientWidth - (parseFloat(estilo.paddingLeft) || 0) - $('#tira-caras').offsetWidth - (parseFloat(estilo.columnGap) || 0) + conMods
 }
 
 /** Ícono y texto de la bandeja: se mandan a Tauri solo cuando cambia la cuenta. */
@@ -1009,16 +1042,15 @@ function pintar() {
   if (!st.proyectos.length && st.dividida.clave) soltarDividida()
   // La fila "Tareas" de la barra, con su cuenta (tareas-ux.md 4.1), siempre
   pintarFilaTareas()
+  // El menú de módulos (modulos-ux.md 4, #42): la fila abierta, las cuentas, la píldora y la pregunta
+  // vista desde otro módulo (`#aviso-p`). `st.modulo` decide; `config.abierta` y `tareas.abierta` lo siguen
+  pintarModulos(ahora, totalPend)
   // La configuración (configuracion-ux.md 4.2): la hoja de la columna principal, también sin sesiones
   $('#marco').classList.toggle('con-cfg', st.config.abierta)
-  if (st.config.abierta) $('#cfg-fila').setAttribute('aria-current', 'page')
-  else $('#cfg-fila').removeAttribute('aria-current')
   if (st.config.abierta) { pintarHojaConfiguracion(); return }
   pintarConfiguracion()
-  // Tareas (tareas-ux.md 3.2): la otra hoja de la columna; una por vez (abrir una cierra la otra)
+  // Tareas (tareas-ux.md 3.2): la otra hoja de la columna; una por vez (`irModulo` cierra la otra)
   $('#marco').classList.toggle('con-tar', st.tareas.abierta)
-  if (st.tareas.abierta) $('#tar-fila').setAttribute('aria-current', 'page')
-  else $('#tar-fila').removeAttribute('aria-current')
   if (st.tareas.abierta) { pintarHojaTareas(); return }
   pintarTareas()
 
@@ -1027,7 +1059,7 @@ function pintar() {
     modoMarco('escenario')
     texto('#titulo', 'Primeros pasos')
     texto('#subtitulo', '')
-    poner('#proyectos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
+    poner('#repos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
     pintarAsistente(pp, forma)
     return
   }
@@ -1039,7 +1071,7 @@ function pintar() {
     poner('#vacio-avi', figuraVacio(cargando ? 'esperando' : 'durmiendo', st.mascota), cargando ? 'cargando' : 'vacio')
     texto('#titulo', cargando ? 'Buscando sesiones…' : 'No hay sesiones de Claude Code abiertas.')
     texto('#subtitulo', cargando ? '' : 'Cuando abras una, aparece acá con sus subagentes.')
-    poner('#proyectos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
+    poner('#repos', ''); poner('#otro', ''); poner('#w-globo', ''); poner('#conteos', ''); poner('#sesiones', ''); st.idsEscena = null
     return
   }
   modoMarco('tablero')
@@ -1049,10 +1081,11 @@ function pintar() {
   let i = st.proyectos.findIndex(p => p.repo === st.repo)
   if (i < 0) { i = 0; st.repo = st.proyectos[0].repo }
   const proyecto = st.proyectos[i]
-  const enfocado = document.activeElement?.closest?.('#proyectos [data-proy]')
-  if (poner('#proyectos', barraProyectos(st.proyectos, i)) && enfocado) {
-    // El redibujo no se lleva el foco: queda en el proyecto que lo tenía
-    $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
+  // La tira de repos arriba de las sesiones (modulos-ux.md 4.4, M2)
+  const enfocado = document.activeElement?.closest?.('#repos [data-proy]')
+  if (poner('#repos', tiraRepos(st.proyectos, i)) && enfocado) {
+    // El redibujo no se lleva el foco: queda en el proyecto que lo tenía (9.4)
+    $(`#repos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
   }
   // El aviso de primeros pasos va debajo del de pregunta; con la hoja abierta no hace falta (3.5)
   // En la dividida el aviso es de una pregunta en cualquier proyecto, también los dos que conversan (5.3)
@@ -1063,9 +1096,11 @@ function pintar() {
 
   const preparadas = prepararProyecto(proyecto, ahora, st.mascota)
   const c = conteos(preparadas, ahora)
-  texto('#titulo', proyecto.nombre)
-  $('#titulo').title = proyecto.repo ?? proyecto.nombre
-  texto('#subtitulo', lineaEncabezado(preparadas, c))
+  // El h1 es el del módulo, «Sesiones»; el proyecto va en la bajada (modulos-ux.md 5 y 11.1, M2)
+  const cab = encabezadoSesiones(proyecto, preparadas, c)
+  texto('#titulo', cab.titulo)
+  $('#titulo').title = cab.title
+  texto('#subtitulo', cab.subtitulo)
   poner('#conteos', chips(c))
   // El rastro de las sesiones que conversan con otra (dividida-ux.md 5.10)
   const pid = sesionesPorId()
@@ -1119,8 +1154,166 @@ function irAProyecto(repo, direccion) {
   st.activa = 0
   pintar()
   $('.principal').scrollTop = 0
+  verRepoElegido()
   cambioProyecto(direccion)
   entradaEscenas(document.querySelectorAll('#sesiones > .ses'))
+}
+
+/** Lo que tapa la máscara a la derecha de la tira de repos (el 12 % del ancho, `estilos.css`). */
+const MASCARA_REPOS = 0.12
+
+/**
+ * El chip elegido de la tira de repos queda a la vista (modulos-ux.md 4.4): corre solo la tira, en
+ * horizontal (`scrollIntoView` correría también la columna y el marco).
+ */
+function verRepoElegido() {
+  const tira = $('#repos')
+  const chip = tira?.querySelector('[aria-current]')
+  if (!chip || !tira.clientWidth) return
+  const x = desplazarTira({ izq: chip.offsetLeft, ancho: chip.offsetWidth }, { scroll: tira.scrollLeft, visible: tira.clientWidth }, tira.clientWidth * MASCARA_REPOS)
+  if (x !== tira.scrollLeft) tira.scrollLeft = x
+}
+
+// ------------------------------------------------------------------ módulos (#42, docs/diseno/modulos-ux.md)
+
+/** Las filas del menú, por módulo (Configuración está aparte, en `.lado-cfg`). */
+const FILAS_MODULO = { sesiones: '#mod-sesiones', tareas: '#tar-fila', config: '#cfg-fila' }
+
+/**
+ * La única entrada a un módulo (3.2 y 11.3): las filas del menú, Ctrl T, Ctrl ,, Esc, la bandeja, el globo
+ * de Tareas, `#aviso-p`, la tira, la muesca, primeros pasos y las fichas «Conversan» pasan por acá, y
+ * solo acá cambia `st.modulo`. Cierra la hoja que se deja y abre la nueva con sus actos de siempre
+ * (`abrirConfig`, `abrirTareasHoja`, `cerrarConfig`, `cerrarTareasHoja`); abrir una hoja sale antes de la
+ * dividida y de la tira, así `st.modulo` y la hoja abierta cambian juntos. El mismo módulo solo cambia la
+ * pestaña o el proyecto pedidos y lleva el foco al título (9.2).
+ * Opciones: `repo` (Sesiones en ese proyecto), `tab` (la pestaña de Configuración), `ver` (la vista de
+ * Tareas) y `foco`: 'h1' (por defecto: el título del módulo, 9.4), 'fila' (la fila de Sesiones: volver
+ * con Esc) o false (lo pone quien llama). Devuelve si el id existía.
+ */
+async function irModulo(id, { repo, tab, ver, foco = 'h1' } = {}) {
+  const plan = planModulo({ modulo: st.modulo }, id, { repo })
+  if (!plan) return false
+  if (plan.foco) {
+    if (id === 'config' && tab && tab !== st.config.tab) cambiarPestanaConfig(tab)
+    if (plan.repo && plan.repo !== st.repo) irAProyecto(plan.repo, 1)
+    if (foco === 'h1') $('#titulo').focus()
+    else if (foco === 'fila') $(FILAS_MODULO[id])?.focus()
+    return true
+  }
+  // Abrir una hoja sale de la dividida y de la tira (lo de siempre de las hojas, 11.1)
+  if (plan.abrir) {
+    if (st.dividida.clave) await cerrarConversacion({ descartar: true })
+    if (st.mini) await ponerMini(false)
+  }
+  const nav = $('#mods')
+  const desde = movimientoModulos.posicionPildora(nav)
+  st.modulo = plan.modulo
+  // Entre dos hojas no hay acto de vuelta al tablero: la nueva trae el suyo
+  for (const h of plan.cerrar) {
+    if (h === 'config') cerrarConfig({ acto: !plan.abrir })
+    else if (h === 'tareas') cerrarTareasHoja({ acto: !plan.abrir })
+  }
+  const enfocarTitulo = foco === 'h1'
+  if (plan.abrir === 'config') abrirConfig({ tab, foco: enfocarTitulo })
+  else if (plan.abrir === 'tareas') abrirTareasHoja({ ver, foco: enfocarTitulo })
+  else if (plan.repo && plan.repo !== st.repo) irAProyecto(plan.repo, 1)
+  else pintar()
+  movimientoModulos.viajarPildora(nav, desde)
+  // El nombre del módulo, una vez (5); el foco, al título o a la fila
+  anunciar(MODULOS.find(m => m.id === plan.modulo)?.nombre)
+  if (!plan.abrir && enfocarTitulo) $('#titulo').focus()
+  else if (foco === 'fila') $(FILAS_MODULO[plan.modulo])?.focus()
+  return true
+}
+
+/**
+ * El menú (4.1 a 4.5) en cada redibujo: la clase `mod-<id>` del marco, la fila abierta, la cuenta y el
+ * nombre de Sesiones y de Configuración (la de Tareas la pone `pintarFilaTareas`), la píldora y
+ * `#aviso-p`. El chip «1 ?» late cuando suben las preguntas; `#aviso-p` baja al aparecer.
+ */
+function pintarModulos(ahora, totalPend) {
+  const marco = $('#marco')
+  for (const m of MODULOS) marco.classList.toggle(`mod-${m.id}`, st.modulo === m.id)
+  for (const [id, sel] of Object.entries(FILAS_MODULO)) {
+    const fila = $(sel)
+    if (st.modulo === id) { if (fila.getAttribute('aria-current') !== 'page') fila.setAttribute('aria-current', 'page') }
+    else if (fila.hasAttribute('aria-current')) fila.removeAttribute('aria-current')
+  }
+  // Sesiones: el número de sesiones (… antes de la primera lectura) y las preguntas
+  const cargando = !st.actualizado && !st.error
+  const datosSes = { sesiones: cargando ? null : st.proyectos.reduce((n, p) => n + p.sesiones.length, 0), preguntas: totalPend }
+  poner('#mod-sesiones-ct', cuentaModulo('sesiones', datosSes))
+  ponerNombre('#mod-sesiones', nombreModulo('sesiones', datosSes))
+  if (st.preguntasMenu != null && totalPend > st.preguntasMenu) movimientoModulos.latirPregunta($('#mod-sesiones .chip-preg'))
+  st.preguntasMenu = cargando ? null : totalPend
+  // Configuración: el punto de pestaña si hay algo que mirar (4.2)
+  const datosCfg = { punto: puntoConfiguracion() }
+  poner('#cfg-fila-ct', cuentaModulo('config', datosCfg))
+  ponerNombre('#cfg-fila', nombreModulo('config', datosCfg))
+  movimientoModulos.colocarPildora($('#mods'))
+  // La pregunta vista desde otro módulo (4.5); en Sesiones la de otro proyecto sigue en #otro (M1)
+  const aviso = st.modulo === 'sesiones' ? null : avisoPregunta(st.proyectos, st.modulo, st.repo, st.mascota, ahora)
+  const html = avisoPreguntaHtml(aviso, st.formas)
+  const habia = !!$('#aviso-p').firstChild
+  const enfocado = document.activeElement?.closest?.('#aviso-p') != null
+  // La firma no lleva la forma de Claude: cambia en su lugar (6.7)
+  if (poner('#aviso-p', html, html.replace(/ evol(?=[ "])/g, ''))) {
+    if (html && !habia) movimientoModulos.llegaAviso($('#aviso-p > .aviso-p'))
+    if (enfocado) $('#aviso-p > .aviso-p')?.focus()
+  }
+}
+
+/** Pone el nombre accesible de una fila solo si cambió. */
+function ponerNombre(sel, nombre) {
+  const el = $(sel)
+  if (el.getAttribute('aria-label') !== nombre) el.setAttribute('aria-label', nombre)
+}
+
+/**
+ * El punto de la fila de Configuración (4.2): el de la primera pestaña que pide mirarla (una clave
+ * rechazada, el modelo bajando, el mod que necesita atención), o null. Lo leído hasta ahora: el mod sale
+ * de primeros pasos hasta abrir la configuración.
+ */
+function puntoConfiguracion() {
+  try {
+    const datos = datosConfiguracion()
+    const puntos = { modelo: datos.modelo.estado, mod: datos.mod.estado, claves: datos.claves }
+    return IDS_PESTANAS.map(t => puntoPestana(puntos, t)).find(Boolean) ?? null
+  } catch (e) {
+    registrar(`módulos: punto de configuración: ${e}`)
+    return null
+  }
+}
+
+/**
+ * Al expandir la tira o abrir la muesca (8): el módulo actual o, con una pregunta pendiente, Sesiones
+ * en su proyecto. No toca el foco (lo pone quien abre el panel).
+ */
+async function abrirPanelAlModulo() {
+  const preguntas = st.proyectos.filter(p => preguntasPendientes(p).length)
+  const destino = moduloAlExpandir({ modulo: st.modulo, repo: st.repo, preguntas })
+  await irModulo(destino.modulo, { repo: destino.repo ?? undefined, foco: false })
+}
+
+/** «Expandir» de la tira (8): el tablero vuelve en el módulo actual o, con una pregunta, en Sesiones en esa pregunta. */
+async function expandir() {
+  if (!st.mini) return
+  await ponerMini(false)
+  if (!st.mini) await abrirPanelAlModulo()
+}
+
+/**
+ * `#aviso-p` (4.5): Sesiones en el proyecto de la pregunta, la pregunta desplegada (también si estaba
+ * la hoja de primeros pasos) y el foco en el primer control de su globo.
+ */
+async function responderDesdeAviso(proy) {
+  const p = st.proyectos[proy] ?? st.proyectos.find(x => preguntasPendientes(x).length)
+  st.plegado = false
+  st.pp.abierto = false
+  st.firmas.clavesGlobo = null
+  await irModulo('sesiones', { repo: p?.repo, foco: false })
+  pintar()
+  ;($('#w-globo button') ?? $('#otro .aviso') ?? $('#mod-sesiones'))?.focus()
 }
 
 /**
@@ -1224,7 +1417,8 @@ function aperturaSola(conv) {
   const proyecto = st.proyectos.find(p => p.repo === st.repo)
   const pend = proyecto ? pendientesVisibles(proyecto) : []
   return debeAbrirseSola(conv, {
-    nueva: true, panelVisible: panelSeVe(), proyectoVisto: st.repo, divididaAbierta: !!st.dividida.clave,
+    // La dividida es de Sesiones (modulos-ux.md 7): en otro módulo una conversación nueva solo late su ficha
+    nueva: true, panelVisible: panelSeVe(), proyectoVisto: st.modulo === 'sesiones' ? st.repo : null, divididaAbierta: !!st.dividida.clave,
     preguntaDesplegada: pend.length > 0 && !st.plegado,
     enviando: Object.values(st.envios).some(e => e.estado === 'enviando'),
     focoEnCampo: !!document.activeElement?.closest?.('input, textarea, select, [contenteditable="true"]'),
@@ -1395,7 +1589,7 @@ async function cerrarConversacion({ descartar = false, repo } = {}) {
       st.activa = 0
       pintar()
       $('.principal').scrollTop = repo === undefined ? (vista?.scroll ?? 0) : 0
-      if (focoAdentro) $('#proyectos .pj.activo')?.focus()
+      if (focoAdentro) $('#repos [aria-current]')?.focus()
     })
   } catch (e) {
     registrar(`dividida: ${e}`)
@@ -1910,8 +2104,19 @@ document.addEventListener('click', async e => {
     await accionTareas(a, b)
     return
   }
+  if (a === 'mod') {
+    // Una fila del menú de módulos (modulos-ux.md 4.1): su módulo, con el foco en su título
+    await irModulo(b.dataset.mod)
+    return
+  }
+  if (a === 'aviso-p') {
+    // La pregunta vista desde otro módulo (4.5): Sesiones en su proyecto, desplegada, con el foco en su globo
+    await responderDesdeAviso(+b.dataset.proy)
+    return
+  }
   if (a === 'conv') {
-    // Una ficha "Conversan" de la barra o del riel abre la dividida en esa conversación (3.4)
+    // Una ficha "Conversan" de la barra o del riel abre la dividida en esa conversación (3.4); antes, Sesiones (11.1)
+    await irModulo('sesiones', { foco: false })
     abrirConversacion(b.dataset.clave, 'clic')
     return
   }
@@ -1945,18 +2150,11 @@ document.addEventListener('click', async e => {
     if (b.closest('#otro')) st.pp.abierto = false
     // Un proyecto de la barra o el aviso de una pregunta en otro proyecto
     const p = st.proyectos[+b.dataset.proy]
-    // Con la configuración abierta, elegir un proyecto la cierra y lo muestra (configuracion-ux.md 4.1)
-    if (p && st.config.abierta) {
-      cerrarConfig({ foco: false })
-      if (p.repo !== st.repo) irAProyecto(p.repo, 1)
-      $(`#proyectos [data-proy="${b.dataset.proy}"]`)?.focus()
-      return
-    }
-    // Lo mismo con la hoja de Tareas (tareas-ux.md 3.1)
-    if (p && st.tareas.abierta) {
-      cerrarTareasHoja({ foco: false })
-      if (p.repo !== st.repo) irAProyecto(p.repo, 1)
-      $(`#proyectos [data-proy="${b.dataset.proy}"]`)?.focus()
+    // Elegir un proyecto lleva a Sesiones en ese proyecto (modulos-ux.md 3.2 y 11.1): una sola rama para
+    // Tareas y Configuración. El foco se queda en el proyecto
+    if (p && st.modulo !== 'sesiones') {
+      await irModulo('sesiones', { repo: p.repo, foco: false })
+      $(`#repos [data-proy="${b.dataset.proy}"]`)?.focus()
       return
     }
     if (p) irAProyecto(p.repo, 1)
@@ -2015,7 +2213,7 @@ document.addEventListener('click', async e => {
   } else if (a === 'mini') {
     await ponerMini(true)
   } else if (a === 'expandir') {
-    await ponerMini(false)
+    await expandir()
   } else if (a === 'cerrar') {
     // La × esconde en la bandeja; "Salir" del menú de la bandeja cierra la aplicación
     await invocar('esconder').catch(() => {})
@@ -2090,19 +2288,19 @@ document.addEventListener('keydown', e => {
     descartarAvisoTareas()
     return
   }
-  // Ctrl , con el panel a la vista abre la configuración (configuracion-ux.md 4.1); abierta, el foco va al título
+  // Ctrl , con el panel a la vista abre Configuración (modulos-ux.md 9.2); abierta, el foco va al título
   if (esAtajoConfiguracion(e)) {
     e.preventDefault()
-    if (!st.mini && (!st.acople || st.vista)) abrirConfig()
+    if (!st.mini && (!st.acople || st.vista)) irModulo('config')
     return
   }
-  // Esc con la configuración abierta, una capa por vez (4.1): la clave que se escribe, el "¿Borrar? Sí"
-  // y la hoja. Cerrada la hoja, el Esc siguiente es el de siempre (acoplada, pliega el panel)
+  // Esc con la configuración abierta, una capa por vez (4.1 y modulos-ux.md 9.1): la clave que se escribe,
+  // el "¿Borrar? Sí" y, sin capas, Sesiones con el foco en su fila. En Sesiones, el Esc de siempre
   if (e.key === 'Escape' && st.config.abierta) {
     e.preventDefault()
     const proveedor = st.config.editando
     const { config, accion } = alEsc(st.config)
-    if (accion === 'cerrar') cerrarConfig()
+    if (alEscModulo('config', accion) === 'sesiones') irModulo('sesiones', { foco: 'fila' })
     else {
       st.config = config
       pintarConfiguracion()
@@ -2111,11 +2309,11 @@ document.addEventListener('keydown', e => {
     }
     return
   }
-  // Ctrl T con el panel a la vista abre la hoja de Tareas (tareas-ux.md 9.2), también mientras se
+  // Ctrl T con el panel a la vista abre Tareas (tareas-ux.md 9.2, modulos-ux.md 9.2), también mientras se
   // escribe en uno de sus campos; abierta, el foco va al título
   if (esAtajoTareas(e)) {
     e.preventDefault()
-    if (!st.mini && (!st.acople || st.vista)) abrirTareasHoja()
+    if (!st.mini && (!st.acople || st.vista)) irModulo('tareas')
     return
   }
   // Esc con la hoja de Tareas abierta, una capa por vez (9.1)
@@ -2194,18 +2392,23 @@ document.addEventListener('keydown', e => {
   // Fuera de la pregunta, Esc cierra la muesca aunque esté fijada y devuelve el foco a la muesca (7.2)
   if (e.key === 'Escape' && st.acople && st.muesca.abierta) { e.preventDefault(); evento({ tipo: 'esc' }); return }
   if (st.mini || e.target.closest?.('input, textarea, summary, #pp, #hoja, #cfg, #tar')) return
-  // ↑ ↓ mueven el foco entre los proyectos de la barra (no cambian de proyecto)
-  const fila = e.target.closest?.('#proyectos [data-proy]')
+  // ↑ ↓ mueven el foco entre los repos de la tira (no cambian de proyecto), como en la barra de antes
+  const fila = e.target.closest?.('#repos [data-proy]')
   if (fila && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
     e.preventDefault()
-    const filas = [...document.querySelectorAll('#proyectos [data-proy]')]
+    const filas = [...document.querySelectorAll('#repos [data-proy]')]
     filas[(filas.indexOf(fila) + (e.key === 'ArrowDown' ? 1 : -1) + filas.length) % filas.length].focus()
     return
   }
   // Con la configuración o las tareas abiertas no hay proyecto a la vista: ← → no cambian ninguno por detrás
-  if (st.config.abierta || st.tareas.abierta) return
-  if (e.key === 'ArrowLeft') { e.preventDefault(); moverProyecto(-1) }
-  if (e.key === 'ArrowRight') { e.preventDefault(); moverProyecto(1) }
+  if (st.modulo !== 'sesiones') return
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault()
+    // Con el foco en la tira de repos, el foco sigue al elegido (la tira se redibuja en el cambio)
+    const enTira = !!fila
+    moverProyecto(e.key === 'ArrowLeft' ? -1 : 1)
+    if (enTira) $('#repos [aria-current]')?.focus()
+  }
 })
 
 // ------------------------------------------------------------------ tamaño de la ventana
@@ -2516,7 +2719,7 @@ function aplicarFoco() {
   else if (foco.startsWith('cfg:') && st.config.abierta) ($(`#cfg [data-k="${CSS.escape(foco.slice(4))}"]`) ?? $('#titulo')).focus()
   // Tareas: su título al abrir (tareas-ux.md 9.4)
   else if (foco === 'tar' && st.tareas.abierta) $('#titulo').focus()
-  else ($('#proyectos .pj.activo') ?? $('#proyectos [data-proy]') ?? $('#marco [data-accion="pin"]'))?.focus()
+  else ($('#repos [aria-current]') ?? $('#repos [data-proy]') ?? $('#marco [data-accion="pin"]'))?.focus()
 }
 
 /** Lleva lo que se ve (`st.vista`) a lo pedido (`st.muesca.abierta`), una animación por vez. */
@@ -2763,8 +2966,10 @@ document.documentElement.addEventListener('pointerleave', e => {
   if (e.pointerType === 'mouse') ponerDentro(false)
 })
 // Clic, Enter o Espacio: abre y lleva el foco al proyecto activo; abierta, la cierra (#21)
-muescaEl.addEventListener('click', () => {
+muescaEl.addEventListener('click', async () => {
   if (justoArrastro || !st.acople) return
+  // Cerrada, abre en el módulo actual o, con una pregunta pendiente, en Sesiones en esa pregunta (modulos-ux.md 8)
+  if (!st.muesca.abierta) await abrirPanelAlModulo()
   evento({ tipo: 'alternar' })
 })
 // Clic afuera (#21): acoplada, fuera del tablero los clics pasan de largo a la app de abajo y el
@@ -3110,9 +3315,8 @@ async function irAPaso(destino, { foco = 'titulo' } = {}) {
 async function abrirAsistente({ foco = false } = {}) {
   st.pp.abierto = true
   st.pp.cerrado = false
-  // Primeros pasos va en la misma columna: abrirlo cierra la configuración y la hoja de Tareas
-  if (st.config.abierta) cerrarConfig({ foco: false })
-  if (st.tareas.abierta) cerrarTareasHoja({ foco: false })
+  // Primeros pasos va en la columna de Sesiones (modulos-ux.md 11.1): abrirlo vuelve a Sesiones
+  await irModulo('sesiones', { foco: false })
   if (st.mini) await ponerMini(false)
   revisarPasos()
   pintar()
@@ -3361,12 +3565,10 @@ function firmaConfiguracion(tab, ahora) {
   return seccionConfiguracion(tab, datosFirma(ahora))
 }
 
-/** El encabezado y la barra con la configuración abierta: ningún proyecto elegido, la hoja abajo. */
+/** El encabezado con la configuración abierta y la hoja abajo; la tira de repos es solo de Sesiones (modulos-ux.md 4.4). */
 function pintarHojaConfiguracion() {
   modoMarco('tablero')
   $('#marco').classList.remove('con-hoja')
-  const enfocado = document.activeElement?.closest?.('#proyectos [data-proy]')
-  if (poner('#proyectos', barraProyectos(st.proyectos, -1)) && enfocado) $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
   texto('#titulo', 'Configuración')
   $('#titulo').title = ''
   texto('#subtitulo', 'Se guarda al instante')
@@ -3397,9 +3599,7 @@ function pintarConfiguracion() {
     $('#marco').classList.toggle('con-mini', !!htmlMini)
     st.cfgFirmas.mini = htmlMini
   }
-  const pendientes = st.proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
-  const aviso = avisoPreguntaConfiguracion(pendientes)
-  if (st.cfgFirmas.aviso !== aviso) { $('#cfg-aviso').innerHTML = aviso; st.cfgFirmas.aviso = aviso }
+  // La pregunta pendiente se ve en #aviso-p, arriba de la hoja (modulos-ux.md 4.5): #cfg-aviso queda vacío hasta M2
   const ahora = Date.now()
   const datos = datosConfiguracion(modeloDesdeChat(st.chat), ahora)
   // Las pestañas no se redibujan: cambia cuál está elegida, así el indicador viaja desde donde estaba.
@@ -3514,20 +3714,13 @@ function ponerProgresoConfig(m) {
 }
 
 /**
- * Abre la configuración (la fila de la barra, Ctrl ,, la bandeja o una tarjeta con `tab`). Sale de la
- * dividida y de la tira; acoplada, abre también el panel. Ya abierta, solo lleva el foco al título
- * (no la cierra: cerrar es "‹ Tablero" o Esc). El foco va al `h1` (11).
+ * Abre la hoja de Configuración (la fila del menú, Ctrl ,, la bandeja o una tarjeta con `tab`): la lee,
+ * la dibuja y hace su acto de entrada; acoplada, abre también el panel. Solo la llama `irModulo`
+ * (modulos-ux.md 11.1), que ya cerró la otra hoja, la dividida y la tira, y que con la hoja ya abierta
+ * solo cambia la pestaña y lleva el foco al título. El foco va al `h1` (11).
  */
-async function abrirConfig({ tab, foco = true } = {}) {
-  if (st.config.abierta) {
-    if (tab && tab !== st.config.tab) cambiarPestanaConfig(tab)
-    if (foco) $('#titulo').focus()
-    return
-  }
-  // Una hoja por vez en la columna (tareas-ux.md 3.1): abrir la configuración cierra la de Tareas
-  if (st.tareas.abierta) cerrarTareasHoja({ foco: false })
-  if (st.dividida.clave) await cerrarConversacion({ descartar: true })
-  if (st.mini) await ponerMini(false)
+function abrirConfig({ tab, foco = true } = {}) {
+  if (st.config.abierta) return
   st.config = { ...abrirConfiguracion(st.config, tab), error: null }
   // El mod, las claves y el modelo local se leen al abrir (solo lectura, sin red): los puntos de las
   // pestañas se ven desde cualquiera
@@ -3545,13 +3738,16 @@ async function abrirConfig({ tab, foco = true } = {}) {
   }
 }
 
-/** Cierra la hoja ("‹ Tablero", Esc o un proyecto de la barra): el tablero vuelve como estaba. */
-function cerrarConfig({ foco = true } = {}) {
+/**
+ * Cierra la hoja (solo desde `irModulo`: Esc, la fila de Sesiones, otro módulo, un proyecto o la
+ * pregunta). De vuelta en Sesiones el tablero vuelve como estaba, con su acto (`acto`); hacia otra hoja,
+ * sin él. El foco lo pone `irModulo`.
+ */
+function cerrarConfig({ acto = true } = {}) {
   if (!st.config.abierta) return
   st.config = cerrarConfiguracion(st.config)
   pintar()
-  movimientoConfig.cerrarHoja([$('#otro'), $('#w-globo'), $('#conteos'), ...document.querySelectorAll('#sesiones > .ses')])
-  if (foco) $('#cfg-fila').focus()
+  if (acto) movimientoConfig.cerrarHoja([$('#otro'), $('#w-globo'), $('#conteos'), ...document.querySelectorAll('#sesiones > .ses')])
 }
 
 /** Cambia de pestaña (clic o flechas): el indicador viaja y el contenido entra desde su lado. */
@@ -4025,12 +4221,10 @@ function pintarFilaTareas() {
   if ($('#tar-fila').getAttribute('aria-label') !== nombre) $('#tar-fila').setAttribute('aria-label', nombre)
 }
 
-/** El encabezado y la barra con la hoja abierta: ningún proyecto elegido, "Tareas" y su bajada (5.1). */
+/** El encabezado con la hoja abierta: "Tareas" y su bajada (5.1); la tira de repos es solo de Sesiones (modulos-ux.md 4.4). */
 function pintarHojaTareas() {
   modoMarco('tablero')
   $('#marco').classList.remove('con-hoja')
-  const enfocado = document.activeElement?.closest?.('#proyectos [data-proy]')
-  if (poner('#proyectos', barraProyectos(st.proyectos, -1)) && enfocado) $(`#proyectos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
   const hoy = hoyTareas()
   texto('#titulo', 'Tareas')
   $('#titulo').title = ''
@@ -4071,9 +4265,7 @@ function pintarTareas() {
   const firmas = st.tarFirmas
   const htmlMini = miniTareas(st.mascota, t.feliz)
   if (firmas.mini !== htmlMini) { mini.innerHTML = htmlMini; firmas.mini = htmlMini }
-  const pendientes = st.proyectos.reduce((n, p) => n + preguntasPendientes(p).length, 0)
-  const aviso = avisoPreguntaTareas(pendientes)
-  if (firmas.aviso !== aviso) { $('#tar-aviso').innerHTML = aviso; firmas.aviso = aviso }
+  // La pregunta pendiente se ve en #aviso-p, arriba de la hoja (modulos-ux.md 4.5): #tar-aviso queda vacío hasta M2
 
   const cuerpo = $('#tar-cuerpo')
   const k = raiz.contains(document.activeElement) ? document.activeElement.closest('[data-k]')?.dataset.k : null
@@ -4161,20 +4353,15 @@ function pintarDetalleTareas(el, { lista, tarea }) {
 }
 
 /**
- * Abre la hoja (la fila de la barra o Ctrl T): cierra la configuración, sale de la dividida y de la
- * tira; acoplada, abre también el panel. Ya abierta, solo lleva el foco al título (no la cierra). Al
- * abrir se vuelven a leer las listas (solo lectura). El foco va al `h1` (9.4).
+ * Abre la hoja de Tareas (la fila del menú, Ctrl T o el globo del aviso diario): acoplada, abre también
+ * el panel. Solo la llama `irModulo` (modulos-ux.md 11.1), que ya cerró la configuración, la dividida y
+ * la tira, y que con la hoja ya abierta solo lleva el foco al título. Al abrir se vuelven a leer las
+ * listas (solo lectura). El foco va al `h1` (9.4).
  */
-async function abrirTareasHoja({ ver, foco = true } = {}) {
-  if (st.tareas.abierta) {
-    if (foco) $('#titulo').focus()
-    return
-  }
+function abrirTareasHoja({ ver, foco = true } = {}) {
+  if (st.tareas.abierta) return
   // El aviso diario se va si la hoja se abre, por el globo o por cualquier otro camino (8.1)
   st.avisoTar = soltarAviso(st.avisoTar)
-  if (st.config.abierta) cerrarConfig({ foco: false })
-  if (st.dividida.clave) await cerrarConversacion({ descartar: true })
-  if (st.mini) await ponerMini(false)
   st.tareas = abrirTareas(st.tareas, ver)
   leerTareas()
   pintar()
@@ -4187,14 +4374,16 @@ async function abrirTareasHoja({ ver, foco = true } = {}) {
   }
 }
 
-/** Cierra la hoja ("‹ Tablero", Esc o un proyecto de la barra): el tablero vuelve como estaba; el foco, a la fila. */
-function cerrarTareasHoja({ foco = true } = {}) {
+/**
+ * Cierra la hoja (solo desde `irModulo`): lo diferido se guarda antes. De vuelta en Sesiones el tablero
+ * vuelve como estaba, con su acto (`acto`); hacia otra hoja, sin él. El foco lo pone `irModulo`.
+ */
+function cerrarTareasHoja({ acto = true } = {}) {
   if (!st.tareas.abierta) return
   diferidoTareas.todos()
   st.tareas = cerrarTareas(st.tareas)
   pintar()
-  movimientoConfig.cerrarHoja([$('#otro'), $('#w-globo'), $('#conteos'), ...document.querySelectorAll('#sesiones > .ses')])
-  if (foco) $('#tar-fila').focus()
+  if (acto) movimientoConfig.cerrarHoja([$('#otro'), $('#w-globo'), $('#conteos'), ...document.querySelectorAll('#sesiones > .ses')])
 }
 
 /** Cambia de vista (el índice): el panel entra desde la derecha y el foco queda en el botón del índice (9.4). */
@@ -4218,7 +4407,8 @@ function escTareas(objetivo) {
   const antes = st.tareas
   const { tareas, accion } = alEscTareas(antes, campo ? { campo: campo.dataset.campo, texto: campo.value } : null)
   if (accion === 'vaciar') { campo.value = ''; return }
-  if (accion === 'cerrar') { cerrarTareasHoja(); return }
+  // Sin capas, Esc va a Sesiones con el foco en su fila (modulos-ux.md 9.1)
+  if (alEscModulo('tareas', accion) === 'sesiones') { irModulo('sesiones', { foco: 'fila' }); return }
   // La tarea abierta (capa 4): título y notas se guardan antes de cerrar; el foco va al cuerpo de su fila
   if (accion === 'cerrar-tarea') { cerrarTareaHoja(); return }
   st.tareas = tareas
@@ -4259,7 +4449,7 @@ function pintarAvisoTareas() {
   const lugar = lugarAviso(st.avisoTar, {
     cuentas: c, hoja: st.tareas.abierta, fuera: st.fuera, mini: st.mini, chat: st.chat.abierta || hojaCerrando,
     arrastrando: !!st.arrastre?.activo || document.body.classList.contains('pildora'), acoplada: !!st.acople, abierta: st.vista,
-    dividida: !!st.dividida.clave, barra: st.proyectos.length > 0 || st.config.abierta,
+    dividida: !!st.dividida.clave, barra: st.proyectos.length > 0 || st.modulo !== 'sesiones',
     pregunta: st.proyectos.some(p => preguntasPendientes(p).length > 0),
   })
   const t = lugar ? textoGlobo(c, horaGlobo(Date.now())) : null
@@ -4845,12 +5035,13 @@ async function accionTareas(a, b) {
     pintarTareas()
   }
   switch (a) {
-    case 'tar-abrir': await abrirTareasHoja(); break
+    case 'tar-abrir': await irModulo('tareas'); break
     // El globo del aviso diario (8): solo el clic abre la hoja en Hoy; la × lo deja para mañana.
     // En la marca el globo es parte de lo que se arrastra: después de un arrastre real, el clic no cuenta
-    case 'tar-globo': if (!justoArrastro) await abrirTareasHoja({ ver: 'hoy' }); break
+    case 'tar-globo': if (!justoArrastro) await irModulo('tareas', { ver: 'hoy' }); break
     case 'tar-globo-x': if (!justoArrastro) descartarAvisoTareas(); break
-    case 'tar-cerrar': cerrarTareasHoja(); break
+    // «‹ Tablero» se fue (modulos-ux.md 11.1): la acción queda como alias de ir a Sesiones
+    case 'tar-cerrar': await irModulo('sesiones'); break
     case 'tar-ver': verTareas(b.dataset.valor); break
     case 'tar-crear': empezarListaTareas(); break
     case 'tar-sugerida': crearListaEnHoja(b.dataset.valor); break
@@ -4871,25 +5062,17 @@ async function accionTareas(a, b) {
     // "Abrir la carpeta" (7.6): Rust abre siempre `<config>/tareas/`, nunca una ruta de la ventana
     case 'tar-carpeta': invocar('tareas_abrir_carpeta').catch(err => registrar(`tareas: no se pudo abrir la carpeta: ${err}`)); break
     case 'tar-releer': await leerTareas(); break
-    case 'tar-pregunta': {
-      // La pregunta pendiente (3.1): cierra la hoja y la muestra, en su proyecto
-      const k = st.proyectos.findIndex(p => preguntasPendientes(p).length)
-      cerrarTareasHoja({ foco: false })
-      st.plegado = false
-      st.firmas.clavesGlobo = null
-      if (k >= 0 && st.proyectos[k].repo !== st.repo) irAProyecto(st.proyectos[k].repo, 1)
-      else pintar()
-      ;($('#w-globo button') ?? $('#otro .aviso') ?? $('#tar-fila'))?.focus()
-      break
-    }
+    // La línea de la pregunta de la hoja ya no se dibuja (la reemplaza #aviso-p, modulos-ux.md 4.5): el alias hace lo mismo
+    case 'tar-pregunta': await responderDesdeAviso(st.proyectos.findIndex(p => preguntasPendientes(p).length)); break
   }
 }
 
 /** Los botones de la hoja (`data-accion="cfg-…"`). Cada uno hace solo lo suyo, y solo con el clic. */
 async function accionConfiguracion(a, b) {
   switch (a) {
-    case 'cfg-abrir': await abrirConfig({ tab: b.dataset.tab }); break
-    case 'cfg-cerrar': cerrarConfig(); break
+    case 'cfg-abrir': await irModulo('config', { tab: b.dataset.tab }); break
+    // «‹ Tablero» se fue (modulos-ux.md 11.1): la acción queda como alias de ir a Sesiones
+    case 'cfg-cerrar': await irModulo('sesiones'); break
     case 'cfg-tab': cambiarPestanaConfig(b.dataset.valor); break
     case 'cfg-sw': {
       const clave = b.dataset.valor
@@ -4938,17 +5121,8 @@ async function accionConfiguracion(a, b) {
     case 'cfg-clave-guardar': await guardarClaveConfig(b.dataset.valor); break
     case 'cfg-clave-probar': await probarClaveConfig(b.dataset.valor); break
     case 'cfg-clave-borrar': await clicBorrarClave(b.dataset.valor); break
-    case 'cfg-ver': {
-      // La pregunta pendiente (4.1): cierra la configuración y la muestra, en su proyecto
-      const k = st.proyectos.findIndex(p => preguntasPendientes(p).length)
-      cerrarConfig({ foco: false })
-      st.plegado = false
-      st.firmas.clavesGlobo = null
-      if (k >= 0 && st.proyectos[k].repo !== st.repo) irAProyecto(st.proyectos[k].repo, 1)
-      else pintar()
-      ;($('#w-globo button') ?? $('#otro .aviso') ?? $('#cfg-fila'))?.focus()
-      break
-    }
+    // La línea de la pregunta de la hoja ya no se dibuja (la reemplaza #aviso-p, modulos-ux.md 4.5): el alias hace lo mismo
+    case 'cfg-ver': await responderDesdeAviso(st.proyectos.findIndex(p => preguntasPendientes(p).length)); break
   }
 }
 
@@ -5769,14 +5943,19 @@ async function iniciar() {
     // si la eligió esta misma ventana, ya está puesta y no pasa nada
     escuchar('oficina://mascota', ev => ponerMascota(ev.payload?.mascota))
     // "Configuración…" de la bandeja (configuracion-ux.md 4.1): muestra el panel y abre la hoja
-    escuchar('oficina://configuracion', ev => { if (ev.payload?.abrir) abrirConfig({ tab: ev.payload.tab }) })
+    escuchar('oficina://configuracion', ev => { if (ev.payload?.abrir) irModulo('config', { tab: ev.payload.tab }) })
     // Se abrió Avis otra vez estando en la tira mini: volver a la ventana completa
-    escuchar('oficina://expandir', () => ponerMini(false))
+    escuchar('oficina://expandir', () => expandir())
     // Acoplar a un borde o flotar (null) desde afuera: la bandeja ya no lo manda (la configuración
     // llama a acoplarA directo); queda para la vista de desarrollo (`__bandeja`)
     escuchar('oficina://acoplar', ev => acoplarA(typeof ev.payload === 'string' ? ev.payload : null))
     // "Mostrar Avis", la notificación o abrir Avis otra vez: acoplada, abre el panel
-    escuchar('oficina://abrir', () => { if (st.acople) evento({ tipo: 'clic' }) })
+    escuchar('oficina://abrir', async () => {
+      // Abrir el panel (modulos-ux.md 8): el módulo actual o, con una pregunta pendiente, Sesiones en esa pregunta
+      if (!st.acople) return
+      if (!st.muesca.abierta) await abrirPanelAlModulo()
+      evento({ tipo: 'clic' })
+    })
     // El puntero entró o salió de la zona interactiva (9.6); un aviso más viejo que el último se descarta
     // Acoplada: el puntero global (px lógicos de pantalla) para la mirada del Avi a la vista; cada motor
     // lo ignora si no se ve (marca-avi-ux.md 6 y muesca-avi-ux.md 9)

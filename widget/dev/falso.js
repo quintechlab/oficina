@@ -49,6 +49,11 @@
 //   ?cfg=datos&historial=muchas  el historial del chat (7.4) con 24 charlas falsas más las del chat falso;
 //                 "Borrar todo" tarda 0,9 s; &borrarfalla deja 3 sin borrar ("Reintentar")
 //   Lo guardado queda en window.__ajustes.
+// Módulos (#42, docs/diseno/modulos-ux.md, entrega M1): el menú de la barra (Sesiones, Tareas, Configuración).
+//   ?modulo=tareas|config  abre ese módulo a los 0,9 s con el clic en su fila (como el usuario). La pregunta
+//                 de catalogo sigue pendiente: se ve en el «1 ?» de Sesiones, en #aviso-p y en la marca
+//   ?pregunta=llega  la pregunta de catalogo llega a los 4 s y se queda (el «1 ?» late y #aviso-p baja);
+//                 con ?modulo=…, se ve llegar desde ese módulo
 // Tareas (#39, docs/diseno/tareas-ux.md): la fila "Tareas" de la barra, Ctrl T o ?tareas=… abren la hoja.
 //   Sin ?tareas, las cuatro listas del boceto (Trabajo, Casa, Compras y Facturación, con fechas contadas
 //   desde hoy en Argentina) y la hoja cerrada: la fila muestra la cuenta. Con ?tareas, la hoja se abre
@@ -288,17 +293,28 @@
       })
     }
   }
+  // ?repos=1|muchos: la tira de repos de Sesiones (modulos-ux.md 4.4, #42 M2) con un solo proyecto (oficina)
+  // o con 9 (los 3 de siempre y 6 quietos más, para ver el scroll horizontal y la máscara)
+  if (url.get('repos') === '1') SESIONES.splice(0, SESIONES.length, SESIONES.find(s => s.sesion === 'ses-oficina'))
+  if (url.get('repos') === 'muchos') {
+    const nucleo = SESIONES.find(s => s.sesion === 'ses-nucleo')
+    for (const [k, nombre] of ['quintech-crm', 'webs-portfolio', 'brasa-noble', 'temple-barberia', 'mis-gastos-app', 'playbook'].entries()) {
+      SESIONES.push({ ...nucleo, sesion: `ses-extra-${k}`, repo: `quintechlab/${nombre}`, rama: 'main', inicio: hace(20 + k * 7), actividad: 'esperándote', agentes: [] })
+    }
+  }
   /** Preguntas que el falso da por tomadas (?envio=listo) o respondidas en Claude (?envio=ya). */
   const tomadas = new Set()
   // &tapa: las preguntas solo entre los 4 y los 10 s (tapan el globo de tareas de la muesca y se van)
-  const tapada = () => !url.has('tapa') || (Date.now() - ahora >= 4000 && Date.now() - ahora < 10000)
+  const tapada = () => url.get('pregunta') === 'llega' ? Date.now() - ahora >= 4000 : !url.has('tapa') || (Date.now() - ahora >= 4000 && Date.now() - ahora < 10000)
   const sinTomadas = () => SESIONES.map(s => ({ ...s, preguntas: tapada() ? (s.preguntas ?? []).filter(p => !tomadas.has(p.id)) : [] }))
 
   // Barra de control (#19): las sesiones aceptan órdenes (mod v0.10). oficina trabaja (Frenar se ve),
   // central-nucleo espera tu mensaje y catalogo tiene un mensaje en cola ("en cola").
   if (!url.has('sincontrol')) {
     for (const s of SESIONES) Object.assign(s, { puedeControlar: true, enTurno: s.actividad !== 'esperándote' })
-    SESIONES.find(s => s.sesion === 'ses-catalogo').enCola = 1
+    const catalogo = SESIONES.find(s => s.sesion === 'ses-catalogo')
+    // Con ?repos=1 no está
+    if (catalogo) catalogo.enCola = 1
     // Cerrar (#25, mod v0.11): central-nucleo y catalogo son de terminal ("Cerrar sesión" se ve);
     // oficina es de la app de escritorio (sin el botón). ?sincerrar: mod v0.10, ninguna se cierra
     if (!url.has('sincerrar')) for (const s of SESIONES) s.puedeCerrar = s.sesion === 'ses-nucleo' || s.sesion === 'ses-catalogo'
@@ -618,6 +634,9 @@
     },
     tareas_abrir_carpeta: () => console.info('[explorador] <config>\tareas'),
   }
+  // ?modulo=…: abre el módulo como el usuario, con el clic en su fila del menú (modulos-ux.md 4.1)
+  const modulo = url.get('modulo')
+  if (modulo && modulo !== 'sesiones') setTimeout(() => document.querySelector(`.mod[data-mod="${CSS.escape(modulo)}"]`)?.click(), 900)
   // ?tareas=…: abre la hoja como el usuario (el clic en la fila "Tareas") y va a la vista de cada caso
   if (modoTareas !== null) {
     setTimeout(() => {
