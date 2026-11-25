@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Avis · Proyectos — boceto</title>
+<link rel="stylesheet" href="../../../widget/src/avis.css">
+<link rel="stylesheet" href="../../../widget/src/especies.css">
+<style>
+/* Boceto del módulo Proyectos (#44). Servir desde la raíz del repo: importa avis.js y anime.js reales.
+   Tokens de estilos.css sin cambios. Lo único nuevo: --c de cada proyecto (sale de la paleta) y la luz del escenario
+   de la hoja que toma ese color. */
+@font-face{font-family:"Manrope";src:url("../../../widget/src/fuentes/manrope-latin.woff2") format("woff2");font-weight:400 800;font-display:swap}
+@font-face{font-family:"Manrope";src:url("../../../widget/src/fuentes/manrope-simbolos.woff2") format("woff2");font-weight:400 800;unicode-range:U+2192,U+25BE,U+2713}
+@font-face{font-family:"Martian Mono";src:url("../../../widget/src/fuentes/martian-mono-latin.woff2") format("woff2");font-weight:400 600;font-stretch:75%;font-display:swap}
+@property --c{syntax:'<color>';inherits:true;initial-value:#F2B632}
+:root{
+  --negro:#000;--s1:#0C0C0E;--s2:#141417;--s3:#1D1D21;--linea:#25252A;--linea-hover:#36363C;
+  --crema:#F3EBD8;--crema2:#BDB5A4;--tenue:#8A8478;--ambar:#F2B632;--ambar-osc:#1D1707;--pico:#E9A13B;
+  --violeta:#A58BFF;--celeste:#7FB3FF;--verde:#8FD694;--rosa:#E78FB3;--rojo:#FF7A6B;--tinta:#14110C;
+  --f:"Manrope","Segoe UI Variable",sans-serif;--m:"Martian Mono","Cascadia Mono",monospace;
+  --t-display:800 21px/1.1 var(--f);--t-titulo:800 14.5px/1.3 var(--f);--t-cuerpo-f:700 13px/1.3 var(--f);
+  --t-cuerpo:500 12.5px/1.45 var(--f);--t-chico:500 11.5px/1.35 var(--f);--t-mono:400 10.5px/1.5 var(--m);
+  --t-mono-s:500 10px/1.3 var(--m);--t-rotulo:500 10px/1 var(--m);
+  --r-ventana:26px;--r-tarjeta:18px;--r-cuadro:14px;--r-fila:11px;--r-campo:10px;--r-icono:7px;--r-pildora:999px;
+  --ease:cubic-bezier(.16,1,.3,1);--rebote:cubic-bezier(.34,1.56,.64,1);--d-presion:140ms;--d-color:200ms;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html{background:#050506}
+body{color:var(--crema);font:var(--t-cuerpo);-webkit-font-smoothing:antialiased;min-height:100vh;
+  background:radial-gradient(900px 420px at 82% -8%,rgba(242,182,50,.08),transparent 70%),radial-gradient(1px 1px at 1px 1px,rgba(255,255,255,.05) 1px,transparent 0) 0 0/22px 22px,#050506}
+button,input,textarea{font:inherit;color:inherit;background:none;border:0}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+.oculto{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+body.pausa .marco *,body.pausa .marco *::before,body.pausa .marco *::after,body.pausa .hoja *,body.pausa .hoja *::before,body.pausa .hoja *::after{animation:none!important;transition:none!important}
+
+/* ---------------- página */
+.pagina{max-width:1440px;margin:0 auto;padding:44px 24px 96px}
+.kick{font:var(--t-rotulo);letter-spacing:.14em;text-transform:uppercase;color:var(--tenue)}
+.pag-h{display:grid;gap:12px;max-width:860px;margin-bottom:48px}
+.pag-h h1{font:800 clamp(30px,5vw,52px)/1 var(--f);letter-spacing:-.04em}
+.pag-h h1 em{font-style:normal;color:var(--ambar)}
+.pag-h p{color:var(--crema2);font:500 14px/1.55 var(--f);max-width:72ch}
+.pag-h p b{color:var(--crema)}
+.btn-p{min-height:32px;padding:0 14px;border-radius:999px;background:var(--s3);color:var(--crema);font:800 12px/1 var(--f)}
+.btn-p[aria-pressed="true"]{background:var(--crema);color:var(--tinta)}
+.opciones{display:grid;gap:88px}
+.op{display:grid;gap:18px;min-width:0}
+.op-h{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.op-l{font:800 64px/.8 var(--f);color:transparent;-webkit-text-stroke:1.2px var(--crema2);letter-spacing:-.04em}
+.op.reco .op-l{-webkit-text-stroke-color:var(--ambar)}
+.op-n{font:800 22px/1.1 var(--f);letter-spacing:-.03em}
+.op-n small{display:block;margin-top:4px;font:var(--t-mono-s);color:var(--tenue);letter-spacing:.06em}
+.reco-b{padding:6px 10px;border-radius:var(--r-pildora);background:var(--ambar);color:var(--negro);font:600 10px/1 var(--m);letter-spacing:.1em;text-transform:uppercase;align-self:center}
+.op-t{display:grid;gap:16px 40px;align-items:start}
+@media (min-width:900px){.op-t{grid-template-columns:minmax(0,60ch) minmax(0,1fr)}}
+.op-p{display:grid;gap:6px;color:var(--crema2);font:500 13px/1.5 var(--f)}
+.op-p b{color:var(--crema)}
+.proba{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.proba .kick{width:100%;margin-bottom:2px}
+.proba button{min-height:32px;padding:0 12px;border-radius:999px;background:var(--s3);color:var(--crema2);font:700 12px/1 var(--f);transition:background var(--d-color),color var(--d-color)}
+.proba button:hover{color:var(--crema)}
+.proba button[aria-pressed="true"]{background:var(--crema);color:var(--tinta)}
+.lienzo{min-width:0;padding:18px;border-radius:24px;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);overflow:hidden}
+.esc-l{display:flex;gap:14px;align-items:flex-start;width:max-content;transform-origin:0 0}
+.esc-l.apilado{flex-direction:column}
+.comun{margin-top:96px;display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.dos figure{max-width:100%}
+.comun>h2,.nota-pag h2{font:800 22px/1.1 var(--f);letter-spacing:-.03em}
+.comun>p{color:var(--crema2);max-width:76ch;font:500 13px/1.55 var(--f)}
+.comun>p b{color:var(--crema)}
+.dos{display:flex;flex-wrap:wrap;gap:18px}
+.dos figure{display:grid;gap:8px;min-width:0}
+.dos figcaption{font:var(--t-mono-s);color:var(--tenue)}
+.nota-pag{margin-top:72px;display:grid;gap:12px;max-width:880px;color:var(--crema2);font:500 13px/1.55 var(--f)}
+.nota-pag ul{display:grid;gap:6px;padding-left:18px}
+.nota-pag b{color:var(--crema)}
+.nx{display:inline-block;padding:2px 7px;border:1px dashed rgba(165,139,255,.6);border-radius:6px;color:var(--violeta);font:var(--t-mono-s)}
+
+/* ---------------- tablero */
+.marco{position:relative;width:694px;height:640px;flex:none;display:flex;overflow:hidden;padding:16px 14px 16px 16px;gap:16px;background:var(--negro);border:1px solid rgba(255,255,255,.07);border-radius:var(--r-ventana);box-shadow:0 16px 32px -16px rgba(0,0,0,.8),0 50px 120px -60px rgba(242,182,50,.12)}
+.lado{width:188px;flex:none;display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0}
+.marca{display:flex;flex-direction:column;align-items:center;text-align:center;padding:4px 4px 2px}
+.marca-n{margin-top:4px;font:var(--t-display);letter-spacing:-.03em}
+.marca .estado{margin-top:6px;padding:4px 10px 4px 8px;background:var(--s2);border-radius:var(--r-pildora);font:var(--t-mono-s);color:var(--crema2);display:inline-flex;gap:6px;align-items:center}
+.pt{display:inline-block;width:7px;height:7px;flex:none;border-radius:50%;background:var(--c,var(--ambar));box-shadow:0 0 0 3px color-mix(in srgb,var(--c,var(--ambar)) 20%,transparent)}
+.chip{flex:none;display:inline-flex;align-items:center;gap:4px;padding:3px 6px;border-radius:var(--r-pildora);background:var(--s3);color:var(--crema2);font:500 10px/1 var(--m)}
+.chip-venc{background:color-mix(in srgb,var(--rojo) 22%,var(--s2));color:var(--rojo);font-weight:600}
+.mods{display:grid;gap:2px}
+.mod{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 8px;border-radius:var(--r-fila);color:var(--crema2);font:var(--t-cuerpo-f);text-align:left;transition:background var(--d-color),color var(--d-color),transform var(--d-presion)}
+.mod:hover{background:var(--s2);color:var(--crema)}
+.mod:active{transform:scale(.97)}
+.mod-ic{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--r-icono);background:var(--s2)}
+.mod svg,.tb svg,.ic svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.mod-n{flex:1;min-width:0}
+.mod[aria-current="page"]{color:var(--ambar);background:var(--ambar-osc);box-shadow:inset 3px 0 0 var(--ambar)}
+.mod[aria-current="page"] .mod-ic{background:color-mix(in srgb,var(--ambar) 18%,transparent)}
+.lado-cfg{margin-top:auto;padding-top:10px;border-top:1px solid var(--linea)}
+kbd.k{flex:none;font:var(--t-mono-s);color:var(--tenue)}
+.rot{display:block;margin:4px 0 4px 8px;font:var(--t-rotulo);letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+
+.principal{position:relative;width:460px;flex:none;display:flex;flex-direction:column;min-height:0;min-width:0}
+.cab{display:flex;align-items:flex-start;gap:12px;padding-bottom:12px}
+.cab-t{flex:1;min-width:0}
+.cab h1{font:var(--t-display);letter-spacing:-.035em}
+.cab p{margin-top:2px;font:var(--t-cuerpo);color:var(--crema2)}
+.controles{display:flex;align-items:center;flex:none;margin:-4px -6px 0 0}
+.tb,.ic{width:32px;height:32px;flex:none;display:grid;place-items:center;border-radius:var(--r-fila);color:var(--crema2);transition:background var(--d-color),color var(--d-color)}
+.tb:hover,.ic:hover{background:var(--s2);color:var(--crema)}
+.cuerpo{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--linea-hover) transparent;padding:2px 4px 2px 2px;margin:-2px -4px 0 -2px}
+.btn-n{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px 0 10px;border-radius:999px;background:var(--crema);color:var(--tinta);font:800 12px/1 var(--f);transition:transform var(--d-presion)}
+.btn-n:active{transform:scale(.96)}
+.btn-n svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+
+/* proyecto: piezas */
+.pj-ic{width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:7px;background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--c);font:600 10px/1 var(--m)}
+.pj-ic.g{width:34px;height:34px;border-radius:11px;font-size:13px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 30%,transparent)}
+.rojo{color:var(--rojo);font-weight:600}
+
+/* A · estante */
+.estante{display:grid;grid-template-columns:1fr 1fr;gap:16px 10px;padding-top:10px}
+.pcard{position:relative;display:grid;gap:10px;align-content:start;min-height:150px;padding:14px 14px 12px;border-radius:4px var(--r-cuadro) var(--r-cuadro) var(--r-cuadro);background:linear-gradient(170deg,color-mix(in srgb,var(--c) 9%,var(--s1)),var(--s1) 55%);border:1px solid var(--linea);text-align:left;transition:border-color var(--d-color),transform .3s var(--ease)}
+.pcard::before{content:"";position:absolute;left:-1px;top:-9px;width:74px;height:9px;border-radius:8px 10px 0 0;background:color-mix(in srgb,var(--c) 60%,var(--s1));clip-path:polygon(0 0,82% 0,100% 100%,0 100%)}
+.pcard:hover{border-color:var(--linea-hover);transform:translateY(-2px)}
+.pcard b{font:var(--t-titulo);display:block}
+.pcard .ruta{font:var(--t-mono-s);color:var(--tenue);display:flex;gap:5px;align-items:center;min-width:0}
+.pcard .ruta span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .ult{font:var(--t-chico);color:var(--crema2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pcard .pie{display:flex;justify-content:space-between;font:var(--t-mono-s);color:var(--tenue);margin-top:auto;padding-top:8px;border-top:1px solid var(--linea)}
+.pcard.mal .ruta{color:var(--rojo)}
+.pcard.nuevo{place-content:center;justify-items:center;gap:8px;border:1px dashed var(--linea-hover);background:none;color:var(--crema2);font:var(--t-cuerpo-f)}
+.pcard.nuevo::before{background:var(--linea-hover)}
+.pcard.nuevo:hover{color:var(--ambar);border-color:var(--ambar)}
+.pcard.nuevo i{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:var(--s2);font:300 22px/1 var(--f);font-style:normal}
+
+/* ficha de un proyecto */
+.ficha{display:grid;gap:12px;align-content:start}
+.f-cab{display:flex;align-items:center;gap:10px}
+.f-t{flex:1;min-width:0}
+.f-t h2{font:800 18px/1.15 var(--f);letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f-t small{font:var(--t-mono-s);color:var(--tenue)}
+.volver{margin-left:-6px}
+.cta{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0 14px 0 8px;border-radius:14px;background:var(--ambar);color:var(--negro);font:800 13px/1 var(--f);text-align:left;box-shadow:0 14px 30px -18px rgba(242,182,50,.8);transition:transform var(--d-presion),filter var(--d-color)}
+.cta:hover{filter:brightness(1.06)}
+.cta:active{transform:scale(.98)}
+.cta .cta-av{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:var(--negro);overflow:hidden}
+.cta span:nth-child(2){flex:1}
+.cta kbd{font:500 10px/1 var(--m);opacity:.6}
+.chs{display:grid}
+.chf{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;min-height:44px;padding:6px 8px;border-radius:var(--r-fila);text-align:left;border-top:1px solid var(--linea);transition:background var(--d-color)}
+.chf:first-child{border-top:0}
+.chf:hover{background:var(--s2)}
+.chf b{font:var(--t-cuerpo-f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chf small{font:var(--t-mono-s);color:var(--tenue);grid-row:span 2}
+.chf span{font:var(--t-mono-s);color:var(--tenue)}
+.vacio-ch{display:flex;gap:10px;align-items:center;padding:12px;border-radius:14px;border:1px dashed var(--linea-hover);font:var(--t-chico);color:var(--crema2)}
+.par{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bloque{display:grid;gap:8px;align-content:start;padding:12px;border-radius:14px;background:var(--s1);border:1px solid var(--linea);min-width:0}
+.bloque .rot{margin:0;display:flex;justify-content:space-between;align-items:center}
+.bloque .rot button{font:var(--t-mono-s);letter-spacing:0;text-transform:none;color:var(--crema2);padding:4px 6px;margin:-6px -6px -6px 0;border-radius:6px}
+.bloque .rot button:hover{background:var(--s3);color:var(--crema)}
+.instr{font:500 12px/1.5 var(--f);color:var(--crema);display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.instr::before{content:"“";color:var(--c);font:800 18px/0 var(--f);vertical-align:-6px;margin-right:2px}
+.bloque .pie{font:var(--t-mono-s);color:var(--tenue)}
+.car-n{display:flex;gap:8px;align-items:center;min-width:0}
+.car-n svg{width:22px;height:22px;flex:none;fill:color-mix(in srgb,var(--c) 22%,transparent);stroke:var(--c);stroke-width:1.3}
+.car-n b{font:var(--t-cuerpo-f);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.car-n small{font:var(--t-mono-s);color:var(--tenue);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.car-n div{min-width:0}
+.tag{display:inline-flex;align-self:start;justify-self:start;padding:3px 7px;border-radius:6px;background:var(--s3);font:var(--t-mono-s);color:var(--crema2)}
+.soltar{display:grid;place-items:center;align-content:center;gap:3px;padding:8px;min-height:54px;border-radius:10px;text-align:center;font:600 11px/1.3 var(--f);color:var(--crema2);
+  background:linear-gradient(90deg,var(--linea-hover) 50%,transparent 0) 0 0/10px 1px repeat-x,linear-gradient(90deg,var(--linea-hover) 50%,transparent 0) 0 100%/10px 1px repeat-x,linear-gradient(var(--linea-hover) 50%,transparent 0) 0 0/1px 10px repeat-y,linear-gradient(var(--linea-hover) 50%,transparent 0) 100% 0/1px 10px repeat-y}
+.soltar small{font:var(--t-mono-s);color:var(--tenue)}
+.soltar:hover,.soltar.vivo{color:var(--crema);animation:hormigas 1s linear infinite;--lh:var(--c)}
+.soltar.vivo{background-color:color-mix(in srgb,var(--c) 8%,transparent)}
+@keyframes hormigas{to{background-position:10px 0,-10px 100%,0 -10px,100% 10px}}
+.mini-acc{display:flex;gap:6px;flex-wrap:wrap}
+.mini{min-height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--linea-hover);font:700 11.5px/1 var(--f);color:var(--crema)}
+.mini:hover{background:var(--s3)}
+.mini.pri{background:var(--crema);color:var(--tinta);border-color:var(--crema)}
+.bloque.mal{border-color:rgba(255,122,107,.45);background:linear-gradient(170deg,rgba(255,122,107,.09),var(--s1) 70%)}
+.bloque.mal .car-n svg{stroke:var(--rojo);fill:rgba(255,122,107,.12)}
+.bloque.mal .car-n b{text-decoration:line-through;text-decoration-color:rgba(255,122,107,.7);color:var(--crema2)}
+.bloque.mal p{font:var(--t-chico);color:var(--crema2)}
+.bloque.mal p b{color:var(--rojo)}
+/* qué ve cada motor */
+.matriz{display:grid;grid-template-columns:auto 1fr 1fr;gap:0;border-radius:14px;border:1px solid var(--linea);overflow:hidden;font:var(--t-chico)}
+.matriz>*{padding:8px 10px;border-top:1px solid var(--linea);display:flex;gap:6px;align-items:center;min-width:0}
+.matriz>.h{border-top:0;font:var(--t-rotulo);letter-spacing:.1em;text-transform:uppercase;color:var(--tenue);background:var(--s1)}
+.matriz .mt{font:var(--t-mono-s);color:var(--crema);white-space:nowrap}
+.matriz .si{color:var(--crema)}
+.matriz .si::before{content:"✓";color:var(--verde);font-weight:800}
+.matriz .no{color:var(--tenue)}
+.matriz .no::before{content:"—";color:var(--tenue)}
+.matriz .si small{color:var(--tenue);font:var(--t-mono-s)}
+.borrar-z{display:grid;gap:6px;justify-items:start;padding:6px 0 4px}
+.borrar{position:relative;overflow:hidden;min-height:32px;padding:0 12px;border-radius:999px;color:var(--rojo);font:700 12px/1 var(--f);border:1px solid transparent;transition:background var(--d-color),color var(--d-color)}
+.borrar:hover{background:rgba(255,122,107,.1)}
+.borrar.conf{background:var(--rojo);color:var(--negro);border-color:var(--rojo)}
+.borrar.conf::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(0,0,0,.35);transform-origin:left;animation:cuenta 3s linear forwards}
+@keyframes cuenta{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+.borrar-z small{font:var(--t-mono-s);color:var(--crema2)}
+
+/* B · carpeta (índice + hoja) */
+.carp{flex:1;min-height:0;display:grid;grid-template-columns:136px minmax(0,1fr);gap:0 14px}
+.idx{position:relative;display:flex;flex-direction:column;gap:2px;padding-right:10px;border-right:1px solid var(--linea);min-width:0}
+.ix-b{position:relative;z-index:1;display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:0 6px;border-radius:var(--r-fila);color:var(--crema2);font:700 12px/1.15 var(--f);text-align:left;transition:color var(--d-color)}
+.ix-b:hover{color:var(--crema)}
+.ix-b[aria-current="page"]{color:var(--crema)}
+.ix-b .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ix-b .ct{font:500 10px/1 var(--m);color:var(--tenue)}
+.ix-b .mal-p{width:7px;height:7px;border-radius:50%;background:var(--rojo);box-shadow:0 0 0 3px rgba(255,122,107,.2)}
+.ix-b.mas{color:var(--ambar);margin-top:6px}
+.ix-b.mas i{width:22px;height:22px;display:grid;place-items:center;border-radius:7px;border:1px dashed color-mix(in srgb,var(--ambar) 60%,transparent);font:400 15px/1 var(--f);font-style:normal}
+.ind-ix{position:absolute;left:0;right:10px;top:0;height:36px;border-radius:var(--r-fila);background:var(--s2);box-shadow:inset 3px 0 0 var(--c,var(--ambar));transition:transform .42s var(--ease),box-shadow .3s}
+.pane{min-width:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--linea-hover) transparent;padding:0 4px 4px 0}
+.pane .par{grid-template-columns:1fr}
+
+/* C · lomos */
+.lomos{display:grid;gap:6px;padding-top:4px}
+.lomo{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 12px;align-items:center;min-height:68px;padding:10px 12px 10px 18px;border-radius:14px;background:var(--s1);border:1px solid var(--linea);text-align:left;overflow:hidden;transition:background var(--d-color),border-color var(--d-color)}
+.lomo::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c);transition:width .35s var(--ease)}
+.lomo:hover{border-color:var(--linea-hover)}
+.lomo[aria-current="true"]{background:color-mix(in srgb,var(--c) 10%,var(--s1));border-color:color-mix(in srgb,var(--c) 45%,transparent)}
+.lomo[aria-current="true"]::before{width:7px}
+.lomo b{font:var(--t-titulo)}
+.lomo span{font:var(--t-chico);color:var(--crema2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;grid-column:1}
+.lomo small{grid-column:2;grid-row:1/span 2;font:var(--t-mono-s);color:var(--tenue);text-align:right}
+.lomo small i{display:block;font:800 18px/1 var(--f);color:var(--crema);font-style:normal}
+.lomo .mal-p{color:var(--rojo)}
+.flecha-h{position:absolute;right:-1px;top:50%;width:14px;height:22px;margin-top:-11px;background:var(--c);clip-path:polygon(100% 0,0 50%,100% 100%);opacity:0;transition:opacity .2s}
+.lomo[aria-current="true"] .flecha-h{opacity:1}
+
+/* vacío y formulario */
+.vacio{flex:1;display:grid;place-content:center;justify-items:center;gap:12px;text-align:center;padding:0 30px 30px}
+.vacio .piso{position:relative;display:grid;place-items:center;width:200px;height:120px;background:radial-gradient(90px 22px at 50% 108px,rgba(242,182,50,.28),transparent 70%)}
+.vacio h2{font:800 19px/1.15 var(--f);letter-spacing:-.03em}
+.vacio p{font:var(--t-cuerpo);color:var(--crema2);max-width:36ch}
+.tres{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.tres span{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid var(--linea);font:var(--t-mono-s);color:var(--crema2)}
+.tres i{width:6px;height:6px;border-radius:50%;background:var(--c);font-style:normal}
+.form{display:grid;gap:14px;align-content:start}
+.fl{display:grid;gap:6px}
+.fl>label,.fl>.lbl{font:var(--t-cuerpo-f)}
+.fl small{font:var(--t-mono-s);color:var(--tenue)}
+.inp{width:100%;min-height:38px;padding:0 12px;border-radius:var(--r-campo);background:var(--s1);border:1px solid var(--linea);font:var(--t-cuerpo);outline:none;transition:border-color var(--d-color),box-shadow var(--d-color)}
+.inp:focus,.inp.foco{border-color:var(--ambar);box-shadow:0 0 0 3px rgba(242,182,50,.14)}
+textarea.inp{min-height:86px;padding:9px 12px;resize:none;line-height:1.5}
+.opc-c{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.oc{display:grid;gap:4px;align-content:start;padding:10px 12px;border-radius:12px;border:1px solid var(--linea);background:var(--s1);text-align:left;transition:border-color var(--d-color),background var(--d-color)}
+.oc b{font:var(--t-cuerpo-f);display:flex;gap:7px;align-items:center}
+.oc b::before{content:"";width:12px;height:12px;flex:none;border-radius:50%;border:1.5px solid var(--linea-hover);box-sizing:border-box;transition:border .2s}
+.oc[aria-checked="true"]{border-color:var(--ambar);background:var(--ambar-osc)}
+.oc[aria-checked="true"] b::before{border:4px solid var(--ambar)}
+.oc span{font:var(--t-mono-s);color:var(--tenue)}
+.oc:hover{border-color:var(--linea-hover)}
+.form-acc{display:flex;gap:8px;align-items:center;padding-top:2px}
+.btn-pri{min-height:36px;padding:0 16px;border-radius:999px;background:var(--ambar);color:var(--negro);font:800 12.5px/1 var(--f)}
+.btn-sec{min-height:36px;padding:0 14px;border-radius:999px;color:var(--crema2);font:700 12.5px/1 var(--f)}
+.btn-sec:hover{background:var(--s2);color:var(--crema)}
+
+/* ---------------- hoja de charla */
+.hoja{--c:var(--ambar);position:relative;width:420px;height:640px;flex:none;border-radius:26px;background:var(--negro);overflow:hidden;display:flex;flex-direction:column;
+  box-shadow:0 16px 32px -16px rgba(0,0,0,.8),0 40px 90px -40px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,255,255,.06);transition:--c .6s var(--ease)}
+.escenario{position:relative;height:172px;flex:none;display:grid;justify-items:center;align-content:end;gap:3px;padding-bottom:12px;
+  background:radial-gradient(200px 80px at 50% 120px,color-mix(in srgb,var(--c) 26%,transparent),transparent 70%),linear-gradient(var(--s1),var(--negro))}
+.escenario::after{content:"";position:absolute;left:50%;top:124px;width:180px;height:1px;transform:translateX(-50%);background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--c) 75%,transparent),transparent)}
+.escenario .avi{position:relative;z-index:1}
+.esc-nom{font:800 15px/1.1 var(--f);position:relative;z-index:1}
+.esc-est{font:var(--t-mono-s);color:var(--crema2);display:flex;gap:6px;align-items:center;position:relative;z-index:1}
+.esc-est i{width:6px;height:6px;border-radius:50%;background:var(--verde)}
+.arriba{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;z-index:2}
+.arr-d{display:flex}
+.pj-chip{display:inline-flex;align-items:center;gap:7px;min-height:32px;max-width:250px;padding:0 10px 0 5px;border-radius:999px;background:color-mix(in srgb,var(--c) 14%,var(--s2));border:1px solid color-mix(in srgb,var(--c) 40%,transparent);font:800 12px/1 var(--f);transition:background var(--d-color)}
+.pj-chip:hover{background:color-mix(in srgb,var(--c) 22%,var(--s2))}
+.pj-chip .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj-chip small{font:var(--t-mono-s);color:var(--crema2)}
+.chat{flex:1;min-height:0;display:flex;flex-direction:column;padding:10px 14px 14px}
+.ch-cab{display:flex;align-items:center;gap:6px;padding-bottom:8px;flex:none}
+.carpeta{display:flex;align-items:center;gap:6px;height:32px;min-width:0;max-width:150px;padding:0 9px;border-radius:10px;background:var(--s2);border:1px solid var(--linea);font:var(--t-cuerpo-f)}
+.carpeta svg{width:14px;height:14px;flex:none;fill:none;stroke:var(--c);stroke-width:1.5}
+.carpeta .ruta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.carpeta[aria-disabled="true"]{opacity:.55;cursor:default}
+.carpeta[aria-disabled="true"] .ruta{text-decoration:line-through}
+.motor{display:flex;padding:3px;border-radius:999px;background:var(--s2);border:1px solid var(--linea)}
+.motor button{height:26px;padding:0 10px;border-radius:999px;font:var(--t-mono-s);color:var(--crema2);transition:background .25s var(--ease),color .25s}
+.motor button[aria-checked="true"]{background:var(--crema);color:var(--tinta)}
+.modelo{display:flex;align-items:center;gap:4px;height:32px;padding:0 8px;border-radius:10px;font:var(--t-mono-s);color:var(--crema2)}
+.modelo:hover{background:var(--s2)}
+.ctx-p{display:flex;gap:6px;flex-wrap:wrap;padding:0 0 8px;flex:none}
+.ctx-i{display:inline-flex;gap:5px;align-items:center;padding:4px 8px;border-radius:8px;background:var(--s1);border:1px solid var(--linea);font:var(--t-mono-s);color:var(--crema2)}
+.ctx-i.si::before{content:"✓";color:var(--verde);font-weight:700}
+.ctx-i.no{color:var(--tenue);border-style:dashed}
+.ctx-i.no::before{content:"—"}
+.hilo{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:4px 2px 10px;scrollbar-width:thin}
+.m-u{align-self:flex-end;max-width:84%;background:var(--s3);padding:9px 12px;border-radius:14px 14px 4px 14px;font:var(--t-cuerpo)}
+.m-m{position:relative;padding-left:16px;font:500 13px/1.6 var(--f)}
+.m-m::before{content:"";position:absolute;left:0;top:3px;bottom:3px;width:2px;border-radius:2px;background:linear-gradient(var(--ambar),rgba(242,182,50,.1))}
+.m-m ul{padding-left:18px;margin:4px 0;display:grid;gap:2px}
+.m-m b{font-weight:800}
+.herr{font:var(--t-mono-s);color:var(--tenue);display:flex;gap:6px;align-items:center}
+.herr b{font-weight:500;color:var(--crema2)}
+.herr svg{width:12px;height:12px;fill:none;stroke:var(--c);stroke-width:1.5}
+.sug{align-self:flex-start;padding:8px 12px;border-radius:12px;border:1px solid var(--linea);background:var(--s2);font:600 12px/1.3 var(--f);transition:border-color .2s,transform .2s var(--ease)}
+.sug:hover{border-color:var(--ambar);transform:translateX(3px)}
+.sug::before{content:"↳ ";color:var(--tenue)}
+.comp{display:grid;gap:6px;flex:none;padding-top:8px}
+.campo{display:flex;align-items:flex-end;gap:4px;background:var(--s1);border:1px solid var(--linea);border-radius:14px;padding:5px}
+.campo span{flex:1;padding:9px 4px;color:var(--tenue);font:var(--t-cuerpo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.enviar{width:36px;height:36px;border-radius:50%;background:var(--s3);color:var(--tenue);display:grid;place-items:center;flex:none}
+.enviar svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.pie-comp{font:var(--t-mono-s);color:var(--tenue);display:flex;justify-content:space-between;gap:8px;padding:0 4px}
+.portada{display:grid;gap:10px;align-content:start}
+
+/* entradas (CSS; las coreografías van con anime.js) */
+.marco,.hoja{contain:layout}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+@media (max-width:720px){.pagina{padding:28px 14px 72px}.lienzo{padding:10px;border-radius:16px}.op-l{font-size:48px}}
+</style>
+</head>
+<body>
+<div id="defs" hidden></div>
+<div class="pagina">
+  <header class="pag-h">
+    <span class="kick">Boceto · Proyectos (#44) · 24/11/2026 · Delfina</span>
+    <h1>Un tema, <em>su carpeta</em> y sus charlas</h1>
+    <p>«Proyectos» entra a la barra como quinto módulo (menú A). Cada proyecto junta <b>instrucciones propias</b>, <b>una carpeta</b> (una de la PC o una que crea Avis para soltar archivos) y <b>sus charlas</b>. La charla de un proyecto es la hoja de siempre, con el proyecto a la vista arriba y la luz del escenario en su color.</p>
+    <p>Lo que se tiene que entender sin leer un manual: <b>Claude Code lee la carpeta cuando le hace falta</b> (no se manda en cada mensaje) y <b>el modelo local solo recibe las instrucciones</b>. Las tres opciones lo dicen igual: una tabla chica en el proyecto y dos marcas en la cabecera de la charla.</p>
+    <div><button type="button" class="btn-p" id="pausa" aria-pressed="false">Pausar movimiento</button></div>
+  </header>
+
+  <div class="opciones">
+    <section class="op" aria-labelledby="op-a-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">A</span><h2 class="op-n" id="op-a-n">Estante<small>CARPETAS EN GRILLA · EL PROYECTO OCUPA LA COLUMNA</small></h2></div>
+      <div class="lienzo" data-op="a"></div>
+      <div class="op-t">
+        <div class="op-p"><p>Cada proyecto es una carpeta con pestaña de su color, en dos columnas; abrirla convierte la columna en el proyecto («‹ Proyectos» vuelve). Es la más visual y la que mejor se reconoce de un vistazo.</p><p>Contra: dos niveles (grilla → proyecto) y con más de 6 proyectos hay que bajar.</p></div>
+        <div class="proba" data-op="a"></div>
+      </div>
+    </section>
+
+    <section class="op reco" aria-labelledby="op-b-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">B</span><h2 class="op-n" id="op-b-n">Carpeta<small>ÍNDICE DE PROYECTOS + EL ELEGIDO AL LADO</small></h2><span class="reco-b">Recomendada</span></div>
+      <div class="lienzo" data-op="b"></div>
+      <div class="op-t">
+        <div class="op-p"><p>El mismo esqueleto que Tareas y Hábitos (opción B · Carpeta): índice de 136 a la izquierda, el proyecto elegido a la derecha. Un clic menos que A, y el módulo se aprende porque ya se aprendió otro.</p><p>La píldora del índice toma el color del proyecto; el proyecto se lee en una columna (charlas primero, después instrucciones y carpeta).</p></div>
+        <div class="proba" data-op="b"></div>
+      </div>
+    </section>
+
+    <section class="op" aria-labelledby="op-c-n">
+      <div class="op-h"><span class="op-l" aria-hidden="true">C</span><h2 class="op-n" id="op-c-n">Portada<small>LA LISTA EN LA COLUMNA · EL PROYECTO ES LA HOJA</small></h2></div>
+      <div class="lienzo" data-op="c"></div>
+      <div class="op-t">
+        <div class="op-p"><p>Elegir un proyecto abre directo su hoja de charla con una portada (instrucciones, carpeta, charlas) y el campo listo para escribir: cero pasos entre el proyecto y la charla.</p><p>Contra: el tablero y la hoja quedan abiertos juntos todo el tiempo, y crear o editar pasa adentro de la hoja.</p></div>
+        <div class="proba" data-op="c"></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="comun" aria-labelledby="h-comun">
+    <h2 id="h-comun">Lo mismo en las tres: qué ve cada motor</h2>
+    <p>La charla del proyecto es la hoja de hoy. Arriba, <b>la ficha del proyecto</b> (vuelve al proyecto con un clic) y la luz del escenario en su color. Debajo de la cabecera, <b>dos marcas</b>: «Instrucciones» y «Carpeta, cuando hace falta». Cuando Claude abre un archivo, la línea de herramienta lo dice («Leyó tarifas-2027.xlsx»). Con <b>Local</b>, la carpeta se tacha en la cabecera, la marca pasa a «Carpeta: solo con Claude Code» y la mascota lo explica si se le pide algo de un archivo.</p>
+    <div class="dos" id="comun"></div>
+  </section>
+
+  <section class="nota-pag" aria-labelledby="h-notas">
+    <h2 id="h-notas">Reglas que propongo</h2>
+    <ul>
+      <li><b>Nombre:</b> en Sesiones, la tira de arriba también se llama «proyectos» (las carpetas donde corre Claude Code). Propongo que esa tira pase a decir <b>«Repos»</b> o solo muestre los nombres sin rótulo, para que «Proyectos» sea uno solo. <span class="nx">decisión de Quintana</span></li>
+      <li><b>Carpeta creada por Avis:</b> en <code>Documentos › Avis › &lt;nombre&gt;</code>; se sueltan archivos en la zona punteada o se abre en el Explorador. Avis nunca la mueve ni la vacía.</li>
+      <li><b>Borrar</b> confirma en el mismo botón («¿Borrar «Presupuestos 2027»? Sí», 3 s, Esc cancela) y se lleva el proyecto y sus charlas; <b>la carpeta y sus archivos quedan en la PC</b>. <span class="nx">a confirmar</span></li>
+      <li><b>Carpeta que ya no existe:</b> el proyecto y sus charlas siguen; en la tarjeta, «No encuentro D:\Mudanza» con «Elegir otra» o «Crear una nueva». En la charla, la marca de carpeta queda en rojo y Claude trabaja solo con las instrucciones.</li>
+      <li><b>Movimiento:</b> entrada escalonada (420 ms, <code>outExpo</code>, 40 ms entre piezas), la luz del escenario cambia de color en 600 ms, la zona de soltar marcha sus hormigas al pasar un archivo. Reducido: fundidos de 160 ms. Pausa: todo quieto.</li>
+    </ul>
+  </section>
+</div>
+
+<script type="module">
+import { avi, claudeDe, defsAvis } from '../../../widget/src/avis.js'
+import { animate, stagger } from '../../../widget/src/vendor/animejs/anime.esm.min.js'
+
+document.getElementById('defs').innerHTML = defsAvis()
+const CLAUDE = claudeDe('avi')
+document.getElementById('pausa').addEventListener('click', e => {
+  const on = document.body.classList.toggle('pausa')
+  e.currentTarget.setAttribute('aria-pressed', on); e.currentTarget.textContent = on ? 'Movimiento en pausa' : 'Pausar movimiento'
+})
+const reducido = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+function entrar(els) {
+  if (!els.length || document.body.classList.contains('pausa')) return
+  if (reducido()) return animate(els, { opacity: [0, 1], duration: 160 })
+  animate(els, { opacity: [0, 1], translateY: [8, 0], delay: stagger(40), duration: 420, ease: 'outExpo' })
+}
+
+const IC = {
+  sesiones: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="9" rx="2.6"/><path d="M5 14h6M6 7.2h.01M10 7.2h.01"/></svg>',
+  tareas: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="3.2"/><path d="M5.3 8.2l1.9 1.9 3.6-4"/></svg>',
+  habitos: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8.6A5.2 5.2 0 1 1 11.6 4.2"/><path d="M12.2 1.8v2.8H9.4"/><circle cx="8" cy="8.3" r="1.5" fill="currentColor" stroke="none"/></svg>',
+  proyectos: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.2V12a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5A1.5 1.5 0 0 0 12 5H8L6.6 3.2H4A1.5 1.5 0 0 0 2.5 4.7z"/></svg>',
+  config: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.1"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg>',
+  carpeta: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.2V12a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5A1.5 1.5 0 0 0 12 5H8L6.6 3.2H4A1.5 1.5 0 0 0 2.5 4.7z"/></svg>',
+  carpetaG: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9.5a2 2 0 0 0-2-2h-7.5L9.5 5H5a2 2 0 0 0-2 2.5z"/></svg>',
+  atras: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg>',
+  lapiz: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 3l2.5 2.5L6 12.5 3 13l.5-3z"/></svg>',
+  hist: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h6"/></svg>',
+  cerrar: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  pin: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2h5M6.5 2v4.2L4.5 8.5h7L9.5 6.2V2M8 8.5V14"/></svg>',
+  mini: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10"/></svg>',
+  mas: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>',
+  enviar: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M4 7l4-4 4 4"/></svg>',
+  abajo: '<svg viewBox="0 0 10 10" aria-hidden="true" style="width:9px;height:9px;fill:none;stroke:currentColor;stroke-width:1.6"><path d="M2 3.5l3 3 3-3"/></svg>',
+  lee: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2h5l3 3v9H4z M9 2v3h3"/></svg>',
+}
+
+// ---------------------------------------------------------------- datos (propuestos)
+const PROYS = [
+  { id: 'presu', n: 'Presupuestos 2027', c: 'var(--ambar)', i: 'P',
+    instr: 'Armo presupuestos para clientes de Quintech. Respondé en pesos, con el IVA aparte, y tomá los precios de «tarifas-2027.xlsx» de la carpeta. Directo y sin vueltas.',
+    car: { tipo: 'avis', nom: 'Presupuestos 2027', ruta: 'Documentos › Avis › Presupuestos 2027', arch: 7 },
+    ch: [['Web para la panadería La Espiga', 'hace 2 h', 14], ['Mantenimiento mensual: ¿cuánto cobrar?', 'ayer', 6], ['Plantilla de propuesta', 'lun 23/11', 22]] },
+  { id: 'lect', n: 'Notas de lectura', c: 'var(--celeste)', i: 'N',
+    instr: 'Resumí cada capítulo en 5 puntos y armá 3 preguntas para repasar. Si cito una página, buscala en el PDF de la carpeta.',
+    car: { tipo: 'pc', nom: 'Lecturas', ruta: 'C:\\Lecturas', arch: 31 },
+    ch: [['Sapiens, capítulo 4', 'hace 3 días', 9], ['Preguntas de repaso', 'vie 20/11', 4]] },
+  { id: 'mud', n: 'Mudanza', c: 'var(--verde)', i: 'M',
+    instr: 'Ayudame a organizar la mudanza de diciembre: comparar fletes y armar la lista de cajas por ambiente.',
+    car: { tipo: 'pc', nom: 'Mudanza', ruta: 'D:\\Mudanza', arch: 0, perdida: true },
+    ch: [['Comparar tres fletes', 'sáb 21/11', 11]] },
+]
+const P = id => PROYS.find(p => p.id === id)
+const ESTADOS = [['vacio', 'Vacío'], ['nuevo', 'Primer proyecto'], ['recien', 'Recién creado'], ['lista', 'Con proyectos'], ['perdida', 'Carpeta perdida'], ['borrar', 'Borrar'], ['charla', 'Charla abierta'], ['local', 'Charla con Local']]
+
+// ---------------------------------------------------------------- barra
+const MODS = [['sesiones', 'Sesiones', '<span class="chip">3</span>'], ['tareas', 'Tareas', '<span class="chip chip-venc">4</span>'], ['habitos', 'Hábitos', '<span class="chip">2/5</span>'], ['proyectos', 'Proyectos', null]]
+function lado(m) {
+  const n = m.est === 'vacio' || m.est === 'nuevo' ? '' : `<span class="chip">${m.est === 'recien' ? 1 : 3}</span>`
+  const fila = ([id, nom, ct]) => `<button type="button" class="mod" ${id === 'proyectos' ? 'aria-current="page"' : ''} aria-label="${nom}"><span class="mod-ic">${IC[id]}</span><span class="mod-n">${nom}</span>${ct ?? n}</button>`
+  return `<aside class="lado"><div class="marca">${avi(CLAUDE, 'esperando', 104, { alt: 'Avi' })}<b class="marca-n">Avis</b><span class="estado"><i class="pt" style="--c:var(--verde)"></i>3 sesiones</span></div>
+  <nav class="mods" aria-label="Módulos">${MODS.map(fila).join('')}</nav>
+  <div class="lado-cfg"><button type="button" class="mod" aria-label="Configuración"><span class="mod-ic">${IC.config}</span><span class="mod-n">Configuración</span><kbd class="k">Ctrl ,</kbd></button></div></aside>`
+}
+const controles = `<div class="controles"><button type="button" class="tb" aria-label="Siempre arriba" title="Siempre arriba">${IC.pin}</button><button type="button" class="tb" aria-label="Minimizar a la tira" title="Minimizar a la tira">${IC.mini}</button><button type="button" class="tb" aria-label="Cerrar a la bandeja" title="Cerrar a la bandeja">${IC.cerrar}</button></div>`
+const cab = (t, s, extra = '') => `<header class="cab"><div class="cab-t"><h1>${t}</h1><p>${s}</p></div>${extra}${controles}</header>`
+const btnNuevo = `<button type="button" class="btn-n" data-a="nuevo" style="margin:2px 4px 0 0">${IC.mas}Nuevo</button>`
+
+// ---------------------------------------------------------------- piezas de proyecto
+const matriz = `<div class="matriz" role="table" aria-label="Qué ve cada motor"><span class="h" role="columnheader">Motor</span><span class="h" role="columnheader">Instrucciones</span><span class="h" role="columnheader">Carpeta</span>
+  <span class="mt" role="cell">Claude Code</span><span class="si" role="cell">en cada charla</span><span class="si" role="cell">la lee <small>cuando hace falta</small></span>
+  <span class="mt" role="cell">Local</span><span class="si" role="cell">en cada charla</span><span class="no" role="cell">no la ve</span></div>`
+function carpetaBloque(p, m) {
+  const c = p.car
+  if (c.perdida) return `<section class="bloque mal" style="--c:${p.c}"><span class="rot">Carpeta</span><div class="car-n">${IC.carpetaG}<div><b>${c.nom}</b><small>${c.ruta}</small></div></div><p><b>No encuentro ${c.ruta}.</b> ¿La moviste o es de un disco que no está? Las charlas siguen, solo con las instrucciones.</p><div class="mini-acc"><button type="button" class="mini pri">Elegir otra</button><button type="button" class="mini">Crear una nueva</button></div></section>`
+  const arch = m.est === 'recien' ? 0 : c.arch
+  const extra = c.tipo === 'avis'
+    ? `<button type="button" class="soltar${m.est === 'recien' ? ' vivo' : ''}" aria-label="Soltar archivos en la carpeta del proyecto">Soltá archivos acá<small>${arch ? `${arch} adentro · Abrir en el Explorador` : 'vacía · o abrila en el Explorador'}</small></button>`
+    : `<div class="mini-acc"><button type="button" class="mini">Abrir</button><button type="button" class="mini">Cambiar</button></div>`
+  return `<section class="bloque" style="--c:${p.c}"><span class="rot">Carpeta</span><div class="car-n">${IC.carpetaG}<div><b>${c.nom}</b><small>${c.ruta}</small></div></div><span class="tag">${c.tipo === 'avis' ? 'La creó Avis' : 'De tu PC'} · ${arch} archivos</span>${extra}</section>`
+}
+const instrBloque = p => `<section class="bloque" style="--c:${p.c}"><span class="rot">Instrucciones <button type="button" aria-label="Editar las instrucciones">Editar</button></span><p class="instr">${p.instr}</p><small class="pie">Van al empezar cada charla</small></section>`
+function ficha(m, p, { volver = false } = {}) {
+  const recien = m.est === 'recien'
+  const ch = recien ? [] : p.ch
+  const conf = m.est === 'borrar'
+  const sub = `${ch.length ? `${ch.length} ${ch.length === 1 ? 'charla' : 'charlas'}` : 'sin charlas todavía'} · ${p.car.perdida ? '<span class="rojo">carpeta perdida</span>' : `${recien ? 0 : p.car.arch} archivos`}`
+  return `<div class="ficha" style="--c:${p.c}">
+    <div class="f-cab e">${volver ? `<button type="button" class="tb volver" data-a="lista" aria-label="Volver a Proyectos" title="Volver a Proyectos (Esc)">${IC.atras}</button>` : ''}<span class="pj-ic g">${p.i}</span><div class="f-t"><h2>${p.n}</h2><small>${sub}</small></div><button type="button" class="tb" aria-label="Editar ${p.n}" title="Editar">${IC.lapiz}</button></div>
+    <button type="button" class="cta e" data-a="charla"><span class="cta-av" aria-hidden="true">${avi(CLAUDE, 'saluda', 30)}</span><span>${recien ? 'Empezar la primera charla' : 'Nueva charla'}</span><kbd>Ctrl N</kbd></button>
+    ${ch.length ? `<div class="e"><span class="rot" style="margin-left:2px">Charlas</span><div class="chs">${ch.map(([t, h, n]) => `<button type="button" class="chf" data-a="charla"><b>${t}</b><small>${h}</small><span>${n} mensajes</span></button>`).join('')}</div></div>`
+      : `<p class="vacio-ch e">${avi(CLAUDE, 'feliz', 36)}<span><b style="color:var(--crema)">Listo, ya existe.</b> Soltá los archivos del tema en la carpeta y empezá a charlar: Avi ya conoce tus instrucciones.</span></p>`}
+    <div class="par e">${instrBloque(p)}${carpetaBloque(p, m)}</div>
+    <div class="e">${matriz}</div>
+    <div class="borrar-z e"><button type="button" class="borrar${conf ? ' conf' : ''}" data-a="borrar" aria-live="polite">${conf ? `¿Borrar «${p.n}»? Sí` : 'Borrar proyecto'}</button>${conf ? `<small>Se van el proyecto y sus ${p.ch.length} charlas. La carpeta y sus archivos quedan en tu PC. Esc cancela.</small>` : ''}</div>
+  </div>`
+}
+const vacio = () => `<div class="vacio"><div class="piso">${avi(CLAUDE, 'saluda', 96, { alt: 'Avi saluda' })}</div><h2 class="e">Tus proyectos van acá</h2><p class="e">Un proyecto junta lo que Avi tiene que saber de un tema: tus instrucciones, una carpeta con archivos y sus charlas.</p><div class="tres e"><span><i style="--c:var(--ambar)"></i>Instrucciones</span><span><i style="--c:var(--celeste)"></i>Carpeta</span><span><i style="--c:var(--verde)"></i>Charlas</span></div><button type="button" class="btn-pri e" data-a="nuevo">Crear mi primer proyecto</button></div>`
+const formulario = (enHoja = false) => `<form class="form" onsubmit="return false" aria-label="Nuevo proyecto">
+  ${enHoja ? '' : '<h2 class="e" style="font:800 18px/1.15 var(--f);letter-spacing:-.03em">Nuevo proyecto</h2>'}
+  <div class="fl e"><label for="pn-${enHoja}">Nombre</label><input id="pn-${enHoja}" class="inp foco" value="Presupuestos 2027"></div>
+  <div class="fl e"><label for="pi-${enHoja}">Instrucciones</label><textarea id="pi-${enHoja}" class="inp" placeholder="Qué tiene que saber Avi de este tema, cómo querés que responda…">Armo presupuestos para clientes de Quintech. Respondé en pesos, con el IVA aparte, y tomá los precios de «tarifas-2027.xlsx».</textarea><small>Van al empezar cada charla del proyecto, con los dos motores.</small></div>
+  <div class="fl e"><span class="lbl" id="pc-${enHoja}">Carpeta</span><div class="opc-c" role="radiogroup" aria-labelledby="pc-${enHoja}">
+    <button type="button" class="oc" role="radio" aria-checked="true"><b>Que Avis cree una</b><span>Documentos › Avis › Presupuestos 2027. Soltás ahí los archivos.</span></button>
+    <button type="button" class="oc" role="radio" aria-checked="false"><b>Una de esta PC</b><span>Elegir carpeta… Claude Code la lee; Avis no la toca.</span></button></div></div>
+  <div class="e">${matriz}</div>
+  <div class="form-acc e"><button type="button" class="btn-pri" data-a="crear">Crear proyecto</button><button type="button" class="btn-sec" data-a="${enHoja ? 'lista' : 'vacio'}">Cancelar</button></div></form>`
+
+// ---------------------------------------------------------------- hoja de charla
+function hoja(p, { motor = 'claude', modo = 'charla', m = null } = {}) {
+  const loc = motor === 'local'
+  const esc = `<div class="escenario"><div class="arriba">${modo === 'form' ? '<span></span>' : `<button type="button" class="pj-chip" aria-label="Proyecto ${p.n}: ver el proyecto"><span class="pj-ic">${p.i}</span><span class="n">${p.n}</span><small>proyecto</small></button>`}<span class="arr-d"><button type="button" class="ic" aria-label="Charlas del proyecto" title="Charlas">${IC.hist}</button><button type="button" class="ic" aria-label="Cerrar la hoja" title="Cerrar (Esc)">${IC.cerrar}</button></span></div>${avi(CLAUDE, modo === 'charla' ? (loc ? 'pensando' : 'escribiendo') : modo === 'form' ? 'saluda' : 'esperando', 88, { alt: 'Avi' })}<b class="esc-nom">${modo === 'form' ? 'Nuevo proyecto' : 'Avi'}</b><span class="esc-est"><i></i>${modo === 'form' ? 'contame de qué se trata' : loc ? 'Local · en esta PC' : 'Claude Code · Sonnet'}</span></div>`
+  if (modo === 'form') return `<section class="hoja" aria-label="Nuevo proyecto" style="--c:var(--ambar)">${esc}<div class="chat"><div class="hilo">${formulario(true)}</div></div></section>`
+  const perdida = p.car.perdida
+  const cabCh = `<div class="ch-cab"><button type="button" class="carpeta" ${loc ? 'aria-disabled="true" title="El modelo local no lee la carpeta"' : `title="${p.car.ruta}"`} aria-label="Carpeta del proyecto: ${p.car.nom}${loc ? ', no disponible con el modelo local' : ''}" ${perdida ? 'style="--c:var(--rojo)"' : ''}>${IC.carpeta}<span class="ruta">${p.car.nom}</span></button><div class="motor" role="radiogroup" aria-label="Motor"><button type="button" role="radio" aria-checked="${!loc}">Claude Code</button><button type="button" role="radio" aria-checked="${loc}">Local</button></div>${loc ? '' : `<button type="button" class="modelo" aria-label="Modelo: Sonnet">Sonnet ${IC.abajo}</button>`}</div>`
+  const ctx = `<div class="ctx-p" aria-label="Qué usa Avi en esta charla"><span class="ctx-i si">Instrucciones</span>${loc ? '<span class="ctx-i no">Carpeta: solo con Claude Code</span>' : perdida ? '<span class="ctx-i no" style="color:var(--rojo);border-color:rgba(255,122,107,.5)">Carpeta perdida</span>' : '<span class="ctx-i si">Carpeta, cuando hace falta</span>'}</div>`
+  let hilo
+  if (modo === 'portada') {
+    hilo = `<div class="portada">${instrBloque(p)}${carpetaBloque(p, m ?? { est: 'lista' })}<div><span class="rot" style="margin-left:2px">Charlas</span><div class="chs">${p.ch.map(([t, h, n]) => `<button type="button" class="chf"><b>${t}</b><small>${h}</small><span>${n} mensajes</span></button>`).join('')}</div></div>${m?.est === 'borrar' ? `<div class="borrar-z"><button type="button" class="borrar conf">¿Borrar «${p.n}»? Sí</button><small>Se van el proyecto y sus ${p.ch.length} charlas. La carpeta queda en tu PC.</small></div>` : '<div class="borrar-z"><button type="button" class="borrar">Borrar proyecto</button></div>'}</div>`
+  } else {
+    hilo = `<div class="m-u">Armame el presupuesto de la web para La Espiga: 5 secciones y una tienda chica.</div>`
+      + (loc
+        ? `<div class="m-m">No veo la carpeta del proyecto: con el modelo local solo tengo tus instrucciones. Pasame los precios de la planilla, o cambiá a <b>Claude Code</b> y la leo.</div><button type="button" class="sug">Cambiar a Claude Code</button>`
+        : `<span class="herr">${IC.lee}Leyó <b>tarifas-2027.xlsx</b> y <b>propuesta-base.docx</b> de la carpeta</span><div class="m-m">Con las tarifas 2027:<ul><li>Diseño y desarrollo, 5 secciones: $ 1.450.000</li><li>Tienda chica, hasta 40 productos: $ 620.000</li></ul>Total: <b>$ 2.070.000 + IVA</b>. ¿Le sumo el mantenimiento mensual?</div>`)
+  }
+  const ph = modo === 'portada' ? `Empezá una charla sobre ${p.n}…` : 'Escribile a Avi…'
+  return `<section class="hoja" aria-label="Charla del proyecto ${p.n}" style="--c:${p.c}">${esc}<div class="chat">${cabCh}${ctx}<div class="hilo">${hilo}</div><div class="comp"><div class="campo"><span>${ph}</span><button type="button" class="enviar" aria-label="Enviar" disabled>${IC.enviar}</button></div><div class="pie-comp"><span>Enter envía</span><span>${loc ? 'solo instrucciones' : 'instrucciones + carpeta'}</span></div></div></div></section>`
+}
+
+// ---------------------------------------------------------------- columna por opción
+const totales = '3 proyectos · 6 charlas'
+function principalA(m) {
+  if (m.est === 'vacio') return cab('Proyectos', 'Ninguno todavía') + vacio()
+  if (m.est === 'nuevo') return cab('Proyectos', 'Ninguno todavía') + `<div class="cuerpo">${formulario()}</div>`
+  if (m.est === 'lista' || m.est === 'charla' || m.est === 'local') {
+    const tarj = PROYS.map(p => `<button type="button" class="pcard e${p.car.perdida ? ' mal' : ''}" data-a="abrir" data-v="${p.id}" style="--c:${p.c}"><span class="pj-ic">${p.i}</span><b>${p.n}</b><span class="ruta">${IC.carpeta.replace('<svg', '<svg style="width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5;flex:none"')}<span>${p.car.perdida ? 'No encuentro la carpeta' : p.car.ruta}</span></span><span class="ult">${p.ch[0][0]}</span><span class="pie"><span>${p.ch.length} ${p.ch.length === 1 ? 'charla' : 'charlas'}</span><span>${p.ch[0][1]}</span></span></button>`).join('')
+    return cab('Proyectos', totales, btnNuevo) + `<div class="cuerpo"><div class="estante">${tarj}<button type="button" class="pcard nuevo e" data-a="nuevo"><i>+</i>Nuevo proyecto</button></div></div>`
+  }
+  const p = P(m.est === 'perdida' ? 'mud' : m.sel)
+  return cab('Proyectos', totales) + `<div class="cuerpo">${ficha(m, p, { volver: true })}</div>`
+}
+function principalB(m) {
+  if (m.est === 'vacio') return cab('Proyectos', 'Ninguno todavía') + vacio()
+  const lista = m.est === 'nuevo' || m.est === 'recien' ? (m.est === 'recien' ? [PROYS[0]] : []) : PROYS
+  const sel = m.est === 'nuevo' ? null : m.est === 'perdida' ? 'mud' : m.est === 'recien' ? 'presu' : m.sel
+  const idx = `<nav class="idx" aria-label="Proyectos"><span class="ind-ix" aria-hidden="true"></span><span class="rot" style="margin-top:2px">Proyectos</span>${lista.map(p => `<button type="button" class="ix-b" data-a="sel" data-v="${p.id}" ${sel === p.id ? 'aria-current="page"' : ''} style="--c:${p.c}"><i class="pt" style="width:6px;height:6px;margin:0 2px"></i><span class="n">${p.n}</span>${p.car.perdida ? '<span class="mal-p" role="img" aria-label="carpeta perdida"></span>' : `<span class="ct">${m.est === 'recien' ? 0 : p.ch.length}</span>`}</button>`).join('')}<button type="button" class="ix-b mas" data-a="nuevo" ${m.est === 'nuevo' ? 'aria-current="page"' : ''}><i>+</i><span class="n">Nuevo</span></button></nav>`
+  const pane = m.est === 'nuevo' ? formulario() : ficha(m, P(sel))
+  return cab('Proyectos', m.est === 'nuevo' ? 'Ninguno todavía' : m.est === 'recien' ? '1 proyecto' : totales) + `<div class="carp">${idx}<div class="pane">${pane}</div></div>`
+}
+function principalC(m) {
+  if (m.est === 'vacio') return cab('Proyectos', 'Ninguno todavía') + vacio()
+  const lista = m.est === 'nuevo' ? [] : m.est === 'recien' ? [PROYS[0]] : PROYS
+  const sel = m.est === 'perdida' ? 'mud' : m.sel
+  const filas = lista.map(p => `<button type="button" class="lomo e" data-a="sel" data-v="${p.id}" aria-current="${m.est !== 'nuevo' && sel === p.id}" style="--c:${p.c}"><b>${p.n}</b><span>${p.car.perdida ? '<span class="mal-p">● No encuentro la carpeta</span>' : p.instr}</span><small><i>${m.est === 'recien' ? 0 : p.ch.length}</i>charlas</small><span class="flecha-h" aria-hidden="true"></span></button>`).join('')
+  const cuerpo = m.est === 'nuevo' ? `<div class="vacio" style="padding-bottom:80px"><div class="piso">${avi(CLAUDE, 'esperando', 72)}</div><p class="e">Completá el proyecto en la hoja de al lado →</p></div>` : `<div class="cuerpo"><div class="lomos">${filas}</div></div>`
+  return cab('Proyectos', m.est === 'nuevo' ? 'Ninguno todavía' : m.est === 'recien' ? '1 proyecto' : totales, btnNuevo) + cuerpo
+}
+
+// ---------------------------------------------------------------- montaje
+const mocks = []
+function hojaDe(m) {
+  if (m.op === 'c') {
+    if (m.est === 'vacio') return ''
+    if (m.est === 'nuevo') return hoja(PROYS[0], { modo: 'form' })
+    const p = P(m.est === 'perdida' ? 'mud' : m.sel)
+    if (m.est === 'charla' || m.est === 'local') return hoja(p, { motor: m.est === 'local' ? 'local' : 'claude' })
+    return hoja(p, { modo: 'portada', m })
+  }
+  if (m.est === 'charla' || m.est === 'local') return hoja(P(m.sel), { motor: m.est === 'local' ? 'local' : 'claude' })
+  return ''
+}
+function pintar(m, animar = true) {
+  const princ = { a: principalA, b: principalB, c: principalC }[m.op](m)
+  const h = hojaDe(m)
+  m.el.innerHTML = `<div class="marco">${lado(m)}<main class="principal">${princ}</main></div>${h}`
+  ajustar(m)
+  indice(m, animar)
+  m.p.querySelectorAll('[data-e]').forEach(b => b.setAttribute('aria-pressed', b.dataset.e === m.est))
+  if (animar) {
+    entrar([...m.el.querySelectorAll('.principal .e, .principal .ix-b')])
+    const hj = m.el.querySelector('.hoja')
+    if (hj && !document.body.classList.contains('pausa')) animate(hj, reducido() ? { opacity: [0, 1], duration: 160 } : { opacity: [0, 1], translateX: [-24, 0], duration: 520, ease: 'outExpo' })
+  }
+}
+function indice(m, animado) {
+  const ind = m.el.querySelector('.ind-ix'); if (!ind) return
+  const act = m.el.querySelector('.ix-b[aria-current="page"]')
+  if (!act) { ind.style.opacity = 0; return }
+  ind.style.opacity = 1
+  ind.style.setProperty('--c', getComputedStyle(act).getPropertyValue('--c') || 'var(--ambar)')
+  if (act.classList.contains('mas')) ind.style.setProperty('--c', 'var(--ambar)')
+  const y = act.offsetTop
+  if (m.yAnt != null && animado && !document.body.classList.contains('pausa')) { ind.style.transition = 'none'; ind.style.transform = `translateY(${m.yAnt}px)`; ind.offsetWidth; ind.style.transition = '' }
+  ind.style.transform = `translateY(${y}px)`
+  m.yAnt = y
+}
+function ajustar(m) {
+  const w = m.l.clientWidth - 36 + (m.l.clientWidth < 600 ? 16 : 0)
+  const conHoja = !!m.el.querySelector('.hoja')
+  const apilado = conHoja && w < 1128
+  m.el.classList.toggle('apilado', apilado)
+  const nat = conHoja && !apilado ? 1128 : 694
+  m.el.style.zoom = Math.min(1, w / nat).toFixed(3)
+}
+function montar(l) {
+  const m = { op: l.dataset.op, est: 'lista', sel: 'presu', l }
+  if (m.op === 'b') m.est = 'lista'
+  l.innerHTML = '<div class="esc-l"></div>'; m.el = l.firstElementChild
+  m.p = document.querySelector(`.proba[data-op="${m.op}"]`)
+  m.p.innerHTML = '<span class="kick">Probá cada estado</span>' + ESTADOS.map(([v, t]) => `<button type="button" data-e="${v}" aria-pressed="false">${t}</button>`).join('')
+  m.p.addEventListener('click', e => { const b = e.target.closest('[data-e]'); if (b) { m.est = b.dataset.e; pintar(m) } })
+  m.el.addEventListener('click', e => {
+    const b = e.target.closest('[data-a]'); if (!b) return
+    const a = b.dataset.a
+    if (a === 'abrir') { m.sel = b.dataset.v; m.est = P(m.sel).car.perdida ? 'perdida' : 'proy' }
+    else if (a === 'sel') { m.sel = b.dataset.v; m.est = P(m.sel).car.perdida ? 'perdida' : (m.op === 'b' || m.op === 'c') ? 'lista' : 'proy' }
+    else if (a === 'lista') m.est = 'lista'
+    else if (a === 'nuevo') m.est = 'nuevo'
+    else if (a === 'vacio') m.est = 'vacio'
+    else if (a === 'crear') m.est = 'recien'
+    else if (a === 'charla') m.est = 'charla'
+    else if (a === 'borrar') { if (m.est === 'borrar') { m.est = 'lista' } else { m.est = 'borrar'; clearTimeout(m.t); m.t = setTimeout(() => { if (m.est === 'borrar') { m.est = m.op === 'a' ? 'proy' : 'lista'; pintar(m, false) } }, 3000) } }
+    else return
+    pintar(m, a !== 'sel' || m.op !== 'b')
+  })
+  m.el.addEventListener('keydown', e => { if (e.key === 'Escape' && m.est === 'borrar') { m.est = m.op === 'a' ? 'proy' : 'lista'; pintar(m, false) } })
+  new ResizeObserver(() => ajustar(m)).observe(l)
+  pintar(m)
+  mocks.push(m)
+}
+// A: «Borrar» y «Carpeta perdida» se ven dentro del proyecto
+document.querySelectorAll('.lienzo').forEach(montar)
+
+// común: la hoja con los dos motores
+const comun = document.getElementById('comun')
+comun.innerHTML = `<figure><div class="hz">${hoja(PROYS[0], { motor: 'claude' })}</div><figcaption>Claude Code · lee la carpeta cuando hace falta</figcaption></figure><figure><div class="hz">${hoja(PROYS[0], { motor: 'local' })}</div><figcaption>Local · solo las instrucciones</figcaption></figure>`
+function ajustarComun() {
+  const w = comun.clientWidth
+  const z = w >= 858 ? 1 : Math.min(1, w / 420)
+  comun.querySelectorAll('.hz').forEach(h => h.style.zoom = z.toFixed(3))
+}
+new ResizeObserver(ajustarComun).observe(comun)
+</script>
+</body>
+</html>
