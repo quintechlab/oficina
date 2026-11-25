@@ -157,10 +157,10 @@ h1, h2, h3 { font: inherit }
 .lado :focus-visible { outline-offset: -2px }
 /* Marca "Escenario" (docs/diseno/marca-avi-ux.md 5.1): columna centrada con el Avi de 112 sobre su luz
    ámbar (un degradado, sin filtro), "Avis" y el estado en píldora. Sigue siendo la zona de arrastre */
-/* 26 px arriba: las formas evolucionadas (antenas, crestas) salen de la caja de 112 y la barra, que
+/* 36 px arriba: las formas evolucionadas (antenas, crestas) salen de la caja de 112 y la barra, que
    desplaza, las recortaba en su borde (25/11) */
-.marca { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 26px 4px 4px; cursor: grab; user-select: none }
-.marca::before { content: ""; position: absolute; left: 50%; top: 28px; width: 150px; height: 120px; transform: translateX(-50%); background: radial-gradient(50% 50% at 50% 62%, rgba(242, 182, 50, .13), transparent 70%); pointer-events: none }
+.marca { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 36px 4px 4px; cursor: grab; user-select: none }
+.marca::before { content: ""; position: absolute; left: 50%; top: 38px; width: 150px; height: 120px; transform: translateX(-50%); background: radial-gradient(50% 50% at 50% 62%, rgba(242, 182, 50, .13), transparent 70%); pointer-events: none }
 /* Tauri arrastra solo si el clic cae en el elemento marcado: los hijos dejan pasar el clic */
 .marca > *, .cab-t > * { pointer-events: none }
 #marca-avi { position: relative; display: block; width: 112px; height: 112px; flex: none }
