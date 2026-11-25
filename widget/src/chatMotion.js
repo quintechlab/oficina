@@ -47,7 +47,7 @@ function limpiar(els, ...props) {
 }
 
 /**
- * Cuánto mide un px de pantalla en px CSS del documento (el zoom de `<html>`, 100 a 200 %): con él,
+ * Cuánto mide un px de pantalla en px CSS del documento (1 sin transformaciones; medido, no supuesto): con él,
  * las cajas de `getBoundingClientRect` pasan a `left`/`top` de una capa fija.
  */
 const escalaDe = el => (el.offsetWidth && el.getBoundingClientRect().width ? el.offsetWidth / el.getBoundingClientRect().width : 1)

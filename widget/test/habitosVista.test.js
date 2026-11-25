@@ -172,6 +172,16 @@ test('partesHoja de un hábito: «‹ Semana», el h2 oculto, el nombre, la rach
   assert.match(partesHoja({ ver: 'h-x', desde: 'hoy', lista: [hab()], rotas: [], leido: true, hoy: HOY }).cuerpo, /<b>0<\/b><span>sin racha todavía/)
 })
 
+test('partesHoja de un hábito: «Guardar» antes del pie, y «Guardado» solo para el hábito recién guardado', () => {
+  const h = hab()
+  const sin = partesHoja({ ver: 'h-x', desde: 'hoy', lista: [h], rotas: [], leido: true, hoy: HOY })
+  assert.match(sin.cuerpo, /<div class="hb-acc"><button type="button" class="btn" data-accion="hab-guardar" data-valor="h-x" data-k="guardar">Guardar<\/button><span class="hb-ok" role="status"><\/span><\/div><div class="det-pie">/)
+  const ok = partesHoja({ ver: 'h-x', desde: 'hoy', lista: [h], rotas: [], leido: true, hoy: HOY, guardado: 'h-x' })
+  assert.match(ok.cuerpo, /<span class="hb-ok" role="status">Guardado<\/span>/)
+  const otro = partesHoja({ ver: 'h-x', desde: 'hoy', lista: [h], rotas: [], leido: true, hoy: HOY, guardado: 'h-otro' })
+  assert.match(otro.cuerpo, /<span class="hb-ok" role="status"><\/span>/)
+})
+
 // ------------------------------------------------------------------ formulario (4.11, 5.1)
 
 test('formulario nuevo: el campo del nombre, Tipo, Aviso, Color, la frase y «Crear hábito» · «Cancelar»', () => {

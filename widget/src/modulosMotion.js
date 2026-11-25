@@ -32,7 +32,7 @@ export function posicionPildora(nav) {
 
 /**
  * La píldora sobre la fila abierta, sin viaje (cada redibujo: el alto de la barra puede cambiar con el
- * zoom). Sin fila abierta en el grupo (Configuración) queda donde estaba; el CSS la apaga.
+ * contenido). Sin fila abierta en el grupo (Configuración) queda donde estaba; el CSS la apaga.
  */
 export function colocarPildora(nav) {
   const ind = pildora(nav)

@@ -5,7 +5,6 @@
 // Parámetros de la URL de vista.html:
 //   ?vacio        sin sesiones (estado vacío)
 //   ?cargando     la primera lectura no termina nunca ("Buscando sesiones…")
-//   ?zoom=150     tamaño inicial (100, 125, 150, 175 o 200), como el de la bandeja
 //   ?sinequipo    gh falla: "Equipo sin datos: …"
 //   ?error        leer_sesiones falla después de la primera lectura
 //   ?preguntas=varias  catalogo pregunta dos cosas en una llamada (varias + una) y Camila pregunta otra
@@ -204,7 +203,7 @@
 //   ?chat=adjuntos     se sueltan un PDF y unas notas sobre la hoja: los dos chips (el PDF con sus páginas)
 //   ?chat=error-adjunto se suelta una planilla .xlsx: la tarjeta "No puedo leer planilla.xlsx"
 //   &cancelaAdjunto    el clip se cancela (sin esto, elige presupuesto-2027.pdf de Descargas)
-//   ?chat=encima       al 200 % (si no hay ?zoom): la hoja no entra al costado y tapa la columna (D1)
+//   ?chat=encima       el tablero al medio: en una vista angosta la hoja no entra al costado y tapa la columna (D1)
 //   &motor=local       la próxima charla con el modelo local; &modelo=listo|bajando su estado (sin esto, falta).
 //                      Con &modelo=listo, ?chat=esperando|escribiendo|listo|frenada responde el modelo falso
 //                      (despierta en 1,2 s la primera vez, como "Despertando el modelo de esta PC")
@@ -237,7 +236,6 @@
   if (globoTar === 'dividida' && !url.has('dividida')) url.set('dividida', 'pregunta')
   const ahora = Date.now()
   const hace = min => new Date(ahora - min * 60000).toISOString()
-  const PASOS = [100, 125, 150, 175, 200]
 
   const sub = (id, nombre, tarea, estado, extra = {}) => ({
     id, nombre, inventado: false, tipo: 'general-purpose', tarea, desde: hace(9), estado,
@@ -561,7 +559,6 @@
     return lista
   }
 
-  let paso = PASOS.includes(Number(url.get('zoom'))) ? Number(url.get('zoom')) : chatEsc === 'encima' ? 200 : 100
   /** El iframe que hace de ventana (dev/vista.html); abierta sola, no hay. */
   const marco = window.frameElement
   if (marco) document.documentElement.classList.add('en-iframe')
@@ -824,7 +821,7 @@
     }
   }
   if (marco) {
-    // La "pantalla" son los px del escritorio (vista.html). screenX no cambia con el zoom del widget:
+    // La "pantalla" son los px del escritorio (vista.html):
     // el desfase entre screenX y clientX del escritorio pasa los puntos del iframe a la pantalla
     parent.document.addEventListener('pointermove', e => {
       zonaSt.desfase = { x: e.screenX - e.clientX, y: e.screenY - e.clientY }
@@ -1236,7 +1233,7 @@
     // Como Rust (leer_configuracion): la mascota que no es una especie es el Avi (la ventana la valida
     // otra vez); los interruptores, lo guardado con guardar_ajuste; el arranque, el "sistema" falso
     leer_configuracion: () => ({
-      tamano: paso, acople, flotante, ...ajustes, arranque: arranqueFalso, version: '0.10.0', chat: prefsChat, tareasAvisado: avisadoTar,
+      acople, flotante, ...ajustes, arranque: arranqueFalso, version: '0.10.0', chat: prefsChat, tareasAvisado: avisadoTar,
       habitosRecordados: recordadosHab, habitosResumen: resumenVisto, habitosFrase: fraseSemana,
     }),
     // Como `ajuste_valido` de preferencias.rs; ?cfgfalla hace fallar el guardado (la fila vuelve y lo dice)
@@ -1359,11 +1356,6 @@
       const d = adentro(zonaSt.punto)
       setTimeout(evaluarZona, 0)
       return d
-    },
-    cambiar_tamano: ({ direccion }) => {
-      const k = PASOS.indexOf(paso)
-      paso = direccion === 0 ? 100 : PASOS[Math.max(0, Math.min(PASOS.length - 1, k + direccion))]
-      for (const f of oyentes['oficina://tamano'] ?? []) f({ payload: paso })
     },
     // La tira es un elemento adentro de la ventana: Rust solo anota el modo (segundo arranque)
     modo_mini: args => {

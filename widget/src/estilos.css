@@ -51,7 +51,7 @@
   --e-1: 2px; --e-2: 4px; --e-3: 6px; --e-4: 8px; --e-5: 10px; --e-6: 12px; --e-7: 14px;
   --e-8: 16px; --e-9: 18px; --e-10: 20px; --e-11: 28px;
   /* Tamaño del tablero (9.2): ancho y alto fijos, iguales en todos los proyectos; lo que no entra se
-     ve con scroll adentro de cada columna. Crece con el zoom y se topa al 90 % del área */
+     ve con scroll adentro de cada columna. Se topa al 90 % del área */
   --ancho-lado: 208px; --ancho-principal: 500px; --alto-tablero: 680px;
   /* El menú de módulos (modulos-ux.md 6): alto de cada fila y de la píldora que viaja */
   --alto-modulo: 40px;
@@ -190,7 +190,7 @@ h1, h2, h3 { font: inherit }
 .mod:active { transform: scale(.97) }
 .mod-ic { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: var(--r-icono); background: var(--s2); color: var(--crema2); transition: background var(--d-color) ease, color var(--d-color) ease }
 .mod-ic svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round }
-/* Entre el nombre y la cuenta, 6 (no 10): así «Configuración» y «Ctrl ,» entran enteros con zoom de 175 y 200 % */
+/* Entre el nombre y la cuenta, 6 (no 10): así «Configuración» y «Ctrl ,» entran enteros (medido con zoom de 175 y 200 %, antes de #47) */
 .mod-n { flex: 1; min-width: 0; margin-right: -4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 /* La cuenta (4.2): aria-hidden, a la derecha; el número va en el nombre de la fila */
 .mod-ct { display: contents }
@@ -208,7 +208,7 @@ h1, h2, h3 { font: inherit }
   background: var(--ambar-osc); overflow: hidden; pointer-events: none; transition: opacity var(--d-color) ease;
 }
 /* La marca de 3 px a la izquierda (4.3): una franja recortada por el radio, no `box-shadow: inset`, que en
-   posiciones fraccionarias (zoom, barra que desplaza) deja un filo ámbar alrededor de toda la píldora */
+   posiciones fraccionarias (barra que desplaza) deja un filo ámbar alrededor de toda la píldora */
 .ind-mod::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--ambar) }
 #marco.mod-config .ind-mod { opacity: 0 }
 /* La tira de repos (4.4, M2): una sola fila arriba de las sesiones, con scroll horizontal sin barra y la
@@ -1768,17 +1768,6 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .seg > button:active { transform: scale(.97) }
 #cfg .seg > button[aria-checked="true"] { background: var(--crema); color: var(--tinta) }
 
-/* Tamaño (6.1): − / % / +, redondos de 32; en la punta, aria-disabled (sigue enfocable) */
-#cfg .paso { display: inline-flex; align-items: center; gap: var(--e-2) }
-#cfg .pb {
-  width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--s3); color: var(--crema);
-  font: 800 15px/1 var(--f); cursor: pointer; transition: transform var(--d-presion) ease, background var(--d-color) ease;
-}
-#cfg .pb:hover { background: #27272C }
-#cfg .pb:active { transform: scale(.92) }
-#cfg .pb[aria-disabled="true"] { opacity: .38; cursor: not-allowed; transform: none }
-#cfg .pv { min-width: 58px; text-align: center; font: 600 12px/1 var(--m); font-variant-numeric: tabular-nums }
-
 /* Mascota (6.1): el escenario con la luz de la especie y las siete fichas. La luz (--cc) la pone
    main.js en #cfg, que no se redibuja; registrada como color, cambia con su transición (8) */
 @property --cc { syntax: '<color>'; inherits: true; initial-value: #F2B632 }
@@ -1941,7 +1930,7 @@ body.pausa :is(#cfg, #tar, #hab) .armado::after { animation: none }
   body:not(.pausa) .mod.engr:not([aria-current]):hover svg { transform: rotate(45deg) }
 }
 @media (prefers-reduced-motion: reduce) {
-  #cfg .pes, #cfg .sw, #cfg .sw i, #cfg .seg > button, #cfg .pb, #cfg .esc-m, #cfg .esp, #cfg .esp .avi { transition: none }
+  #cfg .pes, #cfg .sw, #cfg .sw i, #cfg .seg > button, #cfg .esc-m, #cfg .esp, #cfg .esp .avi { transition: none }
   #cfg .esp:hover .avi { transform: none }
 }
 body.pausa #cfg .sw i, body.pausa #cfg .esc-m, body.pausa #cfg .esp .avi { transition: none }
@@ -2056,11 +2045,14 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 :is(#tar, #hab) .ck[aria-checked="true"] svg { stroke-dashoffset: 0 }
 :is(#tar, #hab) .ck:focus-visible { outline-offset: -4px }
 #tar .f-cuerpo { min-width: 0; display: grid; gap: var(--e-2); justify-items: start; padding: var(--e-5) var(--e-2) var(--e-5) var(--e-1) }
-#tar .tit {
-  font: var(--t-cuerpo-f); color: var(--crema); overflow-wrap: anywhere;
-  background: linear-gradient(var(--crema2), var(--crema2)) 0 58% / 0% 1.5px no-repeat
+#tar .tit { font: var(--t-cuerpo-f); color: var(--crema); overflow-wrap: anywhere }
+/* La raya va en el texto en línea (no en el bloque): con `clone` cada renglón lleva la suya */
+#tar .tit-t {
+  background: linear-gradient(var(--crema2), var(--crema2)) 0 58% / 0% 1.5px no-repeat;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone
 }
-:is(#tar, #hab) .fila.hecha .tit, :is(#tar, #hab) .fila.tildando .tit { background-size: 100% 1.5px; color: var(--tenue) }
+:is(#tar, #hab) .fila.hecha .tit, :is(#tar, #hab) .fila.tildando .tit { color: var(--tenue) }
+:is(#tar, #hab) .fila.hecha .tit-t, :is(#tar, #hab) .fila.tildando .tit-t { background-size: 100% 1.5px }
 #tar .meta { display: flex; flex-wrap: wrap; gap: 3px var(--e-5); align-items: center; max-width: 75% }
 #tar .tag { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 0; border-radius: 0; background: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--c, var(--tenue)) }
 #tar .tag.t-nada { --c: var(--tenue) }
@@ -2205,7 +2197,8 @@ body.pausa #cfg .esp:hover .avi { transform: none }
   body:not(.pausa) #tar .det-tit.tildando > .ck::before, body:not(.pausa) #tar .subs li.tildando > .ck::before { animation: tarHunde .42s var(--rebote) }
   body:not(.pausa) #tar .det-tit.tildando > .ck svg, body:not(.pausa) #tar .subs li.tildando > .ck svg { animation: tarVisto .26s var(--ease) .08s both }
   body:not(.pausa) :is(#tar, #hab) .ck svg { transition: stroke-dashoffset .26s var(--ease) .08s }
-  body:not(.pausa) #tar .tit { transition: background-size .34s var(--ease) .12s, color .3s ease .12s }
+  body:not(.pausa) #tar .tit { transition: color .3s ease .12s }
+  body:not(.pausa) #tar .tit-t { transition: background-size .34s var(--ease) .12s }
   body:not(.pausa) :is(#tar, #hab) .fila.tildando .ck::before { animation: tarHunde .42s var(--rebote) }
   body:not(.pausa) :is(#tar, #hab) .fila.recien { animation: tarRecien 1.2s var(--ease) }
   body:not(.pausa) #tar .pleg svg { transition: transform .3s var(--ease) }
@@ -2407,6 +2400,14 @@ body.pausa :is(#tar, #hab) .tit-in, body.pausa #tar .seg > button, body.pausa #t
 #hab .e-form::before { content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor }
 #hab .acc-c { display: flex; gap: 6px; align-items: center }
 #hab .det-pie .lnk { margin-right: calc(-1 * var(--e-3)) }
+/* «Guardar» del hábito abierto y su «Guardado» (la región status existe siempre, así se oye) */
+#hab .hb-acc { display: flex; align-items: center; gap: var(--e-4) }
+#hab .hb-ok { font: var(--t-mono-s); color: var(--ambar) }
+#hab .hb-ok:not(:empty)::before { content: "✓ " }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) #hab .hb-ok:not(:empty) { animation: hbOk .3s var(--ease) both }
+}
+@keyframes hbOk { from { opacity: 0; transform: translateX(-4px) } }
 
 /* El primer uso (7.2): las sugeridas con su punto y su detalle */
 #hab .primer .fc .pt { width: 6px; height: 6px; box-shadow: none; background: var(--c) }

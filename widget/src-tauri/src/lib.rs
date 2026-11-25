@@ -461,22 +461,6 @@ fn ruta_preferencias(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|c| c.join("preferencias.json"))
 }
 
-fn tamano_guardado(app: &AppHandle) -> u32 {
-    ruta_preferencias(app).map(|r| preferencias::leer_tamano(&r)).unwrap_or(preferencias::PASO_POR_DEFECTO)
-}
-
-/// Agranda (1), achica (-1) o vuelve a 100 % (0): guarda y avisa a la ventana.
-fn cambiar_tamano_app(app: &AppHandle, direccion: i32) -> u32 {
-    let nuevo = preferencias::paso(tamano_guardado(app), direccion);
-    if let Some(r) = ruta_preferencias(app) {
-        if let Err(e) = preferencias::guardar_tamano(&r, nuevo) {
-            registrar(format!("configuración: no se pudo guardar el tamaño: {e}"));
-        }
-    }
-    let _ = app.emit("oficina://tamano", nuevo);
-    nuevo
-}
-
 /// Segunda vez que se abre Avis: no hay otra ventana, se muestra la que ya está.
 fn al_segundo_arranque(app: &AppHandle) {
     let Some(v) = ventana(app) else { return };
@@ -1094,16 +1078,16 @@ async fn elegir_carpeta(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 /// Todo lo que la ventana necesita al arrancar y para la configuración (configuracion-ux.md 9.2):
-/// `{ mascota, tamano, acople, flotante, arriba, avisar, pausa, arranque, version, chat, tareasAvisado,
+/// `{ mascota, acople, flotante, arriba, avisar, pausa, arranque, version, chat, tareasAvisado,
 /// habitosRecordados, habitosResumen, habitosFrase }`.
 /// `arranque` sale del sistema, no del archivo. Sin carpeta de configuración, los valores de fábrica.
+/// Sin `tamano`: el panel va siempre al 100 % (#47).
 #[tauri::command]
 fn leer_configuracion(app: AppHandle, estado: State<'_, Estado>) -> serde_json::Value {
     let ruta = ruta_preferencias(&app);
     let interruptores = ruta.as_deref().map(preferencias::leer_interruptores).unwrap_or_default();
     serde_json::json!({
         "mascota": ruta.as_deref().map(preferencias::leer_mascota).unwrap_or_else(|| String::from(preferencias::ESPECIES[0])),
-        "tamano": tamano_guardado(&app),
         "acople": preferencias::valor_de_acople(*estado.acople.lock().unwrap()),
         "flotante": ruta.as_deref().and_then(preferencias::leer_flotante).map(|f| serde_json::json!({ "x": f.x, "y": f.y })),
         "arriba": interruptores.arriba,
@@ -1179,12 +1163,6 @@ fn poner_arranque(app: AppHandle, valor: bool) -> bool {
         registrar(format!("configuración: arrancar con Windows quedó en {real}"));
     }
     real
-}
-
-/// Ctrl + / Ctrl − / Ctrl 0 y los botones − y + de la configuración.
-#[tauri::command]
-fn cambiar_tamano(app: AppHandle, direccion: i32) -> u32 {
-    cambiar_tamano_app(&app, direccion.signum())
 }
 
 /// Posición y tamaño de la ventana, área de trabajo de su monitor y bordes donde se puede acoplar
@@ -1878,7 +1856,6 @@ pub fn run() {
             ajustar_ventana,
             guardar_acople,
             guardar_flotante,
-            cambiar_tamano,
             modo_mini,
             esconder,
             zona_interactiva,

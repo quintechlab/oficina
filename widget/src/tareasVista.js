@@ -164,7 +164,7 @@ export function filaTarea({ lista, tarea }, { conLista = false, hoy, recien = nu
   const id = escapar(tarea.id)
   return `<li class="${clases}" data-id="${id}" style="--c:${color(lista.color)}">`
     + `<button type="button" class="ck" role="checkbox" aria-checked="${!!tarea.hecha}" aria-label="Hecha: ${escapar(tarea.titulo)}" data-accion="tar-tildar" data-lista="${escapar(lista.id)}" data-valor="${id}" data-k="ck-${id}">${ICONO.visto}</button>`
-    + `<button type="button" class="f-cuerpo" data-accion="tar-abrir-tarea" data-valor="${id}" data-k="ab-${id}"><span class="tit">${escapar(tarea.titulo)}</span>${tarea.importante ? '<span class="oculto">, importante</span>' : ''}${meta ? `<span class="meta">${meta}</span>` : ''}</button>`
+    + `<button type="button" class="f-cuerpo" data-accion="tar-abrir-tarea" data-valor="${id}" data-k="ab-${id}"><span class="tit"><span class="tit-t">${escapar(tarea.titulo)}</span></span>${tarea.importante ? '<span class="oculto">, importante</span>' : ''}${meta ? `<span class="meta">${meta}</span>` : ''}</button>`
     + `${tarea.importante ? '<span class="imp-b" aria-hidden="true">!</span>' : '<span></span>'}</li>`
 }
 

@@ -1,10 +1,12 @@
-//! Preferencias del widget que sobreviven entre usos: el tamaño elegido en la bandeja, el borde
-//! donde está acoplada la muesca (docs/diseno/estilo-avis-ux.md, 7.5), la posición del tablero
+//! Preferencias del widget que sobreviven entre usos: el borde donde está acoplada la muesca
+//! (docs/diseno/estilo-avis-ux.md, 7.5), la posición del tablero
 //! flotante, el monitor de la última vez (9.7), la última revisión automática del mod (#17) y la
 //! mascota de Claude (docs/diseno/mascotas-avi-ux.md 9.1), los interruptores de la configuración
 //! (docs/diseno/configuracion-ux.md 9.1: `arriba`, `avisar`, `pausa`) y el motor, la carpeta y las
 //! carpetas recientes de la charla (docs/diseno/chat-avis-ux.md 3.4).
 //! Se guardan en `<carpeta de configuración de la app>/preferencias.json`. Nunca claves de API.
+//! El panel va siempre al 100 % (#47): la clave `tamano` de las versiones con zoom queda sin uso; no
+//! se lee ni se escribe, y `escribir` la conserva tal cual, como cualquier clave que no conoce (D9).
 
 use std::path::Path;
 
@@ -12,41 +14,10 @@ use serde_json::{json, Value};
 
 use crate::chat;
 
-/// Pasos del tamaño, en porcentaje del tamaño original (el de la versión 0.1): de 100 % a 200 %.
-pub const PASOS: [u32; 5] = [100, 125, 150, 175, 200];
-pub const PASO_POR_DEFECTO: u32 = 100;
-
-/// Tamaño guardado. Sin archivo o ilegible, 100 %. Migra el valor de la 0.2: "normal" es 100 %,
-/// "grande" y "muy grande" son 200 % (lo más grande que hay ahora).
-pub fn leer_tamano(ruta: &Path) -> u32 {
-    let guardado = std::fs::read_to_string(ruta)
-        .ok()
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
-        .map(|v| v["tamano"].clone())
-        .unwrap_or(serde_json::Value::Null);
-    match guardado {
-        serde_json::Value::Number(n) => n.as_u64().map(|n| n as u32).filter(|n| PASOS.contains(n)).unwrap_or(PASO_POR_DEFECTO),
-        serde_json::Value::String(t) => match t.as_str() {
-            "grande" | "muy-grande" | "muy grande" => 200,
-            _ => PASO_POR_DEFECTO,
-        },
-        _ => PASO_POR_DEFECTO,
-    }
-}
-
-/// Guarda el tamaño elegido (solo uno de `PASOS`). Lo demás guardado se conserva.
-pub fn guardar_tamano(ruta: &Path, tamano: u32) -> Result<(), String> {
-    if !PASOS.contains(&tamano) {
-        return Err(format!("tamaño desconocido: {tamano}"));
-    }
-    escribir(ruta, Preferencias { tamano, ..leer_todo(ruta) })
-}
-
 /// Lo que Rust escribe con forma propia: guardar una preferencia no borra las otras. Lo demás del
 /// archivo (la mascota, los interruptores, una clave de otra entrega o de una versión más nueva) se
 /// conserva tal cual (D9); `ajustes` pisa solo las claves que trae.
 struct Preferencias {
-    tamano: u32,
     acople: Option<Acople>,
     flotante: Option<Flotante>,
     monitor: Option<(f64, f64)>,
@@ -57,10 +28,9 @@ struct Preferencias {
     ajustes: Vec<(&'static str, Value)>,
 }
 
-/// Lo guardado, ya leído y migrado (el tamaño de texto de la 0.2 pasa a número).
+/// Lo guardado, ya leído.
 fn leer_todo(ruta: &Path) -> Preferencias {
     Preferencias {
-        tamano: leer_tamano(ruta),
         acople: leer_acople(ruta),
         flotante: leer_flotante(ruta),
         monitor: leer_monitor(ruta),
@@ -71,7 +41,7 @@ fn leer_todo(ruta: &Path) -> Preferencias {
 }
 
 /// Escribe el archivo: parte de lo leído (si es un objeto) y pisa solo sus claves (D9 de
-/// configuracion-ux.md 9.1). Así una clave que esta versión no conoce sobrevive a guardar el tamaño.
+/// configuracion-ux.md 9.1). Así una clave que esta versión no conoce sobrevive a guardar el acople.
 fn escribir(ruta: &Path, p: Preferencias) -> Result<(), String> {
     if let Some(carpeta) = ruta.parent() {
         std::fs::create_dir_all(carpeta).map_err(|e| e.to_string())?;
@@ -83,7 +53,6 @@ fn escribir(ruta: &Path, p: Preferencias) -> Result<(), String> {
     let flotante = p.flotante.map_or(Value::Null, |f| json!({ "x": fraccion(Some(f.x)), "y": fraccion(Some(f.y)) }));
     let monitor = p.monitor.map_or(Value::Null, |(x, y)| json!({ "x": x, "y": y }));
     let revision_mod = p.revision_mod.map_or(Value::Null, |r| json!({ "revisado": r.revisado, "fallo": r.fallo }));
-    valor.insert(String::from("tamano"), json!(p.tamano));
     valor.insert(String::from("acople"), valor_de_acople(p.acople));
     valor.insert(String::from("flotante"), flotante);
     valor.insert(String::from("monitor"), monitor);
@@ -122,7 +91,7 @@ pub fn leer_interruptores(ruta: &Path) -> Interruptores {
     Interruptores { arriba: leer("arriba", f.arriba), avisar: leer("avisar", f.avisar), pausa: leer("pausa", f.pausa) }
 }
 
-/// Las claves que escribe `guardar_ajuste` (el tamaño y el acople tienen sus comandos propios). Las
+/// Las claves que escribe `guardar_ajuste` (el acople tiene su comando propio; `tamano`, ninguno: #47). Las
 /// mismas que `validarAjuste` de configuracion.js; `motor` llega con el chat. `tareasAvisado` es el
 /// día del aviso diario de tareas (tareas-ux.md 11.4) y se guarda adentro de `"tareas"`.
 /// `habitosRecordados` son los hábitos ya recordados hoy (habitos-ux.md 8.3 y 11.5), `habitosResumen` el
@@ -318,7 +287,7 @@ pub fn guardar_chat(ruta: &Path, motor: &str, carpeta: Option<&str>, modelo: Opt
 
 /// Posición del tablero flotante adentro del área de trabajo: la fracción del lugar libre (0 arriba
 /// a la izquierda, 1 abajo a la derecha; `fraccionFlotante` de `tamano.js`). Así vuelve adentro del
-/// área aunque cambie el monitor, la barra de tareas o el tamaño elegido. Reemplaza a lo que
+/// área aunque cambie el monitor, la barra de tareas o el tamaño del tablero. Reemplaza a lo que
 /// guardaba `tauri-plugin-window-state` de la ventana flotante.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Flotante {
@@ -445,19 +414,9 @@ pub fn leer_acople(ruta: &Path) -> Option<Acople> {
     acople_desde_valor(&leer_valor(ruta)?["acople"])
 }
 
-/// Guarda el acople (`None`: flota) y conserva lo demás, con el tamaño ya migrado al número.
+/// Guarda el acople (`None`: flota) y conserva lo demás.
 pub fn guardar_acople(ruta: &Path, acople: Option<Acople>) -> Result<(), String> {
     escribir(ruta, Preferencias { acople, ..leer_todo(ruta) })
-}
-
-/// El paso siguiente: `direccion` 1 agranda, -1 achica, 0 vuelve a 100 %. Se frena en las puntas.
-pub fn paso(actual: u32, direccion: i32) -> u32 {
-    if direccion == 0 {
-        return PASO_POR_DEFECTO;
-    }
-    let i = PASOS.iter().position(|p| *p == actual).unwrap_or(0) as i32;
-    let j = (i + direccion.signum()).clamp(0, PASOS.len() as i32 - 1);
-    PASOS[j as usize]
 }
 
 /// Qué hacer cuando se abre Avis con una ya abierta: nunca otra ventana, sino mostrar la que hay.
@@ -500,65 +459,55 @@ mod tests {
     }
 
     #[test]
-    fn sin_archivo_o_con_basura_el_tamano_es_100() {
-        let r = ruta_temporal("defecto");
-        assert_eq!(leer_tamano(&r), 100);
-        fs::create_dir_all(r.parent().unwrap()).unwrap();
-        fs::write(&r, "no es json").unwrap();
-        assert_eq!(leer_tamano(&r), 100);
-        fs::write(&r, r#"{"tamano":"gigante"}"#).unwrap();
-        assert_eq!(leer_tamano(&r), 100);
-        fs::write(&r, r#"{"tamano":130}"#).unwrap();
-        assert_eq!(leer_tamano(&r), 100);
-        fs::remove_dir_all(r.parent().unwrap()).unwrap();
-    }
-
-    #[test]
-    fn migra_el_tamano_de_la_version_anterior() {
-        let r = ruta_temporal("migrar");
-        fs::create_dir_all(r.parent().unwrap()).unwrap();
-        for (viejo, nuevo) in [("normal", 100), ("grande", 200), ("muy-grande", 200), ("muy grande", 200)] {
-            fs::write(&r, format!(r#"{{"tamano":"{viejo}"}}"#)).unwrap();
-            assert_eq!(leer_tamano(&r), nuevo, "{viejo}");
+    fn un_tamano_viejo_no_rompe_la_lectura_y_queda_sin_uso() {
+        // #47 (S2): el panel va siempre al 100 %; el `tamano` de antes (125–200, "grande", "muy
+        // grande" o basura) no cambia nada de lo que se lee y escribir lo conserva tal cual (D9)
+        for viejo in [json!(125), json!(200), json!("grande"), json!("muy grande"), json!("basura"), json!([1])] {
+            let r = ruta_temporal("tamano-viejo");
+            fs::create_dir_all(r.parent().unwrap()).unwrap();
+            let texto = json!({
+                "tamano": viejo, "mascota": "ascua", "arriba": false,
+                "acople": { "borde": "arriba", "lugar": 0.42 }, "flotante": { "x": 0.25, "y": 0.8 },
+            });
+            fs::write(&r, texto.to_string()).unwrap();
+            assert_eq!(leer_mascota(&r), "ascua", "{viejo}");
+            assert!(!leer_interruptores(&r).arriba, "{viejo}");
+            assert_eq!(leer_acople(&r), Some(Acople { borde: Borde::Arriba, lugar: 0.42 }), "{viejo}");
+            assert_eq!(leer_flotante(&r), Some(Flotante { x: 0.25, y: 0.8 }), "{viejo}");
+            guardar_ajuste(&r, "pausa", &json!(true)).unwrap();
+            guardar_acople(&r, None).unwrap();
+            guardar_monitor(&r, (10.0, 20.0)).unwrap();
+            let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+            assert_eq!(guardado["tamano"], viejo, "{viejo}");
+            assert_eq!(leer_mascota(&r), "ascua", "{viejo}");
+            assert!(leer_interruptores(&r).pausa, "{viejo}");
+            fs::remove_dir_all(r.parent().unwrap()).unwrap();
         }
+    }
+
+    #[test]
+    fn guardar_no_agrega_un_tamano() {
+        // #47: sin zoom, ninguna preferencia escribe `tamano`
+        let r = ruta_temporal("sin-tamano");
+        guardar_ajuste(&r, "pausa", &json!(true)).unwrap();
+        guardar_acople(&r, Some(Acople { borde: Borde::Abajo, lugar: 0.3 })).unwrap();
+        guardar_flotante(&r, Flotante { x: 0.5, y: 0.5 }).unwrap();
+        guardar_monitor(&r, (10.0, 20.0)).unwrap();
+        guardar_revision_mod(&r, RevisionMod { revisado: 1_795_000_000_000, fallo: false }).unwrap();
+        let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
+        assert_eq!(guardado.get("tamano"), None);
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 
     #[test]
-    fn el_tamano_elegido_se_guarda_y_se_vuelve_a_leer() {
-        let r = ruta_temporal("guardar");
-        guardar_tamano(&r, 175).unwrap();
-        assert_eq!(leer_tamano(&r), 175);
-        guardar_tamano(&r, 100).unwrap();
-        assert_eq!(leer_tamano(&r), 100);
-        assert!(guardar_tamano(&r, 130).is_err());
-        assert_eq!(leer_tamano(&r), 100);
-        fs::remove_dir_all(r.parent().unwrap()).unwrap();
-    }
-
-    #[test]
-    fn agrandar_y_achicar_de_a_un_paso_frenando_en_las_puntas() {
-        assert_eq!(paso(100, 1), 125);
-        assert_eq!(paso(175, 1), 200);
-        assert_eq!(paso(200, 1), 200);
-        assert_eq!(paso(150, -1), 125);
-        assert_eq!(paso(100, -1), 100);
-        assert_eq!(paso(175, 0), 100);
-        // Un valor fuera de los pasos arranca desde 100 %
-        assert_eq!(paso(130, 1), 125);
-    }
-
-    #[test]
-    fn un_archivo_viejo_sin_acople_flota_y_conserva_el_tamano() {
+    fn un_archivo_viejo_sin_acople_flota() {
         let r = ruta_temporal("viejo");
         fs::create_dir_all(r.parent().unwrap()).unwrap();
         // Archivos de la 0.3: solo el tamaño (número o texto de la 0.2)
         fs::write(&r, r#"{"tamano":150}"#).unwrap();
         assert_eq!(leer_acople(&r), None);
-        assert_eq!(leer_tamano(&r), 150);
         fs::write(&r, r#"{"tamano":"grande"}"#).unwrap();
         assert_eq!(leer_acople(&r), None);
-        assert_eq!(leer_tamano(&r), 200);
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
         // Sin archivo, también flota
         assert_eq!(leer_acople(&ruta_temporal("sin-archivo")), None);
@@ -589,19 +538,19 @@ mod tests {
     }
 
     #[test]
-    fn guardar_el_acople_conserva_el_tamano_y_guardar_el_tamano_conserva_el_acople() {
+    fn guardar_el_acople_conserva_el_monitor_y_guardar_el_monitor_conserva_el_acople() {
         let r = ruta_temporal("guardar-acople");
-        guardar_tamano(&r, 175).unwrap();
+        guardar_monitor(&r, (175.0, 0.0)).unwrap();
         guardar_acople(&r, Some(Acople { borde: Borde::Abajo, lugar: 0.3 })).unwrap();
-        assert_eq!(leer_tamano(&r), 175);
+        assert_eq!(leer_monitor(&r), Some((175.0, 0.0)));
         assert_eq!(leer_acople(&r), Some(Acople { borde: Borde::Abajo, lugar: 0.3 }));
-        guardar_tamano(&r, 125).unwrap();
+        guardar_monitor(&r, (125.0, 0.0)).unwrap();
         assert_eq!(leer_acople(&r), Some(Acople { borde: Borde::Abajo, lugar: 0.3 }));
-        assert_eq!(leer_tamano(&r), 125);
+        assert_eq!(leer_monitor(&r), Some((125.0, 0.0)));
         // Flotar guarda `"acople": null`, como dice la dirección (7.5)
         guardar_acople(&r, None).unwrap();
         assert_eq!(leer_acople(&r), None);
-        assert_eq!(leer_tamano(&r), 125);
+        assert_eq!(leer_monitor(&r), Some((125.0, 0.0)));
         let guardado: serde_json::Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
         assert_eq!(guardado["acople"], serde_json::Value::Null);
         // El lugar se guarda ya ajustado entre 0 y 1
@@ -611,31 +560,19 @@ mod tests {
     }
 
     #[test]
-    fn guardar_el_acople_migra_el_tamano_de_texto_de_la_version_anterior() {
-        let r = ruta_temporal("migrar-acople");
-        fs::create_dir_all(r.parent().unwrap()).unwrap();
-        fs::write(&r, r#"{"tamano":"muy grande"}"#).unwrap();
-        guardar_acople(&r, Some(Acople { borde: Borde::Izquierda, lugar: 0.5 })).unwrap();
-        let guardado: serde_json::Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
-        assert_eq!(guardado["tamano"], serde_json::json!(200));
-        assert_eq!(guardado["acople"], serde_json::json!({ "borde": "izquierda", "lugar": 0.5 }));
-        fs::remove_dir_all(r.parent().unwrap()).unwrap();
-    }
-
-    #[test]
     fn la_posicion_flotante_se_guarda_entre_0_y_1_y_no_borra_lo_demas() {
         let r = ruta_temporal("flotante");
         // Sin archivo, ni posición ni monitor: el tablero arranca al medio del principal
         assert_eq!(leer_flotante(&r), None);
         assert_eq!(leer_monitor(&r), None);
-        guardar_tamano(&r, 150).unwrap();
+        guardar_monitor(&r, (150.0, 0.0)).unwrap();
         guardar_acople(&r, Some(Acople { borde: Borde::Abajo, lugar: 0.3 })).unwrap();
         guardar_flotante(&r, Flotante { x: 0.25, y: 0.8 }).unwrap();
         assert_eq!(leer_flotante(&r), Some(Flotante { x: 0.25, y: 0.8 }));
-        // Guardar la posición conserva el tamaño y el acople, y al revés
-        assert_eq!(leer_tamano(&r), 150);
+        // Guardar la posición conserva el monitor y el acople, y al revés
+        assert_eq!(leer_monitor(&r), Some((150.0, 0.0)));
         assert_eq!(leer_acople(&r), Some(Acople { borde: Borde::Abajo, lugar: 0.3 }));
-        guardar_tamano(&r, 175).unwrap();
+        guardar_monitor(&r, (175.0, 0.0)).unwrap();
         guardar_acople(&r, None).unwrap();
         assert_eq!(leer_flotante(&r), Some(Flotante { x: 0.25, y: 0.8 }));
         // Fuera de 0..1 se topa; lo que no es número va al medio
@@ -653,7 +590,7 @@ mod tests {
         let r = ruta_temporal("monitor");
         guardar_monitor(&r, (2880.0, 700.0)).unwrap();
         assert_eq!(leer_monitor(&r), Some((2880.0, 700.0)));
-        guardar_tamano(&r, 125).unwrap();
+        guardar_ajuste(&r, "pausa", &json!(true)).unwrap();
         guardar_acople(&r, Some(Acople { borde: Borde::Arriba, lugar: 0.5 })).unwrap();
         guardar_flotante(&r, Flotante { x: 0.5, y: 0.5 }).unwrap();
         assert_eq!(leer_monitor(&r), Some((2880.0, 700.0)));
@@ -669,12 +606,12 @@ mod tests {
         let r = ruta_temporal("revision-mod");
         // Sin archivo: ninguna revisión (toca revisar)
         assert_eq!(leer_revision_mod(&r), None);
-        guardar_tamano(&r, 150).unwrap();
+        guardar_monitor(&r, (150.0, 0.0)).unwrap();
         guardar_revision_mod(&r, RevisionMod { revisado: 1_795_000_000_000, fallo: true }).unwrap();
         assert_eq!(leer_revision_mod(&r), Some(RevisionMod { revisado: 1_795_000_000_000, fallo: true }));
-        assert_eq!(leer_tamano(&r), 150);
+        assert_eq!(leer_monitor(&r), Some((150.0, 0.0)));
         // Guardar cualquier otra preferencia no la borra
-        guardar_tamano(&r, 175).unwrap();
+        guardar_monitor(&r, (175.0, 0.0)).unwrap();
         guardar_acople(&r, Some(Acople { borde: Borde::Abajo, lugar: 0.3 })).unwrap();
         guardar_flotante(&r, Flotante { x: 0.2, y: 0.4 }).unwrap();
         guardar_monitor(&r, (100.0, 200.0)).unwrap();
@@ -755,10 +692,10 @@ mod tests {
         // El motor local guarda el motor; un motor desconocido no se guarda
         assert_eq!(guardar_chat(&r, "local", None, None).unwrap().motor, Some(String::from("local")));
         assert!(guardar_chat(&r, "otro", None, None).is_err());
-        assert_eq!(leer_tamano(&r), 150);
+        assert_eq!(leer_valor(&r).unwrap()["tamano"], json!(150));
         assert_eq!(leer_mascota(&r), "ascua");
         // Guardar otra preferencia no borra la charla
-        guardar_tamano(&r, 175).unwrap();
+        guardar_monitor(&r, (175.0, 0.0)).unwrap();
         guardar_acople(&r, None).unwrap();
         assert_eq!(leer_chat(&r).recientes, ["C:\\dos", "C:\\uno"].map(String::from).to_vec());
         assert_eq!(leer_chat(&r).motor, Some(String::from("local")));
@@ -787,7 +724,7 @@ mod tests {
         assert_eq!(fs::read_to_string(&r).unwrap(), antes);
         // Las claves que esta versión no conoce siguen ahí
         assert!(antes.contains("una version nueva"));
-        assert_eq!(leer_tamano(&r), 150);
+        assert_eq!(leer_valor(&r).unwrap()["tamano"], json!(150));
         // Guardado a mano con basura: "Por defecto"
         for texto in [r#"{"chat":{"motor":"claude","modelo":"gpt"}}"#, r#"{"chat":{"motor":"claude","modelo":3}}"#, r#"{"chat":{"motor":"claude"}}"#] {
             fs::write(&r, texto).unwrap();
@@ -798,12 +735,12 @@ mod tests {
     }
 
     #[test]
-    fn guardar_el_tamano_o_el_acople_no_borra_la_mascota() {
+    fn guardar_el_monitor_o_el_acople_no_borra_la_mascota() {
         let r = ruta_temporal("conserva-mascota");
         fs::create_dir_all(r.parent().unwrap()).unwrap();
         // La escribe Configuración (#23), o el usuario a mano: Rust solo la conserva
         fs::write(&r, r#"{"tamano":150,"mascota":"bruma"}"#).unwrap();
-        guardar_tamano(&r, 175).unwrap();
+        guardar_monitor(&r, (175.0, 0.0)).unwrap();
         assert_eq!(leer_mascota(&r), "bruma");
         guardar_acople(&r, Some(Acople { borde: Borde::Arriba, lugar: 0.5 })).unwrap();
         assert_eq!(leer_mascota(&r), "bruma");
@@ -812,16 +749,15 @@ mod tests {
         guardar_monitor(&r, (100.0, 200.0)).unwrap();
         guardar_revision_mod(&r, RevisionMod { revisado: 1_795_000_000_000, fallo: false }).unwrap();
         assert_eq!(leer_mascota(&r), "bruma");
-        assert_eq!(leer_tamano(&r), 175);
         // Un texto que esta versión no conoce (una especie futura) también se conserva tal cual
         fs::write(&r, r#"{"tamano":100,"mascota":"futura"}"#).unwrap();
-        guardar_tamano(&r, 125).unwrap();
+        guardar_monitor(&r, (125.0, 0.0)).unwrap();
         let guardado: serde_json::Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
         assert_eq!(guardado["mascota"], serde_json::json!("futura"));
         assert_eq!(leer_mascota(&r), "avi");
         // Sin mascota guardada, guardar otra cosa no la inventa
         fs::write(&r, r#"{"tamano":100}"#).unwrap();
-        guardar_tamano(&r, 150).unwrap();
+        guardar_monitor(&r, (150.0, 0.0)).unwrap();
         let guardado: serde_json::Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
         assert_eq!(guardado.get("mascota"), None);
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
@@ -894,7 +830,7 @@ mod tests {
         fs::write(&r, r#"{"tareas":{"futura":3},"otra":[1]}"#).unwrap();
         guardar_ajuste(&r, "arriba", &json!(false)).unwrap();
         guardar_ajuste(&r, "mascota", &json!("lumen")).unwrap();
-        guardar_tamano(&r, 150).unwrap();
+        guardar_monitor(&r, (150.0, 0.0)).unwrap();
         guardar_ajuste(&r, "tareasAvisado", &json!("2026-11-24")).unwrap();
         let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
         // Dentro de "tareas" (11.4), sin pisar lo que esa clave ya traía ni lo demás del archivo
@@ -904,10 +840,10 @@ mod tests {
         assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-24"));
         assert!(!leer_interruptores(&r).arriba);
         assert_eq!(leer_mascota(&r), "lumen");
-        assert_eq!(leer_tamano(&r), 150);
+        assert_eq!(leer_monitor(&r), Some((150.0, 0.0)));
         // Y guardar otra cosa después no lo borra
         guardar_ajuste(&r, "pausa", &json!(true)).unwrap();
-        guardar_tamano(&r, 100).unwrap();
+        guardar_monitor(&r, (100.0, 0.0)).unwrap();
         assert_eq!(leer_tareas_avisado(&r).as_deref(), Some("2026-11-24"));
         // Uno inválido no toca el archivo
         let antes = fs::read_to_string(&r).unwrap();
@@ -1087,13 +1023,12 @@ mod tests {
     }
 
     #[test]
-    fn guardar_el_tamano_el_acople_o_la_revision_del_mod_no_borra_los_ajustes() {
+    fn guardar_el_acople_el_monitor_o_la_revision_del_mod_no_borra_los_ajustes() {
         let r = ruta_temporal("conserva-ajustes");
         guardar_ajuste(&r, "arriba", &json!(false)).unwrap();
         guardar_ajuste(&r, "avisar", &json!(false)).unwrap();
         guardar_ajuste(&r, "pausa", &json!(true)).unwrap();
         guardar_ajuste(&r, "mascota", &json!("bruma")).unwrap();
-        guardar_tamano(&r, 175).unwrap();
         guardar_acople(&r, Some(Acople { borde: Borde::Derecha, lugar: 0.2 })).unwrap();
         guardar_acople(&r, None).unwrap();
         guardar_flotante(&r, Flotante { x: 0.1, y: 0.9 }).unwrap();
@@ -1101,10 +1036,8 @@ mod tests {
         guardar_revision_mod(&r, RevisionMod { revisado: 1_795_000_000_000, fallo: false }).unwrap();
         assert_eq!(leer_interruptores(&r), Interruptores { arriba: false, avisar: false, pausa: true });
         assert_eq!(leer_mascota(&r), "bruma");
-        assert_eq!(leer_tamano(&r), 175);
         // Y guardar un ajuste no borra lo demás
         guardar_ajuste(&r, "pausa", &json!(false)).unwrap();
-        assert_eq!(leer_tamano(&r), 175);
         assert_eq!(leer_flotante(&r), Some(Flotante { x: 0.1, y: 0.9 }));
         assert_eq!(leer_monitor(&r), Some((10.0, 20.0)));
         assert_eq!(leer_revision_mod(&r), Some(RevisionMod { revisado: 1_795_000_000_000, fallo: false }));
@@ -1113,12 +1046,12 @@ mod tests {
     }
 
     #[test]
-    fn una_clave_desconocida_sobrevive_a_guardar_el_tamano() {
+    fn una_clave_desconocida_sobrevive_a_guardar() {
         // D9: `escribir` parte de lo leído y pisa solo sus claves (otra entrega o una versión más nueva)
         let r = ruta_temporal("desconocida");
         fs::create_dir_all(r.parent().unwrap()).unwrap();
         fs::write(&r, r#"{"tamano":100,"motor":"local","futura":{"a":[1,2]},"arriba":"basura"}"#).unwrap();
-        guardar_tamano(&r, 150).unwrap();
+        guardar_monitor(&r, (150.0, 0.0)).unwrap();
         guardar_acople(&r, Some(Acople { borde: Borde::Abajo, lugar: 0.5 })).unwrap();
         guardar_ajuste(&r, "avisar", &json!(false)).unwrap();
         let guardado: Value = serde_json::from_str(&fs::read_to_string(&r).unwrap()).unwrap();
@@ -1127,12 +1060,12 @@ mod tests {
         // Lo que no se entiende se conserva tal cual, y se lee como el de fábrica
         assert_eq!(guardado["arriba"], json!("basura"));
         assert!(leer_interruptores(&r).arriba);
-        assert_eq!(guardado["tamano"], json!(150));
+        assert_eq!(guardado["tamano"], json!(100));
         assert_eq!(guardado["avisar"], json!(false));
         // Un archivo que no es un objeto se reemplaza entero
         fs::write(&r, "[1,2,3]").unwrap();
-        guardar_tamano(&r, 125).unwrap();
-        assert_eq!(leer_tamano(&r), 125);
+        guardar_monitor(&r, (125.0, 0.0)).unwrap();
+        assert_eq!(leer_monitor(&r), Some((125.0, 0.0)));
         fs::remove_dir_all(r.parent().unwrap()).unwrap();
     }
 

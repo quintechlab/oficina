@@ -1,49 +1,13 @@
-// Tamaño de la ventana: escala elegida en la bandeja (Normal, Grande, Muy grande), ajuste de la
-// ventana al contenido, límites del área de trabajo y posición en pantalla. Lógica pura.
-
-/**
- * Pasos del tamaño en porcentaje del original (100 %, el de la versión 0.1, es el más chico; 200 %
- * el más grande). Todo crece junto, dibujo y texto. 100, 150 y 200 % dan 2, 3 y 4 px por pixel
- * del dibujo y quedan nítidos; 125 y 175 % pueden suavizarse un poco. La lista de pasos y el paso
- * siguiente los decide preferencias.rs (lo guarda y arma el menú); acá solo se aplica.
- */
-const PASOS = [100, 125, 150, 175, 200]
-export const PASO_POR_DEFECTO = 100
+// Tamaño de la ventana: ajuste del tablero al contenido, límites del área de trabajo y posición en
+// pantalla. Lógica pura. El panel va siempre al 100 % (#47): sin zoom elegido ni atajos.
 
 /** Ventana mínima y fracción máxima del área de trabajo del monitor (después, desplaza). */
 export const MINIMO = { ancho: 320, alto: 120 }
 export const FRACCION_MAXIMA = 0.9
 /** Diferencia que se ignora, para no entrar en un bucle de redimensiones. */
 const TOLERANCIA = 2
-/** Tira mini del boceto, en tamaño Normal. */
+/** Tira mini del boceto. */
 const MINI = { ancho: 400, alto: 56 }
-
-/** El zoom de un porcentaje (1 a 2); fuera de los pasos, el tamaño original. */
-export function zoomDe(porcentaje) {
-  return PASOS.includes(porcentaje) ? porcentaje / 100 : 1
-}
-
-/**
- * El paso que se aplica de verdad: el más grande, sin pasar del `elegido`, con el que el panel
- * (`anchoCss`, su ancho en px CSS, sin zoom) entra en el 90 % del área (`anchoArea`, px de pantalla),
- * el mismo tope que `tamanoDeseado`. Si ni el 100 % entra, queda el 100 %. La preferencia guardada
- * no cambia: en un monitor más ancho vuelve el elegido. Sin medida, o con un paso raro, el elegido.
- */
-export function pasoQueEntra(elegido, anchoCss, anchoArea) {
-  if (!PASOS.includes(elegido) || !(anchoCss > 0) || !(anchoArea > 0)) return elegido
-  const libre = Math.floor(anchoArea * FRACCION_MAXIMA)
-  const candidatos = PASOS.filter(p => p <= elegido).reverse()
-  return candidatos.find(p => Math.ceil((anchoCss * p) / 100) <= libre) ?? PASOS[0]
-}
-
-/** Ctrl + agranda (1), Ctrl − achica (-1), Ctrl 0 vuelve a 100 % (0); cualquier otra tecla, null. */
-export function direccionDeTecla(e) {
-  if (!e.ctrlKey) return null
-  if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') return 1
-  if (e.key === '-' || e.code === 'NumpadSubtract') return -1
-  if (e.key === '0' || e.code === 'Numpad0') return 0
-  return null
-}
 
 /** Tamaño de la ventana para un contenido de `medida` (px), entre el mínimo y el 90 % del área. */
 export function tamanoDeseado(medida, area) {
@@ -61,7 +25,7 @@ export function tamanoDeseado(medida, area) {
  * fijo (`altoTablero`, px CSS del marco con su borde, más `margen`, el relleno vertical del body):
  * no cambia de un proyecto a otro y lo que no entra se ve con scroll adentro. El ancho, y en el vacío
  * y la carga (sin `altoTablero`) también el alto, salen del contenido: `contenido` medido en px de
- * pantalla y `extras` (rellenos, bordes y barra) en px CSS. `f`: px de pantalla por px CSS (el zoom).
+ * pantalla y `extras` (rellenos, bordes y barra) en px CSS. `f`: px de pantalla por px CSS, medido (1 sin transformaciones).
  */
 export function medidaVentana({ contenido, extras, f = 1, altoTablero = null, margen = 0 }) {
   return {
@@ -94,9 +58,9 @@ export function posicionEnPantalla(pos, tamano, area) {
   }
 }
 
-/** Tamaño de la tira mini para un zoom. */
-export function tamanoMini(zoom) {
-  return { ancho: Math.round(MINI.ancho * zoom), alto: Math.round(MINI.alto * zoom) }
+/** Tamaño de la tira mini (px de pantalla). */
+export function tamanoMini() {
+  return { ...MINI }
 }
 
 /** Margen de la tira mini con el borde derecho y con la barra de tareas, en px de pantalla. */
