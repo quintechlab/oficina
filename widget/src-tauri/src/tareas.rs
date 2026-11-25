@@ -31,6 +31,7 @@ pub const COLORES: [&str; 6] = ["celeste", "verde", "rosa", "violeta", "ambar", 
 /// Las claves del formato: lo demás que traiga el archivo se conserva; lo demás que mande la ventana, no.
 const CLAVES_LISTA: [&str; 7] = ["v", "id", "nombre", "color", "orden", "creada", "tareas"];
 const CLAVES_TAREA: [&str; 9] = ["id", "titulo", "hecha", "hechaEn", "fecha", "importante", "notas", "subtareas", "creada"];
+const CLAVES_SUBTAREA: [&str; 3] = ["id", "titulo", "hecha"];
 
 static ESCRITURA: Mutex<()> = Mutex::new(());
 
@@ -166,21 +167,27 @@ fn desconocidas(de: &Value, conocidas: &[&str]) -> Map<String, Value> {
         .unwrap_or_default()
 }
 
-/// Suma a `limpio` lo desconocido que ya tenía el archivo: de la lista y de cada tarea (por id).
+/// Suma a cada elemento de `nuevos[clave]` lo desconocido de su par (mismo id) en `viejos[clave]`.
+fn conservar_items(nuevos: &mut Value, viejos: &Value, clave: &str, conocidas: &[&str]) {
+    let Some(lista) = nuevos[clave].as_array_mut() else { return };
+    for x in lista {
+        let Some(viejo) = viejos[clave].as_array().and_then(|a| a.iter().find(|v| v["id"] == x["id"])) else { continue };
+        if let Some(o) = x.as_object_mut() {
+            o.extend(desconocidas(viejo, conocidas));
+        }
+        if clave == "tareas" {
+            conservar_items(x, viejo, "subtareas", &CLAVES_SUBTAREA);
+        }
+    }
+}
+
+/// Suma a `limpio` lo desconocido que ya tenía el archivo: de la lista, de cada tarea y de cada
+/// subtarea (por id).
 fn conservar(limpio: &mut Value, archivo: &Value) {
     if let Some(o) = limpio.as_object_mut() {
         o.extend(desconocidas(archivo, &CLAVES_LISTA));
     }
-    let viejas: Vec<&Value> = archivo["tareas"].as_array().map(|a| a.iter().collect()).unwrap_or_default();
-    if let Some(tareas) = limpio["tareas"].as_array_mut() {
-        for t in tareas {
-            if let Some(vieja) = viejas.iter().find(|v| v["id"] == t["id"]) {
-                if let Some(o) = t.as_object_mut() {
-                    o.extend(desconocidas(vieja, &CLAVES_TAREA));
-                }
-            }
-        }
-    }
+    conservar_items(limpio, archivo, "tareas", &CLAVES_TAREA);
 }
 
 /// Lee `<id>.json` tal cual está, si sirve: el valor crudo (con sus desconocidas) o por qué no.

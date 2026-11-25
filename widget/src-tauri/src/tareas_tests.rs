@@ -110,6 +110,7 @@ fn un_campo_desconocido_del_archivo_sobrevive_a_guardar() {
     let mut futura = lista("l-trabajo", "Trabajo", 0);
     futura["icono"] = json!("maletin");
     futura["tareas"][0]["repetir"] = json!({ "cada": "semana" });
+    futura["tareas"][0]["subtareas"][0]["minutos"] = json!(15);
     fs::write(c.join("l-trabajo.json"), serde_json::to_vec(&futura).unwrap()).unwrap();
     // La ventana manda lo que leyó (sin los desconocidos) con un cambio, y alguno suyo propio
     let mut de_la_ventana = lista("l-trabajo", "Laburo", 0);
@@ -118,6 +119,8 @@ fn un_campo_desconocido_del_archivo_sobrevive_a_guardar() {
     assert_eq!(g["nombre"], "Laburo");
     assert_eq!(g["icono"], "maletin");
     assert_eq!(g["tareas"][0]["repetir"], json!({ "cada": "semana" }));
+    // También en las subtareas (por id)
+    assert_eq!(g["tareas"][0]["subtareas"][0]["minutos"], 15);
     assert_eq!(g.get("inventado"), None);
     let en_disco: Value = serde_json::from_slice(&fs::read(c.join("l-trabajo.json")).unwrap()).unwrap();
     assert_eq!(en_disco, g);
