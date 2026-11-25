@@ -6430,14 +6430,14 @@ function pintarHojaProyectos() {
  */
 function panelProyectos(t, ahora = Date.now()) {
   if ((t.vista === 'nuevo' || t.vista === 'editar') && t.form) {
-    const datos = { form: t.form, proyecto: t.lista.find(p => p.id === t.form.id) ?? null, errorForm: t.errorForm, errorCarpeta: t.errorCarpeta }
+    const datos = { form: t.form, proyecto: t.lista.find(p => p.id === t.form.id) ?? null, mascota: nombreMascota(), errorForm: t.errorForm, errorCarpeta: t.errorCarpeta }
     return { html: formularioProyecto(datos), firma: formularioProyecto({ ...datos, form: { ...t.form, nombre: '', instrucciones: '' } }) }
   }
   const p = t.lista.find(x => x.id === t.elegido)
-  if (!p) return { html: primerUsoProyectos(st.mascota), firma: null }
+  if (!p) return { html: primerUsoProyectos(st.mascota, nombreMascota()), firma: null }
   const armado = !!t.armado && armadoVigente(t, `borrar:${p.id}`, ahora)
   const transcurrido = armado ? Math.max(0, MS_CONFIRMAR - (t.armado.hasta - ahora)) : 0
-  const datos = { p, n: 0, especie: st.mascota, armado, errorCarpeta: t.errorCarpeta }
+  const datos = { p, n: 0, especie: st.mascota, mascota: nombreMascota(), armado, errorCarpeta: t.errorCarpeta }
   return { html: fichaProyecto({ ...datos, transcurrido }), firma: fichaProyecto(datos) }
 }
 
@@ -6754,7 +6754,7 @@ async function cambiarCarpetaProyecto(modo) {
   if (res?.proyecto) {
     ponerProyectoEnLista(res.proyecto)
     pintar()
-    decirProyectos('Cambios guardados')
+    decirProyectos('Carpeta cambiada')
     return
   }
   const textoErr = textoMotivoCarpeta(res?.motivo)

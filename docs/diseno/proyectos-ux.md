@@ -169,7 +169,7 @@ Los `{n}` usan `plural` de `logica.js` («1 charla», «2 charlas»; «1 archivo
 
 ### 5.3 Anuncios (`role=status`)
 
-«Proyecto creado» · «Cambios guardados» · «Proyecto borrado» · «{nombre}, {n} charlas» (al elegir) · «Copiados {n} archivos a {carpeta}» · los errores de 5.2.
+«Proyecto creado» · «Cambios guardados» · «Carpeta cambiada» (al elegir otra carpeta en Editar, que se guarda en el acto; decisión de Quintana del 25/11) · «Proyecto borrado» · «{nombre}, {n} charlas» (al elegir) · «Copiados {n} archivos a {carpeta}» · los errores de 5.2.
 
 ## 6. Sistema visual
 

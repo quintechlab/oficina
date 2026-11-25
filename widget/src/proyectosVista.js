@@ -134,14 +134,14 @@ function bloqueCarpeta(p, n, error) {
 }
 
 /** El bloque Instrucciones (4.6): el texto cortado a 5 líneas con la comilla del color, o el vacío con «Escribirlas». */
-function bloqueInstrucciones(p) {
+function bloqueInstrucciones(p, mascota = 'Avi') {
   const hay = !!String(p.instrucciones ?? '').trim()
   const boton = hay
     ? '<button type="button" class="bl-b" data-accion="pro-editar-ins" data-k="editar-ins" aria-label="Editar las instrucciones">Editar</button>'
     : '<button type="button" class="bl-b" data-accion="pro-editar-ins" data-k="editar-ins">Escribirlas</button>'
   const cuerpo = hay
     ? `<p class="instr">${escapar(p.instrucciones)}</p><small class="pie">Van al empezar cada charla</small>`
-    : '<p class="instr-no">Sin instrucciones: Avi charla como siempre.</p>'
+    : `<p class="instr-no">Sin instrucciones: ${escapar(mascota)} charla como siempre.</p>`
   return `<section class="bloque ins"><div class="bl-cab"><h3 class="rot">Instrucciones</h3>${boton}</div>${cuerpo}</section>`
 }
 
@@ -149,10 +149,11 @@ function bloqueInstrucciones(p) {
  * Sin charlas (4.5, 7.3): el recuadro punteado con la mascota feliz de 36 y «Listo, ya existe.» (con una
  * carpeta de la PC, sin la parte de soltar).
  */
-function sinCharlas(p, especie) {
+function sinCharlas(p, especie, mascota = 'Avi') {
+  const m = escapar(mascota)
   const texto = p.carpeta?.tipo === 'avis'
-    ? 'Soltá los archivos del tema en la carpeta y empezá a charlar: Avi ya conoce tus instrucciones.'
-    : 'Empezá a charlar: Avi ya conoce tus instrucciones.'
+    ? `Soltá los archivos del tema en la carpeta y empezá a charlar: ${m} ya conoce tus instrucciones.`
+    : `Empezá a charlar: ${m} ya conoce tus instrucciones.`
   return `<p class="vacio-ch"><span class="av" aria-hidden="true">${avi(mascotaDe(especie), 'feliz', 36)}</span><span><b>Listo, ya existe.</b> ${texto}</span></p>`
 }
 
@@ -161,7 +162,7 @@ function sinCharlas(p, especie) {
  * de charla, las charlas, las instrucciones, la carpeta, la matriz y «Borrar proyecto». `n`: sus charlas
  * (0 hasta P2). `armado`/`transcurrido`: el borrado que espera el segundo clic (4.11).
  */
-export function fichaProyecto({ p, n = 0, especie = 'avi', armado = false, transcurrido = 0, errorCarpeta = null }) {
+export function fichaProyecto({ p, n = 0, especie = 'avi', mascota = 'Avi', armado = false, transcurrido = 0, errorCarpeta = null }) {
   const nombre = escapar(p.nombre)
   const perdida = p.carpeta?.estado === 'perdida'
   const linea = perdida ? escapar(lineaProyecto(p, n)).replace('carpeta perdida', '<span class="rojo">carpeta perdida</span>') : escapar(lineaProyecto(p, n))
@@ -174,8 +175,8 @@ export function fichaProyecto({ p, n = 0, especie = 'avi', armado = false, trans
   const borrar = `<div class="borrar-z">${confirmable('pro-borrar', p.id, 'borrar', 'Borrar proyecto', textoBorrar(n), armado, transcurrido)}`
     + (armado ? `<small>${escapar(lineaBorrar(n))}</small>` : '') + '</div>'
   // Los `h3` de 12: «Charlas» y «Qué ve cada motor» no tienen rótulo a la vista (boceto), van para el lector
-  return `<div class="ficha" style="--c:${color(p.color)}">${cab}${cta}<h3 class="oculto">Charlas</h3>${sinCharlas(p, especie)}`
-    + `${bloqueInstrucciones(p)}${bloqueCarpeta(p, n, errorCarpeta)}<h3 class="oculto">Qué ve cada motor</h3>${MATRIZ}${borrar}</div>`
+  return `<div class="ficha" style="--c:${color(p.color)}">${cab}${cta}<h3 class="oculto">Charlas</h3>${sinCharlas(p, especie, mascota)}`
+    + `${bloqueInstrucciones(p, mascota)}${bloqueCarpeta(p, n, errorCarpeta)}<h3 class="oculto">Qué ve cada motor</h3>${MATRIZ}${borrar}</div>`
 }
 
 // ------------------------------------------------------------------ el formulario (4.10)
@@ -186,7 +187,7 @@ export function fichaProyecto({ p, n = 0, especie = 'avi', armado = false, trans
  * «Cambiar…»), la matriz, el aviso de descartar y los botones. Los errores van debajo de su campo
  * (`aria-describedby`); el de guardar, debajo de los botones con «Reintentar» (7.7).
  */
-export function formularioProyecto({ form, proyecto = null, errorForm = null, errorCarpeta = null }) {
+export function formularioProyecto({ form, proyecto = null, mascota = 'Avi', errorForm = null, errorCarpeta = null }) {
   const editar = !!form.id
   const e = form.errores ?? {}
   const errN = textoErrorNombre(e.nombre)
@@ -197,7 +198,7 @@ export function formularioProyecto({ form, proyecto = null, errorForm = null, er
     + (errN ? `<p class="f-err" id="pro-nombre-err">${errN}</p>` : '') + '</div>'
   const describe = ['pro-ins-ayuda', errI ? 'pro-ins-err' : ''].filter(Boolean).join(' ')
   const ins = '<div class="fl"><label for="pro-ins">Instrucciones</label>'
-    + `<textarea id="pro-ins" class="inp" data-campo="instrucciones" data-k="f-ins" placeholder="Qué tiene que saber Avi de este tema, cómo querés que responda…" aria-describedby="${describe}"${errI ? ' aria-invalid="true"' : ''}>${escapar(form.instrucciones)}</textarea>`
+    + `<textarea id="pro-ins" class="inp" data-campo="instrucciones" data-k="f-ins" placeholder="Qué tiene que saber ${escapar(mascota)} de este tema, cómo querés que responda…" aria-describedby="${describe}"${errI ? ' aria-invalid="true"' : ''}>${escapar(form.instrucciones)}</textarea>`
     + '<div class="f-pie"><small id="pro-ins-ayuda">Van al empezar cada charla del proyecto, con los dos motores.</small>'
     + `<small class="f-cuenta" data-cuenta>${cuenta ?? ''}</small></div>`
     + (errI ? `<p class="f-err" id="pro-ins-err">${errI}</p>` : '') + '</div>'
@@ -240,11 +241,11 @@ export function formularioProyecto({ form, proyecto = null, errorForm = null, er
  * El primer uso (7.2): la mascota de 96 saludando sobre la luz ámbar, el título y el texto de 5.2, tres
  * píldoras y «Crear mi primer proyecto».
  */
-export function primerUsoProyectos(especie) {
+export function primerUsoProyectos(especie, mascota = 'Avi') {
   const pildora = (c, t) => `<span><i style="--c:var(--${c})"></i>${t}</span>`
   return `<div class="vacio"><div class="piso" aria-hidden="true">${avi(mascotaDe(especie), 'saluda', 96)}</div>`
     + '<h2 id="pro-h2" tabindex="-1">Tus proyectos van acá</h2>'
-    + '<p>Un proyecto junta lo que Avi tiene que saber de un tema: tus instrucciones, una carpeta con archivos y sus charlas.</p>'
+    + `<p>Un proyecto junta lo que ${escapar(mascota)} tiene que saber de un tema: tus instrucciones, una carpeta con archivos y sus charlas.</p>`
     + `<div class="tres">${pildora('ambar', 'Instrucciones')}${pildora('celeste', 'Carpeta')}${pildora('verde', 'Charlas')}</div>`
     + '<button type="button" class="btn-pri" data-accion="pro-nuevo" data-k="primer">Crear mi primer proyecto</button></div>'
 }

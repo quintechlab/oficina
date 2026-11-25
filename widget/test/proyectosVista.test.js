@@ -156,3 +156,16 @@ test('el primer uso, la lectura que falló y los rotos (7.2, 5.2, 7.6)', () => {
   assert.equal(lineaRotos(0), '')
   assert.match(lineaRotos(1), /<span>1 proyecto no se pudo leer\. Sigue en la carpeta, sin tocar\.<\/span><button type="button" class="lnk" data-accion="pro-carpeta-cfg" data-k="rotos">Abrir la carpeta<\/button>/)
 })
+
+test('los textos de Proyectos usan el nombre de la mascota, escapado (L5 de odd/tasks/proyectos.md)', () => {
+  const n = 'Pancho <b>&'
+  const e = 'Pancho &lt;b&gt;&amp;'
+  const ficha = fichaProyecto({ p: PRESU, mascota: n })
+  assert.ok(ficha.includes(`empezá a charlar: ${e} ya conoce tus instrucciones.`))
+  assert.ok(fichaProyecto({ p: LECT, mascota: n }).includes(`Empezá a charlar: ${e} ya conoce tus instrucciones.`))
+  assert.ok(fichaProyecto({ p: LECT, mascota: n }).includes(`<p class="instr-no">Sin instrucciones: ${e} charla como siempre.</p>`))
+  const t = empezarNuevo(abrirProyectos({ ...proyectosInicial(), lista: [PRESU] }))
+  assert.ok(formularioProyecto({ form: t.form, mascota: n }).includes(`placeholder="Qué tiene que saber ${e} de este tema, cómo querés que responda…"`))
+  assert.ok(primerUsoProyectos('avi', n).includes(`<p>Un proyecto junta lo que ${e} tiene que saber de un tema:`))
+  assert.doesNotMatch(sinEtiquetas(ficha), /\bAvi\b/)
+})
