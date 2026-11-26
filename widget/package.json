@@ -1,7 +1,7 @@
 {
   "name": "oficina-widget",
   "private": true,
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Widget de escritorio de la oficina: las sesiones de Claude Code y sus subagentes como Avis en un tablero.",
   "type": "module",
   "scripts": {
