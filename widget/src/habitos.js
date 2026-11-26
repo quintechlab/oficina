@@ -485,6 +485,39 @@ export function ordenarHabitos(lista) {
   return [...lista].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || (a.creado ?? 0) - (b.creado ?? 0) || String(a.id).localeCompare(String(b.id)))
 }
 
+/** El mismo valor con las claves de cada objeto en orden alfabético (como el de `rebasarLista` de tareas.js). */
+function canonico(v) {
+  if (Array.isArray(v)) return v.map(canonico)
+  if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map(k => [k, canonico(v[k])]))
+  return v
+}
+const igual = (a, b) => JSON.stringify(canonico(a)) === JSON.stringify(canonico(b))
+
+/**
+ * Dos escritores (#43 C3, chat-herramientas-ux.md 11.5, como `rebasarLista` de tareas.js): la charla
+ * marcó el hábito en el disco (`disco`) después de que la ventana lo leyó (`base`) y lo cambió en
+ * pantalla (`pantalla`). Vuelve a aplicar lo de la ventana sobre lo del disco: cada campo que la ventana
+ * cambió (el nombre, la meta, `mejor`…) y, en `registro`, cada día que la ventana cambió (también uno
+ * que desmarcó); lo demás queda como lo dejó la charla. Si los dos cambiaron el mismo día, gana la
+ * ventana: es el último clic del usuario. Los campos desconocidos sobreviven (los del disco, salvo que la
+ * ventana los haya cambiado). Sin base o sin disco, lo de la pantalla. "Cambió" compara el contenido sin
+ * mirar el orden de las claves.
+ */
+export function rebasarHabito(base, pantalla, disco) {
+  if (!base || !disco || !pantalla) return pantalla
+  const h = { ...disco }
+  for (const k of Object.keys(pantalla)) if (k !== 'registro' && !igual(pantalla[k], base[k])) h[k] = pantalla[k]
+  const deBase = base.registro ?? {}
+  const enPantalla = pantalla.registro ?? {}
+  const registro = { ...(disco.registro ?? {}) }
+  for (const d of new Set([...Object.keys(deBase), ...Object.keys(enPantalla)])) {
+    if (igual(enPantalla[d], deBase[d])) continue
+    if (enPantalla[d] === undefined) delete registro[d]
+    else registro[d] = enPantalla[d]
+  }
+  return { ...h, registro }
+}
+
 // ------------------------------------------------------------------ anuncios (5.3)
 
 export const anuncioTilde = (h, on) => (on ? `Hecho hoy: ${h.nombre}` : `${h.nombre} vuelve a pendiente`)

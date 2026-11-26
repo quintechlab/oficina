@@ -794,16 +794,22 @@
     // Como habitos.rs: los hábitos por orden y los archivos rotos (&habitoslento tarda 1,2 s: las filas fantasma)
     habitos_leer: () => new Promise((r, no) => setTimeout(() => {
       if (modoHabitos === 'carpeta') { no('No se pudo abrir la carpeta de hábitos.'); return }
-      r({ habitos: [...habitosFalsos.values()].sort((a, b) => a.orden - b.orden || a.creado - b.creado).map(h => structuredClone(h)), rotas: rotasHabitos })
+      // Con la huella de cada hábito (#43 C3, 11.5): un hash de su contenido, como el SHA-256 de habitos.rs
+      r({
+        habitos: [...habitosFalsos.values()].sort((a, b) => a.orden - b.orden || a.creado - b.creado).map(h => structuredClone(h)), rotas: rotasHabitos,
+        huellas: Object.fromEntries([...habitosFalsos.values()].map(h => [h.id, huellaFalsa(h)])),
+      })
     }, url.has('habitoslento') ? 1200 : 120)),
     // ?habitos=guardarfalla: Rust no pudo escribir (7.4); lo de la pantalla queda y reintenta a los 5 s
-    habitos_guardar: ({ habito }) => {
+    habitos_guardar: ({ habito, huella = null }) => {
       if (!idHabito(habito?.id)) return { ok: false, error: 'id de hábito inválido' }
+      // La charla lo marcó desde que la ventana lo leyó: no se pisa (11.5)
+      if (huella && huella !== (habitosFalsos.has(habito.id) ? huellaFalsa(habitosFalsos.get(habito.id)) : null)) return { ok: false, error: 'cambio' }
       if (modoHabitos === 'guardarfalla') return { ok: false, error: 'acceso denegado (falso)' }
       window.__guardadosHabitos.push([habito.id, Object.keys(habito.registro ?? {}).length])
       habitosFalsos.set(habito.id, structuredClone(habito))
       console.info('[hábitos] guardado', habito.id, habito.registro)
-      return { ok: true, habito }
+      return { ok: true, habito, huella: huellaFalsa(habito) }
     },
     habitos_borrar: ({ id }) => {
       if (!idHabito(id)) return { ok: false, error: 'id de hábito inválido' }

@@ -408,3 +408,92 @@ fn modificar_no_toca_un_archivo_roto_ni_uno_que_no_esta_ni_lo_que_la_regla_niega
     assert!(!c.join("h-otro.json").exists());
     fs::remove_dir_all(c).unwrap();
 }
+
+// ---------------------------------------------------------------- #43 C3: la huella (dos escritores, chat-herramientas-ux.md 11.5)
+
+#[test]
+fn listar_da_la_huella_de_los_bytes_de_cada_habito() {
+    let c = carpeta_temporal();
+    guardar(&c, &habito("h-agua", "Agua")).unwrap();
+    fs::write(c.join("h-roto.json"), "{ roto").unwrap();
+    let l = listar(&c);
+    let esperada = crate::tareas::huella(&fs::read(c.join("h-agua.json")).unwrap());
+    assert_eq!(l.huellas.get("h-agua"), Some(&esperada));
+    assert_eq!(esperada.len(), 64);
+    // Un archivo roto no tiene huella: va en `rotas`
+    assert!(!l.huellas.contains_key("h-roto"));
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn guardar_con_la_huella_de_lo_leido_guarda_y_da_la_nueva() {
+    let c = carpeta_temporal();
+    guardar(&c, &habito("h-agua", "Agua")).unwrap();
+    let h = listar(&c).huellas["h-agua"].clone();
+    let mut d = habito("h-agua", "Agua");
+    d["registro"]["2026-11-25"] = json!(4);
+    let (g, nueva) = guardar_si(&c, &d, Some(&h)).unwrap();
+    assert_eq!(g["registro"]["2026-11-25"], 4);
+    assert_eq!(nueva, crate::tareas::huella(&fs::read(c.join("h-agua.json")).unwrap()));
+    assert_ne!(nueva, h);
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn guardar_con_una_huella_vieja_no_escribe_y_avisa_cambio() {
+    let c = carpeta_temporal();
+    guardar(&c, &habito("h-agua", "Agua")).unwrap();
+    let vieja = listar(&c).huellas["h-agua"].clone();
+    // Otro escritor (la charla) cambió el archivo después de leerlo la ventana
+    modificar(&c, "h-agua", |doc| {
+        doc["registro"]["2026-11-25"] = json!(3);
+        Ok(())
+    })
+    .unwrap();
+    let en_disco = fs::read(c.join("h-agua.json")).unwrap();
+    let mut d = habito("h-agua", "Agua");
+    d["nombre"] = json!("Tomar agua");
+    assert_eq!(guardar_si(&c, &d, Some(&vieja)).unwrap_err(), "cambio");
+    assert_eq!(fs::read(c.join("h-agua.json")).unwrap(), en_disco);
+    // Si el archivo ya no está, tampoco: la huella era de algo que existía
+    fs::remove_file(c.join("h-agua.json")).unwrap();
+    assert_eq!(guardar_si(&c, &d, Some(&vieja)).unwrap_err(), "cambio");
+    assert!(!c.join("h-agua.json").exists());
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn guardar_sin_huella_guarda_como_antes() {
+    // Lo de antes (11.5): sin huella, `habitos_guardar` pisa como siempre, y da lo mismo que `guardar`
+    let c = carpeta_temporal();
+    guardar(&c, &habito("h-agua", "Agua")).unwrap();
+    let mut d = habito("h-agua", "Agua");
+    d["nombre"] = json!("Tomar agua");
+    let (g, h) = guardar_si(&c, &d, None).unwrap();
+    let bytes = fs::read(c.join("h-agua.json")).unwrap();
+    assert_eq!(g, guardar(&c, &d).unwrap());
+    assert_eq!(fs::read(c.join("h-agua.json")).unwrap(), bytes);
+    assert_eq!(g["nombre"], "Tomar agua");
+    assert_eq!(h, crate::tareas::huella(&bytes));
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn una_marca_de_la_charla_no_se_pierde_con_un_guardado_viejo_de_la_ventana() {
+    // La carrera del verificador (A1): la ventana leyó el hábito con 2 hoy, la charla suma 1 con
+    // `habito_marcar` y la ventana guarda su copia vieja con la huella de lo que leyó: no se pisa.
+    let c = carpeta_temporal();
+    let carpetas = crate::mcp_avis::Carpetas { tareas: c.join("tareas"), habitos: c.clone() };
+    let ahora = chrono::NaiveDate::from_ymd_opt(2026, 11, 26).unwrap().and_hms_opt(15, 0, 0).unwrap().and_utc().timestamp_millis();
+    let mut d = habito("h-agua", "Agua");
+    d["registro"]["2026-11-26"] = json!(2);
+    guardar(&c, &d).unwrap();
+    let leida = listar(&c);
+    let (copia, huella_leida) = (leida.habitos[0].clone(), leida.huellas["h-agua"].clone());
+    let hecho = crate::mcp_avis::ejecutar(&carpetas, "habito_marcar", &json!({ "id": "h-agua", "sumar": 1 }), ahora).unwrap();
+    assert!(!hecho.error, "{}", hecho.texto);
+    assert_eq!(listar(&c).habitos[0]["registro"]["2026-11-26"], 3);
+    assert_eq!(guardar_si(&c, &copia, Some(&huella_leida)).unwrap_err(), "cambio");
+    assert_eq!(listar(&c).habitos[0]["registro"]["2026-11-26"], 3);
+    fs::remove_dir_all(c).unwrap();
+}

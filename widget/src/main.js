@@ -87,7 +87,7 @@ import {
 import * as movimientoTareas from './tareasMotion.js'
 import {
   habitosInicial, abrirHabitos, cerrarHabitos, verHabitos, empezarNuevo, abrirHabito, cerrarHabito, alEscHabitos, esAtajoHabitos,
-  cuentasHoy, nombreFilaHabitos, subtituloHabitos, ordenarHabitos, esHabito, validarHabito, nuevoHabito, desdeSugerida, SUGERIDAS,
+  cuentasHoy, nombreFilaHabitos, subtituloHabitos, ordenarHabitos, rebasarHabito, esHabito, validarHabito, nuevoHabito, desdeSugerida, SUGERIDAS,
   toca as tocaHabito, hecho as hechoHabito, valor as valorHabito, racha as rachaHabito, marcar as marcarHabito, sumar as sumarHabito,
   corregir as corregirHabito, editar as editarHabito, conMejor, hitoNuevo, textoHito, AVISO_POR_DEFECTO,
   anuncioTilde, anuncioSuma, anuncioDiaCompleto, anuncioCorregido, anuncioCreado, anuncioBorrado,
@@ -5887,7 +5887,11 @@ function leerHabitos() {
       const r = await invocar('habitos_leer')
       const lista = Array.isArray(r?.habitos) ? r.habitos : []
       const rotas = Array.isArray(r?.rotas) ? r.rotas.filter(x => typeof x?.archivo === 'string') : []
-      st.habitos = { ...st.habitos, lista: ordenarHabitos(mezclarLectura(lista, st.habitos.lista, habitosSinGuardar())), rotas, leido: true, error: null }
+      const sinGuardar = habitosSinGuardar()
+      // La base de lo que queda en pantalla tal cual se leyó; la de lo que no se pisa sigue siendo la de
+      // antes: su guardado choca con la huella y vuelve a aplicar lo suyo sobre lo del disco (11.5)
+      for (const h of lista) if (!sinGuardar.has(h.id)) anotarBaseHabito(h, r?.huellas?.[h.id])
+      st.habitos = { ...st.habitos, lista: ordenarHabitos(mezclarLectura(lista, st.habitos.lista, sinGuardar)), rotas, leido: true, error: null }
     } catch (err) {
       registrar(`hábitos: no se pudieron leer: ${err}`)
       st.habitos = { ...st.habitos, error: String(err?.message ?? err).slice(0, 120) || 'sin detalle' }
@@ -5904,7 +5908,8 @@ function leerHabitos() {
 /**
  * `oficina://habitos` (#43 C3): la charla marcó un hábito. Se relee enseguida (como Tareas, 8): la cuenta
  * de la fila del menú, el globo del recordatorio y, con la hoja abierta, la fila, que destella una vez sin
- * redibujar. Un hábito que se está guardando no se pisa con lo leído (`mezclarLectura`).
+ * redibujar. Un hábito que se está guardando no se pisa con lo leído (`mezclarLectura`): su guardado
+ * choca con la huella y vuelve a aplicar lo de la ventana sobre la marca (`rebasarHabitoEnPantalla`).
  */
 function alCambiarHabitosFuera(p) {
   const id = p?.habito
@@ -5924,6 +5929,32 @@ function destellarHabito(id) {
   fila.addEventListener('animationend', () => fila.classList.remove('recien'), { once: true })
 }
 
+/**
+ * Por hábito, lo último que se leyó o guardó en el disco y su huella (#43 C3, chat-herramientas-ux.md
+ * 11.5, como `basesTareas`): `habitos_guardar` no pisa una marca de la charla, y con esto se vuelve a
+ * aplicar lo de la ventana.
+ */
+const basesHabitos = new Map()
+function anotarBaseHabito(habito, huella) {
+  if (typeof habito?.id === 'string' && typeof huella === 'string') basesHabitos.set(habito.id, { habito, huella })
+}
+
+/**
+ * Relee los hábitos y pone el `id` al día con lo del disco sin perder lo de la pantalla (`rebasarHabito`).
+ * Devuelve si pudo.
+ */
+async function rebasarHabitoEnPantalla(id) {
+  let r
+  try { r = await invocar('habitos_leer') } catch (err) { registrar(`hábitos: no se pudo releer ${id}: ${err}`); return false }
+  const disco = (Array.isArray(r?.habitos) ? r.habitos : []).find(h => h.id === id)
+  const pantalla = st.habitos.lista.find(h => h.id === id)
+  if (!disco || !pantalla) return false
+  st.habitos = { ...st.habitos, lista: st.habitos.lista.map(h => (h.id === id ? rebasarHabito(basesHabitos.get(id)?.habito, pantalla, disco) : h)) }
+  anotarBaseHabito(disco, r?.huellas?.[id])
+  pintar()
+  return true
+}
+
 /** Por hábito: el guardado en curso (`promesa`) y si hay que guardarlo otra vez al terminar. */
 const guardadosHabitos = new Map()
 /** Los hábitos cuyo último guardado falló: se reintentan a los 5 s o con «Reintentar ahora» (7.4). */
@@ -5939,7 +5970,9 @@ function habitosSinGuardar() {
  * Guarda un hábito entero (`habitos_guardar`), de a uno por vez por hábito y siempre con lo último que
  * hay en pantalla, como `guardarListaTareas` (sin sus mudanzas: un hábito no se mueve de archivo). Si
  * falla, lo de la pantalla queda, el error de 7.4 aparece (y se anuncia), se anota en widget.log y se
- * reintenta solo a los 5 s; se va al primer guardado bueno.
+ * reintenta solo a los 5 s; se va al primer guardado bueno. Va con la huella de su base (11.5): si la
+ * charla marcó el hábito desde entonces, se relee y se vuelve a aplicar lo de la ventana una vez; un
+ * segundo choque es un error más (7.4).
  */
 function guardarHabito(id) {
   let g = guardadosHabitos.get(id)
@@ -5947,14 +5980,21 @@ function guardarHabito(id) {
   if (g.enCurso) { g.otraVez = true; return g.promesa }
   g.enCurso = true
   g.promesa = (async () => {
+    let rebasado = false
     do {
       g.otraVez = false
       const habito = st.habitos.lista.find(h => h.id === id)
       if (!habito) { fallidosHabitos.delete(id); break }
       let r
-      try { r = await invocar('habitos_guardar', { habito }) } catch (err) { r = { ok: false, error: String(err?.message ?? err) } }
-      if (r?.ok) fallidosHabitos.delete(id)
-      else {
+      try { r = await invocar('habitos_guardar', { habito, huella: basesHabitos.get(id)?.huella ?? null }) } catch (err) { r = { ok: false, error: String(err?.message ?? err) } }
+      if (!r?.ok && r?.error === 'cambio' && !rebasado) {
+        rebasado = true
+        if (await rebasarHabitoEnPantalla(id)) { g.otraVez = true; continue }
+      }
+      if (r?.ok) {
+        anotarBaseHabito(r.habito, r.huella)
+        fallidosHabitos.delete(id)
+      } else {
         fallidosHabitos.add(id)
         registrar(`hábitos: no se guardó ${id}: ${r?.error ?? 'sin detalle'}`)
       }
@@ -6348,6 +6388,7 @@ async function clicBorrarHabito(id) {
   }
   fallidosHabitos.delete(id)
   guardadosHabitos.delete(id)
+  basesHabitos.delete(id)
   avisosApagados.delete(id)
   st.habitos = verHabitos({ ...st.habitos, lista: st.habitos.lista.filter(x => x.id !== id) }, 'hoy')
   ponerErrorGuardarHabitos()

@@ -1055,20 +1055,23 @@ async fn habitos_leer(app: AppHandle) -> Result<serde_json::Value, String> {
             }
         }
         let l = habitos::listar(&carpeta);
-        Ok(serde_json::json!({ "habitos": l.habitos, "rotas": l.rotas }))
+        // #43 C3 (11.5): la huella de cada hábito, para guardar sin pisar una marca de la charla
+        Ok(serde_json::json!({ "habitos": l.habitos, "rotas": l.rotas, "huellas": l.huellas }))
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
 /// Guarda un hábito entero (formato v1; lo que no sirve se rechaza sin tocar el archivo):
-/// `{ ok: true, habito }` con lo guardado, o `{ ok: false, error }` (la ventana lo anota).
+/// `{ ok: true, habito, huella }` con lo guardado, o `{ ok: false, error }` (la ventana lo anota).
+/// `huella` (#43 C3, 11.5, como `tareas_guardar`): la de lo que leyó la ventana; si el archivo cambió
+/// desde entonces (la charla marcó), no guarda y el error es `"cambio"`. Sin `huella`, guarda como siempre.
 #[tauri::command]
-async fn habitos_guardar(app: AppHandle, habito: serde_json::Value) -> Result<serde_json::Value, String> {
+async fn habitos_guardar(app: AppHandle, habito: serde_json::Value, huella: Option<String>) -> Result<serde_json::Value, String> {
     let carpeta = carpeta_habitos(&app)?;
-    let r = tauri::async_runtime::spawn_blocking(move || habitos::guardar(&carpeta, &habito)).await.map_err(|e| e.to_string())?;
+    let r = tauri::async_runtime::spawn_blocking(move || habitos::guardar_si(&carpeta, &habito, huella.as_deref())).await.map_err(|e| e.to_string())?;
     Ok(match r {
-        Ok(habito) => serde_json::json!({ "ok": true, "habito": habito }),
+        Ok((habito, huella)) => serde_json::json!({ "ok": true, "habito": habito, "huella": huella }),
         Err(error) => serde_json::json!({ "ok": false, "error": error }),
     })
 }
