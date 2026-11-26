@@ -104,7 +104,7 @@ import {
   empezarEditar as empezarEditarProyecto, editarForm as editarFormProyecto, cerrarFormulario as cerrarFormularioProyecto,
   revisarFormulario as revisarFormularioProyecto, alEscProyectos, esAtajoProyectos, subtituloProyectos, nuevoIdProyecto,
   previaCarpetaAvis, cuentaInstrucciones, textoErrorNombre, textoErrorInstrucciones, textoMotivoCarpeta, anuncioElegido,
-  focoTrasBorrar, ERROR_GUARDAR as ERROR_GUARDAR_PROYECTO, charlasDe, cuentaCharlas, textoBorradoFallido,
+  focoTrasBorrar, ERROR_GUARDAR as ERROR_GUARDAR_PROYECTO, charlasDe, cuentaCharlas, textoBorradoFallido, proyectoParaAbrir,
 } from './proyectos.js'
 import {
   esqueletoProyectos, carpetaPro, indiceProyectos, indiceCargando, fichaProyecto, formularioProyecto, primerUsoProyectos,
@@ -6965,7 +6965,7 @@ function modeloVista(ahora = Date.now()) {
  */
 function proyectoDeCharla() {
   const conv = st.chat.conversacion
-  if (!conv?.proyecto) return null
+  if (!conv?.proyecto || conv.sinProyecto) return null
   const p = st.pro.lista.find(x => x.id === conv.proyecto)
   if (!p) return conv.proyectoInfo ?? null
   const c = p.carpeta ?? {}
@@ -7191,6 +7191,15 @@ function guardarCharlas(pendientes) {
   }
 }
 
+/**
+ * El proyecto que se pide al abrir una charla (A2 de P2): el de la charla, salvo que tenga mensajes y su
+ * proyecto ya no esté en la lista (borrado o roto): entonces se abre sin proyecto (8.3).
+ */
+function proyectoAbrir(e) {
+  const conv = st.chat.conversacion?.id === e.conversacion ? st.chat.conversacion : st.chat.charlas.find(x => x.id === e.conversacion)
+  return proyectoParaAbrir(e.proyecto ?? null, { lista: st.pro.lista, leido: st.pro.leido }, !!conv?.mensajes?.length)
+}
+
 /** Los proyectos borrados en esta ejecución (#44, 8.5): sus charlas ya no se guardan (Rust las borró). */
 const proyectosBorrados = new Set()
 
@@ -7209,7 +7218,7 @@ function efectoChat(e) {
       // Precalienta sin mandar nada (D19). Con el motor local, además, qué hay del modelo (solo lee).
       // Con otro modelo de Claude (#35), Rust la vuelve a abrir con él y la misma sesión
       // Con un proyecto (#44, 11.4), Rust lee su carpeta y sus instrucciones: la ventana manda solo su id
-      abriendo = invocar('chat_abrir', { conversacion: e.conversacion, motor: e.motor, carpeta: e.carpeta, mascota: nombreMascota(), usuario: st.nombreUsuario, sesionClaude: e.sesionClaude, modelo: e.modelo, proyecto: e.proyecto ?? null })
+      abriendo = invocar('chat_abrir', { conversacion: e.conversacion, motor: e.motor, carpeta: e.carpeta, mascota: nombreMascota(), usuario: st.nombreUsuario, sesionClaude: e.sesionClaude, modelo: e.modelo, proyecto: proyectoAbrir(e) })
         .then(resultado => despacharChat({ tipo: 'abierta', conversacion: e.conversacion, resultado }))
         .catch(err => registrar(`chat abrir: ${err}`))
       if (e.motor === 'local') leerModelo()

@@ -41,7 +41,9 @@ pub const EVENTO: &str = "oficina://chat";
 
 /// Las instrucciones de sistema (4.3), con `{Mascota}` en lugar del nombre. Una sola línea: viaja
 /// como argumento.
-/// #43 (chat-herramientas-ux.md 11.3) la reemplazó: suma las herramientas de tareas de Avis.
+/// #43 (chat-herramientas-ux.md 11.3) la reemplazó: suma las herramientas de tareas de Avis. La última
+/// frase es de #44 (L9 de Proyectos, decisión de Quintana del 25/11): medido, Haiku dejaba de leer la
+/// carpeta después de un turno sin herramientas («solo tengo las de Avis»).
 pub const INSTRUCCION_CHAT: &str = "Sos {Mascota}, la mascota de Avis, el panel que muestra en qué anda Claude Code. \
 Respondés en español rioplatense, de vos, breve y concreto. \
 No modificás archivos ni corrés comandos (no tenés esas herramientas). \
@@ -50,7 +52,8 @@ Nunca borrás: si te piden borrar una tarea, usá tarea_mostrar con para \"borra
 Para saber qué día es hoy, usá tareas_ver. \
 Si te piden algo que requiere actuar fuera de eso, explicá qué haría falta. \
 Cuando el mensaje traiga un bloque `<avis>`, son los datos en vivo de las sesiones: usalos para responder sobre ellas. \
-Usá Markdown simple (títulos, listas, código).";
+Usá Markdown simple (títulos, listas, código). \
+Podés leer los archivos de la carpeta de trabajo con Read, Glob y Grep cuando la pregunta lo pida.";
 
 /// Las únicas herramientas propias de Claude Code en el chat (7.1): solo leer.
 pub const HERRAMIENTAS: &str = "Read,Glob,Grep";
@@ -279,6 +282,17 @@ pub fn leer_proyecto(carpeta_proyectos: &Path, id: &str) -> Result<ProyectoChat,
 /// `<config>/chat/sistema/<conversacion>.txt`: el archivo de las instrucciones del proyecto (11.4, camino A).
 pub fn ruta_sistema(carpeta_chat: &Path, conversacion: &str) -> PathBuf {
     carpeta_chat.join("sistema").join(format!("{conversacion}.txt"))
+}
+
+/// Borra los archivos de sistema que quedaron (`<config>/chat/sistema/*.txt`): al arrancar y al salir de
+/// Avis (B1 de P2). Lo que no es un `.txt` de esa carpeta queda.
+pub fn limpiar_sistema(carpeta_chat: &Path) {
+    let Ok(entradas) = fs::read_dir(carpeta_chat.join("sistema")) else { return };
+    for e in entradas.filter_map(Result::ok) {
+        if e.path().extension().is_some_and(|x| x == "txt") && e.file_type().is_ok_and(|t| t.is_file()) {
+            let _ = fs::remove_file(e.path());
+        }
+    }
 }
 
 /// La firma de un texto (como la de `bloque_avis`): `DefaultHasher::new()` tiene claves fijas.
@@ -1085,7 +1099,23 @@ impl Chat {
         if sesion_claude.as_deref().is_some_and(|s| !sesion_valida(s)) {
             return Err(String::from("id de sesión de Claude Code inválido"));
         }
-        let proyecto = proyecto.map(|id| self.proyecto(id)).transpose()?;
+        // A2 de P2 (8.3): una charla con historia (su sesión de Claude Code, o ya usada en esta ejecución) cuyo
+        // proyecto se borró o está roto sigue, sin proyecto: en su carpeta o la de trabajo, como antes de #44.
+        // «el proyecto no existe» queda para una charla nueva de un proyecto que no está
+        let pedido = proyecto;
+        let proyecto = match pedido.map(|id| self.proyecto(id)) {
+            Some(Ok(p)) => Some(p),
+            Some(Err(error)) => {
+                let con_historia = sesion_claude.is_some() || self.estado().conversaciones.get(conversacion).is_some_and(|c| c.usada);
+                if !con_historia {
+                    return Err(error);
+                }
+                registrar("chat: el proyecto de la charla no está; sigue sin proyecto");
+                None
+            }
+            None => None,
+        };
+        let sin_proyecto = pedido.is_some() && proyecto.is_none();
         let cwd = match (&proyecto, carpeta) {
             (Some(p), _) => match &p.carpeta {
                 Some(c) => c.clone(),
@@ -1101,8 +1131,8 @@ impl Chat {
         let datos_proyecto = proyecto.as_ref().map(ProyectoChat::a_json);
         let mut e = self.estado();
         match e.conversaciones.get_mut(conversacion) {
-            Some(c) if c.usada && c.proyecto.as_ref().map(|p| &p.id) != id_proyecto.as_ref() => return Err(String::from("el proyecto de una charla con mensajes no cambia")),
-            Some(c) if c.usada && (c.local != local || (id_proyecto.is_none() && c.cwd != cwd)) => return Err(String::from("la carpeta y el motor de una charla con mensajes no cambian")),
+            Some(c) if c.usada && !sin_proyecto && c.proyecto.as_ref().map(|p| &p.id) != id_proyecto.as_ref() => return Err(String::from("el proyecto de una charla con mensajes no cambia")),
+            Some(c) if c.usada && (c.local != local || (id_proyecto.is_none() && !sin_proyecto && c.cwd != cwd)) => return Err(String::from("la carpeta y el motor de una charla con mensajes no cambian")),
             Some(c) if !c.usada => {
                 // Vacía: la cabecera cambia (D8) y la mascota es la del primer mensaje
                 c.cwd = cwd;
@@ -1373,6 +1403,8 @@ impl Chat {
                 v.matar();
             }
         }
+        // #44 (B1 de P2): ninguna instrucción de proyecto queda en disco al salir de Avis
+        limpiar_sistema(&self.0.carpeta);
     }
 
     /// Un turno del motor local (8): con texto y sin archivos. Arma el pedido (la instrucción con la
@@ -1535,10 +1567,17 @@ impl Chat {
         if let (Some(token), Some(s)) = (e.proceso_mut(generacion).and_then(|p| p.token.clone()), self.servidor_vivo()) {
             s.revocar(&token);
         }
+        let conversacion = e.proceso_mut(generacion).map(|p| p.conversacion.clone());
         if e.proceso.as_ref().is_some_and(|p| p.generacion == generacion) {
             e.proceso = None;
         }
         e.saliendo.retain(|p| p.generacion != generacion);
+        // #44 (B1 de P2): las instrucciones del proyecto no sobreviven al proceso que las usó, salvo que otro
+        // proceso de la misma charla ya las haya vuelto a escribir (relanzar con `--resume`). El próximo
+        // lanzamiento las escribe de nuevo
+        if let Some(c) = conversacion.filter(|c| !e.proceso.iter().chain(e.saliendo.iter()).any(|p| &p.conversacion == c)) {
+            let _ = fs::remove_file(ruta_sistema(&self.0.carpeta, &c));
+        }
         let codigo = bloquear(&vivo.hijo).try_wait().ok().flatten().and_then(|s| s.code());
         registrar(&format!("chat: claude salió (código {codigo:?})"));
     }

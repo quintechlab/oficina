@@ -16,14 +16,17 @@ use std::time::Duration;
 use crate::chat::{frase_usuario, nombre_mascota, texto_proyecto, MAX_TEXTO};
 
 /// La instrucción de 4.3 sin herramientas, con "si no sabés algo de las sesiones, decilo" (8) y lo
-/// que el resumen aprendió de los datos (#11: "abierta_hace" no es cuánto espera).
+/// que el resumen aprendió de los datos (#11: "abierta_hace" no es cuánto espera). La última frase es de
+/// #44 (L9 de Proyectos, decisión de Quintana del 25/11): medido, «Respondés en español rioplatense» le
+/// ganaba al «Respondé en inglés» de un proyecto.
 pub const INSTRUCCION_CHAT_LOCAL: &str = "Sos {Mascota}, la mascota de Avis, el panel que muestra en qué anda Claude Code. \
 Respondés en español rioplatense, de vos, breve y concreto. \
 Solo respondés con lo que sabés: no leés archivos, ni carpetas, ni internet. \
 Los datos en vivo de las sesiones vienen en el bloque <avis>: usalos para responder sobre ellas, y si no sabés algo de las sesiones, decilo. \
 Lo único pendiente son las preguntas: una sesión quieta no espera nada, y \"abierta_hace\" es cuánto hace que se abrió, no cuánto hace que espera. \
 Usá Markdown simple (títulos, listas, código). \
-No podés tocar tareas ni hábitos: si te lo piden, decí que con el modelo local todavía no y que lo puede hacer en una charla con Claude Code.";
+No podés tocar tareas ni hábitos: si te lo piden, decí que con el modelo local todavía no y que lo puede hacer en una charla con Claude Code. \
+Si el bloque <proyecto> pide otro idioma o estilo, seguilo antes que lo de arriba.";
 /// Lo que va en el bloque `<avis>` sin sesiones (así no inventa ninguna).
 pub const SIN_SESIONES: &str = "No hay sesiones abiertas en Avis.";
 /// La entrada como mucho (D22), con el contexto de 4096 de `modelo::argumentos` y `MAX_TOKENS` de salida.

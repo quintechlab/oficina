@@ -386,10 +386,13 @@ pub fn poner_engram(carpeta: &Path, id: &str, engram_id: u64) -> Result<(), Stri
 }
 
 /// Borra el archivo de la charla. Devuelve su `engramId` (para borrar también la copia de Engram).
-/// Lo que ya no existe no es un error.
+/// Lo que ya no existe no es un error. Se lleva también las instrucciones de su proyecto que hayan quedado
+/// (`<carpeta>/sistema/<id>.txt`, #44: B1 de P2), así no sobreviven a la charla («Borrar», «Borrar todo»
+/// y borrar el proyecto pasan por acá).
 pub fn borrar(carpeta: &Path, id: &str) -> Result<Option<u64>, String> {
     let r = ruta(carpeta, id).ok_or("id de charla inválido")?;
     let _candado = bloquear();
+    let _ = fs::remove_file(chat::ruta_sistema(carpeta, id));
     let engram = leer_archivo(carpeta, id).ok().and_then(|d| d["engramId"].as_u64());
     match fs::remove_file(&r) {
         Ok(()) => Ok(engram),

@@ -6,7 +6,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   charlasDe, cuentaCharlas, marcasContexto, pieContexto, lineaBorrar, textoBorradoFallido, textoMensajes, verLasCharlas,
-  filtroCharlas, nombreChipProyecto, AVISO_CARPETA_PERDIDA, AVISO_CARPETA_CAMBIO, AVISO_PROYECTO_BORRADO, TOPE_CHARLAS_FICHA,
+  filtroCharlas, nombreChipProyecto, AVISO_CARPETA_PERDIDA, AVISO_CARPETA_CAMBIO, AVISO_PROYECTO_BORRADO, TOPE_CHARLAS_FICHA, proyectoParaAbrir,
 } from '../src/proyectos.js'
 import { chatInicial, transicionChat, aArchivo, deArchivo, charlaDeCabecera, listaCharlas } from '../src/chat.js'
 import { cabecera, composer, hilo, listaHistorial, cajon, contextoProyecto, chipProyecto } from '../src/chatVista.js'
@@ -293,4 +293,44 @@ test('la ficha: borrar armado con una charla dice «su charla» (5.1, decisión 
 test('la ficha con el borrado fallido: el texto de 5.2 y «Reintentar» debajo de «Borrar proyecto»', () => {
   const html = fichaProyecto({ p: PRESU, n: 3, charlas: [], errorBorrar: 'No se pudieron borrar 2 charlas. Probá de nuevo.', ahoraMs: AHORA })
   assert.match(html, /<div class="borrar-z">.*<p class="pro-err" role="alert"><span>No se pudieron borrar 2 charlas\. Probá de nuevo\.<\/span><button type="button" class="lnk" data-accion="pro-borrar-reintentar" data-k="borrar-reintentar">Reintentar<\/button><\/p><\/div>/s)
+})
+
+// ------------------------------------------------------------------ corrección de P2 (L10: A1 y A2)
+
+test('A1: al retomar una charla del proyecto la ventana no manda su carpeta (11.2); solo el id', () => {
+  const doc = { v: 1, id: 'c-vieja', titulo: 'Vieja', creada: '2026-11-24T12:00:00.000Z', actualizada: '2026-11-24T12:05:00.000Z', motor: 'claude', carpeta: RUTA, sesionClaude: null, proyecto: 'p-presu', mensajes: [] }
+  const r = transicionChat({ ...conPreferencia(), abierta: true, charlas: [charlaDeCabecera(doc)] }, { tipo: 'retomar', id: 'c-vieja', conversacion: doc }, CTX)
+  const abrir = r.efectos.find(e => e.tipo === 'abrir')
+  assert.equal(abrir.proyecto, 'p-presu')
+  assert.equal(abrir.carpeta, null)
+  // Sin proyecto, la carpeta viaja como antes
+  const sin = transicionChat({ ...conPreferencia(), abierta: true, charlas: [charlaDeCabecera({ ...doc, proyecto: undefined })] }, { tipo: 'retomar', id: 'c-vieja', conversacion: { ...doc, proyecto: undefined } }, CTX)
+  assert.equal(sin.efectos.find(e => e.tipo === 'abrir').carpeta, RUTA)
+})
+
+test('A2: si Rust abre la charla sin su proyecto (borrado o roto), se ve y se usa sin proyecto (8.3)', () => {
+  let c = transicionChat(conPreferencia(), { tipo: 'proyecto-nueva', proyecto: 'p-presu' }, CTX).chat
+  c = transicionChat(c, { tipo: 'abierta', conversacion: 'c-nueva', resultado: { proceso: 'arrancando', sesion: 's' } }, CTX).chat
+  assert.equal(c.conversacion.sinProyecto, true)
+  assert.equal(c.conversacion.proyecto, 'p-presu', 'el archivo guarda el vínculo por si el proyecto vuelve')
+  const m = { ...vista(c.conversacion), chat: c, proyecto: null }
+  assert.match(cabecera(m), /data-accion="ch-menu" aria-haspopup="menu"/)
+  assert.equal(contextoProyecto({ ...m, proyecto: INFO }), '')
+  assert.doesNotMatch(composer(m).pie, /instrucciones/)
+  // El menú de carpetas se abre y una charla nueva desde ahí no es del proyecto
+  assert.equal(transicionChat(c, { tipo: 'menu' }, CTX).chat.menu, true)
+  assert.equal(transicionChat(c, { tipo: 'nueva' }, { ...CTX, id: 'c-x' }).chat.conversacion.proyecto, undefined)
+  // Si Rust lo vuelve a encontrar, vuelve a ser del proyecto
+  c = transicionChat(c, { tipo: 'abierta', conversacion: 'c-nueva', resultado: { proceso: 'listo', sesion: 's', proyecto: INFO } }, CTX).chat
+  assert.ok(!c.conversacion.sinProyecto)
+})
+
+test('A2: la ventana no pide el proyecto de una charla con mensajes que no está en su lista (borrado o roto)', () => {
+  const lista = [{ id: 'p-presu' }]
+  assert.equal(proyectoParaAbrir('p-presu', { lista, leido: true }, true), 'p-presu')
+  assert.equal(proyectoParaAbrir('p-borrado', { lista, leido: true }, true), null)
+  // Una charla nueva o la lista sin leer: el id va igual (Rust decide)
+  assert.equal(proyectoParaAbrir('p-borrado', { lista, leido: true }, false), 'p-borrado')
+  assert.equal(proyectoParaAbrir('p-borrado', { lista: [], leido: false }, true), 'p-borrado')
+  assert.equal(proyectoParaAbrir(null, { lista, leido: true }, true), null)
 })

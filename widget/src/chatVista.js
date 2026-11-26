@@ -14,7 +14,7 @@ import { datosEspecie } from './especies.js'
 import {
   animoChat, ocupado, markdownSeguro, tramoVivo, piezasPalabras, textoHerramientas, sugerencias, nombreCarpeta, relojEspera,
   mensajesVisibles, listaCharlas, coincideBusqueda, grupoDeFecha, horaCharla, cifrasDescarga, formatoGB, detalleAdjunto,
-  MODELOS, modeloValido, nombreModelo,
+  MODELOS, modeloValido, nombreModelo, deProyecto,
 } from './chat.js'
 import { recibosHtml } from './recibosVista.js'
 import { hoyArgentina } from './fechas.js'
@@ -27,7 +27,7 @@ import { colorDe } from './tareas.js'
 // para el cajón (8.3).
 
 /** El proyecto de la charla de ahora, o null (sin proyecto, la hoja de siempre). */
-const proyectoDe = m => (m.chat.conversacion?.proyecto ? m.proyecto ?? m.chat.conversacion.proyectoInfo ?? null : null)
+const proyectoDe = m => (deProyecto(m.chat.conversacion) ? m.proyecto ?? m.chat.conversacion.proyectoInfo ?? null : null)
 const colorProyecto = p => `var(--${colorDe(p?.color)})`
 const inicialProyecto = nombre => escapar(([...String(nombre ?? '').trim()][0] ?? '?').toUpperCase())
 

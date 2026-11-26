@@ -138,7 +138,8 @@ function conversacionNueva(id, motor, carpeta, ahoraMs, nuevaEn = null, modelo =
  * (#44, 11.4), Rust lee la carpeta y las instrucciones del proyecto: la ventana nunca manda su ruta.
  */
 const efectoAbrir = conv => ({
-  tipo: 'abrir', conversacion: conv.id, motor: conv.motor, carpeta: conv.carpeta, sesionClaude: conv.sesionClaude ?? null,
+  // A1 de P2: con un proyecto, ninguna ruta (11.2); Rust usa la del proyecto o, sin él, la de trabajo
+  tipo: 'abrir', conversacion: conv.id, motor: conv.motor, carpeta: conv.proyecto ? null : conv.carpeta, sesionClaude: conv.sesionClaude ?? null,
   modelo: conv.motor === 'local' ? null : modeloValido(conv.modelo),
   ...(conv.proyecto ? { proyecto: conv.proyecto } : {}),
 })
@@ -150,6 +151,12 @@ const efectoAbrir = conv => ({
  * `carpetaCambio`: la charla traía otra carpeta (D-p15); si Claude Code no puede retomar su sesión, el
  * hilo lo dice (`delBackend`, `listo`).
  */
+/**
+ * ¿La charla es de un proyecto que está? Una con `sinProyecto` (Rust la abrió sin él: se borró o está roto,
+ * A2 de P2) se usa y se ve sin proyecto (8.3), aunque su archivo guarde el id.
+ */
+export const deProyecto = conv => !!conv?.proyecto && !conv.sinProyecto
+
 function conProyectoAbierto(conv, p) {
   const estado = p.carpeta?.estado
   const local = conv.motor === 'local'
@@ -157,7 +164,7 @@ function conProyectoAbierto(conv, p) {
   const cambio = !local && conv.mensajes.length > 0 && !!conv.carpeta && !!carpeta && conv.carpeta !== carpeta
   let avisos = conv.avisos ?? []
   if (!local && estado === 'perdida' && !avisos.some(a => a.texto === AVISO_CARPETA_PERDIDA)) avisos = [...avisos, { texto: AVISO_CARPETA_PERDIDA, desde: conv.mensajes.length }]
-  return { ...conv, proyectoInfo: p, carpeta, ...(cambio ? { carpetaCambio: true } : {}), ...(avisos.length ? { avisos } : {}) }
+  return { ...conv, proyectoInfo: p, carpeta, sinProyecto: false, ...(cambio ? { carpetaCambio: true } : {}), ...(avisos.length ? { avisos } : {}) }
 }
 
 /** `guardar_chat` siempre con el juego completo: guardar el motor nunca borra el modelo, ni al revés (#35). */
@@ -270,7 +277,7 @@ function mandar(c, texto, adjuntos, ctx, { campo = false } = {}) {
 /** Cambia el motor o la carpeta: con mensajes, charla nueva (D8); sin mensajes, solo la cabecera. */
 function cambiarCabecera(c, motor, carpeta, ctx) {
   const conv = c.conversacion
-  if (conv?.proyecto) return cambiarMotorProyecto(c, motor, ctx)
+  if (deProyecto(conv)) return cambiarMotorProyecto(c, motor, ctx)
   const carpetaFinal = motor === 'local' ? null : carpeta
   if (conv && conv.motor === motor && conv.carpeta === carpetaFinal) return NADA(c.menu ? { ...c, menu: false } : c)
   const pref = efectoPreferencias(motor, motor === 'local' ? c.carpeta : carpeta, c.modelo)
@@ -562,8 +569,8 @@ export function transicionChat(c, ev, ctx = {}) {
       // «Charlar con» la mascota nunca abre una charla de proyecto (#44, 8.2): la última sin proyecto de
       // esta ejecución, o una nueva
       const reciente = x => !x.mensajes.length || ctx.ahoraMs - x.actualizada <= RETOMAR_MS
-      const sigue = conv && !conv.proyecto && reciente(conv)
-      const libre = conv?.proyecto ? c.charlas.find(x => !x.proyecto && Array.isArray(x.mensajes) && reciente(x)) : null
+      const sigue = conv && !deProyecto(conv) && reciente(conv)
+      const libre = deProyecto(conv) ? c.charlas.find(x => !x.proyecto && Array.isArray(x.mensajes) && reciente(x)) : null
       const base = { ...c, abierta: true, menu: false, menuModelo: false, cajon: false }
       const chat = sigue ? base : cambiarConversacion(base, libre ?? conversacionNueva(ctx.id, c.motor, c.carpeta, ctx.ahoraMs, null, c.modelo))
       return { chat, efectos: [efectoAbrir(chat.conversacion), { tipo: 'foco', a: 'campo' }] }
@@ -579,6 +586,8 @@ export function transicionChat(c, ev, ctx = {}) {
       let conv2 = { ...conv, sesionClaude: conv.sesionClaude ?? r.sesion ?? null }
       // #44 (11.4): la carpeta y el nombre del proyecto, como los leyó Rust
       if (conv.proyecto && r.proyecto?.id === conv.proyecto) conv2 = conProyectoAbierto(conv2, r.proyecto)
+      // A2 de P2: Rust la abrió sin su proyecto (se borró o está roto): sigue, sin proyecto a la vista
+      else if (conv.proyecto && !r.proyecto) conv2 = { ...conv2, sinProyecto: true, carpeta: null }
       return NADA({ ...c, proceso: r.proceso ?? c.proceso, engram: r.engram ?? c.engram, local: r.local ?? c.local, conversacion: conv2 })
     }
     case 'escribir':
@@ -616,12 +625,12 @@ export function transicionChat(c, ev, ctx = {}) {
       return cambiarCabecera(c, ev.motor, ev.motor === 'local' ? null : c.carpeta, ctx)
     case 'carpeta':
       // La carpeta de una charla de proyecto es la del proyecto (D-p12): no se elige en la hoja
-      if (conv?.motor === 'local' || conv?.proyecto) return NADA(c)
+      if (conv?.motor === 'local' || deProyecto(conv)) return NADA(c)
       return cambiarCabecera(c, 'claude', ev.carpeta ?? null, ctx)
     case 'recientes':
       return NADA({ ...c, recientes: Array.isArray(ev.recientes) ? ev.recientes : c.recientes })
     case 'menu':
-      if (conv?.motor === 'local' || conv?.proyecto) return NADA(c)
+      if (conv?.motor === 'local' || deProyecto(conv)) return NADA(c)
       return NADA({ ...c, menu: !c.menu, menuModelo: false })
     case 'menu-modelo':
       // El menú del modelo (#35): como el de carpeta; con el motor local no hay, y durante un turno no se abre
@@ -687,7 +696,7 @@ export function transicionChat(c, ev, ctx = {}) {
     case 'nueva': {
       // Arranca con el motor y el modelo de la preferencia (lo último elegido, en la hoja o en la configuración).
       // Dentro de una charla de proyecto, otra del mismo proyecto (#44, 8.2)
-      const nueva = conversacionNueva(ctx.id, c.motor ?? conv?.motor ?? 'claude', conv?.carpeta ?? c.carpeta, ctx.ahoraMs, null, c.modelo, conv?.proyecto ?? null)
+      const nueva = conversacionNueva(ctx.id, c.motor ?? conv?.motor ?? 'claude', conv?.carpeta ?? c.carpeta, ctx.ahoraMs, null, c.modelo, deProyecto(conv) ? conv.proyecto : null)
       const chat = { ...cambiarConversacion(c, nueva), borrador: c.borrador, adjuntos: c.adjuntos }
       return { chat, efectos: [efectoAbrir(nueva), { tipo: 'foco', a: 'campo' }] }
     }

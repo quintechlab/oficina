@@ -2082,6 +2082,8 @@ pub fn run() {
                 );
                 // Las charlas de proyecto (#44, proyectos-ux.md 11.4): sus instrucciones y su carpeta se leen de acá
                 el.poner_proyectos(config.join("proyectos"));
+                // Las instrucciones de proyecto que quedaron de una ejecución cortada (B1 de P2)
+                chat::limpiar_sistema(&el.carpeta());
                 let _ = chat::CHAT.set(el);
             }
             // La copia del historial en Engram (9.2): una sesión por arranque, que se abre con la primera copia

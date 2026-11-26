@@ -173,6 +173,17 @@ export const filtroCharlas = (nombre, n) => `${nombre} · ${plural(n, 'charla', 
 /** El nombre accesible del chip del proyecto en la hoja (8.2). */
 export const nombreChipProyecto = nombre => `Proyecto ${nombre}: ver el proyecto`
 
+/**
+ * El proyecto que pide la ventana al abrir una charla (`chat_abrir`, A2 de P2): el de la charla, salvo que
+ * tenga mensajes y su proyecto ya no esté en la lista leída (borrado o roto): entonces ninguno, y la charla
+ * sigue sin proyecto (8.3). Una charla nueva o la lista sin leer mandan el id y Rust decide.
+ */
+export function proyectoParaAbrir(id, { lista, leido }, conMensajes) {
+  if (!id) return null
+  if (conMensajes && leido && !(lista ?? []).some(p => p.id === id)) return null
+  return id
+}
+
 /** Las líneas del hilo de 8.4 y el anuncio de 8.5. */
 export const AVISO_CARPETA_PERDIDA = 'No encuentro la carpeta del proyecto: sigo solo con las instrucciones.'
 export const AVISO_CARPETA_CAMBIO = 'La carpeta del proyecto cambió: Claude sigue sin lo que charlaron antes.'
