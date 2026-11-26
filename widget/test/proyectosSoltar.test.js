@@ -134,3 +134,11 @@ test('soltar sobre la hoja de la charla sigue como antes (E5): la hoja manda y l
   assert.match(cuerpo('zonaSoltarBajo'), /puedeSoltar\(/)
   assert.match(cuerpo('soltarEnProyecto'), /puedeSoltar\(/)
 })
+
+test('copiando, la zona dice «Copiando…» en lugar de «Soltá archivos acá» (L14 de odd/tasks/proyectos.md)', () => {
+  const copiando = fichaProyecto({ p: PRESU, soltar: { id: 'p-presu', encima: false, copiando: true, error: null } })
+  assert.match(copiando, /aria-busy="true" data-accion="pro-abrir-carpeta" data-k="soltar">Copiando…<small>/)
+  assert.doesNotMatch(copiando, /Soltá archivos acá/)
+  const encima = fichaProyecto({ p: PRESU, soltar: { id: 'p-presu', encima: true, copiando: false, error: null } })
+  assert.match(encima, /data-k="soltar">Soltá archivos acá<small>/)
+})

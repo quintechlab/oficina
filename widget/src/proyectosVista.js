@@ -115,7 +115,7 @@ function carpetaNombre(c) {
  * El bloque Carpeta (4.7, 7.4): creada por Avis, la zona de soltar (que abre la carpeta; encendida, `.vivo`,
  * sin archivos ni charlas, 7.3); de la PC, «Abrir» y «Cambiar»; perdida, el texto de 5.2 con «Elegir otra»
  * y «Crear una nueva». `error`: la carpeta rechazada o que no se pudo crear (5.2). `soltar` (P3): con
- * archivos encima o copiando, las hormigas (`.encima`; copiando, además `aria-busy`), y debajo lo que no
+ * archivos encima o copiando, las hormigas (`.encima`; copiando, además `aria-busy` y «Copiando…»), y debajo lo que no
  * se pudo copiar (5.2).
  */
 function bloqueCarpeta(p, n, error, soltar = null) {
@@ -130,7 +130,7 @@ function bloqueCarpeta(p, n, error, soltar = null) {
   }
   if (c.estado === 'sin') return `<section class="bloque car">${cab}${otra}${err}</section>`
   const extra = c.tipo === 'avis'
-    ? `<button type="button" class="soltar${!c.archivos && !n ? ' vivo' : ''}${soltar?.encima || soltar?.copiando ? ' encima' : ''}"${soltar?.copiando ? ' aria-busy="true"' : ''} data-accion="pro-abrir-carpeta" data-k="soltar">Soltá archivos acá<small>${escapar(pieSoltar(c.archivos))}</small></button>`
+    ? `<button type="button" class="soltar${!c.archivos && !n ? ' vivo' : ''}${soltar?.encima || soltar?.copiando ? ' encima' : ''}"${soltar?.copiando ? ' aria-busy="true"' : ''} data-accion="pro-abrir-carpeta" data-k="soltar">${soltar?.copiando ? 'Copiando…' : 'Soltá archivos acá'}<small>${escapar(pieSoltar(c.archivos))}</small></button>`
       + (soltar?.error ? lineaError(soltar.error) : '')
     : '<div class="mini-acc"><button type="button" class="mini" data-accion="pro-abrir-carpeta" data-k="car-abrir">Abrir</button>'
       + '<button type="button" class="mini" data-accion="pro-carpeta-elegir" data-k="car-cambiar">Cambiar</button></div>'

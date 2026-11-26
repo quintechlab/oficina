@@ -95,7 +95,7 @@ Tarjeta `--s1`, borde `--linea`, radio 14, relleno 12. Rótulo «Instrucciones»
 
 Rótulo «Carpeta». Ícono de carpeta de 22 (trazo del color del proyecto, relleno al 22 %), el nombre de la carpeta (la última parte de la ruta) y la ruta abreviada debajo (mono, una línea, `title` con la ruta entera). La etiqueta `.tag`: «La creó Avis · {n} archivos» o «De tu PC · {n} archivos».
 
-- **Creada por Avis:** la zona de soltar (`button.soltar`, mín. 54 de alto, borde punteado dibujado con gradientes, radio 10): «Soltá archivos acá» y debajo «{n} adentro · Abrir en el Explorador» (o «vacía · o abrila en el Explorador»). Clic: abre la carpeta. Arrastrar archivos encima: las hormigas marchan y el fondo toma el color al 8 % (10).
+- **Creada por Avis:** la zona de soltar (`button.soltar`, mín. 54 de alto, borde punteado dibujado con gradientes, radio 10): «Soltá archivos acá» y debajo «{n} adentro · Abrir en el Explorador» (o «vacía · o abrila en el Explorador»). Clic: abre la carpeta. Arrastrar archivos encima: las hormigas marchan y el fondo toma el color al 8 % (10). Mientras copia: «Copiando…» en lugar de «Soltá archivos acá», con `aria-busy` (decisión de Quintana del 25/11).
 - **De tu PC:** «Abrir» y «Cambiar» (`.mini`, 28 de alto).
 - **Perdida:** 7.4.
 
@@ -136,7 +136,7 @@ El `.armado` de siempre (3 s, `aria-live=polite`; reusar el de Tareas). «Borrar
 | Botón de charla | «Nueva charla» · «Empezar la primera charla» |
 | Charlas | «Charlas» · «{n} mensajes» · «Ver las {n} charlas» |
 | Instrucciones | «Instrucciones» · «Editar» · «Van al empezar cada charla» · «Sin instrucciones: Avi charla como siempre.» · «Escribirlas» |
-| Carpeta | «Carpeta» · «La creó Avis · {n} archivos» · «De tu PC · {n} archivos» · «Soltá archivos acá» · «{n} adentro · Abrir en el Explorador» · «vacía · o abrila en el Explorador» · «Abrir» · «Cambiar» |
+| Carpeta | «Carpeta» · «La creó Avis · {n} archivos» · «De tu PC · {n} archivos» · «Soltá archivos acá» · «Copiando…» · «{n} adentro · Abrir en el Explorador» · «vacía · o abrila en el Explorador» · «Abrir» · «Cambiar» |
 | Matriz | «Motor» · «Instrucciones» · «Carpeta» · «Claude Code» · «Local» · «en cada charla» · «la lee» · «cuando hace falta» · «no la ve» |
 | Borrar | «Borrar proyecto» · armado: 4.11 · debajo: «Se van el proyecto y sus {n} charlas. La carpeta y sus archivos quedan en tu PC. Esc cancela.» (sin charlas: «Se va el proyecto. La carpeta y sus archivos quedan en tu PC. Esc cancela.») |
 | Formulario | «Nuevo proyecto» · «Editar proyecto» · «Nombre» · «Instrucciones» · placeholder «Qué tiene que saber Avi de este tema, cómo querés que responda…» · «Van al empezar cada charla del proyecto, con los dos motores.» · «Carpeta» · «Que Avis cree una» · «Una de esta PC» · «Crear proyecto» · «Guardar cambios» · «Cancelar» · «Cambiar…» |
