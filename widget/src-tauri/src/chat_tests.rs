@@ -2086,3 +2086,99 @@ fn proceso_falso_instrucciones_o_carpeta_nuevas_relanzan_con_resume_en_el_proxim
     borrar(&carpeta);
     borrar(&base);
 }
+
+// ---- aceptación de P2 con el `claude` real y el modelo local (14/P2): `cargo test --lib real_proyecto -- --ignored --nocapture`
+
+/// Espera el final del turno que empezó después de `antes` eventos y devuelve su texto y sus herramientas.
+#[cfg(windows)]
+fn turno_real(r: &Recibidos, antes: usize, segundos: u64) -> (String, Vec<String>, String) {
+    let limite = Instant::now() + Duration::from_secs(segundos);
+    while !r.todos()[antes..].iter().any(|v| v["tipo"] == "fin" || v["tipo"] == "error") && Instant::now() < limite {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let evs: Vec<Value> = r.todos()[antes..].to_vec();
+    let texto = evs.iter().filter(|v| v["tipo"] == "texto").map(|v| v["texto"].as_str().unwrap_or("").to_string()).collect();
+    let herr = evs.iter().filter(|v| v["tipo"] == "herramienta").map(|v| format!("{} {}", v["nombre"].as_str().unwrap_or(""), v["detalle"].as_str().unwrap_or(""))).collect();
+    let fin = evs.last().map(|v| v["tipo"].as_str().unwrap_or("").to_string()).unwrap_or_default();
+    (texto, herr, fin)
+}
+
+/// ¿Está en inglés? Palabras comunes de cada idioma.
+fn en_ingles(t: &str) -> bool {
+    let t = format!(" {} ", t.to_lowercase());
+    let ingles = [" the ", " is ", " a ", " of ", " and ", " to "].iter().filter(|p| t.contains(*p)).count();
+    let espanol = [" el ", " es ", " un ", " una ", " de ", " que ", " para "].iter().filter(|p| t.contains(*p)).count();
+    ingles > espanol
+}
+
+#[cfg(windows)]
+#[test]
+#[ignore]
+fn real_proyecto_claude_responde_en_ingles_y_lee_la_carpeta_solo_si_hace_falta() {
+    let base = carpeta_temporal();
+    let (pro, car) = (base.join("proyectos"), base.join("Presupuestos"));
+    fs::create_dir_all(&car).unwrap();
+    fs::write(car.join("tarifas-2027.txt"), "Tarifa de diseño: 1500 pesos por hora.\n").unwrap();
+    proyecto_en(&pro, "p-presu", "Presupuestos", "Respondé en inglés.", Some(&car));
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador_real_haiku(), r.emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    chat.abrir_proyecto("c-real-pro", "claude", None, "Avi", None, Some(String::from("haiku")), Some("p-presu")).unwrap();
+    // Medido el 25/11 (Haiku): la carpeta se lee en el primer turno; después de un turno sin herramientas, Haiku
+    // contesta que solo tiene las de Avis (pasa igual sin proyecto, con la INSTRUCCION_CHAT de #43)
+    chat.enviar("c-real-pro", 1, "¿Cuánto cobro por hora de diseño? Fijate en los archivos de la carpeta.", &[], &Value::Null).unwrap();
+    let (texto, herr, fin) = turno_real(&r, 0, 120);
+    println!("turno 1 ({fin}): {herr:?}
+{texto}");
+    assert_eq!(fin, "fin");
+    assert!(herr.iter().any(|h| h.contains("tarifas-2027.txt")), "la línea .herr: {herr:?}");
+    assert!(texto.contains("1500") || texto.contains("1,500") || texto.contains("1.500"), "{texto}");
+    let antes = r.todos().len();
+    chat.enviar("c-real-pro", 2, "¿Qué es un presupuesto? En una frase.", &[], &Value::Null).unwrap();
+    let (texto, herr, fin) = turno_real(&r, antes, 120);
+    println!("turno 2 ({fin}): {herr:?}
+{texto}");
+    assert_eq!(fin, "fin");
+    assert!(herr.is_empty(), "una pregunta general no lee la carpeta: {herr:?}");
+    assert!(en_ingles(&texto), "en inglés: {texto}");
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+/// Medido el 25/11 con Qwen3-4B: responde en español (gana «Respondés en español rioplatense» de
+/// `INSTRUCCION_CHAT_LOCAL` sobre las instrucciones del proyecto). Queda como prueba de aceptación pendiente.
+#[test]
+#[ignore]
+fn real_proyecto_local_responde_en_ingles() {
+    let base = carpeta_temporal();
+    let pro = base.join("proyectos");
+    proyecto_en(&pro, "p-presu", "Presupuestos", "Respondé en inglés.", None);
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let lanzador: Lanzador = Arc::new(|_l: &Lanzamiento| Err(std::io::Error::other("nunca claude")));
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    chat.poner_motor_local(Arc::new(|| crate::modelo::IA.motor_charla(&|_| {}).map(|(p, u)| (p, Box::new(u) as Box<dyn chat_local::UsoMotor>))));
+    chat.abrir_proyecto("c-real-loc", "local", None, "Avi", None, None, Some("p-presu")).unwrap();
+    chat.enviar_con("c-real-loc", 1, "¿Qué es un presupuesto? En una frase.", &[], &Value::Null, &Value::Null).unwrap();
+    let (texto, _, fin) = turno_real_local(&r);
+    println!("local ({fin}):\n{texto}");
+    assert_eq!(fin, "fin");
+    assert!(en_ingles(&texto), "en inglés: {texto}");
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+fn turno_real_local(r: &Recibidos) -> (String, Vec<String>, String) {
+    let limite = Instant::now() + Duration::from_secs(300);
+    while !r.tipos().iter().any(|t| t == "fin" || t == "error") && Instant::now() < limite {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let evs = r.todos();
+    let texto = evs.iter().filter(|v| v["tipo"] == "texto").map(|v| v["texto"].as_str().unwrap_or("").to_string()).collect();
+    let fin = evs.last().map(|v| format!("{}{}", v["tipo"].as_str().unwrap_or(""), v["detalle"].as_str().map(|d| format!(" {d}")).unwrap_or_default())).unwrap_or_default();
+    (texto, Vec::new(), fin)
+}
