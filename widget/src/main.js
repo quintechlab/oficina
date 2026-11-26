@@ -3871,7 +3871,7 @@ function pintarConfiguracion() {
     $('#marco').classList.toggle('con-mini', !!htmlMini)
     st.cfgFirmas.mini = htmlMini
   }
-  // La pregunta pendiente se ve en #aviso-p, arriba de la hoja (modulos-ux.md 4.5): #cfg-aviso queda vacío hasta M2
+  // La pregunta pendiente se ve en #aviso-p, arriba de la hoja (modulos-ux.md 4.5)
   const ahora = Date.now()
   const datos = datosConfiguracion(modeloDesdeChat(st.chat), ahora)
   // Las pestañas no se redibujan: cambia cuál está elegida, así el indicador viaja desde donde estaba.
@@ -4608,7 +4608,7 @@ function pintarTareas() {
   const firmas = st.tarFirmas
   const htmlMini = miniTareas(st.mascota, t.feliz)
   if (firmas.mini !== htmlMini) { mini.innerHTML = htmlMini; firmas.mini = htmlMini }
-  // La pregunta pendiente se ve en #aviso-p, arriba de la hoja (modulos-ux.md 4.5): #tar-aviso queda vacío hasta M2
+  // La pregunta pendiente se ve en #aviso-p, arriba de la hoja (modulos-ux.md 4.5)
 
   const cuerpo = $('#tar-cuerpo')
   const k = raiz.contains(document.activeElement) ? document.activeElement.closest('[data-k]')?.dataset.k : null
@@ -5723,8 +5723,6 @@ async function accionTareas(a, b) {
     // "Abrir la carpeta" (7.6): Rust abre siempre `<config>/tareas/`, nunca una ruta de la ventana
     case 'tar-carpeta': invocar('tareas_abrir_carpeta').catch(err => registrar(`tareas: no se pudo abrir la carpeta: ${err}`)); break
     case 'tar-releer': await leerTareas(); break
-    // La línea de la pregunta de la hoja ya no se dibuja (la reemplaza #aviso-p, modulos-ux.md 4.5): el alias hace lo mismo
-    case 'tar-pregunta': await responderDesdeAviso(st.proyectos.findIndex(p => preguntasPendientes(p).length)); break
   }
 }
 
@@ -5773,8 +5771,6 @@ async function accionConfiguracion(a, b) {
     case 'cfg-clave-guardar': await guardarClaveConfig(b.dataset.valor); break
     case 'cfg-clave-probar': await probarClaveConfig(b.dataset.valor); break
     case 'cfg-clave-borrar': await clicBorrarClave(b.dataset.valor); break
-    // La línea de la pregunta de la hoja ya no se dibuja (la reemplaza #aviso-p, modulos-ux.md 4.5): el alias hace lo mismo
-    case 'cfg-ver': await responderDesdeAviso(st.proyectos.findIndex(p => preguntasPendientes(p).length)); break
   }
 }
 
