@@ -523,7 +523,7 @@ Un día anterior a `inicio` no cuenta nunca: ni hecho ni falta.
 
 ### 11.9 Medir antes de construir
 
-1. **Ctrl H en WebView2:** que llegue al `keydown` (Edge lo usa para el historial). Si no llega, vuelve a Quintana con la alternativa Ctrl Shift H.
+1. **Ctrl H en WebView2:** que llegue al `keydown` (Edge lo usa para el historial). Si no llega, vuelve a Quintana con la alternativa Ctrl Shift H. **Medido el 26/11/2026 con el `.msi` 0.15.1: llega y abre Hábitos.**
 2. **`tauri-plugin-notification` en Windows**, medido contra la app empaquetada (el `.msi`, no `tauri dev`, porque el AppUserModelID cambia): (a) que `on_action` llegue al hacer clic en la notificación de escritorio (hoy se usa en `lib.rs:1759`, sin medición registrada); (b) si se puede saber **qué** notificación se tocó (un id o un dato extra), para abrir Hábitos en lugar de solo mostrar la ventana; (c) si acepta una imagen (la cara del Avi del boceto) y botones en escritorio. Lo que no ande, no se hace: sin clic, la notificación solo avisa y el globo hace el resto; sin imagen, el ícono de la app.
 3. **El modelo local para la frase:** cuánto tarda la primera frase con el motor apagado (CPU y CUDA), y que con la instrucción de 8.4 respete el tope y los números. Si tarda más de 45 s en la máquina de Quintana, queda la plantilla y se revisa el tope.
 4. **Una charla que empieza con un mensaje de la mascota:** que `historial.rs` (formato v1, roles `usuario` y `mascota`) la guarde y que `historiaLocal` la mande bien al modelo local.
