@@ -14,10 +14,49 @@ import { datosEspecie } from './especies.js'
 import {
   animoChat, ocupado, markdownSeguro, tramoVivo, piezasPalabras, textoHerramientas, sugerencias, nombreCarpeta, relojEspera,
   mensajesVisibles, listaCharlas, coincideBusqueda, grupoDeFecha, horaCharla, cifrasDescarga, formatoGB, detalleAdjunto,
-  MODELOS, modeloValido, nombreModelo,
+  MODELOS, modeloValido, nombreModelo, deProyecto,
 } from './chat.js'
 import { recibosHtml } from './recibosVista.js'
 import { hoyArgentina } from './fechas.js'
+import { marcasContexto, pieContexto, filtroCharlas, nombreChipProyecto } from './proyectos.js'
+import { colorDe } from './tareas.js'
+
+// ------------------------------------------------------------------ la charla del proyecto (#44, proyectos-ux.md 8)
+// `m.proyecto`: el proyecto de la charla de ahora (`{ id, nombre, color, carpeta: { nombre, ruta, estado } }`,
+// el de la hoja de Proyectos o el que devolvió `chat_abrir`), o null; `m.listaProyectos`: los proyectos
+// para el cajón (8.3).
+
+/** El proyecto de la charla de ahora, o null (sin proyecto, la hoja de siempre). */
+const proyectoDe = m => (deProyecto(m.chat.conversacion) ? m.proyecto ?? m.chat.conversacion.proyectoInfo ?? null : null)
+const colorProyecto = p => `var(--${colorDe(p?.color)})`
+const inicialProyecto = nombre => escapar(([...String(nombre ?? '').trim()][0] ?? '?').toUpperCase())
+
+/**
+ * El chip del proyecto en la fila de arriba del escenario (8.2): el ícono con la inicial, el nombre y
+ * «proyecto», con el color del proyecto. Clic: la hoja de Proyectos en ese proyecto. Sin proyecto, nada.
+ */
+export function chipProyecto(p) {
+  if (!p) return ''
+  return `<button type="button" class="pj-chip" id="ch-proyecto" data-accion="ch-proyecto" data-id="${escapar(p.id)}" aria-label="${escapar(nombreChipProyecto(p.nombre))}" style="--c:${colorProyecto(p)}">`
+    + `<span class="pj-ic" aria-hidden="true">${inicialProyecto(p.nombre)}</span><span class="n">${escapar(p.nombre)}</span><small>proyecto</small></button>`
+}
+
+/** El estado de la carpeta del proyecto de la charla: `ok`, `perdida` o `sin`. */
+const estadoCarpeta = m => proyectoDe(m)?.carpeta?.estado ?? 'sin'
+
+/**
+ * Las marcas de contexto (`.ctx-p`, 8.2): debajo de la cabecera, solo en una charla de proyecto. El
+ * nombre del grupo lleva el de la mascota (decisión de Quintana del 25/11: los textos de Proyectos usan su
+ * nombre, no «Avi»).
+ */
+export function contextoProyecto(m) {
+  if (!proyectoDe(m)) return ''
+  const marcas = marcasContexto({ motor: motorDe(m), carpeta: estadoCarpeta(m) }).map(({ tipo, texto }) => {
+    const signo = tipo === 'si' ? '<i aria-hidden="true">✓</i>' : tipo === 'no' ? '<i aria-hidden="true">—</i>' : ''
+    return `<span class="ctx-i ${tipo}">${signo}${escapar(texto)}</span>`
+  })
+  return `<div class="ctx-p" role="group" aria-label="Qué usa ${escapar(nombreDe(m))} en esta charla">${marcas.join('')}</div>`
+}
 
 /** Los iconos de 5.4: SVG de 16, trazo de 1,4 a 1,9 y `currentColor`. */
 export const ICONOS = Object.freeze({
@@ -89,10 +128,27 @@ function botonModelo(m) {
   return `<button type="button" class="modelo" data-accion="ch-modelo-menu" aria-haspopup="menu" aria-controls="chat-menu" aria-expanded="${!!m.chat.menuModelo}" aria-label="Modelo: ${nombre}"${estado}><span>${nombre}</span>${ICONOS.flecha}</button>`
 }
 
+/**
+ * El botón de carpeta de una charla de proyecto (8.2, D-p12): la carpeta del proyecto, sin el menú de
+ * carpetas; el clic la abre en el Explorador (Rust lee la ruta del proyecto, 11.2). Con Local, apagado y
+ * tachado; con la carpeta perdida, tachado y en rojo.
+ */
+function carpetaProyecto(m, p) {
+  const c = p.carpeta ?? {}
+  const nombre = c.nombre || nombreCarpeta(c.ruta) || p.nombre
+  const clase = c.estado === 'perdida' ? 'carpeta pro perdida' : 'carpeta pro'
+  if (motorDe(m) === 'local') {
+    return `<button type="button" class="${clase} tachada" data-accion="ch-carpeta-pro" aria-disabled="true" title="El modelo local no lee la carpeta" aria-label="Carpeta del proyecto: ${escapar(nombre)}, no disponible con el modelo local">${ICONOS.carpeta}<span class="ruta">${escapar(nombre)}</span></button>`
+  }
+  const titulo = c.estado === 'perdida' ? `No encuentro ${c.ruta ?? ''}` : c.ruta ?? nombre
+  return `<button type="button" class="${clase}" data-accion="ch-carpeta-pro" aria-label="Carpeta del proyecto: ${escapar(nombre)}" title="${escapar(titulo)}">${ICONOS.carpeta}<span class="ruta">${escapar(nombre)}</span></button>`
+}
+
 export function cabecera(m) {
   const local = motorDe(m) === 'local'
   const nombre = local ? 'Sesiones de Avis' : nombreCarpeta(carpetaDe(m))
-  const carpeta = local
+  const p = proyectoDe(m)
+  const carpeta = p ? carpetaProyecto(m, p) : local
     ? `<button type="button" class="carpeta" data-accion="ch-menu" aria-haspopup="menu" aria-expanded="false" aria-disabled="true" title="El modelo local solo ve tus sesiones de Avis" aria-label="Carpeta: ${escapar(nombre)}">${ICONOS.carpeta}<span class="ruta">${escapar(nombre)}</span></button>`
     : `<button type="button" class="carpeta" data-accion="ch-menu" aria-haspopup="menu" aria-controls="chat-menu" aria-expanded="${m.chat.menu}" aria-label="Carpeta: ${escapar(nombre)}" title="${escapar(carpetaDe(m) ?? nombre)}">${ICONOS.carpeta}<span class="ruta">${escapar(nombre)}</span>${ICONOS.flecha}</button>`
   const radio = (motor, texto, titulo) => {
@@ -284,6 +340,7 @@ export function hilo(m) {
   if (conv?.nuevaEn) partes.push(`<p class="nueva-en">Charla nueva en ${escapar(conv.nuevaEn)}</p>`)
   const todos = conv?.mensajes ?? []
   if (!todos.length) {
+    for (const a of avisosEn(conv, 0, true)) partes.push(`<p class="nueva-en">${escapar(a.texto)}</p>`)
     partes.push(bienvenida(m))
   } else {
     const { mensajes, ocultos } = mensajesVisibles(todos, c.todos)
@@ -291,12 +348,16 @@ export function hilo(m) {
     const base = todos.length - mensajes.length
     mensajes.forEach((msg, j) => {
       const k = base + j
+      // Los avisos de la carpeta del proyecto (#44, 8.4), arriba del primer mensaje nuevo
+      for (const a of avisosEn(conv, k)) partes.push(`<p class="nueva-en">${escapar(a.texto)}</p>`)
       if (msg.rol === 'usuario') {
         partes.push(usuario(msg, msg.estado === 'no-enviado' && c.estado === 'error' && msg.turno === c.turno))
       } else {
         partes.push(mascota(m, msg, k, k === todos.length - 1))
       }
     })
+    // Un aviso de antes del próximo mensaje (todavía no hay uno nuevo): al final, donde va a aparecer
+    for (const a of avisosEn(conv, todos.length, true)) partes.push(`<p class="nueva-en">${escapar(a.texto)}</p>`)
     // Sin el modelo (se borró desde la configuración o se está bajando), la descarga al final: sin ella no se manda (8)
     if (motorDe(m) === 'local' && (c.local === 'falta' || c.local === 'bajando')) partes.push(descargaLocal(m))
   }
@@ -304,6 +365,11 @@ export function hilo(m) {
   // Un archivo que no entró (10): su tarjeta, aparte del turno, que solo se cierra
   if (c.errorAdjunto) partes.push(tarjetaError({ motivo: 'adjunto', detalle: c.errorAdjunto.nombre }, 'ch-descartar-adjunto'))
   return partes.join('')
+}
+
+/** Los avisos de 8.4 que van arriba del mensaje `k` (`desde`); `desde` en adelante con `final` (no hay mensaje `k`). */
+function avisosEn(conv, k, final = false) {
+  return (conv?.avisos ?? []).filter(a => (final ? a.desde >= k : a.desde === k))
 }
 
 // ------------------------------------------------------------------ composer (3.2)
@@ -318,7 +384,10 @@ export function composer(m) {
     : `<button type="button" class="enviar" data-accion="ch-enviar" aria-label="Enviar"${vacio ? ' disabled' : ''}>${ICONOS.enviar}</button>`
   const adjuntos = c.adjuntos.map(a => `<span class="chip-adj" data-ruta="${escapar(a.ruta)}"><span class="doc" aria-hidden="true">${escapar((/\.([^.]+)$/.exec(a.nombre)?.[1] ?? '').toUpperCase().slice(0, 4))}</span><span><b>${escapar(a.nombre)}</b><small>${escapar(detalleAdjunto(a))}</small></span><button type="button" class="ic" data-accion="ch-quitar" data-ruta="${escapar(a.ruta)}" aria-label="Quitar ${escapar(a.nombre)}">${ICONOS.cerrar}</button></span>`).join('')
   const pista = corre ? 'Esperá la respuesta o frená con Esc' : 'Enter envía · Shift+Enter, línea nueva'
-  const pie = motorDe(m) === 'local' ? 'Local · sin internet' : `Claude Code · ${escapar(nombreCarpeta(carpetaDe(m)))}`
+  // En una charla de proyecto, qué lleva (#44, 8.2): «instrucciones + carpeta» o «solo instrucciones»
+  const pie = proyectoDe(m)
+    ? pieContexto({ motor: motorDe(m), carpeta: estadoCarpeta(m) })
+    : motorDe(m) === 'local' ? 'Local · sin internet' : `Claude Code · ${escapar(nombreCarpeta(carpetaDe(m)))}`
   return { adjuntos, boton, pista, pie }
 }
 
@@ -333,8 +402,16 @@ export function clipAdjuntar(m) {
 
 /** La lista del cajón: por grupo (Hoy, Ayer, Esta semana, Antes), con lo buscado. */
 export function listaHistorial(m, buscar = '') {
-  const charlas = listaCharlas(m.chat).filter(x => coincideBusqueda(x, buscar))
+  // #44 (8.3): filtrado por el proyecto de «Ver las {n} charlas»
+  const filtro = m.chat.filtroProyecto
+  const charlas = listaCharlas(m.chat).filter(x => coincideBusqueda(x, buscar) && (!filtro || x.proyecto === filtro))
   if (!charlas.length) return `<p class="hist-vacio">${buscar.trim() ? 'Nada coincide con lo que buscás.' : 'Todavía no charlamos. Lo que hablemos queda acá.'}</p>`
+  const proyectos = new Map((m.listaProyectos ?? []).map(p => [p.id, p]))
+  // Una charla de un proyecto suma su punto y su nombre; si el proyecto no existe o está roto, sin proyecto (8.3)
+  const dePro = x => {
+    const p = x.proyecto ? proyectos.get(x.proyecto) : null
+    return p ? `<i class="pt-pro" aria-hidden="true" style="--c:${colorProyecto(p)}"></i>${escapar(p.nombre)} · ` : ''
+  }
   const actual = m.chat.conversacion?.id
   const grupos = new Map()
   for (const x of charlas) {
@@ -345,7 +422,7 @@ export function listaHistorial(m, buscar = '') {
   const mc = m.chat.menuCharla
   // El menú de la charla (clic derecho o la tecla Menú): "Borrar", que confirma en el mismo botón (D24, D29)
   const menu = x => (mc?.id !== x.id ? '' : `<div class="h-menu" role="menu" aria-label="${escapar(x.titulo ?? 'Charla')}"><button type="button" role="menuitem" class="h-borrar${mc.confirmar ? ' confirma' : ''}" data-accion="ch-borrar" data-id="${escapar(x.id)}" title="Borra la charla de Avis. Claude Code guarda su propia copia">${mc.confirmar ? '¿Borrar? Sí' : 'Borrar'}</button></div>`)
-  const item = x => `<button type="button" class="h-it${x.id === actual ? ' on' : ''}" data-accion="ch-retomar" data-id="${escapar(x.id)}"${x.id === actual ? ' aria-current="true"' : ''}><b>${escapar(x.titulo ?? 'Charla')}</b><span><em>${escapar(x.motor === 'local' ? 'Sesiones de Avis' : nombreCarpeta(x.carpeta))}</em> · ${x.motor === 'local' ? 'local · ' : ''}${horaCharla(x.actualizada, m.ahoraMs)}</span></button>${menu(x)}`
+  const item = x => `<button type="button" class="h-it${x.id === actual ? ' on' : ''}" data-accion="ch-retomar" data-id="${escapar(x.id)}"${x.id === actual ? ' aria-current="true"' : ''}><b>${escapar(x.titulo ?? 'Charla')}</b><span>${dePro(x)}<em>${escapar(x.motor === 'local' ? 'Sesiones de Avis' : nombreCarpeta(x.carpeta))}</em> · ${x.motor === 'local' ? 'local · ' : ''}${horaCharla(x.actualizada, m.ahoraMs)}</span></button>${menu(x)}`
   return [...grupos].map(([g, xs]) => `<span class="dia">${g}</span>${xs.map(item).join('')}`).join('')
 }
 
@@ -361,7 +438,20 @@ export function cajon(m, buscar = '') {
   return '<div class="velo" data-accion="ch-hist" aria-hidden="true"></div>'
     + `<div id="chat-cajon" class="cajon" role="dialog" aria-modal="true" aria-label="Charlas"><div class="tit"><b>Charlas</b><button type="button" class="ic" data-accion="ch-hist" aria-label="Cerrar el historial">${ICONOS.cerrar}</button></div>`
     + `<label class="buscar">${ICONOS.lupa}<input type="search" id="chat-buscar" placeholder="Buscar en charlas" aria-label="Buscar en charlas" value="${escapar(buscar)}"></label>`
+    + `<div id="chat-hist-filtro">${filtroCajon(m)}</div>`
     + `<div class="hist" id="chat-hist-lista">${listaHistorial(m, buscar)}</div>${guardado(m)}</div>`
+}
+
+/**
+ * Arriba de la lista del cajón filtrado por un proyecto (#44, 8.3): «{proyecto} · {n} charlas» y «Ver
+ * todas», que quita el filtro. Sin filtro, nada. main.js lo pone al día aparte (el armazón no se redibuja).
+ */
+export function filtroCajon(m) {
+  const id = m.chat.filtroProyecto
+  if (!id) return ''
+  const p = (m.listaProyectos ?? []).find(x => x.id === id)
+  const n = listaCharlas(m.chat).filter(x => x.proyecto === id).length
+  return `<div class="filtro-pro" style="--c:${colorProyecto(p)}"><span>${escapar(filtroCharlas(p?.nombre ?? 'Proyecto', n))}</span><button type="button" class="lnk" data-accion="ch-filtro-todas">Ver todas</button></div>`
 }
 
 // ------------------------------------------------------------------ soltar (10)

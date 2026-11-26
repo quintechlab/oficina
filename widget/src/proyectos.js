@@ -4,8 +4,8 @@
 // borra; la ventana nunca manda una ruta, 11.2); lo que viaja a cada motor se dice en la pantalla; borrar
 // confirma en el mismo botón; nada se abre solo. Guardar es explícito (D-p7): el formulario no se guarda
 // mientras se escribe.
-// Entrega P1: los proyectos, su hoja y su carpeta. Las charlas de un proyecto (`charlasDe`,
-// `marcasContexto`, la hoja de la charla) son de la entrega P2: hasta entonces cada proyecto tiene 0.
+// Entrega P1: los proyectos, su hoja y su carpeta. Entrega P2: las charlas de cada proyecto (`charlasDe`,
+// `cuentaCharlas`), las marcas de contexto y los textos de la charla del proyecto (8).
 
 import { plural } from './logica.js'
 import { claveNombre, colorDe, nuevoId } from './tareas.js'
@@ -129,11 +129,84 @@ export function textoBorrar(n) {
   return n ? `¿Borrar con ${plural(n, 'charla', 'charlas')}? Sí` : '¿Borrar? Sí'
 }
 
-/** La línea debajo del borrado armado (5.1). */
+/**
+ * La línea debajo del borrado armado (5.1). Con una sola charla, «su charla» (decisión de P2: 5.1 solo
+ * trae «sus {n} charlas», que con 1 diría «sus 1 charla»).
+ */
 export function lineaBorrar(n) {
+  if (!n) return 'Se va el proyecto. La carpeta y sus archivos quedan en tu PC. Esc cancela.'
+  const charlas = n === 1 ? 'su charla' : `sus ${n} charlas`
+  return `Se van el proyecto y ${charlas}. La carpeta y sus archivos quedan en tu PC. Esc cancela.`
+}
+
+/** Borrar con fallas (5.2): «No se pudieron borrar {k} charlas. Probá de nuevo.» (con 1, en singular). */
+export function textoBorradoFallido(k) {
+  return k === 1 ? 'No se pudo borrar 1 charla. Probá de nuevo.' : `No se pudieron borrar ${k} charlas. Probá de nuevo.`
+}
+
+// ------------------------------------------------------------------ las charlas del proyecto (4.5, 8; entrega P2)
+
+/** Cuántas charlas muestra la ficha (4.5): las más recientes; con más, «Ver las {n} charlas». */
+export const TOPE_CHARLAS_FICHA = 5
+
+/** Las charlas de un proyecto (`listaCharlas` de chat.js, con `proyecto`), de la más nueva a la más vieja (11.6 caso 4). */
+export function charlasDe(charlas, id) {
+  return (charlas ?? []).filter(x => x.proyecto === id).sort((a, b) => b.actualizada - a.actualizada)
+}
+
+/** Cuántas charlas tiene cada proyecto: `{ [id]: n }` (el índice, la línea y el subtítulo de 5.1). */
+export function cuentaCharlas(charlas) {
+  const n = {}
+  for (const x of charlas ?? []) if (x.proyecto) n[x.proyecto] = (n[x.proyecto] ?? 0) + 1
   return n
-    ? `Se van el proyecto y sus ${plural(n, 'charla', 'charlas')}. La carpeta y sus archivos quedan en tu PC. Esc cancela.`
-    : 'Se va el proyecto. La carpeta y sus archivos quedan en tu PC. Esc cancela.'
+}
+
+/** «{n} mensajes» de cada charla de la ficha (4.5). */
+export const textoMensajes = n => plural(Number(n) || 0, 'mensaje', 'mensajes')
+
+/** La fila que abre el cajón filtrado (4.5). Solo se ve con más de 5 charlas. */
+export const verLasCharlas = n => `Ver las ${n} charlas`
+
+/** Arriba del cajón filtrado por un proyecto (8.3): «{proyecto} · {n} charlas». */
+export const filtroCharlas = (nombre, n) => `${nombre} · ${plural(n, 'charla', 'charlas')}`
+
+/** El nombre accesible del chip del proyecto en la hoja (8.2). */
+export const nombreChipProyecto = nombre => `Proyecto ${nombre}: ver el proyecto`
+
+/**
+ * El proyecto que pide la ventana al abrir una charla (`chat_abrir`, A2 de P2): el de la charla, salvo que
+ * tenga mensajes y su proyecto ya no esté en la lista leída (borrado o roto): entonces ninguno, y la charla
+ * sigue sin proyecto (8.3). Una charla nueva o la lista sin leer mandan el id y Rust decide.
+ */
+export function proyectoParaAbrir(id, { lista, leido }, conMensajes) {
+  if (!id) return null
+  if (conMensajes && leido && !(lista ?? []).some(p => p.id === id)) return null
+  return id
+}
+
+/** Las líneas del hilo de 8.4 y el anuncio de 8.5. */
+export const AVISO_CARPETA_PERDIDA = 'No encuentro la carpeta del proyecto: sigo solo con las instrucciones.'
+export const AVISO_CARPETA_CAMBIO = 'La carpeta del proyecto cambió: Claude sigue sin lo que charlaron antes.'
+export const AVISO_PROYECTO_BORRADO = 'La charla se cerró porque borraste su proyecto.'
+
+/**
+ * Las marcas de contexto de la charla del proyecto (`.ctx-p`, 8.2; 11.6 caso 9): `{ tipo, texto }` con
+ * `si` (✓), `no` (—, punteada) o `mal` (la carpeta perdida, en rojo). `carpeta`: el `estado` de la carpeta.
+ */
+export function marcasContexto({ motor, carpeta }) {
+  const marcas = [{ tipo: 'si', texto: 'Instrucciones' }]
+  if (motor === 'local') marcas.push({ tipo: 'no', texto: 'Carpeta: solo con Claude Code' })
+  else if (carpeta === 'ok') marcas.push({ tipo: 'si', texto: 'Carpeta, cuando hace falta' })
+  else if (carpeta === 'perdida') marcas.push({ tipo: 'mal', texto: 'Carpeta perdida' })
+  return marcas
+}
+
+/**
+ * El pie del campo en una charla del proyecto (8.2): «instrucciones + carpeta» con Claude Code y la
+ * carpeta a mano; si no (Local, o la carpeta perdida: decisión de P2), «solo instrucciones».
+ */
+export function pieContexto({ motor, carpeta }) {
+  return motor !== 'local' && carpeta === 'ok' ? 'instrucciones + carpeta' : 'solo instrucciones'
 }
 
 /** Proyectos rotos (5.2, 7.6), arriba del índice. */
@@ -206,6 +279,7 @@ export function proyectosInicial() {
   return {
     abierta: false, lista: [], rotas: [], elegido: null, vista: 'proyecto', form: null, armado: null,
     leido: false, cargando: false, fantasmas: false, error: null, errorForm: null, errorCarpeta: null, trabajando: false, recien: null,
+    soltar: null,
   }
 }
 
@@ -225,9 +299,12 @@ export function elegidoValido(t) {
   return { ...t, elegido: t.lista[0]?.id ?? null }
 }
 
-/** Elegir un proyecto en el índice: el proyecto, sin formulario y desarmado. */
+/**
+ * Elegir un proyecto en el índice: el proyecto, sin formulario y desarmado. El error de soltar del otro
+ * se olvida (P3); una copia en curso sigue.
+ */
 export function elegirProyecto(t, id) {
-  return { ...t, elegido: id, vista: 'proyecto', form: null, armado: null, errorForm: null, errorCarpeta: null }
+  return { ...t, elegido: id, vista: 'proyecto', form: null, armado: null, errorForm: null, errorCarpeta: null, soltar: t.soltar?.copiando ? t.soltar : null }
 }
 
 /** Lo que el formulario compara para saber si hay cambios. */
@@ -280,4 +357,87 @@ export function revisarFormulario(form, lista) {
   if (!i.ok) errores.instrucciones = i.motivo
   if (!n.ok || !i.ok) return { ok: false, errores }
   return { ok: true, errores, nombre: n.nombre, instrucciones: i.texto }
+}
+
+// ------------------------------------------------------------------ soltar archivos (4.7, 5.2, 5.3, 11.2; entrega P3)
+// Copia, nunca mueve ni pisa, y solo en una carpeta creada por Avis (S6, D-p17). La ventana manda el id del
+// proyecto y las rutas que entregó el evento de soltar de Tauri; Rust arma el destino y revisa cada una.
+
+/** Hasta 20 archivos por vez (D-p18; Rust lo hace cumplir, `proyectos::TOPE_SOLTAR`). */
+export const TOPE_SOLTAR = 20
+
+/** ¿Tiene zona de soltar? Una carpeta creada por Avis que está (4.7); la de la PC, perdida o ninguna, no (5.2). */
+export function puedeSoltar(p) {
+  return p?.carpeta?.tipo === 'avis' && p.carpeta.estado === 'ok'
+}
+
+/** El nombre de un archivo a partir de su ruta (sin la carpeta). */
+const nombreDeRuta = ruta => String(ruta ?? '').split(/[\\/]/).filter(Boolean).at(-1) ?? ''
+
+/** «Copiados {n} archivos a {carpeta}» (5.3); con uno, «Copiado 1 archivo a {carpeta}». */
+export function textoCopiados(n, carpeta) {
+  return n === 1 ? `Copiado 1 archivo a ${carpeta}` : `Copiados ${n} archivos a ${carpeta}`
+}
+
+/** «Copiado como {nombre} (2)» (5.2): el nombre de la copia sin su extensión. */
+export function textoCopiadoComo(como) {
+  const s = String(como ?? '')
+  const i = s.lastIndexOf('.')
+  return `Copiado como ${i > 0 ? s.slice(0, i) : s}`
+}
+
+/** «No se pudo copiar {nombre}.» (5.2). */
+export const textoNoCopiado = nombre => `No se pudo copiar ${nombre}.`
+
+/** Los que pasaron del tope de 20 (14, P3: «los 20 primeros y el aviso»). Texto propuesto: 5.2 no lo fija. */
+export function textoTopeSoltar(k) {
+  return `Van hasta ${TOPE_SOLTAR} archivos por vez: ${k === 1 ? '1 quedó' : `${k} quedaron`} sin copiar.`
+}
+
+/** Frases en una sola línea, cada una con su punto. */
+const frases = lista => lista.map(f => (/[.!?]$/.test(f) ? f : `${f}.`)).join(' ')
+
+/**
+ * Lo que se dice después de `proyecto_soltar` (`{ copiados, renombrados, fallidos }`): `anuncio` (5.3, en
+ * `role=status`: lo copiado, cada copia renombrada y los errores) y `error` (lo que queda a la vista debajo
+ * de la zona: «No se pudo copiar {nombre}.» por cada uno que no entró y, si sobraron, el aviso del tope),
+ * o `null` si todo entró.
+ */
+export function textosSoltado(r, carpeta) {
+  const copiados = Array.isArray(r?.copiados) ? r.copiados : []
+  const renombrados = Array.isArray(r?.renombrados) ? r.renombrados : []
+  const fallidos = Array.isArray(r?.fallidos) ? r.fallidos : []
+  const sobran = fallidos.filter(f => f?.motivo === 'tope').length
+  const errores = fallidos.filter(f => f?.motivo !== 'tope').map(f => textoNoCopiado(f?.nombre ?? ''))
+  if (sobran) errores.push(textoTopeSoltar(sobran))
+  const dichos = [...(copiados.length ? [textoCopiados(copiados.length, carpeta)] : []), ...renombrados.map(x => textoCopiadoComo(x?.como)), ...errores]
+  return { anuncio: frases(dichos), error: errores.length ? frases(errores) : null }
+}
+
+/** Rust no copió ninguno (la carpeta ya no sirve, el proyecto no está): «No se pudo copiar {nombre}.» por cada uno. */
+export function soltarFallido(rutas) {
+  const texto = frases((rutas ?? []).map(r => textoNoCopiado(nombreDeRuta(r))))
+  return { anuncio: texto, error: texto || null }
+}
+
+/** El estado de la zona del proyecto `id` (`{ id, encima, copiando, error }`), o `null` si es de otro. */
+export function soltarDe(t, id) {
+  return t.soltar?.id === id ? t.soltar : null
+}
+
+/** Archivos encima de la zona o no (4.7, 10). Sin cambios devuelve el mismo estado (nada que redibujar). */
+export function zonaEncima(t, id, encima) {
+  const s = soltarDe(t, id)
+  if ((s?.encima ?? false) === encima) return t
+  return { ...t, soltar: { id, encima, copiando: s?.copiando ?? false, error: s?.error ?? null } }
+}
+
+/** Se soltó: copiando, sin el error de antes. */
+export function empezarSoltar(t, id) {
+  return { ...t, soltar: { id, encima: false, copiando: true, error: null } }
+}
+
+/** Terminó de copiar, con el error que queda a la vista (o `null`). */
+export function terminarSoltar(t, id, error = null) {
+  return { ...t, soltar: { id, encima: false, copiando: false, error } }
 }

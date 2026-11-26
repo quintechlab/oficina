@@ -325,6 +325,15 @@ pub fn normalizar(doc: &Value) -> Result<Value, String> {
     if let Some(m) = doc["modelo"].as_str().filter(|m| motor != "local" && chat::modelo_valido(m)) {
         limpio["modelo"] = json!(m);
     }
+    // El proyecto de la charla (#44, proyectos-ux.md 11.5), opcional: un id `p-…` válido; uno que no
+    // sirve se descarta y la charla queda sin proyecto (como las de antes, sin la clave)
+    match &doc["proyecto"] {
+        Value::Null => {}
+        v => match v.as_str().filter(|p| crate::proyectos::id_valido(p)) {
+            Some(p) => limpio["proyecto"] = json!(p),
+            None => registrar("chat: historial: se descarta un proyecto que no sirve"),
+        },
+    }
     Ok(limpio)
 }
 
@@ -377,10 +386,13 @@ pub fn poner_engram(carpeta: &Path, id: &str, engram_id: u64) -> Result<(), Stri
 }
 
 /// Borra el archivo de la charla. Devuelve su `engramId` (para borrar también la copia de Engram).
-/// Lo que ya no existe no es un error.
+/// Lo que ya no existe no es un error. Se lleva también las instrucciones de su proyecto que hayan quedado
+/// (`<carpeta>/sistema/<id>.txt`, #44: B1 de P2), así no sobreviven a la charla («Borrar», «Borrar todo»
+/// y borrar el proyecto pasan por acá).
 pub fn borrar(carpeta: &Path, id: &str) -> Result<Option<u64>, String> {
     let r = ruta(carpeta, id).ok_or("id de charla inválido")?;
     let _candado = bloquear();
+    let _ = fs::remove_file(chat::ruta_sistema(carpeta, id));
     let engram = leer_archivo(carpeta, id).ok().and_then(|d| d["engramId"].as_u64());
     match fs::remove_file(&r) {
         Ok(()) => Ok(engram),
@@ -437,6 +449,33 @@ pub fn borrar_todo(carpeta: &Path) -> BorradoTodo {
     r
 }
 
+/// Borrar un proyecto (#44, proyectos-ux.md 11.3 y 11.5): borra cada charla de ese proyecto (como
+/// `borrar`, de a una) y junta los ids de Engram. Un archivo roto no se sabe de quién es: no se toca. Un
+/// id de proyecto inválido no borra nada.
+pub fn borrar_de_proyecto(carpeta: &Path, proyecto: &str) -> BorradoTodo {
+    let mut r = BorradoTodo::default();
+    if !crate::proyectos::id_valido(proyecto) {
+        return r;
+    }
+    for (id, _) in charlas(carpeta) {
+        let es_suya = leer_archivo(carpeta, &id).is_ok_and(|d| d["proyecto"] == json!(proyecto));
+        if !es_suya {
+            continue;
+        }
+        match borrar(carpeta, &id) {
+            Ok(engram) => {
+                r.borradas += 1;
+                r.engram.extend(engram);
+            }
+            Err(e) => {
+                r.fallidas += 1;
+                registrar(&format!("chat: borrar el proyecto: no se borró {id}.json ({e})"));
+            }
+        }
+    }
+    r
+}
+
 /// El texto de la charla para buscar (título aparte): los mensajes, uno por línea, con tope.
 fn texto_para_buscar(doc: &Value) -> String {
     let mut t = String::new();
@@ -464,7 +503,8 @@ fn texto_para_buscar(doc: &Value) -> String {
 }
 
 /// Las 100 más recientes por fecha de modificación (`chat_historial`): todo menos los mensajes, más
-/// `texto` para buscar. Un archivo roto se salta y se anota.
+/// `texto` para buscar y `cuantos` (cuántos mensajes tiene: «{n} mensajes» de las charlas de un
+/// proyecto, #44 4.5). Un archivo roto se salta y se anota.
 pub fn listar(carpeta: &Path) -> Vec<Value> {
     let Ok(entradas) = fs::read_dir(carpeta) else { return Vec::new() };
     let mut archivos: Vec<(std::time::SystemTime, String)> = entradas
@@ -485,9 +525,11 @@ pub fn listar(carpeta: &Path) -> Vec<Value> {
         match leer_archivo(carpeta, &id) {
             Ok(mut doc) => {
                 let texto = texto_para_buscar(&doc);
+                let cuantos = doc["mensajes"].as_array().map_or(0, Vec::len);
                 if let Some(o) = doc.as_object_mut() {
                     o.remove("mensajes");
                     o.insert(String::from("texto"), json!(texto));
+                    o.insert(String::from("cuantos"), json!(cuantos));
                 }
                 lista.push(doc);
             }

@@ -719,11 +719,13 @@ fn estado_local() -> &'static str {
 /// `null` ("Por defecto", sin `--model`); cambiarlo sigue la misma conversación. `usuario` (#37): el
 /// nombre del usuario, que toma el próximo proceso y el próximo turno local.
 #[tauri::command]
-async fn chat_abrir(conversacion: String, motor: String, carpeta: Option<String>, mascota: Option<String>, usuario: Option<String>, sesion_claude: Option<String>, modelo: Option<String>) -> Result<serde_json::Value, String> {
+#[allow(clippy::too_many_arguments)]
+async fn chat_abrir(conversacion: String, motor: String, carpeta: Option<String>, mascota: Option<String>, usuario: Option<String>, sesion_claude: Option<String>, modelo: Option<String>, proyecto: Option<String>) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let chat = el_chat()?;
         chat.poner_usuario(usuario.as_deref().unwrap_or(""));
-        let mut r = chat.abrir_con(&conversacion, &motor, carpeta.map(std::path::PathBuf::from), mascota.as_deref().unwrap_or(""), sesion_claude, modelo)?;
+        // #44 (proyectos-ux.md 11.4): con `proyecto` (un id), `carpeta` se ignora: Rust lee la del proyecto
+        let mut r = chat.abrir_proyecto(&conversacion, &motor, carpeta.map(std::path::PathBuf::from), mascota.as_deref().unwrap_or(""), sesion_claude, modelo, proyecto.as_deref())?;
         // Si hay Engram (9.2): /health con 1 s, como mucho cada 5 min
         r["engram"] = serde_json::json!(if engram::ENGRAM.get().is_some_and(engram::Engram::hay) { "si" } else { "no" });
         r["local"] = serde_json::json!(estado_local());
@@ -1245,15 +1247,31 @@ async fn proyecto_cambiar_carpeta(app: AppHandle, id: String, modo: String) -> R
     .map_err(|e| e.to_string())?
 }
 
-/// Borra un proyecto (solo con el segundo clic de «¿Borrar…? Sí»): su archivo, **nunca su carpeta** ni un
-/// archivo roto. Entrega P1: todavía sin charlas de proyecto (llegan con P2), así que `{ charlas: 0,
-/// fallidas: 0 }`; o `{ error }`.
+/// Borra un proyecto (solo con el segundo clic de «¿Borrar…? Sí», D-p2): primero sus charlas (el archivo
+/// y su copia de Engram, como `chat_borrar_todo`), después su archivo, y solo si todas se borraron.
+/// **Nunca su carpeta** ni un archivo roto. `{ charlas, fallidas }` (las charlas borradas y las que no) o
+/// `{ error }`.
 #[tauri::command]
 async fn proyecto_borrar(app: AppHandle, id: String) -> Result<serde_json::Value, String> {
     let carpeta = carpeta_proyectos(&app)?;
-    let r = tauri::async_runtime::spawn_blocking(move || proyectos::borrar(&carpeta, &id)).await.map_err(|e| e.to_string())?;
+    let r = tauri::async_runtime::spawn_blocking(move || {
+        let carpeta_chat = el_chat()?.carpeta();
+        let r = {
+            let _cola = ENGRAM_COLA.lock().unwrap_or_else(PoisonError::into_inner);
+            proyectos::borrar_con_charlas(&carpeta, &carpeta_chat, &id)
+        };
+        if let Ok(b) = &r {
+            if b.fallidas > 0 {
+                registrar(format!("proyectos: borrar: {} charlas sin borrar; el proyecto queda", b.fallidas));
+            }
+            borrar_de_engram(b.engram.clone());
+        }
+        r
+    })
+    .await
+    .map_err(|e| e.to_string())?;
     Ok(match r {
-        Ok(()) => serde_json::json!({ "charlas": 0, "fallidas": 0 }),
+        Ok(b) => serde_json::json!({ "charlas": b.borradas, "fallidas": b.fallidas }),
         Err(error) => {
             registrar(format!("proyectos: no se pudo borrar: {error}"));
             error_proyecto(&error, None)
@@ -1268,6 +1286,30 @@ async fn proyecto_abrir_carpeta(app: AppHandle, id: String) -> Result<(), String
     let carpeta = carpeta_proyectos(&app)?;
     let r = tauri::async_runtime::spawn_blocking(move || proyectos::ruta_para_abrir(&carpeta, &id)).await.map_err(|e| e.to_string())??;
     std::process::Command::new("explorer").arg(&r).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// Copia los archivos soltados sobre la zona de un proyecto (11.2, P3): solo en una carpeta creada por Avis,
+/// hasta 20 por vez y 200 MB cada uno; **copia, nunca mueve ni pisa** (« (2)»). La ventana manda el id y
+/// las rutas que entregó el evento de soltar de Tauri; la carpeta destino sale del archivo del proyecto.
+/// `{ copiados, renombrados, fallidos }` o `{ error }`. Al log, solo las cuentas.
+#[tauri::command]
+async fn proyecto_soltar(app: AppHandle, id: String, rutas: Vec<String>) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_proyectos(&app)?;
+    let reglas = reglas_proyectos(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || proyectos::soltar(&carpeta, &id, &rutas, &reglas)).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok(v) => {
+            let fallidos = v["fallidos"].as_array().map_or(0, Vec::len);
+            if fallidos > 0 {
+                registrar(format!("proyectos: soltar: {} copiados, {fallidos} sin copiar", v["copiados"].as_array().map_or(0, Vec::len)));
+            }
+            v
+        }
+        Err(error) => {
+            registrar(format!("proyectos: no se pudo soltar: {error}"));
+            error_proyecto(&error, None)
+        }
+    })
 }
 
 /// Abre `<config>/proyectos/` en el Explorador (7.6: «Abrir la carpeta» de un proyecto roto).
@@ -2062,6 +2104,10 @@ pub fn run() {
                         let _ = para_tareas.emit(mcp_avis::EVENTO_TAREAS, v);
                     }),
                 );
+                // Las charlas de proyecto (#44, proyectos-ux.md 11.4): sus instrucciones y su carpeta se leen de acá
+                el.poner_proyectos(config.join("proyectos"));
+                // Las instrucciones de proyecto que quedaron de una ejecución cortada (B1 de P2)
+                chat::limpiar_sistema(&el.carpeta());
                 let _ = chat::CHAT.set(el);
             }
             // La copia del historial en Engram (9.2): una sesión por arranque, que se abre con la primera copia
@@ -2148,6 +2194,7 @@ pub fn run() {
             proyecto_cambiar_carpeta,
             proyecto_borrar,
             proyecto_abrir_carpeta,
+            proyecto_soltar,
             proyectos_abrir_carpeta,
             guardar_chat,
             elegir_carpeta,

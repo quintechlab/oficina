@@ -41,7 +41,9 @@ pub const EVENTO: &str = "oficina://chat";
 
 /// Las instrucciones de sistema (4.3), con `{Mascota}` en lugar del nombre. Una sola línea: viaja
 /// como argumento.
-/// #43 (chat-herramientas-ux.md 11.3) la reemplazó: suma las herramientas de tareas de Avis.
+/// #43 (chat-herramientas-ux.md 11.3) la reemplazó: suma las herramientas de tareas de Avis. La última
+/// frase es de #44 (L9 de Proyectos, decisión de Quintana del 25/11): medido, Haiku dejaba de leer la
+/// carpeta después de un turno sin herramientas («solo tengo las de Avis»).
 pub const INSTRUCCION_CHAT: &str = "Sos {Mascota}, la mascota de Avis, el panel que muestra en qué anda Claude Code. \
 Respondés en español rioplatense, de vos, breve y concreto. \
 No modificás archivos ni corrés comandos (no tenés esas herramientas). \
@@ -50,7 +52,8 @@ Nunca borrás: si te piden borrar una tarea, usá tarea_mostrar con para \"borra
 Para saber qué día es hoy, usá tareas_ver. \
 Si te piden algo que requiere actuar fuera de eso, explicá qué haría falta. \
 Cuando el mensaje traiga un bloque `<avis>`, son los datos en vivo de las sesiones: usalos para responder sobre ellas. \
-Usá Markdown simple (títulos, listas, código).";
+Usá Markdown simple (títulos, listas, código). \
+Podés leer los archivos de la carpeta de trabajo con Read, Glob y Grep cuando la pregunta lo pida.";
 
 /// Las únicas herramientas propias de Claude Code en el chat (7.1): solo leer.
 pub const HERRAMIENTAS: &str = "Read,Glob,Grep";
@@ -108,6 +111,9 @@ pub struct Pedido<'a> {
     pub modelo: Option<&'a str>,
     /// El servidor de las herramientas de Avis (#43); sin él, los argumentos de antes.
     pub mcp: Option<&'a Mcp>,
+    /// El archivo con las instrucciones del proyecto (#44, proyectos-ux.md 11.4, camino A); sin
+    /// proyecto (o sin instrucciones), `None` y los argumentos de antes.
+    pub sistema: Option<&'a Path>,
 }
 
 /// `INSTRUCCION_CHAT` con el nombre de la mascota y, si hay, el del usuario (#37 S3).
@@ -172,6 +178,12 @@ pub fn argumentos_chat(p: &Pedido) -> Vec<String> {
     a.push(p.ajustes.to_string_lossy().into_owned());
     a.push(String::from("--append-system-prompt"));
     a.push(instruccion_chat(p.mascota, p.usuario));
+    // #44 (11.4, camino A, medido en M-P1): las instrucciones del proyecto, de varias líneas, en un
+    // archivo aparte; `INSTRUCCION_CHAT` sigue en una sola línea
+    if let Some(r) = p.sistema {
+        a.push(String::from("--append-system-prompt-file"));
+        a.push(r.to_string_lossy().into_owned());
+    }
     a.push(String::from("--max-budget-usd"));
     a.push(String::from(TOPE_USD));
     // #35 (S3): "Por defecto" no pasa `--model`; un alias, sí (Claude Code lo resuelve al último de
@@ -184,6 +196,110 @@ pub fn argumentos_chat(p: &Pedido) -> Vec<String> {
         Sesion::Retomar(id) => a.extend([String::from("--resume"), id.clone()]),
     }
     a
+}
+
+// ------------------------------------------------------------------ proyectos (#44, proyectos-ux.md 11.4)
+
+/// Saca `<proyecto` y `</proyecto>` (sin distinguir mayúsculas) hasta que no quede ninguno: el texto del
+/// usuario nunca abre ni cierra el bloque.
+fn sin_etiquetas_proyecto(s: &str) -> String {
+    let mut t = s.to_string();
+    loop {
+        let bajo = t.to_ascii_lowercase();
+        let Some((i, largo)) = bajo.find("</proyecto>").map(|i| (i, 11)).or_else(|| bajo.find("<proyecto").map(|i| (i, 9))) else { return t };
+        t.replace_range(i..i + largo, "");
+    }
+}
+
+/// El nombre del proyecto dentro del bloque: `"` → `'` (11.4) y sin saltos de línea.
+fn nombre_en_bloque(nombre: &str) -> String {
+    nombre.replace('"', "'").chars().map(|c| if c.is_control() { ' ' } else { c }).collect()
+}
+
+/// El bloque del proyecto de 11.4: las instrucciones (sin las etiquetas) entre `<proyecto nombre="…">` y
+/// `</proyecto>`, y la frase que dice de quién son. `con_carpeta`: Claude Code (lee la carpeta); el
+/// motor local va sin esa parte.
+pub fn texto_proyecto(nombre: &str, instrucciones: &str, con_carpeta: bool) -> String {
+    let nombre = nombre_en_bloque(nombre);
+    let carpeta = if con_carpeta { " La carpeta de trabajo es la del proyecto: leé sus archivos solo cuando la pregunta lo necesite." } else { "" };
+    format!(
+        "<proyecto nombre=\"{nombre}\">\n{}\n</proyecto>\nEstás en el proyecto «{nombre}». Las instrucciones de arriba son del usuario para este proyecto.{carpeta}\n",
+        sin_etiquetas_proyecto(instrucciones)
+    )
+}
+
+/// Lo que la charla necesita de un proyecto (11.4), leído en Rust del archivo del proyecto: la ventana
+/// manda solo el id, nunca una ruta (11.2).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProyectoChat {
+    pub id: String,
+    pub nombre: String,
+    pub color: String,
+    pub instrucciones: String,
+    /// La carpeta del proyecto si existe; si no (perdida o sin carpeta), `None`: la charla corre en la
+    /// carpeta de trabajo vacía (8.4, D-p14).
+    pub carpeta: Option<PathBuf>,
+    /// `ok`, `perdida` o `sin` (como `proyectos::con_estado`).
+    pub estado: String,
+    pub nombre_carpeta: String,
+    pub ruta: String,
+}
+
+impl ProyectoChat {
+    /// Lo que devuelve `chat_abrir` (11.4): `{ id, nombre, color, carpeta: { nombre, ruta, estado } }`.
+    pub fn a_json(&self) -> Value {
+        json!({ "id": self.id, "nombre": self.nombre, "color": self.color, "carpeta": { "nombre": self.nombre_carpeta, "ruta": self.ruta, "estado": self.estado } })
+    }
+
+    /// El texto del archivo de sistema (camino A), o `None` sin instrucciones: sin ellas la charla es
+    /// como siempre, en la carpeta del proyecto.
+    fn sistema(&self) -> Option<String> {
+        (!self.instrucciones.trim().is_empty()).then(|| texto_proyecto(&self.nombre, &self.instrucciones, true))
+    }
+}
+
+/// Lee el proyecto `id` de `<config>/proyectos` para la charla. Un id inválido, un proyecto que no está o
+/// un archivo roto: «el proyecto no existe» (11.4).
+pub fn leer_proyecto(carpeta_proyectos: &Path, id: &str) -> Result<ProyectoChat, String> {
+    let d = crate::proyectos::leer(carpeta_proyectos, id).map_err(|_| String::from("el proyecto no existe"))?;
+    let v = crate::proyectos::con_estado(&d);
+    let c = &v["carpeta"];
+    let estado = c["estado"].as_str().unwrap_or("sin").to_string();
+    let ruta = c["ruta"].as_str().unwrap_or_default().to_string();
+    let carpeta = (estado == "ok").then(|| PathBuf::from(&ruta));
+    Ok(ProyectoChat {
+        id: id.to_string(),
+        nombre: v["nombre"].as_str().unwrap_or_default().to_string(),
+        color: v["color"].as_str().unwrap_or_default().to_string(),
+        instrucciones: v["instrucciones"].as_str().unwrap_or_default().to_string(),
+        carpeta,
+        estado,
+        nombre_carpeta: c["nombre"].as_str().unwrap_or_default().to_string(),
+        ruta,
+    })
+}
+
+/// `<config>/chat/sistema/<conversacion>.txt`: el archivo de las instrucciones del proyecto (11.4, camino A).
+pub fn ruta_sistema(carpeta_chat: &Path, conversacion: &str) -> PathBuf {
+    carpeta_chat.join("sistema").join(format!("{conversacion}.txt"))
+}
+
+/// Borra los archivos de sistema que quedaron (`<config>/chat/sistema/*.txt`): al arrancar y al salir de
+/// Avis (B1 de P2). Lo que no es un `.txt` de esa carpeta queda.
+pub fn limpiar_sistema(carpeta_chat: &Path) {
+    let Ok(entradas) = fs::read_dir(carpeta_chat.join("sistema")) else { return };
+    for e in entradas.filter_map(Result::ok) {
+        if e.path().extension().is_some_and(|x| x == "txt") && e.file_type().is_ok_and(|t| t.is_file()) {
+            let _ = fs::remove_file(e.path());
+        }
+    }
+}
+
+/// La firma de un texto (como la de `bloque_avis`): `DefaultHasher::new()` tiene claves fijas.
+fn firma_texto(t: &str) -> u64 {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    h.write(t.as_bytes());
+    h.finish()
 }
 
 /// `ajustes.json` del chat (7.2), siempre igual.
@@ -650,6 +766,19 @@ struct Conversacion {
     /// El modelo elegido (#35): uno de `MODELOS`, o `None` ("Por defecto"). A diferencia del motor y
     /// la carpeta, cambia también con mensajes: la conversación sigue con `--resume`.
     modelo: Option<String>,
+    /// El proyecto de la charla (#44, 11.4), releído en cada `abrir` y cada `enviar`: sus instrucciones
+    /// y su carpeta pueden cambiar con la charla abierta (D-p15).
+    proyecto: Option<ProyectoChat>,
+}
+
+impl Conversacion {
+    /// El texto del archivo de sistema: Claude Code con un proyecto con instrucciones.
+    fn sistema(&self) -> Option<String> {
+        if self.local {
+            return None;
+        }
+        self.proyecto.as_ref().and_then(ProyectoChat::sistema)
+    }
 }
 
 /// El turno en curso del motor local (8): uno por vez, como los pedidos a llama-server (`-np 1`).
@@ -691,11 +820,22 @@ struct Proceso {
     interrupciones: u64,
     /// El modelo con que se lanzó: si la conversación cambia de modelo, el próximo uso lanza otro.
     modelo: Option<String>,
+    /// La carpeta y la firma de las instrucciones del proyecto con que se lanzó (#44, 11.4): si cambian,
+    /// el próximo uso lanza otro con `--resume`, como con el modelo.
+    cwd: PathBuf,
+    sistema: Option<u64>,
     /// El token del servidor de Avis de este lanzamiento (#43): se revoca cuando el proceso sale.
     token: Option<String>,
 }
 
 impl Proceso {
+    /// ¿Se lanzó con lo que la conversación pide ahora (modelo, carpeta e instrucciones)?
+    fn sirve_para(&self, c: &Conversacion) -> bool {
+        // La carpeta cuenta solo en una charla de proyecto: es la única que cambia de carpeta con el proceso
+        // vivo (D-p15); las demás siguen como antes de #44
+        self.modelo == c.modelo && (c.proyecto.is_none() || self.cwd == c.cwd) && self.sistema == c.sistema().as_deref().map(firma_texto)
+    }
+
     fn turno_activo(&self) -> bool {
         self.turno.as_ref().is_some_and(Turno::activo)
     }
@@ -766,6 +906,8 @@ struct Interno {
     /// Las herramientas de Avis (#43): la carpeta de tareas y el servidor, que arranca con el primer
     /// lanzamiento de `claude`.
     herramientas: Mutex<Herramientas>,
+    /// `<config>/proyectos` (#44): de ahí se leen las instrucciones y la carpeta de cada charla de proyecto.
+    proyectos: Mutex<Option<PathBuf>>,
 }
 
 /// Lo que hace falta para el servidor de Avis (#43): sin carpeta, la charla no tiene herramientas.
@@ -808,6 +950,7 @@ impl Chat {
             apagado: AtomicBool::new(false),
             motor_local: Mutex::new(None),
             herramientas: Mutex::new(Herramientas::default()),
+            proyectos: Mutex::new(None),
         }))
     }
 
@@ -860,6 +1003,50 @@ impl Chat {
         }
     }
 
+    /// `<config>/proyectos` (#44): sin esto, una charla de proyecto es un error («el proyecto no existe»).
+    pub fn poner_proyectos(&self, carpeta: PathBuf) {
+        *bloquear(&self.0.proyectos) = Some(carpeta);
+    }
+
+    /// El proyecto `id` leído del disco (11.4).
+    fn proyecto(&self, id: &str) -> Result<ProyectoChat, String> {
+        let carpeta = bloquear(&self.0.proyectos).clone().ok_or_else(|| String::from("el proyecto no existe"))?;
+        leer_proyecto(&carpeta, id)
+    }
+
+    /// La carpeta de trabajo vacía de Avis, creada si hace falta.
+    fn trabajo(&self) -> Result<PathBuf, String> {
+        let c = carpeta_trabajo(&self.0.carpeta);
+        fs::create_dir_all(&c).map_err(|e| format!("no se pudo crear la carpeta de trabajo: {e}"))?;
+        Ok(c)
+    }
+
+    /// Relee el proyecto de una charla antes de un envío: sus instrucciones o su carpeta pudieron cambiar
+    /// con la charla abierta (11.4). Si no se puede leer, sigue con lo último que se leyó.
+    fn refrescar_proyecto(&self, conversacion: &str) {
+        let Some(id) = self.estado().conversaciones.get(conversacion).and_then(|c| c.proyecto.as_ref().map(|p| p.id.clone())) else { return };
+        let leido = match self.proyecto(&id) {
+            Ok(p) => p,
+            Err(e) => {
+                registrar(&format!("chat: no se pudo releer el proyecto de la charla ({e})"));
+                return;
+            }
+        };
+        let cwd = match leido.carpeta.clone() {
+            Some(c) => c,
+            None => match self.trabajo() {
+                Ok(c) => c,
+                Err(_) => return,
+            },
+        };
+        if let Some(c) = self.estado().conversaciones.get_mut(conversacion) {
+            if !c.local {
+                c.cwd = cwd;
+            }
+            c.proyecto = Some(leido);
+        }
+    }
+
     /// El modelo de esta PC para las charlas del motor local (8).
     pub fn poner_motor_local(&self, motor: MotorLocal) {
         *bloquear(&self.0.motor_local) = Some(motor);
@@ -886,12 +1073,23 @@ impl Chat {
         self.abrir_con(conversacion, motor, carpeta, mascota, sesion_claude, None)
     }
 
+    /// `abrir_proyecto` sin proyecto (la charla de antes de #44).
+    #[cfg(test)]
+    pub fn abrir_con(&self, conversacion: &str, motor: &str, carpeta: Option<PathBuf>, mascota: &str, sesion_claude: Option<String>, modelo: Option<String>) -> Result<Value, String> {
+        self.abrir_proyecto(conversacion, motor, carpeta, mascota, sesion_claude, modelo, None)
+    }
+
     /// `chat_abrir` (7.8): conoce la conversación y, con el motor Claude Code, precalienta el
     /// proceso sin mandarle nada (D19). `{ proceso: "arrancando" | "listo" | "apagado", sesion, motivo? }`.
     /// `modelo` (#35): uno de `MODELOS` o `None` ("Por defecto"). Cambia también en una charla con
     /// mensajes: el proceso vivo se retira y otro retoma la misma sesión con el modelo nuevo. Si hay
     /// un turno en curso, el cambio espera al próximo envío (nunca dos procesos en la misma sesión).
-    pub fn abrir_con(&self, conversacion: &str, motor: &str, carpeta: Option<PathBuf>, mascota: &str, sesion_claude: Option<String>, modelo: Option<String>) -> Result<Value, String> {
+    /// `proyecto` (#44, 11.4): con un proyecto, `carpeta` se ignora y manda la del proyecto (si existe;
+    /// si no, la de trabajo, 8.4); sus instrucciones van por el archivo de sistema. Una charla de proyecto
+    /// con mensajes sí cambia de carpeta (D-p15: corre en la actual): el proceso se relanza con
+    /// `--resume`. Devuelve además `proyecto` (`ProyectoChat::a_json`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn abrir_proyecto(&self, conversacion: &str, motor: &str, carpeta: Option<PathBuf>, mascota: &str, sesion_claude: Option<String>, modelo: Option<String>, proyecto: Option<&str>) -> Result<Value, String> {
         if !conversacion_valida(conversacion) {
             return Err(String::from("id de conversación inválido"));
         }
@@ -901,54 +1099,88 @@ impl Chat {
         if sesion_claude.as_deref().is_some_and(|s| !sesion_valida(s)) {
             return Err(String::from("id de sesión de Claude Code inválido"));
         }
-        let cwd = match carpeta {
-            Some(c) if c.is_dir() => c,
-            Some(_) => return Err(String::from("la carpeta no existe")),
-            None => {
-                let c = carpeta_trabajo(&self.0.carpeta);
-                fs::create_dir_all(&c).map_err(|e| format!("no se pudo crear la carpeta de trabajo: {e}"))?;
-                c
+        // A2 de P2 (8.3): una charla con historia (su sesión de Claude Code, o ya usada en esta ejecución) cuyo
+        // proyecto se borró o está roto sigue, sin proyecto: en su carpeta o la de trabajo, como antes de #44.
+        // «el proyecto no existe» queda para una charla nueva de un proyecto que no está
+        let pedido = proyecto;
+        let proyecto = match pedido.map(|id| self.proyecto(id)) {
+            Some(Ok(p)) => Some(p),
+            Some(Err(error)) => {
+                let con_historia = sesion_claude.is_some() || self.estado().conversaciones.get(conversacion).is_some_and(|c| c.usada);
+                if !con_historia {
+                    return Err(error);
+                }
+                registrar("chat: el proyecto de la charla no está; sigue sin proyecto");
+                None
             }
+            None => None,
+        };
+        let sin_proyecto = pedido.is_some() && proyecto.is_none();
+        let cwd = match (&proyecto, carpeta) {
+            (Some(p), _) => match &p.carpeta {
+                Some(c) => c.clone(),
+                None => self.trabajo()?,
+            },
+            (None, Some(c)) if c.is_dir() => c,
+            (None, Some(_)) => return Err(String::from("la carpeta no existe")),
+            (None, None) => self.trabajo()?,
         };
         let mascota = nombre_mascota(mascota);
         let local = motor != "claude";
+        let id_proyecto = proyecto.as_ref().map(|p| p.id.clone());
+        let datos_proyecto = proyecto.as_ref().map(ProyectoChat::a_json);
         let mut e = self.estado();
         match e.conversaciones.get_mut(conversacion) {
-            Some(c) if c.usada && (c.cwd != cwd || c.local != local) => return Err(String::from("la carpeta y el motor de una charla con mensajes no cambian")),
+            Some(c) if c.usada && !sin_proyecto && c.proyecto.as_ref().map(|p| &p.id) != id_proyecto.as_ref() => return Err(String::from("el proyecto de una charla con mensajes no cambia")),
+            Some(c) if c.usada && (c.local != local || (id_proyecto.is_none() && !sin_proyecto && c.cwd != cwd)) => return Err(String::from("la carpeta y el motor de una charla con mensajes no cambian")),
             Some(c) if !c.usada => {
                 // Vacía: la cabecera cambia (D8) y la mascota es la del primer mensaje
                 c.cwd = cwd;
                 c.mascota = mascota;
                 c.local = local;
                 c.modelo = modelo;
+                c.proyecto = proyecto;
             }
-            // Con mensajes, el modelo sí cambia (S1): sigue la misma conversación
-            Some(c) => c.modelo = modelo,
+            // Con mensajes, el modelo sí cambia (S1): sigue la misma conversación. La de un proyecto corre
+            // en la carpeta actual del proyecto, con sus instrucciones de ahora (D-p15)
+            Some(c) => {
+                c.modelo = modelo;
+                if c.proyecto.is_some() {
+                    c.cwd = cwd;
+                    c.proyecto = proyecto;
+                }
+            }
             None => {
                 let usada = sesion_claude.is_some();
                 let sesion = sesion_claude.unwrap_or_else(nuevo_uuid);
-                e.conversaciones.insert(conversacion.to_string(), Conversacion { sesion, usada, cwd, mascota, firma: None, local, modelo });
+                e.conversaciones.insert(conversacion.to_string(), Conversacion { sesion, usada, cwd, mascota, firma: None, local, modelo, proyecto });
             }
         }
         let sesion = e.conversaciones[conversacion].sesion.clone();
+        let con_proyecto = |mut v: Value| -> Result<Value, String> {
+            if let Some(p) = &datos_proyecto {
+                v["proyecto"] = p.clone();
+            }
+            Ok(v)
+        };
         if motor != "claude" {
-            return Ok(json!({ "proceso": "apagado", "sesion": sesion }));
+            return con_proyecto(json!({ "proceso": "apagado", "sesion": sesion }));
         }
         if e.proceso.as_ref().is_some_and(|p| p.conversacion != conversacion) {
             e.retirar();
         }
         if let Some(p) = &e.proceso {
-            let mismo_modelo = p.modelo == e.conversaciones[conversacion].modelo;
-            if !p.vivo.salio() && bloquear(&p.entrada).is_some() && (mismo_modelo || p.turno_activo()) {
+            let sirve = p.sirve_para(&e.conversaciones[conversacion]);
+            if !p.vivo.salio() && bloquear(&p.entrada).is_some() && (sirve || p.turno_activo()) {
                 let usada = e.conversaciones[conversacion].usada;
-                return Ok(json!({ "proceso": if usada { "listo" } else { "arrancando" }, "sesion": sesion }));
+                return con_proyecto(json!({ "proceso": if usada { "listo" } else { "arrancando" }, "sesion": sesion }));
             }
         }
         match self.lanzar(&mut e, conversacion) {
-            Ok(()) => Ok(json!({ "proceso": "arrancando", "sesion": sesion })),
+            Ok(()) => con_proyecto(json!({ "proceso": "arrancando", "sesion": sesion })),
             Err(detalle) => {
                 registrar(&format!("chat: no se pudo lanzar claude: {detalle}"));
-                Ok(json!({ "proceso": "apagado", "sesion": sesion, "motivo": "sin-claude" }))
+                con_proyecto(json!({ "proceso": "apagado", "sesion": sesion, "motivo": "sin-claude" }))
             }
         }
     }
@@ -970,7 +1202,21 @@ impl Chat {
                 s.revocar(&m.token);
             }
         };
-        let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: &c.mascota, usuario: e.usuario.as_deref(), sesion: &sesion, modelo: c.modelo.as_deref(), mcp: mcp.as_ref() }), cwd: c.cwd.clone() };
+        // #44 (11.4, camino A): las instrucciones del proyecto en su archivo, escrito antes de lanzar
+        let texto_sistema = c.sistema();
+        let sistema = match &texto_sistema {
+            Some(t) => {
+                let r = ruta_sistema(&self.0.carpeta, conversacion);
+                let escrito = r.parent().map_or(Ok(()), fs::create_dir_all).and_then(|()| crate::atomico::escribir(&r, t.as_bytes()));
+                if let Err(err) = escrito {
+                    revocar(&mcp);
+                    return Err(format!("instrucciones del proyecto: {err}"));
+                }
+                Some(r)
+            }
+            None => None,
+        };
+        let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: &c.mascota, usuario: e.usuario.as_deref(), sesion: &sesion, modelo: c.modelo.as_deref(), mcp: mcp.as_ref(), sistema: sistema.as_deref() }), cwd: c.cwd.clone() };
         let mut comando = match (self.0.lanzador)(&l) {
             Ok(c) => c,
             Err(e) => {
@@ -1007,7 +1253,8 @@ impl Chat {
         registrar(&format!("chat: claude lanzado ({}, modelo {})", if c.usada { "retoma" } else { "nueva" }, c.modelo.as_deref().unwrap_or("por defecto")));
         let modelo = c.modelo.clone();
         let token = mcp.map(|m| m.token);
-        e.proceso = Some(Proceso { generacion, conversacion: conversacion.to_string(), entrada: Arc::new(Mutex::new(Some(stdin))), vivo, turno: None, ultimo_uso: Instant::now(), interrupciones: 0, modelo, token });
+        let firma_sistema = texto_sistema.as_deref().map(firma_texto);
+        e.proceso = Some(Proceso { generacion, conversacion: conversacion.to_string(), entrada: Arc::new(Mutex::new(Some(stdin))), vivo, turno: None, ultimo_uso: Instant::now(), interrupciones: 0, modelo, token, cwd: l.cwd.clone(), sistema: firma_sistema });
         Ok(())
     }
 
@@ -1029,6 +1276,8 @@ impl Chat {
         if texto.chars().count() > MAX_TEXTO {
             return Err(String::from("el mensaje es demasiado largo"));
         }
+        // #44: las instrucciones o la carpeta del proyecto pudieron cambiar con la charla abierta
+        self.refrescar_proyecto(conversacion);
         let e = self.estado();
         match e.conversaciones.get(conversacion) {
             None => return Err(String::from("la charla no está abierta")),
@@ -1056,9 +1305,12 @@ impl Chat {
         if e.proceso.as_ref().is_some_and(|p| p.conversacion == conversacion && p.turno_activo()) {
             return Err(String::from("hay una respuesta en curso"));
         }
-        // Si la charla cambió de modelo durante el turno anterior (#35), el proceso vivo ya no sirve
-        let modelo = e.conversaciones.get(conversacion).and_then(|c| c.modelo.clone());
-        let sirve = e.proceso.as_ref().is_some_and(|p| p.conversacion == conversacion && !p.vivo.salio() && bloquear(&p.entrada).is_some() && p.modelo == modelo);
+        // Si la charla cambió de modelo durante el turno anterior (#35), o de instrucciones o de carpeta
+        // del proyecto (#44), el proceso vivo ya no sirve: otro retoma la misma sesión
+        let sirve = match (e.proceso.as_ref(), e.conversaciones.get(conversacion)) {
+            (Some(p), Some(c)) => p.conversacion == conversacion && !p.vivo.salio() && bloquear(&p.entrada).is_some() && p.sirve_para(c),
+            _ => false,
+        };
         if !sirve {
             if let Err(detalle) = self.lanzar(&mut e, conversacion) {
                 registrar(&format!("chat: no se pudo lanzar claude: {detalle}"));
@@ -1107,9 +1359,13 @@ impl Chat {
     }
 
     /// `chat_cerrar`: cierra stdin. Un turno en curso termina igual y el proceso sale solo.
+    /// Las instrucciones del proyecto (#44, 11.4) se borran: el proceso ya las leyó al arrancar.
     pub fn cerrar(&self, conversacion: &str) {
         if let Some(p) = self.estado().proceso.as_ref().filter(|p| p.conversacion == conversacion) {
             p.cerrar_entrada();
+        }
+        if conversacion_valida(conversacion) {
+            let _ = fs::remove_file(ruta_sistema(&self.0.carpeta, conversacion));
         }
     }
 
@@ -1147,6 +1403,8 @@ impl Chat {
                 v.matar();
             }
         }
+        // #44 (B1 de P2): ninguna instrucción de proyecto queda en disco al salir de Avis
+        limpiar_sistema(&self.0.carpeta);
     }
 
     /// Un turno del motor local (8): con texto y sin archivos. Arma el pedido (la instrucción con la
@@ -1169,14 +1427,16 @@ impl Chat {
             }
             t.frenar.store(true, Ordering::SeqCst);
         }
-        let mascota = e.conversaciones.get(conversacion).map(|c| c.mascota.clone()).ok_or("la charla no está abierta")?;
+        let (mascota, proyecto) = e.conversaciones.get(conversacion).map(|c| (c.mascota.clone(), c.proyecto.clone())).ok_or("la charla no está abierta")?;
         let usuario = e.usuario.clone();
         let frenar = Arc::new(AtomicBool::new(false));
         e.generacion_local += 1;
         let generacion = e.generacion_local;
         e.local = Some(TurnoLocal { generacion, conversacion: conversacion.to_string(), numero: turno, frenar: frenar.clone() });
         drop(e);
-        let sistema = chat_local::sistema_local(&mascota, usuario.as_deref(), &modelo::datos_como_texto(datos));
+        // #44 (11.4): con el motor local van solo las instrucciones del proyecto, nunca su carpeta
+        let proyecto = proyecto.as_ref().filter(|p| !p.instrucciones.trim().is_empty()).map(|p| (p.nombre.as_str(), p.instrucciones.as_str()));
+        let sistema = chat_local::sistema_local_con(&mascota, usuario.as_deref(), &modelo::datos_como_texto(datos), proyecto);
         let recorte = chat_local::recorte_local(&sistema, &chat_local::historia_de(historia), texto);
         let cuerpo = chat_local::cuerpo_local(&sistema, &recorte);
         let chat = self.clone();
@@ -1307,10 +1567,17 @@ impl Chat {
         if let (Some(token), Some(s)) = (e.proceso_mut(generacion).and_then(|p| p.token.clone()), self.servidor_vivo()) {
             s.revocar(&token);
         }
+        let conversacion = e.proceso_mut(generacion).map(|p| p.conversacion.clone());
         if e.proceso.as_ref().is_some_and(|p| p.generacion == generacion) {
             e.proceso = None;
         }
         e.saliendo.retain(|p| p.generacion != generacion);
+        // #44 (B1 de P2): las instrucciones del proyecto no sobreviven al proceso que las usó, salvo que otro
+        // proceso de la misma charla ya las haya vuelto a escribir (relanzar con `--resume`). El próximo
+        // lanzamiento las escribe de nuevo
+        if let Some(c) = conversacion.filter(|c| !e.proceso.iter().chain(e.saliendo.iter()).any(|p| &p.conversacion == c)) {
+            let _ = fs::remove_file(ruta_sistema(&self.0.carpeta, &c));
+        }
         let codigo = bloquear(&vivo.hijo).try_wait().ok().flatten().and_then(|s| s.code());
         registrar(&format!("chat: claude salió (código {codigo:?})"));
     }

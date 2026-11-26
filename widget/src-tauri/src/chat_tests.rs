@@ -46,7 +46,7 @@ fn args(sesion: &Sesion) -> Vec<String> {
 }
 
 fn args_con_modelo(sesion: &Sesion, modelo: Option<&str>) -> Vec<String> {
-    argumentos_chat(&Pedido { ajustes: Path::new(r"C:\config\chat\ajustes.json"), mascota: "Ascua", usuario: None, sesion, modelo, mcp: None })
+    argumentos_chat(&Pedido { ajustes: Path::new(r"C:\config\chat\ajustes.json"), mascota: "Ascua", usuario: None, sesion, modelo, mcp: None, sistema: None })
 }
 
 /// El valor que sigue a `bandera` en la lista.
@@ -1192,7 +1192,7 @@ fn real_el_init_lista_solo_read_glob_grep_y_no_oficina() {
     let carpeta = carpeta_temporal();
     let ajustes = escribir_ajustes(&carpeta).unwrap();
     let sesion = Sesion::Nueva(nuevo_uuid());
-    let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: "Avi", usuario: None, sesion: &sesion, modelo: None, mcp: None }), cwd: carpeta_trabajo(&carpeta) };
+    let l = Lanzamiento { args: argumentos_chat(&Pedido { ajustes: &ajustes, mascota: "Avi", usuario: None, sesion: &sesion, modelo: None, mcp: None, sistema: None }), cwd: carpeta_trabajo(&carpeta) };
     let mut c = (lanzador_real_haiku())(&l).unwrap();
     c.current_dir(&l.cwd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
     let mut hijo = c.spawn().unwrap();
@@ -1407,7 +1407,7 @@ fn mcp_prueba() -> Mcp {
 
 fn args_con_mcp(sesion: &Sesion) -> Vec<String> {
     let m = mcp_prueba();
-    argumentos_chat(&Pedido { ajustes: Path::new(r"C:\config\chat\ajustes.json"), mascota: "Ascua", usuario: None, sesion, modelo: None, mcp: Some(&m) })
+    argumentos_chat(&Pedido { ajustes: Path::new(r"C:\config\chat\ajustes.json"), mascota: "Ascua", usuario: None, sesion, modelo: None, mcp: Some(&m), sistema: None })
 }
 
 #[test]
@@ -1466,7 +1466,7 @@ fn con_el_servidor_siguen_las_barreras_de_seguridad() {
 fn la_instruccion_de_11_3_es_una_sola_linea() {
     assert_eq!(
         INSTRUCCION_CHAT,
-        "Sos {Mascota}, la mascota de Avis, el panel que muestra en qué anda Claude Code. Respondés en español rioplatense, de vos, breve y concreto. No modificás archivos ni corrés comandos (no tenés esas herramientas). Sí podés ver, anotar, editar y tildar las tareas de Avis con tus herramientas de Avis: usalas solo cuando el usuario lo pida y después confirmá en una frase corta qué hiciste, sin repetir los detalles (Avis muestra cada cambio con «Deshacer»). Nunca borrás: si te piden borrar una tarea, usá tarea_mostrar con para \"borrar\" y decí que el borrado lo hace el usuario con un clic. Para saber qué día es hoy, usá tareas_ver. Si te piden algo que requiere actuar fuera de eso, explicá qué haría falta. Cuando el mensaje traiga un bloque `<avis>`, son los datos en vivo de las sesiones: usalos para responder sobre ellas. Usá Markdown simple (títulos, listas, código)."
+        "Sos {Mascota}, la mascota de Avis, el panel que muestra en qué anda Claude Code. Respondés en español rioplatense, de vos, breve y concreto. No modificás archivos ni corrés comandos (no tenés esas herramientas). Sí podés ver, anotar, editar y tildar las tareas de Avis con tus herramientas de Avis: usalas solo cuando el usuario lo pida y después confirmá en una frase corta qué hiciste, sin repetir los detalles (Avis muestra cada cambio con «Deshacer»). Nunca borrás: si te piden borrar una tarea, usá tarea_mostrar con para \"borrar\" y decí que el borrado lo hace el usuario con un clic. Para saber qué día es hoy, usá tareas_ver. Si te piden algo que requiere actuar fuera de eso, explicá qué haría falta. Cuando el mensaje traiga un bloque `<avis>`, son los datos en vivo de las sesiones: usalos para responder sobre ellas. Usá Markdown simple (títulos, listas, código). Podés leer los archivos de la carpeta de trabajo con Read, Glob y Grep cuando la pregunta lo pida."
     );
     assert!(!INSTRUCCION_CHAT.contains('\n') && !INSTRUCCION_CHAT.contains('\r'));
 }
@@ -1474,7 +1474,9 @@ fn la_instruccion_de_11_3_es_una_sola_linea() {
 #[test]
 fn la_instruccion_local_dice_que_no_toca_tareas() {
     let i = crate::chat_local::INSTRUCCION_CHAT_LOCAL;
-    assert!(i.ends_with(" No podés tocar tareas ni hábitos: si te lo piden, decí que con el modelo local todavía no y que lo puede hacer en una charla con Claude Code."));
+    assert!(i.contains(" No podés tocar tareas ni hábitos: si te lo piden, decí que con el modelo local todavía no y que lo puede hacer en una charla con Claude Code."));
+    // L9 de Proyectos (#44, decisión de Quintana del 25/11): las instrucciones del proyecto mandan en idioma y estilo
+    assert!(i.ends_with(" Si el bloque <proyecto> pide otro idioma o estilo, seguilo antes que lo de arriba."));
     assert!(!i.contains('\n'));
     // Lo de antes sigue igual
     assert!(i.starts_with("Sos {Mascota}, la mascota de Avis,"));
@@ -1671,5 +1673,774 @@ fn proceso_falso_un_deshecho_viaja_una_vez_con_el_proximo_mensaje() {
     assert!(!lineas_eco[1].contains("avis-deshecho"), "{}", lineas_eco[1]);
     chat.apagar();
     borrar(&carpeta);
+    borrar(&base);
+}
+
+// ---------------------------------------------------------------- proyectos (#44, P2: proyectos-ux.md 11.4, 11.5 y 11.6 tests 12 y 13)
+// Viven acá (y no en historial_tests.rs, chat_local_tests.rs o proyectos_tests.rs) porque los tres
+// cambian juntos con la charla del proyecto: el contrato de `chat_abrir`, el historial y el borrado.
+
+/// Medido en E0 de P2 (25/11, Claude Code 2.1.332, Haiku): `--resume` desde otra carpeta encuentra la
+/// sesión y sigue (M-P3); Glob y Read miran la carpeta nueva.
+const RETOMA_OTRA_CARPETA: &str = include_str!("fixtures/chat/proyecto-retoma-otra-carpeta.jsonl");
+/// Medido en E0 de P2: `--append-system-prompt-file` junto con `--append-system-prompt` (M-P1), con un
+/// archivo de 48 líneas y 4051 caracteres con tildes: el `init` limpio y la respuesta usa el archivo.
+const SISTEMA_ARCHIVO: &str = include_str!("fixtures/chat/proyecto-sistema-archivo.jsonl");
+
+/// Un proyecto en `<carpeta>/<id>.json` (formato v1 de proyectos-ux.md 11.1).
+fn proyecto_en(carpeta: &Path, id: &str, nombre: &str, instrucciones: &str, ruta: Option<&Path>) {
+    fs::create_dir_all(carpeta).unwrap();
+    let c = ruta.map(|r| json!({ "tipo": "pc", "ruta": r.to_string_lossy() })).unwrap_or(Value::Null);
+    let doc = json!({ "v": 1, "id": id, "nombre": nombre, "color": "violeta", "orden": 0, "creado": 1764100000000u64, "instrucciones": instrucciones, "carpeta": c });
+    fs::write(carpeta.join(format!("{id}.json")), serde_json::to_vec(&doc).unwrap()).unwrap();
+}
+
+fn args_con_sistema(sistema: Option<&Path>) -> Vec<String> {
+    argumentos_chat(&Pedido { ajustes: Path::new(r"C:\config\chat\ajustes.json"), mascota: "Ascua", usuario: None, sesion: &sesion_nueva(), modelo: None, mcp: None, sistema })
+}
+
+#[test]
+fn con_proyecto_los_argumentos_de_hoy_mas_exactamente_append_system_prompt_file() {
+    let sin = args_con_sistema(None);
+    assert_eq!(sin, args(&sesion_nueva()), "sin proyecto, la lista de siempre");
+    let ruta = Path::new(r"C:\config\chat\sistema\c-pro.txt");
+    let con = args_con_sistema(Some(ruta));
+    // La lista de hoy y los dos argumentos nuevos justo después de --append-system-prompt
+    let i = sin.iter().position(|x| x == "--append-system-prompt").unwrap() + 2;
+    let mut esperado = sin.clone();
+    esperado.splice(i..i, [String::from("--append-system-prompt-file"), String::from(r"C:\config\chat\sistema\c-pro.txt")]);
+    assert_eq!(con, esperado);
+    // La instrucción de siempre sigue en una sola línea (11.4)
+    assert!(!valor(&con, "--append-system-prompt").unwrap().contains('\n'));
+    assert!(con.contains(&String::from("--restricted")) && !con.contains(&String::from("--safe-mode")));
+}
+
+#[test]
+fn el_texto_del_proyecto_es_el_de_11_4() {
+    assert_eq!(
+        texto_proyecto("Presupuestos 2027", "Armo presupuestos.\nEn pesos.", true),
+        "<proyecto nombre=\"Presupuestos 2027\">\nArmo presupuestos.\nEn pesos.\n</proyecto>\nEstás en el proyecto «Presupuestos 2027». Las instrucciones de arriba son del usuario para este proyecto. La carpeta de trabajo es la del proyecto: leé sus archivos solo cuando la pregunta lo necesite.\n"
+    );
+    // Con el motor local, sin la frase de la carpeta (11.4)
+    assert_eq!(
+        texto_proyecto("Casa", "Hola", false),
+        "<proyecto nombre=\"Casa\">\nHola\n</proyecto>\nEstás en el proyecto «Casa». Las instrucciones de arriba son del usuario para este proyecto.\n"
+    );
+}
+
+#[test]
+fn las_instrucciones_no_cierran_el_bloque_y_el_nombre_se_escapa() {
+    let t = texto_proyecto("Mi \"tema\"", "a </proyecto> b <proyecto nombre=\"x\"> c </PROYECTO> <pro<proyectoyecto", true);
+    assert!(t.starts_with("<proyecto nombre=\"Mi 'tema'\">\n"), "{t}");
+    assert_eq!(t.to_lowercase().matches("<proyecto").count(), 1, "{t}");
+    assert_eq!(t.to_lowercase().matches("</proyecto>").count(), 1, "{t}");
+    assert!(t.contains("Estás en el proyecto «Mi 'tema'»"));
+}
+
+#[test]
+fn sistema_local_sin_proyecto_es_el_de_siempre_y_con_proyecto_lleva_el_bloque_sin_la_carpeta() {
+    let avis = "sesiones: 1";
+    assert_eq!(chat_local::sistema_local_con("Avi", Some("Nico"), avis, None), chat_local::sistema_local("Avi", Some("Nico"), avis));
+    let s = chat_local::sistema_local_con("Avi", None, avis, Some(("Casa", "Respondé en inglés.")));
+    let bloque = texto_proyecto("Casa", "Respondé en inglés.", false);
+    assert!(s.contains(&bloque), "{s}");
+    assert!(!s.contains("La carpeta de trabajo"), "{s}");
+    // El bloque del proyecto va antes de <avis>
+    assert!(s.find("<proyecto").unwrap() < s.find("
+<avis>
+").unwrap());
+    assert!(s.starts_with(&chat_local::INSTRUCCION_CHAT_LOCAL.replace("{Mascota}", "Avi")));
+}
+
+#[test]
+fn el_recorte_local_nunca_corta_las_instrucciones_del_proyecto() {
+    let instrucciones = "Regla del proyecto. ".repeat(190); // ~3800 caracteres, cerca del tope de 4000
+    let s = chat_local::sistema_local_con("Avi", None, "", Some(("Casa", &instrucciones)));
+    let historia: Vec<chat_local::Mensaje> = (0..40)
+        .flat_map(|k| {
+            [
+                chat_local::Mensaje { rol: chat_local::Rol::Usuario, texto: format!("pregunta {k} {}", "x".repeat(300)) },
+                chat_local::Mensaje { rol: chat_local::Rol::Mascota, texto: format!("respuesta {k} {}", "y".repeat(300)) },
+            ]
+        })
+        .collect();
+    let r = chat_local::recorte_local(&s, &historia, "¿Y ahora?");
+    assert!(r.historia.len() < historia.len(), "la historia se recorta");
+    let cuerpo = chat_local::cuerpo_local(&s, &r);
+    assert_eq!(cuerpo["messages"][0]["content"].as_str().unwrap(), s);
+    assert!(s.contains(instrucciones.trim_end()));
+}
+
+#[test]
+fn instrucciones_de_mas_de_1500_tokens_se_cortan_para_el_motor_local() {
+    let corta = "a".repeat(100);
+    assert_eq!(chat_local::instrucciones_locales(&corta), corta);
+    let larga = "palabra ".repeat(1000); // 8000 caracteres: más de 1500 tokens
+    let r = chat_local::instrucciones_locales(&larga);
+    assert!(chat_local::costo(&r) <= 1500, "{}", chat_local::costo(&r));
+    assert!(larga.starts_with(&r));
+}
+
+#[test]
+fn medido_m_p1_el_archivo_de_sistema_deja_el_init_limpio_y_el_turno_termina() {
+    let ev = eventos(SISTEMA_ARCHIVO);
+    assert!(matches!(ev.first(), Some(EventoChat::Listo { .. })), "{ev:?}");
+    assert!(matches!(ev.last(), Some(EventoChat::Fin { .. })), "{ev:?}");
+    let init = linea(SISTEMA_ARCHIVO, |v| es(v, "system", "init"));
+    assert_eq!(init["tools"], json!(["Glob", "Grep", "Read"]));
+    assert_eq!(init["mcp_servers"], json!([]));
+}
+
+#[test]
+fn medido_m_p3_retomar_desde_otra_carpeta_no_es_una_sesion_perdida() {
+    assert!(lineas(RETOMA_OTRA_CARPETA).iter().all(|v| !sesion_perdida(v)));
+    let init = linea(RETOMA_OTRA_CARPETA, |v| es(v, "system", "init"));
+    let fin = linea(RETOMA_OTRA_CARPETA, |v| es(v, "result", ""));
+    assert_eq!(init["session_id"], fin["session_id"]);
+    assert!(init["cwd"].as_str().unwrap().ends_with("otra"));
+    assert!(matches!(eventos(RETOMA_OTRA_CARPETA).last(), Some(EventoChat::Fin { .. })));
+}
+
+// ---- historial (11.5, test 13)
+
+fn charla_hist(id: &str, proyecto: Option<&str>) -> Value {
+    let mut c = json!({
+        "v": 1, "id": id, "titulo": "Charla", "creada": "2026-11-25T12:00:00.000Z", "actualizada": "2026-11-25T12:05:00.000Z",
+        "motor": "claude", "carpeta": null, "sesionClaude": null,
+        "mensajes": [
+            { "rol": "usuario", "texto": "Hola", "cuando": "2026-11-25T12:00:00.000Z", "estado": "ok", "adjuntos": [] },
+            { "rol": "mascota", "texto": "Hola.", "cuando": "2026-11-25T12:00:02.000Z", "estado": "ok", "herramientas": [], "ms": 900, "avis": false },
+        ],
+    });
+    if let Some(p) = proyecto {
+        c["proyecto"] = json!(p);
+    }
+    c
+}
+
+#[test]
+fn historial_un_proyecto_valido_sobrevive_a_normalizar() {
+    let n = crate::historial::normalizar(&charla_hist("c-a", Some("p-presu"))).unwrap();
+    assert_eq!(n["proyecto"], "p-presu");
+}
+
+#[test]
+fn historial_un_proyecto_invalido_se_descarta_sin_rechazar_la_charla() {
+    for malo in [json!("../p-x"), json!("p-"), json!("l-lista"), json!("p-CON"), json!(7), json!("p-a/b")] {
+        let mut c = charla_hist("c-a", None);
+        c["proyecto"] = malo.clone();
+        let n = crate::historial::normalizar(&c).unwrap_or_else(|e| panic!("{malo}: {e}"));
+        assert!(n.get("proyecto").is_none(), "{malo}");
+    }
+}
+
+#[test]
+fn historial_una_charla_sin_proyecto_se_lee_igual_que_antes() {
+    let n = crate::historial::normalizar(&charla_hist("c-a", None)).unwrap();
+    let mut claves: Vec<&str> = n.as_object().unwrap().keys().map(String::as_str).collect();
+    claves.sort_unstable();
+    assert_eq!(claves, ["actualizada", "carpeta", "creada", "engramId", "id", "mensajes", "motor", "sesionClaude", "titulo", "v"]);
+}
+
+#[test]
+fn historial_listar_trae_el_proyecto_y_cuantos_mensajes() {
+    let c = carpeta_temporal();
+    crate::historial::guardar(&c, &charla_hist("c-pro", Some("p-presu"))).unwrap();
+    crate::historial::guardar(&c, &charla_hist("c-sin", None)).unwrap();
+    let lista = crate::historial::listar(&c);
+    let de = |id: &str| lista.iter().find(|x| x["id"] == id).unwrap().clone();
+    assert_eq!(de("c-pro")["proyecto"], "p-presu");
+    assert!(de("c-sin").get("proyecto").is_none());
+    assert_eq!(de("c-pro")["cuantos"], 2);
+    assert!(de("c-pro").get("mensajes").is_none());
+    borrar(&c);
+}
+
+#[test]
+fn historial_borrar_de_proyecto_borra_solo_sus_charlas_y_nunca_un_archivo_roto() {
+    let c = carpeta_temporal();
+    crate::historial::guardar(&c, &charla_hist("c-uno", Some("p-presu"))).unwrap();
+    crate::historial::guardar(&c, &charla_hist("c-dos", Some("p-presu"))).unwrap();
+    crate::historial::guardar(&c, &charla_hist("c-otro", Some("p-casa"))).unwrap();
+    crate::historial::guardar(&c, &charla_hist("c-sin", None)).unwrap();
+    fs::write(c.join("c-roto.json"), "{ roto").unwrap();
+    let r = crate::historial::borrar_de_proyecto(&c, "p-presu");
+    assert_eq!((r.borradas, r.fallidas), (2, 0));
+    assert!(!c.join("c-uno.json").exists() && !c.join("c-dos.json").exists());
+    assert!(c.join("c-otro.json").exists() && c.join("c-sin.json").exists());
+    assert_eq!(fs::read(c.join("c-roto.json")).unwrap(), b"{ roto");
+    // Un id inválido no borra nada
+    let r = crate::historial::borrar_de_proyecto(&c, "..");
+    assert_eq!((r.borradas, r.fallidas), (0, 0));
+    assert!(c.join("c-otro.json").exists());
+    borrar(&c);
+}
+
+// ---- proyecto_borrar con sus charlas (11.3)
+
+#[test]
+fn borrar_un_proyecto_borra_sus_charlas_y_nunca_su_carpeta() {
+    let base = carpeta_temporal();
+    let (pro, ch, car) = (base.join("proyectos"), base.join("chat"), base.join("Presupuestos"));
+    fs::create_dir_all(&car).unwrap();
+    fs::create_dir_all(&ch).unwrap();
+    fs::write(car.join("testigo.txt"), "no me toques").unwrap();
+    proyecto_en(&pro, "p-presu", "Presupuestos", "", Some(&car));
+    crate::historial::guardar(&ch, &charla_hist("c-uno", Some("p-presu"))).unwrap();
+    crate::historial::guardar(&ch, &charla_hist("c-otro", Some("p-casa"))).unwrap();
+    let r = crate::proyectos::borrar_con_charlas(&pro, &ch, "p-presu").unwrap();
+    assert_eq!((r.borradas, r.fallidas), (1, 0));
+    assert!(!pro.join("p-presu.json").exists());
+    assert!(!ch.join("c-uno.json").exists());
+    assert!(ch.join("c-otro.json").exists());
+    assert_eq!(fs::read_to_string(car.join("testigo.txt")).unwrap(), "no me toques");
+    borrar(&base);
+}
+
+#[cfg(windows)]
+#[test]
+fn borrar_un_proyecto_con_una_charla_que_no_se_borra_deja_el_proyecto() {
+    let base = carpeta_temporal();
+    let (pro, ch) = (base.join("proyectos"), base.join("chat"));
+    fs::create_dir_all(&ch).unwrap();
+    proyecto_en(&pro, "p-presu", "Presupuestos", "", None);
+    crate::historial::guardar(&ch, &charla_hist("c-uno", Some("p-presu"))).unwrap();
+    crate::historial::guardar(&ch, &charla_hist("c-dos", Some("p-presu"))).unwrap();
+    // Abierto sin permiso de borrar (solo FILE_SHARE_READ): se lee, pero Windows no lo deja borrar
+    use std::os::windows::fs::OpenOptionsExt;
+    let abierto = fs::OpenOptions::new().read(true).share_mode(1).open(ch.join("c-dos.json")).unwrap();
+    let r = crate::proyectos::borrar_con_charlas(&pro, &ch, "p-presu").unwrap();
+    assert_eq!((r.borradas, r.fallidas), (1, 1));
+    assert!(pro.join("p-presu.json").exists(), "el proyecto queda hasta que se borren todas (5.2)");
+    drop(abierto);
+    borrar(&base);
+}
+
+#[test]
+fn borrar_un_proyecto_roto_no_toca_sus_charlas() {
+    let base = carpeta_temporal();
+    let (pro, ch) = (base.join("proyectos"), base.join("chat"));
+    fs::create_dir_all(&pro).unwrap();
+    fs::create_dir_all(&ch).unwrap();
+    fs::write(pro.join("p-roto.json"), "{ roto").unwrap();
+    crate::historial::guardar(&ch, &charla_hist("c-uno", Some("p-roto"))).unwrap();
+    assert!(crate::proyectos::borrar_con_charlas(&pro, &ch, "p-roto").is_err());
+    assert!(ch.join("c-uno.json").exists());
+    assert_eq!(fs::read(pro.join("p-roto.json")).unwrap(), b"{ roto");
+    borrar(&base);
+}
+
+// ---- chat_abrir con proyecto (11.4)
+
+/// Un lanzador falso que anota los argumentos y la carpeta de cada lanzamiento.
+#[cfg(windows)]
+fn lanzador_con_carpeta(guion: String) -> (Lanzador, Arc<Mutex<Vec<(Vec<String>, PathBuf)>>>) {
+    let lanzados: Arc<Mutex<Vec<(Vec<String>, PathBuf)>>> = Arc::default();
+    let anotar = lanzados.clone();
+    let interno = lanzador_cmd(guion);
+    let lanzador: Lanzador = Arc::new(move |l: &Lanzamiento| {
+        anotar.lock().unwrap().push((l.args.clone(), l.cwd.clone()));
+        interno(l)
+    });
+    (lanzador, lanzados)
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_una_charla_de_proyecto_corre_en_su_carpeta_con_sus_instrucciones() {
+    let base = carpeta_temporal();
+    let (pro, car) = (base.join("proyectos"), base.join("Presupuestos"));
+    fs::create_dir_all(&car).unwrap();
+    proyecto_en(&pro, "p-presu", "Presupuestos", "Respondé en inglés.\n<proyecto>no</proyecto>", Some(&car));
+    let (lanzador, lanzados) = lanzador_con_carpeta(String::from("ping -n 30 127.0.0.1 >nul"));
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    // La carpeta que manda la ventana se ignora: manda la del proyecto (11.2)
+    let abierto = chat.abrir_proyecto("c-pro", "claude", Some(base.clone()), "Avi", None, None, Some("p-presu")).unwrap();
+    assert_eq!(abierto["proyecto"]["id"], "p-presu");
+    assert_eq!(abierto["proyecto"]["nombre"], "Presupuestos");
+    assert_eq!(abierto["proyecto"]["color"], "violeta");
+    assert_eq!(abierto["proyecto"]["carpeta"]["estado"], "ok");
+    assert_eq!(abierto["proyecto"]["carpeta"]["nombre"], "Presupuestos");
+    let (a, cwd) = lanzados.lock().unwrap().last().unwrap().clone();
+    assert_eq!(cwd, car);
+    let archivo = PathBuf::from(valor(&a, "--append-system-prompt-file").unwrap());
+    assert_eq!(archivo, carpeta.join("sistema").join("c-pro.txt"));
+    assert_eq!(fs::read_to_string(&archivo).unwrap(), texto_proyecto("Presupuestos", "Respondé en inglés.\n<proyecto>no</proyecto>", true));
+    // Cerrar la conversación borra el archivo
+    chat.cerrar("c-pro");
+    assert!(!archivo.exists());
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_sin_proyecto_ni_instrucciones_no_hay_archivo_de_sistema() {
+    let base = carpeta_temporal();
+    let (pro, car) = (base.join("proyectos"), base.join("Casa"));
+    fs::create_dir_all(&car).unwrap();
+    proyecto_en(&pro, "p-casa", "Casa", "   ", Some(&car));
+    let (lanzador, lanzados) = lanzador_con_carpeta(String::from("ping -n 30 127.0.0.1 >nul"));
+    let carpeta = carpeta_temporal();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, Recibidos::default().emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    chat.abrir_proyecto("c-casa", "claude", None, "Avi", None, None, Some("p-casa")).unwrap();
+    let (a, cwd) = lanzados.lock().unwrap().last().unwrap().clone();
+    assert_eq!(cwd, car);
+    assert!(!a.contains(&String::from("--append-system-prompt-file")));
+    // Sin proyecto: los argumentos y la carpeta de siempre
+    chat.abrir_proyecto("c-sola", "claude", None, "Avi", None, None, None).unwrap();
+    let (a, cwd) = lanzados.lock().unwrap().last().unwrap().clone();
+    assert_eq!(cwd, carpeta_trabajo(&carpeta));
+    assert!(!a.contains(&String::from("--append-system-prompt-file")));
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_con_la_carpeta_perdida_corre_en_la_carpeta_de_trabajo() {
+    let base = carpeta_temporal();
+    let pro = base.join("proyectos");
+    proyecto_en(&pro, "p-mud", "Mudanza", "Hola", Some(&base.join("no-existe")));
+    let (lanzador, lanzados) = lanzador_con_carpeta(String::from("ping -n 30 127.0.0.1 >nul"));
+    let carpeta = carpeta_temporal();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, Recibidos::default().emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    let abierto = chat.abrir_proyecto("c-mud", "claude", None, "Avi", None, None, Some("p-mud")).unwrap();
+    assert_eq!(abierto["proyecto"]["carpeta"]["estado"], "perdida");
+    let (a, cwd) = lanzados.lock().unwrap().last().unwrap().clone();
+    assert_eq!(cwd, carpeta_trabajo(&carpeta));
+    assert!(a.contains(&String::from("--append-system-prompt-file")), "las instrucciones siguen (8.4)");
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+#[test]
+fn un_proyecto_que_no_existe_o_invalido_es_un_error() {
+    let base = carpeta_temporal();
+    let pro = base.join("proyectos");
+    fs::create_dir_all(&pro).unwrap();
+    fs::write(pro.join("p-roto.json"), "{ roto").unwrap();
+    let carpeta = carpeta_temporal();
+    let chat = Chat::nuevo(carpeta.clone(), Arc::new(|_l: &Lanzamiento| Err(std::io::Error::other("no"))), Recibidos::default().emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    for id in ["p-nada", "../x", "p-roto", "CON"] {
+        assert_eq!(chat.abrir_proyecto("c-x", "claude", None, "Avi", None, None, Some(id)), Err(String::from("el proyecto no existe")), "{id}");
+    }
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_instrucciones_o_carpeta_nuevas_relanzan_con_resume_en_el_proximo_envio() {
+    let base = carpeta_temporal();
+    let (pro, car, otra) = (base.join("proyectos"), base.join("A"), base.join("B"));
+    fs::create_dir_all(&car).unwrap();
+    fs::create_dir_all(&otra).unwrap();
+    proyecto_en(&pro, "p-presu", "Presupuestos", "Primera versión", Some(&car));
+    let f = fixture_en_archivo(&base, TEXTO, None);
+    // Responde un turno y queda vivo, con stdin abierto
+    let (lanzador, lanzados) = lanzador_con_carpeta(format!("set /p x= & type \"{}\" & ping -n 30 127.0.0.1 >nul", f.display()));
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    let cuantos = || lanzados.lock().unwrap().len();
+    let abierto = chat.abrir_proyecto("c-pro", "claude", None, "Avi", None, None, Some("p-presu")).unwrap();
+    let sesion = abierto["sesion"].as_str().unwrap().to_string();
+    chat.enviar("c-pro", 1, "Hola", &[], &Value::Null).unwrap();
+    r.esperar_final();
+    assert_eq!(cuantos(), 1);
+    // Sin cambios, el mismo proceso
+    let mismo = chat.abrir_proyecto("c-pro", "claude", None, "Avi", None, None, Some("p-presu")).unwrap();
+    assert_eq!(mismo["proceso"], "listo");
+    assert_eq!(cuantos(), 1);
+    // Se editaron las instrucciones con la charla abierta: el próximo envío relanza con --resume
+    proyecto_en(&pro, "p-presu", "Presupuestos", "Segunda versión", Some(&car));
+    chat.enviar("c-pro", 2, "¿Y ahora?", &[], &Value::Null).unwrap();
+    assert_eq!(cuantos(), 2);
+    let (a, cwd) = lanzados.lock().unwrap().last().unwrap().clone();
+    assert_eq!(valor(&a, "--resume"), Some(sesion.as_str()));
+    assert_eq!(cwd, car);
+    assert!(fs::read_to_string(carpeta.join("sistema").join("c-pro.txt")).unwrap().contains("Segunda versión"));
+    // Cambió la carpeta (D-p15: una charla vieja corre en la carpeta actual): abrir no es un error y relanza ahí
+    let limite = Instant::now() + Duration::from_secs(10);
+    while r.tipos().iter().filter(|t| *t == "fin").count() < 2 && Instant::now() < limite {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    proyecto_en(&pro, "p-presu", "Presupuestos", "Segunda versión", Some(&otra));
+    chat.abrir_proyecto("c-pro", "claude", None, "Avi", None, None, Some("p-presu")).unwrap();
+    assert_eq!(cuantos(), 3);
+    let (a, cwd) = lanzados.lock().unwrap().last().unwrap().clone();
+    assert_eq!(cwd, otra);
+    assert_eq!(valor(&a, "--resume"), Some(sesion.as_str()));
+    // El motor de una charla con mensajes sigue sin cambiar (D8)
+    assert!(chat.abrir_proyecto("c-pro", "local", None, "Avi", None, None, Some("p-presu")).is_err());
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+// ---- aceptación de P2 con el `claude` real y el modelo local (14/P2): `cargo test --lib real_proyecto -- --ignored --nocapture`
+
+/// Espera el final del turno que empezó después de `antes` eventos y devuelve su texto y sus herramientas.
+#[cfg(windows)]
+fn turno_real(r: &Recibidos, antes: usize, segundos: u64) -> (String, Vec<String>, String) {
+    let limite = Instant::now() + Duration::from_secs(segundos);
+    while !r.todos()[antes..].iter().any(|v| v["tipo"] == "fin" || v["tipo"] == "error") && Instant::now() < limite {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let evs: Vec<Value> = r.todos()[antes..].to_vec();
+    let texto = evs.iter().filter(|v| v["tipo"] == "texto").map(|v| v["texto"].as_str().unwrap_or("").to_string()).collect();
+    let herr = evs.iter().filter(|v| v["tipo"] == "herramienta").map(|v| format!("{} {}", v["nombre"].as_str().unwrap_or(""), v["detalle"].as_str().unwrap_or(""))).collect();
+    let fin = evs.last().map(|v| v["tipo"].as_str().unwrap_or("").to_string()).unwrap_or_default();
+    (texto, herr, fin)
+}
+
+/// ¿Está en inglés? Palabras comunes de cada idioma.
+fn en_ingles(t: &str) -> bool {
+    let t = format!(" {} ", t.to_lowercase());
+    let ingles = [" the ", " is ", " a ", " of ", " and ", " to "].iter().filter(|p| t.contains(*p)).count();
+    let espanol = [" el ", " es ", " un ", " una ", " de ", " que ", " para "].iter().filter(|p| t.contains(*p)).count();
+    ingles > espanol
+}
+
+#[cfg(windows)]
+#[test]
+#[ignore]
+fn real_proyecto_claude_responde_en_ingles_y_lee_la_carpeta_solo_si_hace_falta() {
+    let base = carpeta_temporal();
+    let (pro, car) = (base.join("proyectos"), base.join("Presupuestos"));
+    fs::create_dir_all(&car).unwrap();
+    fs::write(car.join("tarifas-2027.txt"), "Tarifa de diseño: 1500 pesos por hora.\n").unwrap();
+    proyecto_en(&pro, "p-presu", "Presupuestos", "Respondé en inglés.", Some(&car));
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador_real_haiku(), r.emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    chat.abrir_proyecto("c-real-pro", "claude", None, "Avi", None, Some(String::from("haiku")), Some("p-presu")).unwrap();
+    // Primero una pregunta general (no lee) y después una que pide la carpeta: medido el 25/11, sin la frase
+    // de L9 en INSTRUCCION_CHAT, Haiku dejaba de leer después de un turno sin herramientas
+    chat.enviar("c-real-pro", 1, "¿Qué es un presupuesto? En una frase.", &[], &Value::Null).unwrap();
+    let (texto, herr, fin) = turno_real(&r, 0, 120);
+    println!("turno 1 ({fin}): {herr:?}
+{texto}");
+    assert_eq!(fin, "fin");
+    assert!(herr.is_empty(), "una pregunta general no lee la carpeta: {herr:?}");
+    assert!(en_ingles(&texto), "en inglés: {texto}");
+    let antes = r.todos().len();
+    chat.enviar("c-real-pro", 2, "¿Cuánto cobro por hora de diseño? Fijate en los archivos de la carpeta.", &[], &Value::Null).unwrap();
+    let (texto, herr, fin) = turno_real(&r, antes, 120);
+    println!("turno 2 ({fin}): {herr:?}
+{texto}");
+    assert_eq!(fin, "fin");
+    // La línea .herr: Read del archivo, o Grep y Glob sobre la carpeta (medido el 25/11 con L9: «Glob **/*» y un Grep)
+    assert!(herr.iter().any(|h| h.contains("tarifas-2027.txt") || h.starts_with("Grep") || h.starts_with("Glob")), "la línea .herr: {herr:?}");
+    assert!(texto.contains("tarifas-2027") && (texto.contains("1500") || texto.contains("1,500") || texto.contains("1.500")), "{texto}");
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+/// El modelo local con un proyecto que pide inglés (L9: `INSTRUCCION_CHAT_LOCAL` le cede idioma y estilo al bloque).
+#[test]
+#[ignore]
+fn real_proyecto_local_responde_en_ingles() {
+    let base = carpeta_temporal();
+    let pro = base.join("proyectos");
+    proyecto_en(&pro, "p-presu", "Presupuestos", "Respondé en inglés.", None);
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let lanzador: Lanzador = Arc::new(|_l: &Lanzamiento| Err(std::io::Error::other("nunca claude")));
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    chat.poner_motor_local(Arc::new(|| crate::modelo::IA.motor_charla(&|_| {}).map(|(p, u)| (p, Box::new(u) as Box<dyn chat_local::UsoMotor>))));
+    chat.abrir_proyecto("c-real-loc", "local", None, "Avi", None, None, Some("p-presu")).unwrap();
+    chat.enviar_con("c-real-loc", 1, "¿Qué es un presupuesto? En una frase.", &[], &Value::Null, &Value::Null).unwrap();
+    let (texto, _, fin) = turno_real_local(&r);
+    println!("local ({fin}):\n{texto}");
+    assert_eq!(fin, "fin");
+    assert!(en_ingles(&texto), "en inglés: {texto}");
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+fn turno_real_local(r: &Recibidos) -> (String, Vec<String>, String) {
+    let limite = Instant::now() + Duration::from_secs(300);
+    while !r.tipos().iter().any(|t| t == "fin" || t == "error") && Instant::now() < limite {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let evs = r.todos();
+    let texto = evs.iter().filter(|v| v["tipo"] == "texto").map(|v| v["texto"].as_str().unwrap_or("").to_string()).collect();
+    let fin = evs.last().map(|v| format!("{}{}", v["tipo"].as_str().unwrap_or(""), v["detalle"].as_str().map(|d| format!(" {d}")).unwrap_or_default())).unwrap_or_default();
+    (texto, Vec::new(), fin)
+}
+
+// ---- corrección de P2 (L10 del documento de la entrega): el archivo de sistema no sobrevive a su uso (B1),
+// la charla con su proyecto borrado o roto se usa sin proyecto (A2) y las sondas del verificador
+
+/// Un archivo de sistema como el que escribe `lanzar`.
+fn sistema_en(carpeta_chat: &Path, conversacion: &str) -> PathBuf {
+    let r = ruta_sistema(carpeta_chat, conversacion);
+    fs::create_dir_all(r.parent().unwrap()).unwrap();
+    fs::write(&r, "<proyecto nombre=\"P\">\nx\n</proyecto>\n").unwrap();
+    r
+}
+
+#[test]
+fn borrar_una_charla_borra_su_archivo_de_sistema_tambien_al_borrar_el_proyecto_o_todo() {
+    let base = carpeta_temporal();
+    let (pro, ch) = (base.join("proyectos"), base.join("chat"));
+    fs::create_dir_all(&ch).unwrap();
+    proyecto_en(&pro, "p-presu", "Presupuestos", "x", None);
+    crate::historial::guardar(&ch, &charla_hist("c-pro", Some("p-presu"))).unwrap();
+    crate::historial::guardar(&ch, &charla_hist("c-otra", None)).unwrap();
+    crate::historial::guardar(&ch, &charla_hist("c-una", None)).unwrap();
+    let (pro_sis, otra_sis, una_sis) = (sistema_en(&ch, "c-pro"), sistema_en(&ch, "c-otra"), sistema_en(&ch, "c-una"));
+    crate::proyectos::borrar_con_charlas(&pro, &ch, "p-presu").unwrap();
+    assert!(!pro_sis.exists(), "borrar el proyecto");
+    assert!(otra_sis.exists(), "el de otra charla queda");
+    crate::historial::borrar(&ch, "c-una").unwrap();
+    assert!(!una_sis.exists(), "borrar una charla");
+    crate::historial::borrar_todo(&ch);
+    assert!(!otra_sis.exists(), "borrar todo");
+    borrar(&base);
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_apagar_borra_los_archivos_de_sistema() {
+    let base = carpeta_temporal();
+    let (pro, car) = (base.join("proyectos"), base.join("P"));
+    fs::create_dir_all(&car).unwrap();
+    proyecto_en(&pro, "p-presu", "Presupuestos", "Hola", Some(&car));
+    let (lanzador, _) = lanzador_con_carpeta(String::from("ping -n 30 127.0.0.1 >nul"));
+    let carpeta = carpeta_temporal();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, Recibidos::default().emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    chat.abrir_proyecto("c-pro", "claude", None, "Avi", None, None, Some("p-presu")).unwrap();
+    let sis = ruta_sistema(&carpeta, "c-pro");
+    assert!(sis.exists());
+    // Uno que quedó de una ejecución anterior también se va
+    let viejo = sistema_en(&carpeta, "c-vieja");
+    chat.apagar();
+    assert!(!sis.exists() && !viejo.exists());
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+#[test]
+fn limpiar_sistema_al_arrancar_borra_solo_los_txt_de_la_carpeta_sistema() {
+    let c = carpeta_temporal();
+    let a = sistema_en(&c, "c-a");
+    fs::write(c.join("sistema").join("otro.json"), "{}").unwrap();
+    fs::write(c.join("c-a.json"), "{}").unwrap();
+    limpiar_sistema(&c);
+    assert!(!a.exists());
+    assert!(c.join("sistema").join("otro.json").exists() && c.join("c-a.json").exists());
+    limpiar_sistema(&carpeta_temporal().join("no-existe"));
+    borrar(&c);
+}
+
+/// Un lanzador falso con un guion distinto por lanzamiento (el último se repite).
+#[cfg(windows)]
+fn lanzador_por_vez(guiones: Vec<String>) -> (Lanzador, Arc<Mutex<Vec<(Vec<String>, PathBuf)>>>) {
+    let lanzados: Arc<Mutex<Vec<(Vec<String>, PathBuf)>>> = Arc::default();
+    let anotar = lanzados.clone();
+    let lanzador: Lanzador = Arc::new(move |l: &Lanzamiento| {
+        use std::os::windows::process::CommandExt;
+        let mut v = anotar.lock().unwrap();
+        let guion = guiones[v.len().min(guiones.len() - 1)].clone();
+        v.push((l.args.clone(), l.cwd.clone()));
+        let mut c = Command::new("cmd.exe");
+        c.raw_arg(format!("/d /c {guion}"));
+        Ok(c)
+    });
+    (lanzador, lanzados)
+}
+
+#[cfg(windows)]
+fn esperar(mientras: impl Fn() -> bool, segundos: u64) {
+    let limite = Instant::now() + Duration::from_secs(segundos);
+    while mientras() && Instant::now() < limite {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_el_archivo_de_sistema_se_va_cuando_sale_el_proceso_y_vuelve_al_relanzar() {
+    let base = carpeta_temporal();
+    let (pro, car) = (base.join("proyectos"), base.join("P"));
+    fs::create_dir_all(&car).unwrap();
+    proyecto_en(&pro, "p-presu", "Presupuestos", "Hola", Some(&car));
+    let f = fixture_en_archivo(&base, TEXTO, None);
+    // Responde un turno y sale
+    let (lanzador, lanzados) = lanzador_por_vez(vec![format!("set /p x= & type \"{}\"", f.display())]);
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    chat.abrir_proyecto("c-pro", "claude", None, "Avi", None, None, Some("p-presu")).unwrap();
+    let sis = ruta_sistema(&carpeta, "c-pro");
+    assert!(sis.exists());
+    chat.enviar("c-pro", 1, "Hola", &[], &Value::Null).unwrap();
+    r.esperar_final();
+    esperar(|| sis.exists(), 10);
+    assert!(!sis.exists(), "el proceso salió: el archivo se va");
+    // El próximo envío relanza con --resume y lo vuelve a escribir
+    chat.enviar("c-pro", 2, "¿Y?", &[], &Value::Null).unwrap();
+    assert_eq!(lanzados.lock().unwrap().len(), 2);
+    assert!(valor(&lanzados.lock().unwrap()[1].0, "--resume").is_some());
+    assert!(sis.exists());
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_el_proceso_retirado_que_sale_no_borra_el_archivo_del_nuevo() {
+    let base = carpeta_temporal();
+    let (pro, car) = (base.join("proyectos"), base.join("P"));
+    fs::create_dir_all(&car).unwrap();
+    proyecto_en(&pro, "p-presu", "Presupuestos", "Primera", Some(&car));
+    let f = fixture_en_archivo(&base, TEXTO, None);
+    // El primero responde y espera otra línea: al retirarlo (stdin cerrado) sale a los ~2 s; el segundo queda vivo
+    let (lanzador, lanzados) = lanzador_por_vez(vec![
+        format!("set /p x= & type \"{}\" & set /p y= & ping -n 3 127.0.0.1 >nul", f.display()),
+        String::from("ping -n 30 127.0.0.1 >nul"),
+    ]);
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    chat.abrir_proyecto("c-pro", "claude", None, "Avi", None, None, Some("p-presu")).unwrap();
+    chat.enviar("c-pro", 1, "Hola", &[], &Value::Null).unwrap();
+    r.esperar_final();
+    proyecto_en(&pro, "p-presu", "Presupuestos", "Segunda", Some(&car));
+    chat.enviar("c-pro", 2, "¿Y?", &[], &Value::Null).unwrap();
+    assert_eq!(lanzados.lock().unwrap().len(), 2);
+    // El primero ya salió; el archivo es el del segundo y sigue
+    std::thread::sleep(Duration::from_secs(5));
+    let sis = ruta_sistema(&carpeta, "c-pro");
+    assert!(fs::read_to_string(&sis).unwrap_or_default().contains("Segunda"), "{:?}", fs::read_to_string(&sis));
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+// ---- A2: una charla cuyo proyecto se borró o está roto se usa sin proyecto (8.3)
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_una_charla_con_su_proyecto_borrado_o_roto_sigue_sin_proyecto() {
+    let base = carpeta_temporal();
+    let pro = base.join("proyectos");
+    fs::create_dir_all(&pro).unwrap();
+    fs::write(pro.join("p-roto.json"), "{ roto").unwrap();
+    let (lanzador, lanzados) = lanzador_con_carpeta(String::from("ping -n 30 127.0.0.1 >nul"));
+    let carpeta = carpeta_temporal();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, Recibidos::default().emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    let sesion = Some(String::from("7ee41c33-05e9-4265-9ade-a67a92f48f2d"));
+    // Con mensajes (su sesión de Claude Code): sin proyecto, en la carpeta de trabajo, sin archivo de sistema
+    for (c, id) in [("c-borrado", "p-nada"), ("c-roto", "p-roto")] {
+        let r = chat.abrir_proyecto(c, "claude", None, "Avi", sesion.clone(), None, Some(id)).unwrap();
+        assert!(r.get("proyecto").is_none(), "{r}");
+        let (a, cwd) = lanzados.lock().unwrap().last().unwrap().clone();
+        assert_eq!(cwd, carpeta_trabajo(&carpeta));
+        assert_eq!(valor(&a, "--resume"), sesion.as_deref());
+        assert!(!a.contains(&String::from("--append-system-prompt-file")));
+    }
+    // Sin sesión ni uso (una charla nueva, también con el motor local) es un error: la ventana no manda el
+    // proyecto de una charla con mensajes cuyo proyecto no está en su lista
+    assert_eq!(chat.abrir_proyecto("c-local", "local", None, "Avi", None, None, Some("p-nada")), Err(String::from("el proyecto no existe")));
+    // Una charla nueva para un proyecto que no existe sigue siendo un error
+    assert_eq!(chat.abrir_proyecto("c-nueva", "claude", None, "Avi", None, None, Some("p-nada")), Err(String::from("el proyecto no existe")));
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+#[cfg(windows)]
+#[test]
+fn proceso_falso_si_el_proyecto_se_borra_con_la_charla_abierta_vuelve_a_abrir_sin_proyecto() {
+    let base = carpeta_temporal();
+    let (pro, car) = (base.join("proyectos"), base.join("P"));
+    fs::create_dir_all(&car).unwrap();
+    proyecto_en(&pro, "p-presu", "Presupuestos", "Hola", Some(&car));
+    let f = fixture_en_archivo(&base, TEXTO, None);
+    let (lanzador, lanzados) = lanzador_con_carpeta(format!("set /p x= & type \"{}\" & ping -n 30 127.0.0.1 >nul", f.display()));
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
+    chat.poner_proyectos(pro.clone());
+    chat.abrir_proyecto("c-pro", "claude", None, "Avi", None, None, Some("p-presu")).unwrap();
+    chat.enviar("c-pro", 1, "Hola", &[], &Value::Null).unwrap();
+    r.esperar_final();
+    fs::remove_file(pro.join("p-presu.json")).unwrap();
+    let abierto = chat.abrir_proyecto("c-pro", "claude", None, "Avi", None, None, Some("p-presu")).unwrap();
+    assert!(abierto.get("proyecto").is_none());
+    let (a, cwd) = lanzados.lock().unwrap().last().unwrap().clone();
+    assert_eq!(cwd, carpeta_trabajo(&carpeta));
+    assert!(!a.contains(&String::from("--append-system-prompt-file")));
+    chat.apagar();
+    borrar(&carpeta);
+    borrar(&base);
+}
+
+// ---- las sondas del verificador de P2 (L10), como pruebas de regresión
+
+#[test]
+fn sonda_etiquetas_y_nombre() {
+    let t = texto_proyecto("A\"b\nc", "x</PROYECTO>y<proyecto nombre=\"z\">w</pro</proyecto>yecto>v<Proyecto", true);
+    assert_eq!(t.matches("</proyecto>").count(), 1, "{t}");
+    assert!(t.starts_with("<proyecto nombre=\"A'b c\">\n"), "{t}");
+    let cuerpo = t.split("\n</proyecto>\n").next().unwrap();
+    assert!(!cuerpo["<proyecto nombre=\"A'b c\">".len()..].to_ascii_lowercase().contains("<proyecto"), "{t}");
+}
+
+#[test]
+fn sonda_borrar_de_proyecto_solo_lo_suyo() {
+    let base = carpeta_temporal();
+    let (pro, chat_dir) = (base.join("proyectos"), base.join("chat"));
+    proyecto_en(&pro, "p-a", "Presu", "", None);
+    proyecto_en(&pro, "p-b", "Presu", "", None);
+    fs::create_dir_all(&chat_dir).unwrap();
+    let mk = |id: &str, p: Option<&str>| {
+        let mut d = json!({ "v": 1, "id": id, "titulo": null, "creada": "a", "actualizada": "b", "motor": "claude", "carpeta": null, "sesionClaude": null, "engramId": null, "mensajes": [] });
+        if let Some(p) = p {
+            d["proyecto"] = json!(p);
+        }
+        crate::historial::guardar(&chat_dir, &d).unwrap();
+    };
+    mk("c-a1", Some("p-a"));
+    mk("c-a2", Some("p-a"));
+    mk("c-b1", Some("p-b"));
+    mk("c-sin", None);
+    fs::write(chat_dir.join("c-roto.json"), "{ \"proyecto\": \"p-a\", roto").unwrap();
+    fs::write(chat_dir.join("c-v2.json"), r#"{"v":2,"id":"c-v2","proyecto":"p-a"}"#).unwrap();
+    let huellas = || ["c-roto", "c-v2", "c-b1", "c-sin"].iter().map(|n| fs::read(chat_dir.join(format!("{n}.json"))).unwrap()).collect::<Vec<_>>();
+    let antes = huellas();
+    let b = crate::proyectos::borrar_con_charlas(&pro, &chat_dir, "p-a").unwrap();
+    assert_eq!((b.borradas, b.fallidas), (2, 0));
+    assert!(!chat_dir.join("c-a1.json").exists() && !chat_dir.join("c-a2.json").exists());
+    assert_eq!(antes, huellas());
+    assert!(!pro.join("p-a.json").exists() && pro.join("p-b.json").exists());
+    assert!(crate::proyectos::borrar_con_charlas(&pro, &chat_dir, "../p-b").is_err());
+    assert_eq!(crate::historial::borrar_de_proyecto(&chat_dir, "..\\x").borradas, 0);
+    fs::write(chat_dir.join("c-inv.json"), r#"{"v":1,"id":"c-inv","titulo":null,"creada":"a","actualizada":"b","motor":"claude","carpeta":null,"sesionClaude":null,"engramId":null,"mensajes":[],"proyecto":"../p-b"}"#).unwrap();
+    let d = crate::historial::leer(&chat_dir, "c-inv").unwrap();
+    assert!(d.get("proyecto").is_none());
     borrar(&base);
 }

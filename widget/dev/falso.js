@@ -121,6 +121,14 @@
 //   ?proyectos=guardarfalla  crear y guardar fallan: «No se pudo guardar el proyecto. Probá de nuevo.» con «Reintentar»
 //   &proyectoslento      proyectos_leer tarda 1,2 s (las filas esqueleto de 7.1)
 //   «Una de esta PC» imita el diálogo de Windows (D:\Proyectos\{nombre}); lo guardado queda en window.__proyectos.
+// Soltar archivos (#44, P3, proyectos-ux.md 4.7 y 10): con ?proyectos=lista (Presupuestos 2027, creada por Avis, con
+//   tarifas-2027.xlsx, informe.pdf y notas.md), window.__soltarEnZona([rutas]) suelta sobre la zona como Tauri.
+//   &soltar=encima     los archivos encima de la zona, sin soltar (las hormigas y el fondo del color)
+//   &soltar=copiando   soltados y Rust todavía copiando (la zona sigue viva, aria-busy)
+//   &soltar=listo      3 archivos, uno repetido: «Copiados 3 archivos a Presupuestos 2027. Copiado como informe (2).», 3 → 6
+//   &soltar=rechazado  una carpeta y un archivo: «No se pudo copiar Fotos.» debajo de la zona; el archivo entra
+//   &soltar=tope       21 archivos: los 20 primeros y «Van hasta 20 archivos por vez: 1 quedó sin copiar.»
+//   Un nombre sin punto se toma como carpeta; lo copiado queda en window.__soltados.
 // Resumen semanal de Hábitos (#41, entrega H3, habitos-ux.md 8.4): sin ?resumen, preferencias.json ya dice que se
 //   vio el de esta semana (habitosResumen) y no sale. Con ?resumen, nunca se vio: sale el de la semana pasada
 //   (o el de esta, un domingo desde las 18 de Argentina), con los cinco hábitos falsos. Sin la pregunta de catalogo.
@@ -237,6 +245,14 @@
 //   ?chat=error        un error reintentable («No se pudo guardar…») con «Reintentar» y «Abrir Tareas»
 //   ?chat=nollego      dos tarea_crear y un solo cambio: «Un cambio no llegó a Avis»
 //   ?chat=local-herr   con Local: la línea punteada, la respuesta en texto y su globo abierto
+// La charla del proyecto (#44, P2, proyectos-ux.md 8): con ?proyectos=lista (o sola), «Nueva charla» de un proyecto
+//   ?chat=proyecto            Presupuestos 2027: el chip, la luz ámbar, «✓ Carpeta, cuando hace falta» y una respuesta
+//                             que lee tarifas-2027.xlsx de la carpeta («↳ Leyó …»)
+//   ?chat=proyecto-local      lo mismo con el modelo local (instalado): «— Carpeta: solo con Claude Code», «solo instrucciones»
+//   ?chat=proyecto-perdida    Mudanza (la carpeta perdida): «Carpeta perdida» y «No encuentro la carpeta del proyecto…»
+//   ?chat=proyecto-cajon      el cajón filtrado por Presupuestos 2027 («Ver las n charlas»), con «Ver todas»
+//   Con ?proyectos=…, Presupuestos 2027 trae 2 charlas guardadas (&charlas=muchas: 7, y «Ver las 7 charlas»);
+//   &borrarfalla: borrar el proyecto deja una charla sin borrar («No se pudo borrar 1 charla. Probá de nuevo.»)
 //   Con &tareas=hoy, la hoja de Tareas abierta al lado: la fila que entra con su destello (8)
 // window.__arrastrar({ type: 'enter' | 'over' | 'drop' | 'leave', paths, position }) imita el arrastre
 // de Tauri (onDragDropEvent, px físicos); window.__soltarEnHoja([ruta]) suelta en el medio de la hoja.
@@ -841,6 +857,7 @@
   const carpetaPedida = (modo, nombre) => (modo === 'elegir'
     ? carpetaF('pc', `D:\\Proyectos\\${nombre}`, 4)
     : carpetaF('avis', `${DOCS}\\${nombre.replace(/[<>:"/\\|?*]/g, '').trim() || 'Proyecto'}`, 0))
+  let borradoFallo = false
   const comandosProyectos = {
     // Como proyectos.rs: por orden y creado, con los rotos (&proyectoslento tarda 1,2 s: las filas esqueleto)
     proyectos_leer: () => new Promise((r, no) => setTimeout(() => {
@@ -876,14 +893,55 @@
       console.info('[proyectos] carpeta', id, p.carpeta.ruta)
       return { proyecto: structuredClone(p) }
     },
+    // Como proyectos.rs (P2): primero sus charlas y, solo si se borraron todas, el proyecto (&borrarfalla: una queda la primera vez)
     proyecto_borrar: ({ id }) => {
       if (!idProyecto(id)) return { error: 'id de proyecto inválido' }
-      proyectosFalsos.delete(id)
-      console.info('[proyectos] borrado', id, '(la carpeta queda)')
-      return { charlas: 0, fallidas: 0 }
+      const suyas = [...archivos.values()].filter(d => d.proyecto === id).map(d => d.id)
+      const falla = url.has('borrarfalla') && !borradoFallo && suyas.length ? 1 : 0
+      if (falla) borradoFallo = true
+      for (const c of suyas.slice(falla)) archivos.delete(c)
+      if (!falla) proyectosFalsos.delete(id)
+      console.info('[proyectos] borrado', id, `${suyas.length - falla} charlas, ${falla} sin borrar`, '(la carpeta queda)')
+      return { charlas: suyas.length - falla, fallidas: falla }
     },
     proyecto_abrir_carpeta: ({ id }) => console.info('[explorador]', proyectosFalsos.get(id)?.carpeta?.ruta),
     proyectos_abrir_carpeta: () => console.info('[explorador] <config>\\proyectos'),
+    // Como proyectos::soltar (P3): solo en la carpeta de Avis; copia sin pisar (« (2)»), una carpeta no, hasta 20
+    proyecto_soltar: ({ id, rutas }) => new Promise(r => setTimeout(() => {
+      const p = proyectosFalsos.get(id)
+      if (!p || p.carpeta?.tipo !== 'avis' || p.carpeta.estado !== 'ok') { r({ error: 'la carpeta del proyecto no es de Avis', motivo: null }); return }
+      const hay = adentroFalso.get(id) ?? new Set()
+      adentroFalso.set(id, hay)
+      const copiados = [], renombrados = [], fallidos = []
+      rutas.forEach((ruta, i) => {
+        const nombre = String(ruta).split('\\').pop()
+        if (i >= 20) { fallidos.push({ nombre, motivo: 'tope' }); return }
+        if (!nombre.includes('.')) { fallidos.push({ nombre, motivo: 'carpeta' }); return }
+        let como = nombre
+        for (let k = 2; hay.has(como.toLowerCase()); k++) como = nombre.replace(/(\.[^.]+)?$/, ` (${k})$1`)
+        hay.add(como.toLowerCase())
+        copiados.push(como)
+        if (como !== nombre) renombrados.push({ nombre, como })
+      })
+      proyectosFalsos.set(id, { ...p, carpeta: { ...p.carpeta, archivos: hay.size } })
+      window.__soltados.push({ id, copiados, renombrados, fallidos })
+      console.info('[proyectos] soltar', id, copiados, fallidos)
+      r({ copiados, renombrados, fallidos })
+    }, url.get('soltar') === 'copiando' ? 600000 : 700)),
+  }
+  /** Lo que hay en la carpeta de cada proyecto creada por Avis (para el « (2)»). */
+  const adentroFalso = new Map([['p-presu', new Set(modoProyectos === 'recien' ? [] : ['tarifas-2027.xlsx', 'informe.pdf', 'notas.md'])]])
+  window.__soltados = []
+  /** Suelta archivos sobre la zona del proyecto elegido, como Tauri: enter, over y drop en px físicos. */
+  window.__soltarEnZona = (rutas, { soltar = true } = {}) => {
+    const zona = document.querySelector('#pro .soltar')
+    if (!zona || !window.__arrastrar) return
+    zona.scrollIntoView({ block: 'nearest' })
+    const r = zona.getBoundingClientRect()
+    const position = { x: (r.left + r.width / 2) * devicePixelRatio, y: (r.top + r.height / 2) * devicePixelRatio }
+    window.__arrastrar({ type: 'enter', paths: rutas, position })
+    window.__arrastrar({ type: 'over', position })
+    if (soltar) setTimeout(() => window.__arrastrar({ type: 'drop', paths: rutas, position }), 700)
   }
   // ?proyectos=…: abre la hoja como el usuario (el clic en la fila «Proyectos») y va a cada caso
   if (modoProyectos !== null) {
@@ -895,6 +953,16 @@
         else if (modoProyectos === 'perdida') clic('ix-p-mud')
         else if (modoProyectos === 'borrar') clic('borrar')
         else if (modoProyectos === 'editar') clic('editar')
+        // &soltar=…: los archivos sobre la zona de Presupuestos 2027 (P3)
+        const D = 'C:\\Users\\quintana\\Downloads'
+        const casoSoltar = {
+          encima: [[`${D}\\presupuesto-espiga.pdf`], { soltar: false }],
+          copiando: [[`${D}\\presupuesto-espiga.pdf`, `${D}\\logo.png`]],
+          listo: [[`${D}\\presupuesto-espiga.pdf`, `${D}\\informe.pdf`, `${D}\\fotos-local.zip`]],
+          rechazado: [[`${D}\\Fotos`, `${D}\\presupuesto-espiga.pdf`]],
+          tope: [Array.from({ length: 21 }, (_, i) => `${D}\\factura-${String(i + 1).padStart(2, '0')}.pdf`)],
+        }[url.get('soltar')]
+        if (casoSoltar) setTimeout(() => window.__soltarEnZona(...casoSoltar), 600)
       }, 400)
     }, 900)
   }
@@ -1076,7 +1144,7 @@
   const GB = 1024 ** 3
   const TOTAL_MODELO = Math.round(2.6 * GB)
   const modeloLocal = {
-    modelo: url.get('modelo') === 'listo' || chatEsc === 'error-red' || chatEsc === 'local-herr' ? 'listo' : ['bajando', 'roto'].includes(url.get('modelo')) ? url.get('modelo') : 'falta',
+    modelo: url.get('modelo') === 'listo' || chatEsc === 'error-red' || chatEsc === 'local-herr' || chatEsc === 'proyecto-local' ? 'listo' : ['bajando', 'roto'].includes(url.get('modelo')) ? url.get('modelo') : 'falta',
     bajado: url.get('modelo') === 'bajando' ? Math.round(0.4 * GB) : 0,
     total: TOTAL_MODELO, motor: 'apagado', primeraVez: true, aceleracion: 'gpu',
   }
@@ -1130,6 +1198,21 @@
       { rol: 'mascota', texto: 'Se sumó el **filtro por marca** y se arregló el pedido duplicado.', cuando: ayer, estado: 'ok', herramientas: [{ nombre: 'Grep', detalle: 'filtro' }], ms: 2400 },
     ],
   }]])
+  // Las charlas guardadas de Presupuestos 2027 (#44, P2), solo con ?proyectos=… o una charla de proyecto
+  if (url.has('proyectos') || chatEsc?.startsWith('proyecto')) {
+    const TITULOS = ['Presupuesto web La Espiga', 'Tarifas de mantenimiento', 'Tienda de Ñandú Café', 'Hosting para Brasa', 'Cotización app turnos', 'Revisión de IVA', 'Plan de pagos Quintech']
+    const cuantas = url.get('charlas') === 'muchas' ? 7 : 2
+    for (let k = 0; k < cuantas; k++) {
+      const cuando = new Date(Date.now() - (2 + k * 20) * 3600 * 1000).toISOString()
+      const id = `c-falsa-presu-${k}`
+      archivos.set(id, {
+        v: 1, id, titulo: TITULOS[k], creada: cuando, actualizada: cuando, motor: 'claude', carpeta: 'C:\\Users\\quintana\\OneDrive\\Documentos\\Avis\\Presupuestos 2027', sesionClaude: null, engramId: null, proyecto: 'p-presu',
+        mensajes: Array.from({ length: 2 + 2 * k }, (_, i) => (i % 2
+          ? { rol: 'mascota', texto: 'Con las tarifas 2027: **$ 1.450.000 + IVA**.', cuando, estado: 'ok', herramientas: [{ nombre: 'Read', detalle: 'tarifas-2027.xlsx' }], ms: 3100 }
+          : { rol: 'usuario', texto: `${TITULOS[k]}: ¿cuánto sale?`, cuando, estado: 'ok', adjuntos: [] })),
+      })
+    }
+  }
   const emitirChat = (c, turno, tipo, datos = {}) => emitir('oficina://chat', { conversacion: c, turno, tipo, ...datos })
   const RESPUESTA = [
     'Tenés **3 sesiones** abiertas. Esto es lo importante:', '',
@@ -1151,6 +1234,8 @@
     const luego = (ms, f) => relojes.push(setTimeout(f, ms))
     const terminar = () => { if (enCurso?.turno === turno && enCurso.c === c) enCurso = null }
     const rapido = chatEsc === 'historial'
+    // La charla del proyecto (#44, P2): lee el archivo de tarifas de la carpeta y responde en pesos
+    if (conocidas.get(c)?.proyecto) { turnoProyectoFalso(c, turno, luego, terminar); return }
     luego(80, () => emitirChat(c, turno, 'recibido'))
     luego(rapido ? 120 : 420, () => emitirChat(c, turno, 'listo', { sesion: conocidas.get(c).sesion }))
     luego(rapido ? 160 : 900, () => emitirChat(c, turno, 'pidiendo'))
@@ -1177,6 +1262,20 @@
   // herramienta escribe en las listas falsas (window.__tareas), emite su cambio por oficina://chat y la
   // lista tocada por oficina://tareas; chat_deshacer y chat_reintentar siguen sus reglas.
   const ESCENAS_HERR = new Set(['recibo', 'recibos', 'deshecho', 'despues', 'lectura', 'borrar', 'error', 'nollego'])
+  /** El turno de una charla de proyecto con Claude Code (#44, 8.2): la línea «↳ Leyó …» y la respuesta. */
+  function turnoProyectoFalso(c, turno, luego, terminar) {
+    const perdida = conocidas.get(c).carpeta === 'perdida'
+    luego(80, () => emitirChat(c, turno, 'recibido'))
+    luego(420, () => emitirChat(c, turno, 'listo', { sesion: conocidas.get(c).sesion }))
+    luego(900, () => emitirChat(c, turno, 'pidiendo'))
+    if (!perdida) luego(1100, () => emitirChat(c, turno, 'herramienta', { nombre: 'Read', detalle: 'tarifas-2027.xlsx' }))
+    const respuesta = perdida
+      ? 'No veo la carpeta del proyecto, así que voy con tus instrucciones: pasame los metros y lo armo.'
+      : 'Con las tarifas 2027:\n\n- Diseño y desarrollo, 5 secciones: $ 1.450.000\n- Tienda chica, hasta 40 productos: $ 620.000\n\nTotal: **$ 2.070.000 + IVA**. ¿Le sumo el mantenimiento mensual?'
+    let t = 1300
+    for (const p of trozos(respuesta)) luego((t += 60), () => emitirChat(c, turno, 'texto', { texto: p }))
+    luego(t + 120, () => { emitirChat(c, turno, 'fin', { ms: t + 120 }); terminar() })
+  }
   let nCambio = 0
   const idCambio = () => `c-falso${++nCambio}`
   const listaDeTarea = id => [...listasTareas.values()].find(l => l.tareas.some(t => t.id === id)) ?? null
@@ -1326,14 +1425,19 @@
       if (modeloLocal.modelo === 'bajando') modeloLocal.modelo = 'falta'
       emitirModelo('cancelado', {})
     },
-    chat_abrir: ({ conversacion, motor, sesionClaude, modelo = null }) => {
+    chat_abrir: ({ conversacion, motor, sesionClaude, modelo = null, proyecto = null }) => {
       const antes = conocidas.get(conversacion)
       const sesion = antes?.sesion ?? sesionClaude ?? crypto.randomUUID()
-      conocidas.set(conversacion, { motor, sesion, modelo })
+      // #44 (11.4): con un proyecto, Rust lee su carpeta y sus instrucciones; la ventana manda solo el id
+      const p = proyecto ? proyectosFalsos.get(proyecto) : null
+      if (proyecto && !p) throw new Error('el proyecto no existe')
+      conocidas.set(conversacion, { motor, sesion, modelo, proyecto, carpeta: p?.carpeta?.estado ?? null })
+      if (p) console.info('[chat] proyecto', proyecto, p.carpeta?.ruta, `${[...(p.instrucciones ?? '')].length} caracteres de instrucciones`)
       // Como Rust: con otro modelo (#35), la misma sesión con --model <alias>; "Por defecto", sin --model
       console.info('[chat] abrir', conversacion, motor, modelo ?? 'por defecto')
       const local = { listo: 'instalado', bajando: 'bajando', roto: 'roto' }[modeloLocal.modelo] ?? 'falta'
-      return { proceso: motor === 'claude' ? 'arrancando' : 'apagado', sesion, engram: url.has('engram') ? 'si' : 'no', local }
+      const datosPro = p ? { proyecto: { id: p.id, nombre: p.nombre, color: p.color, carpeta: { nombre: p.carpeta?.nombre ?? '', ruta: p.carpeta?.ruta ?? '', estado: p.carpeta?.estado ?? 'sin' } } } : {}
+      return { proceso: motor === 'claude' ? 'arrancando' : 'apagado', sesion, engram: url.has('engram') ? 'si' : 'no', local, ...datosPro }
     },
     chat_enviar: ({ conversacion, turno, texto, adjuntos = [], historia = null }) => {
       const c = conocidas.get(conversacion)
@@ -1360,7 +1464,7 @@
       console.info('[chat] guardar', conversacion.id, conversacion.mensajes.length, engram ? '+ engram' : '')
     },
     chat_historial: () => [...archivos.values()].sort((a, b) => Date.parse(b.actualizada) - Date.parse(a.actualizada))
-      .map(({ mensajes, ...cab }) => ({ ...cab, texto: mensajes.map(m => m.texto).filter(Boolean).join('\n') })),
+      .map(({ mensajes, ...cab }) => ({ ...cab, texto: mensajes.map(m => m.texto).filter(Boolean).join('\n'), cuantos: mensajes.length })),
     chat_leer: ({ id }) => {
       const doc = archivos.get(id)
       if (!doc) throw new Error('no existe (falso)')
@@ -1409,6 +1513,20 @@
     window.__arrastrar({ type: 'over', position })
     if (soltar) setTimeout(() => window.__arrastrar({ type: 'drop', paths: rutas, position }), 700)
   }
+  /** ?chat=proyecto…: abre Proyectos (si ?proyectos= no lo hizo), elige el proyecto y toca su botón de charla o «Ver las n charlas». */
+  function escenaProyecto(ch) {
+    if (!document.querySelector('#pro .idx') && modoProyectos === null) document.querySelector('#pro-fila')?.click()
+    const clic = sel => document.querySelector(sel)?.click()
+    setTimeout(() => {
+      if (chatEsc === 'proyecto-perdida') clic('#pro [data-k="ix-p-mud"]')
+      setTimeout(() => {
+        if (chatEsc === 'proyecto-cajon') { if (document.querySelector('#pro [data-k="ver-charlas"]')) clic('#pro [data-k="ver-charlas"]'); else ch.despachar({ tipo: 'hist-proyecto', proyecto: 'p-presu' }); return }
+        clic('#pro [data-k="cta"]')
+        if (chatEsc === 'proyecto-local') setTimeout(() => clic('#chat-cab [data-motor="local"]'), 300)
+        setTimeout(() => ch.despachar({ tipo: 'enviar', texto: 'Armame el presupuesto de la web para La Espiga: 5 secciones y una tienda chica.' }), 1600)
+      }, 500)
+    }, 700)
+  }
   // ?chat=…: abre la hoja y la lleva a ese estado por el mismo camino que el usuario (window.__chat)
   window.__vistaDev = true
   if (chatEsc) {
@@ -1417,6 +1535,8 @@
       if (!ch) return
       // Acoplada, primero se abre el panel (la marca solo se ve con el panel abierto)
       if (acople) emitir('oficina://abrir')
+      // La charla del proyecto (#44, P2): desde la hoja de Proyectos, como el usuario («Nueva charla»)
+      if (chatEsc.startsWith('proyecto')) { escenaProyecto(ch); return }
       document.querySelector('#marca-boton')?.click()
       const preguntar = t => ch.despachar({ tipo: 'enviar', texto: t })
       const cuandoListo = f => { const r = setInterval(() => { if (ch.estado().estado === 'listo') { clearInterval(r); f() } }, 100) }

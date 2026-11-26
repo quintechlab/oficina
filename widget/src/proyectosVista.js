@@ -4,8 +4,8 @@
 // y los errores. Solo HTML, como tareasVista.js y habitosVista.js: los datos llegan armados desde main.js
 // y nada de acá toca el DOM. main.js redibuja por partes (`data-parte`) y nunca pisa un campo mientras se
 // escribe en él. Los textos son los de la sección 5.
-// Entrega P1: el botón de charla queda apagado (`aria-disabled`) y cada proyecto tiene 0 charlas hasta la
-// entrega P2; la zona de soltar abre la carpeta (soltar archivos es P3).
+// Entrega P2: el botón de charla abre una charla nueva del proyecto y la ficha lista sus charlas (4.4, 4.5);
+// la zona de soltar abre la carpeta (soltar archivos es P3).
 
 import { escapar } from './logica.js'
 import { avi, claudeDe } from './avis.js'
@@ -13,9 +13,10 @@ import { especieValida } from './especies.js'
 import { colorDe, COLORES } from './tareas.js'
 import { NOMBRES_COLOR } from './habitos.js'
 import { confirmable } from './tareasVista.js'
+import { horaCharla } from './chat.js'
 import {
   conPerdida, lineaProyecto, textoBorrar, lineaBorrar, etiquetaCarpeta, pieSoltar, abreviarRuta, previaCarpetaAvis,
-  textoErrorNombre, textoErrorInstrucciones, cuentaInstrucciones, textoRotos,
+  textoErrorNombre, textoErrorInstrucciones, cuentaInstrucciones, textoRotos, textoMensajes, verLasCharlas, TOPE_CHARLAS_FICHA,
 } from './proyectos.js'
 
 /** Los íconos de la hoja (los del boceto): la carpeta de 15 de la fila del menú, la grande del bloque y el lápiz. */
@@ -113,9 +114,11 @@ function carpetaNombre(c) {
 /**
  * El bloque Carpeta (4.7, 7.4): creada por Avis, la zona de soltar (que abre la carpeta; encendida, `.vivo`,
  * sin archivos ni charlas, 7.3); de la PC, «Abrir» y «Cambiar»; perdida, el texto de 5.2 con «Elegir otra»
- * y «Crear una nueva». `error`: la carpeta rechazada o que no se pudo crear (5.2).
+ * y «Crear una nueva». `error`: la carpeta rechazada o que no se pudo crear (5.2). `soltar` (P3): con
+ * archivos encima o copiando, las hormigas (`.encima`; copiando, además `aria-busy` y «Copiando…»), y debajo lo que no
+ * se pudo copiar (5.2).
  */
-function bloqueCarpeta(p, n, error) {
+function bloqueCarpeta(p, n, error, soltar = null) {
   const c = p.carpeta ?? { estado: 'sin' }
   const err = error ? lineaError(error) : ''
   const otra = '<div class="mini-acc"><button type="button" class="mini pri" data-accion="pro-carpeta-elegir" data-k="car-elegir">Elegir otra</button>'
@@ -127,7 +130,8 @@ function bloqueCarpeta(p, n, error) {
   }
   if (c.estado === 'sin') return `<section class="bloque car">${cab}${otra}${err}</section>`
   const extra = c.tipo === 'avis'
-    ? `<button type="button" class="soltar${!c.archivos && !n ? ' vivo' : ''}" data-accion="pro-abrir-carpeta" data-k="soltar">Soltá archivos acá<small>${escapar(pieSoltar(c.archivos))}</small></button>`
+    ? `<button type="button" class="soltar${!c.archivos && !n ? ' vivo' : ''}${soltar?.encima || soltar?.copiando ? ' encima' : ''}"${soltar?.copiando ? ' aria-busy="true"' : ''} data-accion="pro-abrir-carpeta" data-k="soltar">${soltar?.copiando ? 'Copiando…' : 'Soltá archivos acá'}<small>${escapar(pieSoltar(c.archivos))}</small></button>`
+      + (soltar?.error ? lineaError(soltar.error) : '')
     : '<div class="mini-acc"><button type="button" class="mini" data-accion="pro-abrir-carpeta" data-k="car-abrir">Abrir</button>'
       + '<button type="button" class="mini" data-accion="pro-carpeta-elegir" data-k="car-cambiar">Cambiar</button></div>'
   return `<section class="bloque car">${cab}${carpetaNombre(c)}<span class="tag">${escapar(etiquetaCarpeta(c))}</span>${extra}${err}</section>`
@@ -159,24 +163,47 @@ function sinCharlas(p, especie, mascota = 'Avi') {
 
 /**
  * El proyecto elegido (3.4, 4.3 a 4.9), en el orden en que se usa: el encabezado con el lápiz, el botón
- * de charla, las charlas, las instrucciones, la carpeta, la matriz y «Borrar proyecto». `n`: sus charlas
- * (0 hasta P2). `armado`/`transcurrido`: el borrado que espera el segundo clic (4.11).
+ * de charla, las charlas, las instrucciones, la carpeta, la matriz y «Borrar proyecto». `n`: sus charlas;
+ * `charlas`: las del proyecto, de la más nueva a la más vieja (`charlasDe`); `actual`: la abierta en la hoja.
+ * `armado`/`transcurrido`: el borrado que espera el segundo clic (4.11).
  */
-export function fichaProyecto({ p, n = 0, especie = 'avi', mascota = 'Avi', armado = false, transcurrido = 0, errorCarpeta = null }) {
+export function fichaProyecto({ p, n = 0, charlas = [], actual = null, ahoraMs = Date.now(), especie = 'avi', mascota = 'Avi', armado = false, transcurrido = 0, errorCarpeta = null, errorBorrar = null, soltar = null }) {
   const nombre = escapar(p.nombre)
   const perdida = p.carpeta?.estado === 'perdida'
   const linea = perdida ? escapar(lineaProyecto(p, n)).replace('carpeta perdida', '<span class="rojo">carpeta perdida</span>') : escapar(lineaProyecto(p, n))
   const cab = `<div class="f-cab"><span class="pj-ic" aria-hidden="true">${inicial(p.nombre)}</span>`
     + `<div class="f-t"><h2 id="pro-h2" tabindex="-1">${nombre}</h2><small>${linea}</small></div>`
     + `<button type="button" class="tb" data-accion="pro-editar" data-k="editar" aria-label="Editar ${nombre}" title="Editar">${ICONO_PRO.lapiz}</button></div>`
-  // La charla del proyecto llega con P2: hasta entonces el botón se ve pero no hace nada
-  const cta = `<button type="button" class="cta" data-accion="pro-charla" data-k="cta" aria-disabled="true"><span class="cta-av" aria-hidden="true">${avi(mascotaDe(especie), 'saluda', 30)}</span>`
+  // «Nueva charla» (8.1): una charla nueva del proyecto en la hoja, con el foco en su campo
+  const cta = `<button type="button" class="cta" data-accion="pro-charla" data-k="cta"><span class="cta-av" aria-hidden="true">${avi(mascotaDe(especie), 'saluda', 30)}</span>`
     + `<span>${n ? 'Nueva charla' : 'Empezar la primera charla'}</span></button>`
   const borrar = `<div class="borrar-z">${confirmable('pro-borrar', p.id, 'borrar', 'Borrar proyecto', textoBorrar(n), armado, transcurrido)}`
-    + (armado ? `<small>${escapar(lineaBorrar(n))}</small>` : '') + '</div>'
-  // Los `h3` de 12: «Charlas» y «Qué ve cada motor» no tienen rótulo a la vista (boceto), van para el lector
-  return `<div class="ficha" style="--c:${color(p.color)}">${cab}${cta}<h3 class="oculto">Charlas</h3>${sinCharlas(p, especie, mascota)}`
-    + `${bloqueInstrucciones(p, mascota)}${bloqueCarpeta(p, n, errorCarpeta)}<h3 class="oculto">Qué ve cada motor</h3>${MATRIZ}${borrar}</div>`
+    + (armado ? `<small>${escapar(lineaBorrar(n))}</small>` : '')
+    // Borrar con fallas (5.2): el proyecto queda hasta que se borren todas, con «Reintentar»
+    + (errorBorrar ? lineaError(errorBorrar, lnk('pro-borrar-reintentar', 'borrar-reintentar', 'Reintentar')) : '') + '</div>'
+  // Los `h3` de 12: «Qué ve cada motor» no tiene rótulo a la vista (boceto), va para el lector; «Charlas», solo con charlas
+  const lista = charlas.length
+    ? `<section class="chs"><h3 class="rot">Charlas</h3>${listaCharlasFicha(charlas, n, actual, ahoraMs)}</section>`
+    : `<h3 class="oculto">Charlas</h3>${sinCharlas(p, especie, mascota)}`
+  return `<div class="ficha" style="--c:${color(p.color)}">${cab}${cta}${lista}`
+    + `${bloqueInstrucciones(p, mascota)}${bloqueCarpeta(p, n, errorCarpeta, soltar)}<h3 class="oculto">Qué ve cada motor</h3>${MATRIZ}${borrar}</div>`
+}
+
+/**
+ * Las charlas del proyecto (4.5): las 5 más recientes, cada una con su título, «{n} mensajes» y la fecha
+ * del cajón (`horaCharla`); la abierta en la hoja, marcada. Con más, «Ver las {n} charlas» (el cajón
+ * filtrado, 8.3).
+ */
+function listaCharlasFicha(charlas, n, actual, ahoraMs) {
+  const filas = charlas.slice(0, TOPE_CHARLAS_FICHA).map(x => {
+    const id = escapar(x.id)
+    const cur = x.id === actual ? ' aria-current="true"' : ''
+    const mensajes = x.cuantos ?? x.mensajes?.length ?? 0
+    return `<button type="button" class="chf" data-accion="pro-retomar" data-id="${id}" data-k="ch-${id}"${cur}><b>${escapar(x.titulo ?? 'Charla')}</b>`
+      + `<small>${escapar(horaCharla(x.actualizada, ahoraMs))}</small><span>${escapar(textoMensajes(mensajes))}</span></button>`
+  })
+  const mas = n > TOPE_CHARLAS_FICHA ? `<button type="button" class="lnk" data-accion="pro-ver-charlas" data-k="ver-charlas">${escapar(verLasCharlas(n))}</button>` : ''
+  return filas.join('') + mas
 }
 
 // ------------------------------------------------------------------ el formulario (4.10)

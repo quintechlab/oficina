@@ -364,3 +364,453 @@ fn ruta_para_abrir_revalida_la_carpeta() {
     assert!(ruta_para_abrir(&c, "p-..").is_err());
     fs::remove_dir_all(c).unwrap();
 }
+
+// ------------------------------------------------------------------ soltar archivos (11.2, P3)
+
+/// Un proyecto con su carpeta creada por Avis (`tipo`), en `c/config`, y la carpeta en `c/Docs/Avis/<nombre>`.
+fn con_carpeta(c: &Path, id: &str, tipo: &str) -> (PathBuf, PathBuf) {
+    let config = c.join("config");
+    let car = c.join("Docs").join("Avis").join(id);
+    fs::create_dir_all(&car).unwrap();
+    crear(&config, &proyecto(id, id, json!({ "tipo": tipo, "ruta": car.to_string_lossy() }))).unwrap();
+    (config, car)
+}
+
+/// Los archivos de una carpeta, por nombre, con su hash.
+fn contenido(car: &Path) -> Vec<(String, Vec<u8>)> {
+    let mut v: Vec<(String, Vec<u8>)> = fs::read_dir(car).unwrap().filter_map(Result::ok).map(|e| (e.file_name().to_string_lossy().into_owned(), hash(&e.path()))).collect();
+    v.sort();
+    v
+}
+
+fn rutas(v: &[&PathBuf]) -> Vec<String> {
+    v.iter().map(|p| p.to_string_lossy().into_owned()).collect()
+}
+
+#[test]
+fn soltar_tres_con_uno_repetido_deja_cuatro_y_los_originales_intactos() {
+    let c = carpeta_temporal();
+    let (config, car) = con_carpeta(&c, "p-presu", "avis");
+    fs::write(car.join("informe.pdf"), b"el informe que ya estaba").unwrap();
+    let h_estaba = hash(&car.join("informe.pdf"));
+    let origen = c.join("Descargas");
+    fs::create_dir_all(&origen).unwrap();
+    let (a, informe, notas) = (origen.join("tarifas.xlsx"), origen.join("informe.pdf"), origen.join("notas.md"));
+    fs::write(&a, b"precios").unwrap();
+    fs::write(&informe, b"el informe nuevo").unwrap();
+    fs::write(&notas, b"# notas").unwrap();
+    let antes = [hash(&a), hash(&informe), hash(&notas)];
+    let r = soltar(&config, "p-presu", &rutas(&[&a, &informe, &notas]), &sin_reglas()).unwrap();
+    assert_eq!(r["copiados"], json!(["tarifas.xlsx", "informe (2).pdf", "notas.md"]));
+    assert_eq!(r["renombrados"], json!([{ "nombre": "informe.pdf", "como": "informe (2).pdf" }]));
+    assert_eq!(r["fallidos"], json!([]));
+    // Cuatro en la carpeta: el que estaba sin tocar y las copias con el contenido de los originales
+    let dentro = contenido(&car);
+    assert_eq!(dentro.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), ["informe (2).pdf", "informe.pdf", "notas.md", "tarifas.xlsx"]);
+    assert_eq!(hash(&car.join("informe.pdf")), h_estaba);
+    assert_eq!(hash(&car.join("informe (2).pdf")), antes[1]);
+    assert_eq!(hash(&car.join("tarifas.xlsx")), antes[0]);
+    // Copia, nunca mueve: los originales siguen donde estaban, iguales
+    assert_eq!([hash(&a), hash(&informe), hash(&notas)], antes);
+    // Soltar otra vez el mismo: « (3)», nunca pisa
+    let r2 = soltar(&config, "p-presu", &rutas(&[&informe]), &sin_reglas()).unwrap();
+    assert_eq!(r2["copiados"], json!(["informe (3).pdf"]));
+    assert_eq!(hash(&car.join("informe (2).pdf")), antes[1]);
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn soltar_una_carpeta_se_rechaza_y_no_copia_nada() {
+    let c = carpeta_temporal();
+    let (config, car) = con_carpeta(&c, "p-presu", "avis");
+    let fotos = c.join("Fotos");
+    fs::create_dir_all(&fotos).unwrap();
+    fs::write(fotos.join("a.jpg"), b"a").unwrap();
+    let r = soltar(&config, "p-presu", &rutas(&[&fotos]), &sin_reglas()).unwrap();
+    assert_eq!(r["copiados"], json!([]));
+    assert_eq!(r["fallidos"], json!([{ "nombre": "Fotos", "motivo": "carpeta" }]));
+    assert!(contenido(&car).is_empty());
+    assert!(fotos.join("a.jpg").is_file());
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn soltar_21_copia_los_20_primeros_y_avisa_el_tope() {
+    let c = carpeta_temporal();
+    let (config, car) = con_carpeta(&c, "p-presu", "avis");
+    let origen = c.join("Descargas");
+    fs::create_dir_all(&origen).unwrap();
+    let archivos: Vec<PathBuf> = (1..=21).map(|i| origen.join(format!("f{i:02}.txt"))).collect();
+    for (i, a) in archivos.iter().enumerate() {
+        fs::write(a, format!("archivo {i}")).unwrap();
+    }
+    let r = soltar(&config, "p-presu", &rutas(&archivos.iter().collect::<Vec<_>>()), &sin_reglas()).unwrap();
+    assert_eq!(TOPE_SOLTAR, 20);
+    assert_eq!(r["copiados"].as_array().unwrap().len(), 20);
+    assert_eq!(r["copiados"][19], "f20.txt");
+    assert_eq!(r["fallidos"], json!([{ "nombre": "f21.txt", "motivo": "tope" }]));
+    assert_eq!(contenido(&car).len(), 20);
+    assert!(!car.join("f21.txt").exists());
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn soltar_solo_en_carpetas_creadas_por_avis() {
+    let c = carpeta_temporal();
+    let (config, car) = con_carpeta(&c, "p-lect", "pc");
+    let a = c.join("a.txt");
+    fs::write(&a, b"a").unwrap();
+    assert!(soltar(&config, "p-lect", &rutas(&[&a]), &sin_reglas()).is_err());
+    assert!(contenido(&car).is_empty());
+    // Sin carpeta, perdida, o en una carpeta que ya no se acepta (11.2): nada
+    crear(&config, &proyecto("p-sin", "Sin", Value::Null)).unwrap();
+    assert!(soltar(&config, "p-sin", &rutas(&[&a]), &sin_reglas()).is_err());
+    crear(&config, &proyecto("p-mud", "Mudanza", json!({ "tipo": "avis", "ruta": c.join("No esta").to_string_lossy() }))).unwrap();
+    assert!(soltar(&config, "p-mud", &rutas(&[&a]), &sin_reglas()).is_err());
+    let (_, car_presu) = con_carpeta(&c, "p-presu", "avis");
+    assert!(soltar(&config, "p-presu", &rutas(&[&a]), &Reglas::con(vec![c.join("Docs")])).is_err());
+    assert!(contenido(&car_presu).is_empty());
+    // Un id que no es de proyecto nunca arma una ruta
+    assert!(soltar(&config, "p-..", &rutas(&[&a]), &sin_reglas()).is_err());
+    assert!(soltar(&config, "..\\p-presu", &rutas(&[&a]), &sin_reglas()).is_err());
+    assert_eq!(hash(&a), Sha256::digest(b"a").to_vec());
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn soltar_rechaza_lo_que_no_es_un_archivo_de_afuera_y_sigue_con_el_resto() {
+    let c = carpeta_temporal();
+    let (config, car) = con_carpeta(&c, "p-presu", "avis");
+    fs::write(car.join("ya.txt"), b"ya adentro").unwrap();
+    let h_ya = hash(&car.join("ya.txt"));
+    let bien = c.join("bien.txt");
+    fs::write(&bien, b"bien").unwrap();
+    let grande = c.join("grande.bin");
+    fs::write(&grande, vec![7u8; 11]).unwrap();
+    let pedido = vec![
+        String::from("relativo.txt"),
+        c.join("no-esta.txt").to_string_lossy().into_owned(),
+        car.join("ya.txt").to_string_lossy().into_owned(),
+        grande.to_string_lossy().into_owned(),
+        bien.to_string_lossy().into_owned(),
+    ];
+    let r = soltar_con(&config, "p-presu", &pedido, &sin_reglas(), 10).unwrap();
+    assert_eq!(r["copiados"], json!(["bien.txt"]));
+    assert_eq!(
+        r["fallidos"],
+        json!([
+            { "nombre": "relativo.txt", "motivo": "ruta" },
+            { "nombre": "no-esta.txt", "motivo": "no-existe" },
+            { "nombre": "ya.txt", "motivo": "adentro" },
+            { "nombre": "grande.bin", "motivo": "grande" },
+        ])
+    );
+    assert_eq!(hash(&car.join("ya.txt")), h_ya);
+    assert!(!car.join("ya (2).txt").exists());
+    assert!(!car.join("grande.bin").exists());
+    assert_eq!(TOPE_BYTES_SOLTAR, 200 * 1024 * 1024);
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn nombre_copia_suma_el_numero_antes_de_la_extension() {
+    assert_eq!(nombre_copia("informe.pdf", 1), "informe.pdf");
+    assert_eq!(nombre_copia("informe.pdf", 2), "informe (2).pdf");
+    assert_eq!(nombre_copia("datos.tar.gz", 3), "datos.tar (3).gz");
+    assert_eq!(nombre_copia("LEEME", 2), "LEEME (2)");
+    assert_eq!(nombre_copia(".env", 2), ".env (2)");
+}
+
+// Sondas del verificador de P3 (25/11), como tests de regresión: copiar nunca pisa ni mueve, los rechazos
+// no escriben nada, el tope de 20 y de 200 MB, la copia a medias, los destinos que no sirven y los nombres.
+mod sondas {
+    use super::*;
+    use std::process::Command;
+
+    /// La carpeta de cada sonda (dentro de `carpeta_temporal`). Al salir, primero se sacan los enlaces
+    /// (junctions: uno apunta a C:\Windows\Temp) sin tocar su destino, y después se borra todo.
+    struct Base(PathBuf);
+    impl std::ops::Deref for Base {
+        type Target = PathBuf;
+        fn deref(&self) -> &PathBuf { &self.0 }
+    }
+    impl AsRef<Path> for Base {
+        fn as_ref(&self) -> &Path { &self.0 }
+    }
+    impl Drop for Base {
+        fn drop(&mut self) {
+            fn sacar_enlaces(d: &Path) {
+                let Ok(it) = fs::read_dir(d) else { return };
+                for e in it.filter_map(Result::ok) {
+                    let p = e.path();
+                    match fs::symlink_metadata(&p) {
+                        Ok(m) if m.file_type().is_symlink() || es_junction(&p) => { let _ = fs::remove_dir(&p).or_else(|_| fs::remove_file(&p)); }
+                        Ok(m) if m.is_dir() => sacar_enlaces(&p),
+                        _ => {}
+                    }
+                }
+            }
+            fn es_junction(p: &Path) -> bool {
+                use std::os::windows::fs::MetadataExt;
+                fs::symlink_metadata(p).map(|m| m.file_attributes() & 0x400 != 0).unwrap_or(false)
+            }
+            sacar_enlaces(&self.0);
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn base() -> Base {
+        Base(carpeta_temporal())
+    }
+    fn lista(car: &Path) -> Vec<(String, Vec<u8>)> {
+        let mut v: Vec<(String, Vec<u8>)> = Vec::new();
+        for e in fs::read_dir(car).unwrap().filter_map(Result::ok) {
+            let p = e.path();
+            if p.is_dir() {
+                for e2 in fs::read_dir(&p).unwrap().filter_map(Result::ok) {
+                    v.push((e2.path().to_string_lossy().into_owned(), hash(&e2.path())));
+                }
+                v.push((p.to_string_lossy().into_owned(), vec![]));
+            } else {
+                v.push((p.to_string_lossy().into_owned(), hash(&p)));
+            }
+        }
+        v.sort();
+        v
+    }
+    fn r1(p: &Path) -> Vec<String> {
+        vec![p.to_string_lossy().into_owned()]
+    }
+    fn junction(link: &Path, destino: &Path) -> bool {
+        Command::new("cmd").args(["/C", "mklink", "/J"]).arg(link).arg(destino).output().map(|o| o.status.success()).unwrap_or(false)
+    }
+
+    #[test]
+    fn sonda_tres_con_repetido_cuatro_y_originales_siguen() {
+        let c = base();
+        let (config, car) = con_carpeta(&c, "p-a", "avis");
+        fs::write(car.join("informe.pdf"), b"viejo").unwrap();
+        let h = hash(&car.join("informe.pdf"));
+        let o = c.join("o");
+        fs::create_dir_all(&o).unwrap();
+        let fs3 = [o.join("informe.pdf"), o.join("b.txt"), o.join("c.md")];
+        for (i, f) in fs3.iter().enumerate() {
+            fs::write(f, format!("x{i}")).unwrap();
+        }
+        let antes: Vec<_> = fs3.iter().map(|f| hash(f)).collect();
+        let r = soltar(&config, "p-a", &fs3.iter().map(|p| p.to_string_lossy().into_owned()).collect::<Vec<_>>(), &sin_reglas()).unwrap();
+        assert_eq!(r["fallidos"], json!([]));
+        assert_eq!(contenido(&car).len(), 4);
+        assert_eq!(hash(&car.join("informe.pdf")), h);
+        for (f, a) in fs3.iter().zip(&antes) {
+            assert!(f.is_file());
+            assert_eq!(&hash(f), a);
+        }
+        assert_eq!(hash(&car.join("informe (2).pdf")), antes[0]);
+    }
+
+    #[test]
+    fn sonda_rechazos_no_escriben() {
+        let c = base();
+        let (config, car) = con_carpeta(&c, "p-a", "avis");
+        fs::write(car.join("ya.txt"), b"ya").unwrap();
+        fs::create_dir_all(car.join("sub")).unwrap();
+        fs::write(car.join("sub").join("hondo.txt"), b"hondo").unwrap();
+        let antes = lista(&car);
+        let o = c.join("o");
+        fs::create_dir_all(o.join("dir")).unwrap();
+        fs::write(o.join("real.txt"), b"real").unwrap();
+        let j = c.join("jun");
+        assert!(junction(&j, &o.join("dir")), "mklink /J");
+        let j2 = c.join("jdest");
+        assert!(junction(&j2, &car), "mklink /J dest");
+        let sl = c.join("sl.txt");
+        let hay_sl = std::os::windows::fs::symlink_file(o.join("real.txt"), &sl).is_ok();
+        let sl_adentro = c.join("sl-adentro.txt");
+        let hay_sl2 = std::os::windows::fs::symlink_file(car.join("ya.txt"), &sl_adentro).is_ok();
+        let mut pedido = vec![
+            o.join("dir").to_string_lossy().into_owned(),
+            j.to_string_lossy().into_owned(),
+            c.join("nada.txt").to_string_lossy().into_owned(),
+            String::from(r"o\real.txt"),
+            String::from(""),
+            car.join("ya.txt").to_string_lossy().into_owned(),
+            car.join("YA.TXT").to_string_lossy().into_owned(),
+            car.join("sub").join("hondo.txt").to_string_lossy().into_owned(),
+            j2.join("ya.txt").to_string_lossy().into_owned(),
+            format!("{}\\.\\ya.txt", car.to_string_lossy()),
+            format!("{}\\sub\\..\\ya.txt", car.to_string_lossy()),
+        ];
+        if hay_sl {
+            pedido.push(sl.to_string_lossy().into_owned());
+        }
+        if hay_sl2 {
+            pedido.push(sl_adentro.to_string_lossy().into_owned());
+        }
+        let r = soltar(&config, "p-a", &pedido, &sin_reglas()).unwrap();
+        eprintln!("rechazos: {r} (symlink={hay_sl},{hay_sl2})");
+        assert_eq!(r["copiados"], json!([]), "{r}");
+        assert_eq!(r["fallidos"].as_array().unwrap().len(), pedido.len());
+        assert_eq!(lista(&car), antes);
+        assert!(o.join("real.txt").is_file());
+    }
+
+    #[test]
+    fn sonda_21_y_tope() {
+        let c = base();
+        let (config, car) = con_carpeta(&c, "p-a", "avis");
+        let v: Vec<String> = (0..21)
+            .map(|i| {
+                let p = c.join(format!("f{i}.txt"));
+                fs::write(&p, "z").unwrap();
+                p.to_string_lossy().into_owned()
+            })
+            .collect();
+        let r = soltar(&config, "p-a", &v, &sin_reglas()).unwrap();
+        assert_eq!(r["copiados"].as_array().unwrap().len(), 20);
+        assert_eq!(r["fallidos"], json!([{ "nombre": "f20.txt", "motivo": "tope" }]));
+        assert_eq!(contenido(&car).len(), 20);
+        assert!(!car.join("f20.txt").exists());
+    }
+
+    #[test]
+    fn sonda_mas_de_200mb_disperso_no_deja_nada() {
+        let c = base();
+        let (config, car) = con_carpeta(&c, "p-a", "avis");
+        let g = c.join("enorme.bin");
+        let f = fs::File::create(&g).unwrap();
+        f.set_len(TOPE_BYTES_SOLTAR + 1).unwrap();
+        drop(f);
+        let justo = c.join("justo.bin");
+        fs::File::create(&justo).unwrap().set_len(TOPE_BYTES_SOLTAR).unwrap();
+        let r = soltar(&config, "p-a", &[g.to_string_lossy().into_owned(), justo.to_string_lossy().into_owned()], &sin_reglas()).unwrap();
+        assert_eq!(r["fallidos"], json!([{ "nombre": "enorme.bin", "motivo": "grande" }]), "{r}");
+        assert_eq!(r["copiados"], json!(["justo.bin"]));
+        assert!(!car.join("enorme.bin").exists());
+        assert_eq!(fs::metadata(car.join("justo.bin")).unwrap().len(), TOPE_BYTES_SOLTAR);
+        assert_eq!(fs::metadata(&g).unwrap().len(), TOPE_BYTES_SOLTAR + 1);
+    }
+
+    #[test]
+    fn sonda_copia_a_medias_se_borra_y_la_que_estaba_no() {
+        let c = base();
+        let (config, car) = con_carpeta(&c, "p-a", "avis");
+        fs::write(car.join("x.txt"), b"la que estaba").unwrap();
+        let h = hash(&car.join("x.txt"));
+        let src = c.join("x.txt");
+        fs::write(&src, vec![1u8; 100_000]).unwrap();
+        // Otro handle con candado exclusivo: abrir anda, leer falla (ERROR_LOCK_VIOLATION)
+        let candado = fs::OpenOptions::new().read(true).write(true).open(&src).unwrap();
+        candado.lock().unwrap();
+        let r = soltar(&config, "p-a", &r1(&src), &sin_reglas()).unwrap();
+        candado.unlock().unwrap();
+        drop(candado);
+        eprintln!("a medias: {r}");
+        assert_eq!(r["copiados"], json!([]), "{r}");
+        assert_eq!(r["fallidos"][0]["motivo"], "copiar");
+        assert!(!car.join("x (2).txt").exists(), "la copia a medias quedó");
+        assert_eq!(hash(&car.join("x.txt")), h);
+        assert_eq!(contenido(&car).len(), 1);
+        assert_eq!(fs::read(&src).unwrap().len(), 100_000);
+    }
+
+    #[test]
+    fn sonda_destino_que_no_sirve() {
+        let c = base();
+        let a = c.join("a.txt");
+        fs::write(&a, b"a").unwrap();
+        let config = c.join("config");
+        let (_, car_pc) = con_carpeta(&c, "p-pc", "pc");
+        assert!(soltar(&config, "p-pc", &r1(&a), &sin_reglas()).is_err());
+        assert!(contenido(&car_pc).is_empty());
+        for (id, ruta) in [
+            ("p-raiz", String::from(r"C:\")),
+            ("p-win", String::from(r"C:\Windows\Temp")),
+            ("p-unc", String::from(r"\\localhost\C$\Users")),
+            ("p-arch", a.to_string_lossy().into_owned()),
+        ] {
+            crear(&config, &proyecto(id, id, json!({ "tipo": "avis", "ruta": ruta }))).unwrap();
+            let r = soltar(&config, id, &r1(&a), &Reglas::del_sistema(&config));
+            eprintln!("{id}: {r:?}");
+            assert!(r.is_err(), "{id}");
+        }
+        assert!(!PathBuf::from(r"C:\a.txt").exists());
+        let j = c.join("Docs").join("Avis").join("jwin");
+        fs::create_dir_all(j.parent().unwrap()).unwrap();
+        assert!(junction(&j, Path::new(r"C:\Windows\Temp")));
+        crear(&config, &proyecto("p-jwin", "jwin", json!({ "tipo": "avis", "ruta": j.to_string_lossy() }))).unwrap();
+        assert!(soltar(&config, "p-jwin", &r1(&a), &Reglas::del_sistema(&config)).is_err());
+        for id in ["", "p-", "P-a", "p-a/../b", r"p-a\..\b", "..", "p-a.json", "con"] {
+            assert!(soltar(&config, id, &r1(&a), &sin_reglas()).is_err(), "{id}");
+        }
+        assert!(soltar(&config, "p-noesta", &r1(&a), &sin_reglas()).is_err());
+        let car = c.join("Docs").join("Avis").join("up");
+        fs::create_dir_all(&car).unwrap();
+        let creado = crear(&config, &proyecto("p-up", "up", json!({ "tipo": "AVIS", "ruta": car.to_string_lossy() })));
+        eprintln!("tipo AVIS: crear {:?}", creado.as_ref().map(|d| d["carpeta"].clone()));
+        assert!(soltar(&config, "p-up", &r1(&a), &sin_reglas()).is_err());
+        assert!(contenido(&car).is_empty());
+        assert_eq!(hash(&a), Sha256::digest(b"a").to_vec());
+    }
+
+    #[test]
+    fn sonda_nombres() {
+        let c = base();
+        let (config, car) = con_carpeta(&c, "p-a", "avis");
+        fs::write(car.join("a.txt"), b"uno").unwrap();
+        fs::write(car.join("a (2).txt"), b"dos").unwrap();
+        fs::write(car.join(".env"), b"env").unwrap();
+        fs::write(car.join("LEEME"), b"leeme").unwrap();
+        let antes = contenido(&car);
+        let o = c.join("o");
+        fs::create_dir_all(&o).unwrap();
+        for (n, t) in [("a.txt", "A"), (".env", "E"), ("LEEME", "L")] {
+            fs::write(o.join(n), t).unwrap();
+        }
+        let r = soltar(&config, "p-a", &[o.join("a.txt"), o.join(".env"), o.join("LEEME")].iter().map(|p| p.to_string_lossy().into_owned()).collect::<Vec<_>>(), &sin_reglas()).unwrap();
+        assert_eq!(r["copiados"], json!(["a (3).txt", ".env (2)", "LEEME (2)"]), "{r}");
+        for (n, h) in &antes {
+            assert_eq!(&hash(&car.join(n)), h, "{n}");
+        }
+        assert_eq!(fs::read(car.join("a (3).txt")).unwrap(), b"A");
+        let mut probados = Vec::new();
+        for n in ["com1.txt", "nul.txt", "con.txt", "aux.pdf", "lpt1.log"] {
+            let normal = o.join(n);
+            let verbatim = PathBuf::from(format!(r"\\?\{}", normal.to_string_lossy()));
+            let ok = fs::write(&verbatim, n.as_bytes()).is_ok();
+            let es_archivo = fs::symlink_metadata(&normal).map(|m| m.is_file()).unwrap_or(false);
+            probados.push(format!("{n}: creado={ok} visible_normal={es_archivo}"));
+            if !ok {
+                continue;
+            }
+            let r = soltar(&config, "p-a", &r1(&normal), &sin_reglas()).unwrap();
+            let en_dest = PathBuf::from(format!(r"\\?\{}", car.join(n).to_string_lossy()));
+            probados.push(format!("  -> {r} existe_en_destino={}", en_dest.is_file()));
+            if r["copiados"].as_array().unwrap().len() == 1 {
+                let como = r["copiados"][0].as_str().unwrap();
+                let real = PathBuf::from(format!(r"\\?\{}", car.join(como).to_string_lossy()));
+                assert!(real.is_file(), "{n}: dijo copiado y no está: {r}");
+            }
+        }
+        eprintln!("{}", probados.join("\n"));
+    }
+
+    #[test]
+    fn sonda_mismo_archivo_dos_veces_y_carrera() {
+        let c = base();
+        let (config, car) = con_carpeta(&c, "p-a", "avis");
+        let a = c.join("d.txt");
+        fs::write(&a, b"d").unwrap();
+        let v = vec![a.to_string_lossy().into_owned(); 2];
+        let (c1, c2) = (config.clone(), config.clone());
+        let (v1, v2) = (v.clone(), v.clone());
+        let t1 = std::thread::spawn(move || soltar(&c1, "p-a", &v1, &sin_reglas()).unwrap());
+        let t2 = std::thread::spawn(move || soltar(&c2, "p-a", &v2, &sin_reglas()).unwrap());
+        let (r1_, r2_) = (t1.join().unwrap(), t2.join().unwrap());
+        let mut todos: Vec<String> = r1_["copiados"].as_array().unwrap().iter().chain(r2_["copiados"].as_array().unwrap()).map(|x| x.as_str().unwrap().to_string()).collect();
+        todos.sort();
+        todos.dedup();
+        assert_eq!(todos.len(), 4, "{r1_} {r2_}");
+        assert_eq!(contenido(&car).len(), 4);
+    }
+}

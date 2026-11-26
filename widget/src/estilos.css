@@ -2789,7 +2789,7 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
 #pro .car-n b { display: block; font: var(--t-cuerpo-f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #pro .car-n small { display: block; font: var(--t-mono-s); color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #pro .tag { display: inline-flex; justify-self: start; padding: 3px 7px; border-radius: 6px; background: var(--s3); font: var(--t-mono-s); color: var(--crema2) }
-/* La zona de soltar (4.7): el borde punteado dibujado con gradientes; encendida (`.vivo`, 7.3) o al pasar, las hormigas marchan */
+/* La zona de soltar (4.7): el borde punteado dibujado con gradientes; encendida (`.vivo`, 7.3), al pasar o con archivos encima (`.encima`, P3), las hormigas marchan */
 #pro .soltar {
   --lh: var(--linea-hover);
   display: grid; place-items: center; align-content: center; gap: 3px; min-height: 54px; padding: 8px; border: 0; border-radius: 10px;
@@ -2801,11 +2801,13 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
     linear-gradient(var(--lh) 50%, transparent 0) 100% 0 / 1px 10px repeat-y;
 }
 #pro .soltar small { font: var(--t-mono-s); color: var(--tenue) }
-#pro .soltar:hover, #pro .soltar.vivo { --lh: var(--c); color: var(--crema) }
-#pro .soltar.vivo { background-color: color-mix(in srgb, var(--c) 8%, transparent) }
+#pro .soltar:hover, #pro .soltar.vivo, #pro .soltar.encima { --lh: var(--c); color: var(--crema) }
+#pro .soltar.vivo, #pro .soltar.encima { background-color: color-mix(in srgb, var(--c) 8%, transparent) }
+/* P3: archivos encima o copiando (`.encima`, 4.7 y 10); copiando, además `aria-busy` */
+#pro .soltar[aria-busy="true"] { cursor: progress }
 @keyframes proHormigas { to { background-position: 10px 0, -10px 100%, 0 -10px, 100% 10px } }
 @media (prefers-reduced-motion: no-preference) {
-  body:not(.pausa) #pro .soltar:hover, body:not(.pausa) #pro .soltar.vivo { animation: proHormigas 1s linear infinite }
+  body:not(.pausa) #pro .soltar:hover, body:not(.pausa) #pro .soltar.vivo, body:not(.pausa) #pro .soltar.encima { animation: proHormigas 1s linear infinite }
 }
 #pro .mini-acc { display: flex; gap: 6px; flex-wrap: wrap }
 #pro .mini {
@@ -2903,3 +2905,77 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
 }
 body.pausa #pro .ix-b, body.pausa #pro .cta, body.pausa #pro .mini, body.pausa #pro .oc, body.pausa #pro .col::after,
 body.pausa #pro .btn-pri, body.pausa #pro .btn-sec, body.pausa #pro .soltar, body.pausa #pro .ind-ix { transition: none }
+
+/* ------------------------------------------------------------------ la charla del proyecto (#44, P2: proyectos-ux.md 4.5, 8 y 10) */
+
+/* Las charlas de la ficha (4.5): filas de 44 con el título, «{n} mensajes» y la fecha; la abierta en la hoja, marcada */
+#pro .chs { display: grid; gap: 0; min-width: 0 }
+#pro .chs .rot { margin: 2px 0 4px 8px }
+#pro .chf {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; min-height: 44px; padding: 6px 8px;
+  border: 0; border-top: 1px solid var(--linea); border-radius: var(--r-fila); background: none; color: var(--crema); text-align: left; cursor: pointer;
+  transition: background var(--d-color) ease;
+}
+#pro .chs .rot + .chf { border-top: 0 }
+#pro .chf:hover, #pro .chf[aria-current="true"] { background: var(--s2) }
+#pro .chf b { min-width: 0; font: var(--t-cuerpo-f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#pro .chf small { grid-row: span 2; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#pro .chf span { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#pro .chs .lnk { justify-self: start }
+#pro .borrar-z .pro-err { margin-top: 6px }
+
+/* La luz del escenario con el color del proyecto (6, 8.2, 10): `--luz`, no `--c` (que es el de la mascota) */
+@property --luz { syntax: '<color>'; inherits: true; initial-value: #F2B632 }
+#hoja.de-proyecto .escenario {
+  background: radial-gradient(200px 90px at 50% 112px, color-mix(in srgb, var(--luz) 22%, transparent), transparent 70%), linear-gradient(var(--s1), var(--negro));
+  transition: --luz 600ms var(--ease);
+}
+#hoja.de-proyecto .escenario::after { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--luz) 70%, transparent), transparent) }
+#hoja.baja.de-proyecto .escenario { background: linear-gradient(var(--s1), var(--negro)) }
+
+/* El chip del proyecto (8.2), entre «Historial» y «Cerrar»: 32 de alto, el ícono de 22 con la inicial y el nombre hasta 220 */
+#hoja .arriba .pj-lugar { flex: 1; min-width: 0; display: flex; justify-content: center; padding: 0 8px }
+#hoja .pj-chip {
+  display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; height: 32px; padding: 0 10px 0 5px; border-radius: var(--r-pildora);
+  background: color-mix(in srgb, var(--c) 14%, var(--s2)); border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); color: var(--crema);
+  font: 800 12px/1 var(--f); transition: background var(--d-color) ease;
+}
+#hoja .pj-chip:hover { background: color-mix(in srgb, var(--c) 22%, var(--s2)) }
+#hoja .pj-chip .pj-ic { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); font: 600 11px/1 var(--m) }
+#hoja .pj-chip .n { min-width: 0; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#hoja .pj-chip small { flex: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
+#hoja.baja .pj-chip .n { max-width: 130px }
+
+/* La carpeta de la cabecera es la del proyecto (8.2, D-p12): sin flecha; con Local, tachada; perdida, en rojo */
+#hoja .ch-cab .carpeta.pro svg { color: var(--luz) }
+#hoja .ch-cab .carpeta.tachada .ruta, #hoja .ch-cab .carpeta.perdida .ruta { text-decoration: line-through }
+#hoja .ch-cab .carpeta.perdida { color: var(--rojo); border-color: rgba(255, 122, 107, .45) }
+#hoja .ch-cab .carpeta.perdida svg { color: var(--rojo) }
+
+/* Las marcas de contexto (8.2): una fila de 26 debajo de la cabecera */
+#hoja .ctx-p { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 0 8px; flex: none }
+#hoja .ctx-i {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px; border-radius: 8px; background: var(--s1); border: 1px solid var(--linea);
+  font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2);
+}
+#hoja .ctx-i i { font-style: normal; font-weight: 700 }
+#hoja .ctx-i.si i { color: var(--verde) }
+#hoja .ctx-i.no { color: var(--tenue); border-style: dashed }
+#hoja .ctx-i.mal { color: var(--rojo); border-style: dashed; border-color: rgba(255, 122, 107, .5) }
+
+/* El cajón (8.3): el punto y el nombre del proyecto de cada charla, y el filtro con «Ver todas» */
+#hoja .h-it .pt-pro { display: inline-block; width: 6px; height: 6px; margin: 0 5px 1px 0; border-radius: 50%; background: var(--c); vertical-align: middle }
+#hoja .filtro-pro {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; padding: 0 4px 0 10px; border-radius: var(--r-fila);
+  background: color-mix(in srgb, var(--c) 12%, var(--s2)); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); font: 700 12px/1.2 var(--f);
+}
+#hoja .filtro-pro span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#hoja .filtro-pro .lnk { flex: none; height: 28px; padding: 0 8px; border-radius: 6px; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
+#hoja .filtro-pro .lnk:hover { background: var(--s3); color: var(--crema) }
+
+@media (prefers-reduced-motion: reduce) {
+  /* La luz es color, no desplazamiento: cambia en 200 ms (10) */
+  #hoja.de-proyecto .escenario { transition-duration: 200ms }
+  #pro .chf, #hoja .pj-chip { transition: none }
+}
+body.pausa #hoja.de-proyecto .escenario, body.pausa #pro .chf, body.pausa #hoja .pj-chip { transition: none }

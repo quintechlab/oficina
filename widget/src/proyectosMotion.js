@@ -1,7 +1,8 @@
 // Movimiento de Proyectos (#44, docs/diseno/proyectos-ux.md 10) con anime.js v4: entrar al módulo, la
 // píldora del índice que viaja al proyecto elegido (con su color), las piezas del proyecto que entran, la
 // fila nueva que se abre con su punto que late y la fila borrada que se pliega. La cuenta de 3 s del
-// borrado armado y las hormigas de la zona de soltar son CSS (estilos.css, bajo #pro). Solo `transform` y
+// borrado armado y las hormigas de la zona de soltar son CSS (estilos.css, bajo #pro); al soltar (P3), la
+// zona se asienta y su número de archivos cuenta hasta el nuevo. Solo `transform` y
 // `opacity`, salvo el alto de la fila que se abre o se pliega. Con movimiento reducido: la píldora salta
 // y lo demás es un fundido de 160 ms; con "Pausar animaciones", todo al instante (`modoMovimiento` de chat.js).
 
@@ -130,4 +131,27 @@ export function plegarFila(fila) {
     fila.style.overflow = 'hidden'
     animate(fila, { height: [fila.offsetHeight, 0], minHeight: [fila.offsetHeight, 0], opacity: [1, 0], duration: 320, ease: 'outQuart', onComplete: () => resolver() })
   })
+}
+
+/**
+ * Soltar (10, P3): la zona hace `scale .97 → 1`, 420 ms `outBack(1.6)`. Reducido o en pausa, nada (las
+ * hormigas tampoco marchan: CSS).
+ */
+export function soltar(zona) {
+  if (!zona?.isConnected || modo() !== 'completo') return
+  animate(zona, { scale: [0.97, 1], duration: 420, ease: 'outBack(1.6)' })
+}
+
+/**
+ * Después de copiar (10): el número de archivos de la zona cuenta de `desde` hasta `hasta` (420 ms
+ * `outBack(1.6)`, sin pasarse); `texto(k)` es el pie (`pieSoltar`). Reducido o en pausa, el número nuevo
+ * ya está (lo puso el redibujo).
+ */
+export function contarArchivos(zona, desde, hasta, texto) {
+  const pie = zona?.querySelector('small')
+  if (!pie || !(hasta > desde) || modo() !== 'completo') return
+  const n = { k: desde }
+  const poner = () => { pie.textContent = texto(Math.min(hasta, Math.max(desde, Math.round(n.k)))) }
+  poner()
+  animate(n, { k: hasta, duration: 420, ease: 'outBack(1.6)', onUpdate: poner, onComplete: () => { pie.textContent = texto(hasta) } })
 }

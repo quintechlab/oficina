@@ -258,6 +258,8 @@ Módulo **`recibosMotion.js`** (anime.js v4 de `vendor/animejs`), llamado desde 
 
 **`INSTRUCCION_CHAT_LOCAL`** suma al final, en la misma línea: «No podés tocar tareas ni hábitos: si te lo piden, decí que con el modelo local todavía no y que lo puede hacer en una charla con Claude Code.»
 
+(#44 P2, decisión de Quintana del 25/11: `INSTRUCCION_CHAT` suma al final, en la misma línea, «Podés leer los archivos de la carpeta de trabajo con Read, Glob y Grep cuando la pregunta lo pida.», y `INSTRUCCION_CHAT_LOCAL` «Si el bloque <proyecto> pide otro idioma o estilo, seguilo antes que lo de arriba.». Medido en `proyectos-ux.md` 11.8; el texto vigente es el de `chat.rs` y `chat_local.rs`.)
+
 ### 11.4 Las herramientas (lista exacta)
 
 Nombres del servidor (Claude Code los ve como `mcp__avis__<nombre>`). Las descripciones son las que lee el modelo; van tal cual. Todas devuelven texto corto (para gastar pocos tokens) y, además, Rust emite el evento de 11.6. Las fechas son días de Argentina (`hoyArgentina`, tareas-ux 11.2).

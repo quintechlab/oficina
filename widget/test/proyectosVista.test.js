@@ -48,14 +48,14 @@ test('indiceProyectos: el rótulo, una fila por proyecto con su color y sus char
   assert.equal((indiceCargando().match(/ix-fantasma/g) ?? []).length, 3)
 })
 
-test('fichaProyecto, creado por Avis: encabezado con lápiz, el botón de charla apagado (P2), instrucciones, carpeta, matriz y borrar (3.4, 4.3 a 4.9)', () => {
+test('fichaProyecto, creado por Avis: encabezado con lápiz, el botón de charla (prendido desde P2), instrucciones, carpeta, matriz y borrar (3.4, 4.3 a 4.9)', () => {
   const html = fichaProyecto({ p: PRESU })
   const orden = ['class="f-cab"', 'class="cta"', 'class="vacio-ch"', 'class="bloque ins"', 'class="bloque car"', 'class="matriz"', 'class="borrar-z"']
   const pos = orden.map(x => html.indexOf(x))
   assert.ok(pos.every((p, i) => p >= 0 && (i === 0 || p > pos[i - 1])), `orden: ${pos}`)
   assert.match(html, /<h2 id="pro-h2" tabindex="-1">Presupuestos 2027<\/h2><small>sin charlas todavía · 3 archivos<\/small>/)
   assert.match(html, /aria-label="Editar Presupuestos 2027" title="Editar"/)
-  assert.match(html, /class="cta" data-accion="pro-charla" data-k="cta" aria-disabled="true"/)
+  assert.match(html, /class="cta" data-accion="pro-charla" data-k="cta">/)
   assert.match(sinEtiquetas(html), /Empezar la primera charla/)
   assert.match(sinEtiquetas(html), /Listo, ya existe\. Soltá los archivos del tema en la carpeta y empezá a charlar: Avi ya conoce tus instrucciones\./)
   assert.match(html, /<p class="instr">Respondé en pesos\.\nCon el IVA aparte\.<\/p><small class="pie">Van al empezar cada charla<\/small>/)
