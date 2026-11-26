@@ -1146,3 +1146,12 @@ test('al arrancar (también tras /reload-plugins) la presencia trae los subagent
   const agentes = s.presencia()?.agentes as Array<Record<string, unknown>>
   expect(agentes.map(a => [a.id, a.nombre, a.estado])).toEqual([['ag-1', 'Panel', 'trabajando']])
 })
+
+test('al arrancar sin turno en curso (sesión nueva o /reload-plugins) la presencia dice que te espera (v0.12.2)', async ($, on) => {
+  const s = await abrirSesion($, on)
+  expect(s.presencia()?.actividad).toBe('esperándote')
+  expect(s.presencia()?.enTurno).toBe(false)
+  // Con un turno, lo de siempre
+  await s.empezarTurno('t1')
+  expect(s.presencia()?.actividad).toBe('pensando')
+})
