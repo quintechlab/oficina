@@ -32,20 +32,20 @@
   --f: "Manrope", "Segoe UI Variable", sans-serif;
   --m: "Martian Mono", "Cascadia Mono", monospace;
   /* Densidad (2026-11-20): un escalón más chico, para que entre más en el mismo panel */
-  --t-display: 800 21px/1.1 var(--f);
-  --t-cifra: 800 22px/1 var(--f);
-  --t-marca: 800 16px/1.1 var(--f);
-  --t-titulo: 800 14.5px/1.3 var(--f);
-  --t-cuerpo-f: 700 13px/1.3 var(--f);
-  --t-cuerpo: 500 12.5px/1.45 var(--f);
-  --t-chico: 500 11.5px/1.35 var(--f);
-  --t-mono: 400 10.5px/1.5 var(--m);
-  --t-mono-s: 500 10px/1.3 var(--m);
-  --t-rotulo: 500 10px/1 var(--m);
+  --t-display: 800 22px/1.1 var(--f);
+  --t-cifra: 800 23px/1 var(--f);
+  --t-marca: 800 17px/1.1 var(--f);
+  --t-titulo: 800 15.5px/1.3 var(--f);
+  --t-cuerpo-f: 700 14px/1.3 var(--f);
+  --t-cuerpo: 500 13.5px/1.45 var(--f);
+  --t-chico: 500 12.5px/1.35 var(--f);
+  --t-mono: 400 11.5px/1.5 var(--m);
+  --t-mono-s: 500 11px/1.3 var(--m);
+  --t-rotulo: 500 11px/1 var(--m);
   /* Primeros pasos (bienvenida-ux.md 5): el título de cada paso y el código de GitHub (la única mono
-     por encima de 10.5: se copia y se compara letra por letra) */
-  --t-paso: 800 19px/1.15 var(--f);
-  --t-codigo: 600 22px/1 var(--m);
+     por encima de 11.5: se copia y se compara letra por letra) */
+  --t-paso: 800 20px/1.15 var(--f);
+  --t-codigo: 600 23px/1 var(--m);
 
   /* 3.3 espaciado */
   --e-1: 2px; --e-2: 4px; --e-3: 6px; --e-4: 8px; --e-5: 10px; --e-6: 12px; --e-7: 14px;
@@ -100,7 +100,7 @@
   --d-pestana: 320ms; --d-confirma: 3s;
   /* Tareas (docs/diseno/tareas-ux.md 6): el ancho del índice, la espera del tilde antes del pliegue y las tintas
      sobre el globo crema (entrega 3) */
-  --ancho-indice: 136px; --d-tilde: 700ms; --rojo-tinta: #B3321F; --ambar-tinta: #7A5A0E;
+  --ancho-indice: 146px; --d-tilde: 700ms; --rojo-tinta: #B3321F; --ambar-tinta: #7A5A0E;
 }
 
 /* ------------------------------------------------------------------ base */
@@ -170,8 +170,8 @@ h1, h2, h3 { font: inherit }
 .pt { display: inline-block; width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--c, var(--ambar)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c, var(--ambar)) 20%, transparent) }
 
 /* El ícono de un proyecto (iniciales en mono sobre su color): lo usan los chips de la tira de repos */
-.pj-ic { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: var(--r-icono); background: color-mix(in srgb, var(--c) 16%, transparent); color: var(--c); font: 500 10px/1 var(--m) }
-.chip { flex: none; padding: 5px var(--e-4); border-radius: var(--r-pildora); background: var(--s3); color: var(--crema2); font: 500 11px/1 var(--m); white-space: nowrap }
+.pj-ic { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: var(--r-icono); background: color-mix(in srgb, var(--c) 16%, transparent); color: var(--c); font: 500 11px/1 var(--m) }
+.chip { flex: none; padding: 5px var(--e-4); border-radius: var(--r-pildora); background: var(--s3); color: var(--crema2); font: 500 12px/1 var(--m); white-space: nowrap }
 .chip-preg { background: var(--ambar); color: var(--negro); font-weight: 600 }
 
 /* ------------------------------------------------------------------ menú de módulos (docs/diseno/modulos-ux.md, opción A "Menú", #42)
@@ -195,7 +195,7 @@ h1, h2, h3 { font: inherit }
 /* La cuenta (4.2): aria-hidden, a la derecha; el número va en el nombre de la fila */
 .mod-ct { display: contents }
 .mod .cuentas { flex: none; display: inline-flex; align-items: center; gap: 4px }
-.mod .chip { padding: 3px var(--e-3); font-size: 10px }
+.mod .chip { padding: 3px var(--e-3); font-size: 11px }
 .mod kbd { flex: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
 .mod > .mod-ct > .pt { margin-right: 3px }
 /* Abierta: texto e ícono ámbar; arriba el fondo lo pone la píldora */
@@ -224,13 +224,13 @@ h1, h2, h3 { font: inherit }
 .rch {
   flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 8px 0 6px;
   border: 1px solid var(--linea); border-radius: var(--r-pildora); background: none; color: var(--crema2);
-  font: 700 12px/1 var(--f); white-space: nowrap; cursor: pointer;
+  font: 700 13px/1 var(--f); white-space: nowrap; cursor: pointer;
   transition: background var(--d-color) ease, color var(--d-color) ease, border-color var(--d-color) ease, transform var(--d-presion) ease;
 }
 .rch:hover { color: var(--crema); border-color: var(--linea-hover) }
 .rch:active { transform: scale(.97) }
 .rch .pj-ic { width: 20px; height: 20px; border-radius: 50% }
-.rch .chip { padding: 3px var(--e-3); font-size: 10px }
+.rch .chip { padding: 3px var(--e-3); font-size: 11px }
 .rch[aria-current="true"] { background: var(--crema); color: var(--tinta); border-color: var(--crema) }
 .rch[aria-current="true"] .chip:not(.chip-preg) { background: rgba(20, 17, 12, .12); color: var(--tinta) }
 /* Sobre el crema, el contorno del foco es --tinta (12) */
@@ -251,7 +251,7 @@ body.pausa .mod, body.pausa .mod-ic, body.pausa .ind-mod, body.pausa .rch { tran
   display: flex; align-items: center; gap: 10px; width: 100%; min-height: 46px; padding: 0 6px; margin-bottom: 10px;
   border: 1px solid color-mix(in srgb, var(--ambar) 60%, transparent); border-radius: var(--r-pildora);
   background: linear-gradient(90deg, rgba(242, 182, 50, .14), var(--ambar-osc) 60%); box-shadow: 0 10px 26px -16px rgba(242, 182, 50, .7);
-  color: var(--crema); font: 600 12px/1.3 var(--f); text-align: left; cursor: pointer;
+  color: var(--crema); font: 600 13px/1.3 var(--f); text-align: left; cursor: pointer;
   transition: border-color var(--d-color) ease, transform var(--d-presion) ease;
 }
 .aviso-p:hover { border-color: var(--ambar) }
@@ -259,7 +259,7 @@ body.pausa .mod, body.pausa .mod-ic, body.pausa .ind-mod, body.pausa .rch { tran
 .aviso-p .cara { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--negro) }
 .aviso-p .t { flex: 1; min-width: 0; overflow-wrap: anywhere }
 .aviso-p .t small { display: block; font: var(--t-mono-s); color: var(--crema2) }
-.aviso-p .ir { flex: none; padding: 8px 12px; border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro); font: 800 11.5px/1 var(--f); white-space: nowrap; transition: filter var(--d-color) ease }
+.aviso-p .ir { flex: none; padding: 8px 12px; border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro); font: 800 12.5px/1 var(--f); white-space: nowrap; transition: filter var(--d-color) ease }
 .aviso-p:hover .ir { filter: brightness(1.08) }
 @media (prefers-reduced-motion: reduce) {
   .aviso-p, .aviso-p .ir { transition: none }
@@ -274,10 +274,10 @@ body.pausa .mod, body.pausa .mod-ic, body.pausa .ind-mod, body.pausa .rch { tran
 }
 .compa > summary::-webkit-details-marker { display: none }
 .compa > summary:hover { background: var(--s2) }
-.ini { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--violeta) 22%, transparent); color: var(--violeta); font: 600 10px/1 var(--m) }
+.ini { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--violeta) 22%, transparent); color: var(--violeta); font: 600 11px/1 var(--m) }
 .compa-t { flex: 1; min-width: 0 }
-.compa-t b { display: block; font-size: 12.5px; font-weight: 700; line-height: 1.3 }
-.compa-t small { display: block; font-size: 11px; line-height: 1.35; color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.compa-t b { display: block; font-size: 13.5px; font-weight: 700; line-height: 1.3 }
+.compa-t small { display: block; font-size: 12px; line-height: 1.35; color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .flecha { flex: none; color: var(--tenue); transition: transform var(--d-color) var(--ease) }
 .compa[open] > summary .flecha { transform: rotate(180deg) }
 .compa-nada { padding: var(--e-1) var(--e-4) var(--e-3); font: var(--t-chico); color: var(--tenue) }
@@ -286,14 +286,14 @@ body.pausa .mod, body.pausa .mod-ic, body.pausa .ind-mod, body.pausa .rch { tran
 /* Fila compacta de la sesión principal de un compañero */
 .fila { display: flex; align-items: center; gap: var(--e-3); margin: var(--e-1) 0 var(--e-2); padding: var(--e-3) var(--e-4) var(--e-3) var(--e-3); background: var(--s1); border: 1px solid var(--linea); border-radius: var(--r-cuadro) }
 .fila-t { flex: 1; min-width: 0 }
-.fila-t b { display: block; font-size: 12px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.fila-t b { display: block; font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 /* Bloque y no flex: así el texto largo termina en "…" en vez de cortarse */
-.fila .linea { display: block; margin-top: 0; font-size: 11px }
+.fila .linea { display: block; margin-top: 0; font-size: 12px }
 .fila .linea .pt { margin-right: var(--e-3); vertical-align: 1px }
 .fila .linea, .fila-t b { max-width: 100% }
 .cabezas { display: flex; flex: none; align-items: center; padding-left: var(--e-4) }
 .cabezas .avi { margin-left: -8px; border-radius: 50%; background: var(--s2); border: 2px solid var(--s1) }
-.mas-c { margin-left: var(--e-1); font: 600 10px/1 var(--m); color: var(--crema2) }
+.mas-c { margin-left: var(--e-1); font: 600 11px/1 var(--m); color: var(--crema2) }
 /* Con margen a los dos lados: con la hoja encima, el texto no llega al borde (chat-avis-ux.md 18, D-a) */
 .pie-w { margin: var(--e-4) var(--e-4) 0; font: var(--t-mono-s); color: var(--tenue) }
 .pie-w.error { color: var(--rojo) }
@@ -342,9 +342,9 @@ body.pausa .mod, body.pausa .mod-ic, body.pausa .ind-mod, body.pausa .rch { tran
 }
 .conteo-pt { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--c) }
 .conteo .reloj { flex: none; fill: none; stroke: var(--violeta); stroke-width: 1.5; stroke-linecap: round }
-.conteo b { font: 800 12.5px/1 var(--f); letter-spacing: -.02em; color: var(--crema) }
+.conteo b { font: 800 13.5px/1 var(--f); letter-spacing: -.02em; color: var(--crema) }
 /* Las unidades ("h", "m") a 10 px: a .58em de 12,5 quedarían en 7 */
-.conteo b .u { font: 700 10px/1 var(--f); letter-spacing: 0; color: var(--crema2) }
+.conteo b .u { font: 700 11px/1 var(--f); letter-spacing: 0; color: var(--crema2) }
 .conteo-err { font: var(--t-rotulo); color: var(--rojo) }
 .conteo-err b { color: var(--rojo) }
 
@@ -356,9 +356,9 @@ body.pausa .mod, body.pausa .mod-ic, body.pausa .ind-mod, body.pausa .rch { tran
 .ses-tit { display: flex; align-items: center; gap: var(--e-3); min-width: 0 }
 .ses-tit b { min-width: 0; font: var(--t-titulo); letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .ses-tit b.sin { color: var(--crema2) }
-.tag { flex: none; padding: 3px var(--e-3); border-radius: var(--r-tag); background: var(--ambar); color: var(--negro); font: 600 10.5px/1 var(--m) }
+.tag { flex: none; padding: 3px var(--e-3); border-radius: var(--r-tag); background: var(--ambar); color: var(--negro); font: 600 11.5px/1 var(--m) }
 .tag.sin { background: var(--s3); color: var(--crema2) }
-.linea { display: flex; align-items: center; gap: var(--e-3); margin-top: var(--e-2); color: var(--c); font-weight: 700; font-size: 12.5px; line-height: 1.4; min-width: 0 }
+.linea { display: flex; align-items: center; gap: var(--e-3); margin-top: var(--e-2); color: var(--c); font-weight: 700; font-size: 13.5px; line-height: 1.4; min-width: 0 }
 .linea, .fila-t b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .linea > span[data-vivo] { overflow: hidden; text-overflow: ellipsis }
 .ses > .linea { margin-top: 5px; line-height: 1.3 }
@@ -384,16 +384,16 @@ body.pausa .mod, body.pausa .mod-ic, body.pausa .ind-mod, body.pausa .rch { tran
 .esc .sub.dorm .avi { opacity: .6 }
 .esc .sub.dorm:hover .avi { opacity: 1 }
 .esc .rotulo { position: absolute; left: 0; right: 0; top: 53px; display: flex; flex-direction: column; gap: 1px; text-align: center; white-space: nowrap }
-.esc .rotulo b { overflow: hidden; text-overflow: ellipsis; font: 800 12px/1.25 var(--f); color: var(--c) }
-.esc .rotulo .tarea { overflow: hidden; text-overflow: ellipsis; padding: 0 3px; font: 500 11px/1.25 var(--f); color: var(--crema2) }
+.esc .rotulo b { overflow: hidden; text-overflow: ellipsis; font: 800 13px/1.25 var(--f); color: var(--c) }
+.esc .rotulo .tarea { overflow: hidden; text-overflow: ellipsis; padding: 0 3px; font: 500 12px/1.25 var(--f); color: var(--crema2) }
 .esc .rotulo em { overflow: hidden; text-overflow: ellipsis; font: var(--t-mono-s); font-style: normal; color: var(--ce, var(--ambar)) }
 /* La pila "+n": no es un control (sin hover ni foco); el marco punteado cubre cabecitas y rótulo */
 .esc .mas { position: absolute; top: 52px; height: 52px }
 .esc .mas::before { content: ""; position: absolute; inset: -6px -2px -44px; border: 1px dashed var(--linea-hover); border-radius: var(--r-ficha); background: rgba(255, 255, 255, .015) }
 .esc .cab-p { position: absolute; line-height: 0 }
 .esc .mas .rotulo { top: 49px }
-.esc .mas .rotulo b { font: 800 15px/1.25 var(--f); color: var(--crema) }
-.esc .mas .rotulo span { font: 500 11px/1.25 var(--f); color: var(--crema2) }
+.esc .mas .rotulo b { font: 800 16px/1.25 var(--f); color: var(--crema) }
+.esc .mas .rotulo span { font: 500 12px/1.25 var(--f); color: var(--crema2) }
 /* Hilos de coordinación (5.3): el trazo punteado queda fijo; un punto de luz lo recorre (8.2) */
 .hilos { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none }
 .hilos path { fill: none; stroke: var(--ambar); stroke-width: 1.4; stroke-dasharray: 2 5; stroke-linecap: round; opacity: .55 }
@@ -415,7 +415,7 @@ body.pausa .mod, body.pausa .mod-ic, body.pausa .ind-mod, body.pausa .rch { tran
 #marco.vacio .controles, #marco.cargando .controles { order: 0; align-self: flex-end }
 #marco.vacio .vacio-avi, #marco.cargando .vacio-avi { order: 1; display: grid; justify-items: center; margin: 0 0 var(--e-4) }
 #marco.vacio .cab-t, #marco.cargando .cab-t { order: 2; text-align: center; padding: 0 var(--e-4) var(--e-8) }
-#marco.vacio h1, #marco.cargando h1 { font: 800 18px/1.3 var(--f); letter-spacing: -.02em }
+#marco.vacio h1, #marco.cargando h1 { font: 800 19px/1.3 var(--f); letter-spacing: -.02em }
 #marco.vacio .cab p, #marco.cargando .cab p { margin-top: var(--e-2); color: var(--crema2) }
 #marco.vacio #otro, #marco.vacio #w-globo, #marco.vacio .conteos, #marco.vacio .sesiones,
 #marco.cargando #otro, #marco.cargando #w-globo, #marco.cargando .conteos, #marco.cargando .sesiones { display: none }
@@ -449,7 +449,7 @@ body.pausa .mod, body.pausa .mod-ic, body.pausa .ind-mod, body.pausa .rch { tran
 .preg-tab {
   position: relative; display: inline-flex; align-items: center; gap: var(--e-3); min-height: 28px; padding: 0 var(--e-5);
   border: 0; border-radius: var(--r-pildora); background: var(--s2); color: var(--crema2);
-  font-size: 11.5px; font-weight: 700; cursor: pointer;
+  font-size: 12.5px; font-weight: 700; cursor: pointer;
   transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
 }
 .preg-tab::before { content: ""; position: absolute; inset: -4px 0 }
@@ -472,15 +472,15 @@ body.pausa .mod, body.pausa .mod-ic, body.pausa .ind-mod, body.pausa .rch { tran
 }
 .op .n {
   grid-row: span 2; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px;
-  background: color-mix(in srgb, var(--violeta) 18%, var(--s2)); color: var(--violeta); font: 600 11px/1 var(--m);
+  background: color-mix(in srgb, var(--violeta) 18%, var(--s2)); color: var(--violeta); font: 600 12px/1 var(--m);
   transition: background var(--d-color) ease, color var(--d-color) ease;
 }
 .op b { font: var(--t-cuerpo-f); overflow-wrap: anywhere }
-.op small { grid-column: 2; font-size: 11.5px; line-height: 1.35; color: var(--crema2); overflow-wrap: anywhere }
+.op small { grid-column: 2; font-size: 12.5px; line-height: 1.35; color: var(--crema2); overflow-wrap: anywhere }
 .recom {
   display: inline-block; margin-left: var(--e-3); padding: 2px var(--e-3); vertical-align: 1px; white-space: nowrap;
   border: 1px solid color-mix(in srgb, var(--ambar) 45%, transparent); border-radius: var(--r-pildora);
-  color: var(--ambar); font: 500 10px/1 var(--m);
+  color: var(--ambar); font: 500 11px/1 var(--m);
 }
 button.op { cursor: pointer; transition: border-color var(--d-color) ease, background var(--d-color) ease, transform var(--d-presion) ease }
 button.op:hover { border-color: color-mix(in srgb, var(--ambar) 60%, transparent); background: var(--ambar-osc) }
@@ -495,13 +495,13 @@ button.op:active { transform: scale(.985) }
 .preg-pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--e-4); margin-top: var(--e-4) }
 .preg-link {
   min-height: 32px; display: inline-flex; align-items: center; padding: 0 var(--e-2);
-  border: 0; border-radius: 6px; background: none; color: var(--violeta); font-weight: 800; font-size: 12.5px; cursor: pointer;
+  border: 0; border-radius: 6px; background: none; color: var(--violeta); font-weight: 800; font-size: 13.5px; cursor: pointer;
 }
 .preg-link:hover { text-decoration: underline; text-underline-offset: 3px }
 .btn {
   min-height: 32px; display: inline-flex; align-items: center; gap: var(--e-3); padding: 0 var(--e-7);
   border: 0; border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro);
-  font-weight: 800; font-size: 12.5px; cursor: pointer;
+  font-weight: 800; font-size: 13.5px; cursor: pointer;
   transition: transform var(--d-presion) ease, filter var(--d-color) ease, opacity var(--d-color) ease;
 }
 .btn:hover { filter: brightness(1.08) }
@@ -517,7 +517,7 @@ button.op:active { transform: scale(.985) }
 .preg-otra label { grid-column: 1 / -1; font: var(--t-mono-s); color: var(--crema2) }
 .preg-otra input {
   min-width: 0; min-height: 32px; padding: 0 var(--e-5); background: var(--negro); color: var(--crema);
-  border: 1px solid var(--linea); border-radius: var(--r-campo); font: 600 13px var(--f); outline: none;
+  border: 1px solid var(--linea); border-radius: var(--r-campo); font: 600 14px var(--f); outline: none;
   transition: border-color var(--d-color) ease;
 }
 .preg-otra input:focus { border-color: var(--ambar) }
@@ -528,7 +528,7 @@ button.op:active { transform: scale(.985) }
 .hecho {
   display: flex; align-items: center; gap: var(--e-4); width: max-content; max-width: 100%; padding: var(--e-2) var(--e-7) var(--e-2) var(--e-3);
   border: 1px solid color-mix(in srgb, var(--verde) 50%, var(--linea)); border-radius: var(--r-pildora); background: var(--s1);
-  font-weight: 800; font-size: 13px; overflow-wrap: anywhere; animation: sube var(--d-entrada) var(--ease) both;
+  font-weight: 800; font-size: 14px; overflow-wrap: anywhere; animation: sube var(--d-entrada) var(--ease) both;
 }
 .hecho.sale { animation: sale .35s ease-in both }
 @keyframes sale { to { opacity: 0; transform: scale(.4) translateY(30px) } }
@@ -560,14 +560,14 @@ body.mini[data-iman] #aviso-iman { top: calc(var(--qy) + 28px); bottom: auto; le
 /* La tira conserva su escala de antes de la densidad: 400 × 56 con botones de 44 */
 .tira .tb { width: 44px; height: 44px }
 .tira .tb svg { width: 16px; height: 16px }
-.resumen { min-width: 0; font: 400 11px/1.5 var(--m); color: var(--crema2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-.resumen b { display: block; font: 800 13.5px/1.25 var(--f); color: var(--crema) }
-.pend { flex: none; margin-right: var(--e-1); padding: 5px var(--e-4); border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro); font: 600 11px/1 var(--m); white-space: nowrap }
+.resumen { min-width: 0; font: 400 12px/1.5 var(--m); color: var(--crema2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.resumen b { display: block; font: 800 14.5px/1.25 var(--f); color: var(--crema) }
+.pend { flex: none; margin-right: var(--e-1); padding: 5px var(--e-4); border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro); font: 600 12px/1 var(--m); white-space: nowrap }
 /* Las cuentas chicas de los módulos (modulos-ux.md 8, M2), después de la insignia: no se achican, se esconden
    enteras (`cuentasModulosMini`); la de Tareas es la de su fila del menú */
 .tira-mods { flex: none; display: inline-flex; align-items: center; gap: 4px; margin-right: var(--e-1) }
 #tira-mods:empty { display: none }
-.tira-mods .chip { padding: 5px var(--e-3); font-size: 10px }
+.tira-mods .chip { padding: 5px var(--e-3); font-size: 11px }
 
 /* ------------------------------------------------------------------ muesca acoplable (secciones 6.4, 7 y 9)
    La ventana es el área de trabajo entera (9.6 y 9.7): abrir y cerrar son solo el recorte adentro.
@@ -677,7 +677,7 @@ body[data-borde="derecha"] #muesca .alfeizar, body[data-borde="izquierda"] #mues
 #muesca .excl {
   position: absolute; display: none; place-items: center; left: calc(50% + 24px); top: 8px;
   min-width: 17px; height: 17px; padding: 0 3px; box-sizing: border-box; border-radius: var(--r-pildora);
-  background: var(--ambar); color: var(--negro); font: 800 11.5px/1 var(--f); letter-spacing: -.03em; box-shadow: 0 0 0 2px #000;
+  background: var(--ambar); color: var(--negro); font: 800 12.5px/1 var(--f); letter-spacing: -.03em; box-shadow: 0 0 0 2px #000;
 }
 body[data-borde="abajo"] #muesca .excl { top: 9px }
 body[data-borde="derecha"] #muesca .excl, body[data-borde="izquierda"] #muesca .excl { left: 0; right: 0; top: 14px; width: max-content; margin: 0 auto }
@@ -685,7 +685,7 @@ body[data-borde="derecha"] #muesca .excl, body[data-borde="izquierda"] #muesca .
 /* Chip de sesiones: sale de atrás del Avi solo con el mouse encima o el foco; sin sesiones no se dibuja */
 #muesca .cuenta {
   position: absolute; right: calc(50% + 33px); bottom: 15px; padding: 3px 7px; border-radius: var(--r-pildora);
-  background: var(--s3); color: var(--crema); font: 500 10px/1 var(--m); font-stretch: 75%; white-space: nowrap;
+  background: var(--s3); color: var(--crema); font: 500 11px/1 var(--m); font-stretch: 75%; white-space: nowrap;
   opacity: 0; transform: translateX(10px) scale(.8); transition: opacity 160ms, transform 280ms var(--rebote);
 }
 #muesca .cuenta:empty { display: none }
@@ -720,7 +720,7 @@ body.pildora #pildora {
   box-sizing: border-box; padding: 0 var(--e-5) 0 var(--e-4); z-index: 3;
   background: var(--negro); border-radius: var(--r-pildora); cursor: grabbing; user-select: none; white-space: nowrap;
 }
-#pildora b { flex: 1; min-width: 0; font: 800 13.5px/1.25 var(--f); overflow: hidden; text-overflow: ellipsis }
+#pildora b { flex: 1; min-width: 0; font: 800 14.5px/1.25 var(--f); overflow: hidden; text-overflow: ellipsis }
 body.arrastrando, body.arrastrando * { cursor: grabbing !important }
 
 /* Imán al arrastrar el tablero flotante (6.4): ámbar interior de 3 px del lado que mira al borde,
@@ -870,17 +870,17 @@ body.fuera *, body.fuera *::before, body.fuera *::after { animation-play-state: 
 .pp-tabs.sin-elegida::before { opacity: 0 }
 .pp-tab {
   position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: var(--e-3); min-height: 32px;
-  border: 0; border-radius: var(--r-pildora); background: transparent; color: var(--crema2); font: 700 11.5px/1 var(--f); cursor: pointer;
+  border: 0; border-radius: var(--r-pildora); background: transparent; color: var(--crema2); font: 700 12.5px/1 var(--f); cursor: pointer;
   transition: color var(--d-color) ease;
 }
 /* Zona de toque de 36 */
 .pp-tab::before { content: ""; position: absolute; inset: -2px 0 }
 .pp-tab:hover, .pp-tab[aria-selected="true"] { color: var(--crema) }
-.pp-g { display: inline-grid; place-items: center; min-width: 12px; height: 12px; font: 600 10px/1 var(--m); font-stretch: 75%; color: var(--tenue) }
+.pp-g { display: inline-grid; place-items: center; min-width: 12px; height: 12px; font: 600 11px/1 var(--m); font-stretch: 75%; color: var(--tenue) }
 .pp-g.ok { color: var(--verde) }
 .pp-g.ok svg { width: 12px; height: 12px }
 .pp-g .visto { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 20; stroke-dashoffset: 0 }
-.pp-g.error { font: 800 12px/1 var(--f); color: var(--rojo) }
+.pp-g.error { font: 800 13px/1 var(--f); color: var(--rojo) }
 .pp-g.punto { min-width: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--ambar) }
 
 /* Escena: desplaza adentro si no entra; el pie queda fijo y el borde se funde 8 px */
@@ -914,7 +914,7 @@ body.fuera *, body.fuera *::before, body.fuera *::after { animation-play-state: 
 .pp.hoja .pp-acc .pp-motivo { flex-basis: 100% }
 .pp-btn {
   min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: var(--e-3); padding: 0 var(--e-7);
-  border: 0; border-radius: var(--r-pildora); font: 800 12px/1 var(--f); cursor: pointer;
+  border: 0; border-radius: var(--r-pildora); font: 800 13px/1 var(--f); cursor: pointer;
   transition: background var(--d-color) ease, transform var(--d-presion) ease;
 }
 .pp.escenario .pp-acc .pp-btn { width: 100% }
@@ -930,7 +930,7 @@ body.fuera *, body.fuera *::before, body.fuera *::after { animation-play-state: 
 .pp-motivo { margin-top: var(--e-1); font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
 .pp-enlaces { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 var(--e-5); margin-top: var(--e-2) }
 .pp.hoja .pp-enlaces { justify-content: flex-start }
-.pp-enlace { min-height: 32px; display: inline-flex; align-items: center; padding: 0 var(--e-1); border: 0; border-radius: 6px; background: none; color: var(--violeta); font: 800 12px/1 var(--f); cursor: pointer }
+.pp-enlace { min-height: 32px; display: inline-flex; align-items: center; padding: 0 var(--e-1); border: 0; border-radius: 6px; background: none; color: var(--violeta); font: 800 13px/1 var(--f); cursor: pointer }
 .pp-enlace:hover { text-decoration: underline; text-underline-offset: 3px }
 .pp-enlace[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none }
 .pp-nota { margin-top: var(--e-4); font: var(--t-mono-s); font-stretch: 75%; line-height: 1.5; color: var(--tenue); text-align: center }
@@ -975,7 +975,7 @@ body.fuera *, body.fuera *::before, body.fuera *::after { animation-play-state: 
 .pp-cuenta { display: flex; align-items: center; gap: 7px; margin-top: var(--e-5); font: var(--t-chico); color: var(--crema2) }
 .pp-cuenta.centrada { justify-content: center }
 .pp-cuenta b { color: var(--crema); font-weight: 700 }
-.pp-ini { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--violeta) 18%, transparent); color: var(--violeta); font: 600 10px/1 var(--m); font-stretch: 75% }
+.pp-ini { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--violeta) 18%, transparent); color: var(--violeta); font: 600 11px/1 var(--m); font-stretch: 75% }
 .pp-cmds { margin-top: var(--e-5) }
 .pp-cmds summary { display: inline-flex; align-items: center; gap: var(--e-2); min-height: 32px; list-style: none; cursor: pointer; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
 .pp-cmds summary::-webkit-details-marker { display: none }
@@ -985,7 +985,7 @@ body.fuera *, body.fuera *::before, body.fuera *::after { animation-play-state: 
 
 /* Pie: filete arriba; «← Anterior» crema2 y «Siguiente →» ámbar; deshabilitados al .38 */
 .pp-pie { display: flex; justify-content: space-between; margin-top: var(--e-1); padding-top: var(--e-2); border-top: 1px solid var(--linea) }
-.pp-nav { min-height: 32px; padding: 0 var(--e-2); border: 0; border-radius: 6px; background: none; color: var(--crema2); font: 800 12px/1 var(--f); cursor: pointer }
+.pp-nav { min-height: 32px; padding: 0 var(--e-2); border: 0; border-radius: 6px; background: none; color: var(--crema2); font: 800 13px/1 var(--f); cursor: pointer }
 .pp-nav.sig { color: var(--ambar) }
 .pp-nav:hover { text-decoration: underline; text-underline-offset: 3px }
 .pp-nav[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none }
@@ -1078,7 +1078,7 @@ body:not(.colocada) #hoja { visibility: hidden }
 }
 /* La mascota que vuela de la marca al escenario (y de vuelta): un clon de 112 en una capa fija */
 .vuela-chat { position: fixed; z-index: 30; width: 112px; height: 112px; line-height: 0; pointer-events: none; transform-origin: 0 0; will-change: transform }
-#hoja .esc-nom { position: relative; z-index: 1; font: 800 16px/1.1 var(--f) }
+#hoja .esc-nom { position: relative; z-index: 1; font: 800 17px/1.1 var(--f) }
 #hoja .esc-est { display: flex; gap: 6px; align-items: center; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
 #hoja .esc-est i { width: 6px; height: 6px; border-radius: 50%; background: var(--c) }
 
@@ -1128,19 +1128,19 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .m-u .adj-min { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; font: var(--t-mono-s); font-stretch: 75%; opacity: .8 }
 /* Solo el mensaje se apaga: "No se envió" queda con su contraste de 4,5:1 (18, B3) */
 #hoja .m-u.fallido > :not(.tag-no) { opacity: .7 }
-#hoja .m-u .tag-no { display: block; margin-top: 4px; font: 500 10px/1.3 var(--m); font-stretch: 75%; color: var(--rojo) }
-#hoja .m-m { position: relative; padding-left: 16px; font: 500 13px/1.6 var(--f); color: var(--crema); user-select: text; -webkit-user-select: text; overflow-wrap: anywhere }
+#hoja .m-u .tag-no { display: block; margin-top: 4px; font: 500 11px/1.3 var(--m); font-stretch: 75%; color: var(--rojo) }
+#hoja .m-m { position: relative; padding-left: 16px; font: 500 14px/1.6 var(--f); color: var(--crema); user-select: text; -webkit-user-select: text; overflow-wrap: anywhere }
 #hoja .m-m::before { content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; border-radius: 2px; background: linear-gradient(var(--c), color-mix(in srgb, var(--c) 10%, transparent)) }
-#hoja .bienvenida .m-m { font: 600 15px/1.45 var(--f) }
+#hoja .bienvenida .m-m { font: 600 16px/1.45 var(--f) }
 #hoja .m-m .txt { display: grid; gap: 7px; min-width: 0 }
 #hoja .m-m .txt p { white-space: pre-wrap }
 #hoja .m-m .txt h4 { font: var(--t-titulo) }
 #hoja .m-m .txt ol, #hoja .m-m .txt ul { display: grid; gap: 3px; padding-left: 18px }
 #hoja .m-m .txt li::marker { color: var(--tenue); font: var(--t-mono-s) }
-#hoja .m-m .txt code { padding: 1px 4px; border-radius: 4px; background: var(--s3); font: 400 11.5px/1.5 var(--m); font-stretch: 75% }
+#hoja .m-m .txt code { padding: 1px 4px; border-radius: 4px; background: var(--s3); font: 400 12.5px/1.5 var(--m); font-stretch: 75% }
 #hoja .m-m .txt pre { position: relative; padding: 28px 12px 10px; overflow-x: auto; border-radius: 12px; border: 1px solid var(--linea); background: #08080A; color: var(--crema) }
-#hoja .m-m .txt pre code { padding: 0; background: none; font: 400 11px/1.65 var(--m); font-stretch: 75%; white-space: pre }
-#hoja .m-m .txt pre.tabla { padding-top: 10px; font: 400 11px/1.65 var(--m); font-stretch: 75%; white-space: pre }
+#hoja .m-m .txt pre code { padding: 0; background: none; font: 400 12px/1.65 var(--m); font-stretch: 75%; white-space: pre }
+#hoja .m-m .txt pre.tabla { padding-top: 10px; font: 400 12px/1.65 var(--m); font-stretch: 75%; white-space: pre }
 #hoja .m-m .txt pre .leng { position: absolute; left: 12px; top: 9px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
 #hoja .m-m .txt pre .copiar { position: absolute; right: 6px; top: 4px; height: 24px; min-width: 32px; padding: 0 8px; border-radius: var(--r-icono); font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
 #hoja .m-m .txt pre .copiar:hover { background: var(--s3); color: var(--crema) }
@@ -1155,7 +1155,7 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .sug { display: flex; flex-direction: column; align-items: flex-start; gap: 6px }
 #hoja .sug button {
   padding: 8px 12px; border-radius: 12px; border: 1px solid var(--linea); background: var(--s2); color: var(--crema2); text-align: left;
-  font: 600 12px/1.3 var(--f); transition: border-color var(--d-color), transform var(--d-color) var(--ease);
+  font: 600 13px/1.3 var(--f); transition: border-color var(--d-color), transform var(--d-color) var(--ease);
 }
 #hoja .sug button::before { content: "↳ "; color: var(--tenue) }
 #hoja .pista { display: flex; gap: 6px; align-items: center; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
@@ -1176,7 +1176,7 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .err { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(255, 122, 107, .4); background: rgba(255, 122, 107, .07) }
 #hoja .err b { display: flex; gap: 6px; align-items: center; font: var(--t-cuerpo-f); color: var(--rojo) }
 #hoja .err p { font: var(--t-chico); color: var(--crema2) }
-#hoja .err code { padding: 1px 4px; border-radius: 4px; background: var(--s3); font: 400 11px/1.4 var(--m) }
+#hoja .err code { padding: 1px 4px; border-radius: 4px; background: var(--s3); font: 400 12px/1.4 var(--m) }
 #hoja .offline { display: flex; flex: none; gap: 8px; align-items: center; padding: 7px 10px; border-radius: var(--r-campo); border: 1px solid var(--linea); background: var(--s2); font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
 #hoja .offline i { width: 6px; height: 6px; border-radius: 50%; background: var(--rojo) }
 #hoja .acc { display: flex; gap: 6px; flex-wrap: wrap }
@@ -1186,22 +1186,23 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .btn.pri:hover { background: #F6C552 }
 #hoja .descarga .cifra { display: flex; align-items: baseline; gap: 8px }
 #hoja .descarga .cifra b { font: var(--t-cifra); letter-spacing: -.03em; font-variant-numeric: tabular-nums }
-#hoja .descarga .cifra small { font: 600 12px/1 var(--f); color: var(--crema2) }
+#hoja .descarga .cifra small { font: 600 13px/1 var(--f); color: var(--crema2) }
 #hoja .descarga .cifra span { margin-left: auto; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2); font-variant-numeric: tabular-nums }
 #hoja .descarga .barra { position: relative; height: 6px; overflow: hidden; border-radius: 3px; background: var(--s3) }
 #hoja .descarga .barra i { position: absolute; inset: 0; border-radius: 3px; background: var(--ambar); transform-origin: 0 50%; transform: scaleX(var(--p, 0)); transition: transform 120ms linear }
 
-#hoja .comp { display: grid; flex: none; gap: 6px; padding-top: 8px }
+/* minmax(0, 1fr): el pie largo se corta con «…» en vez de ensanchar la columna y empujar el campo fuera de la hoja */
+#hoja .comp { display: grid; grid-template-columns: minmax(0, 1fr); flex: none; gap: 6px; padding-top: 8px }
 #hoja .adjuntos:empty { display: none }
 #hoja .adjuntos { display: flex; flex-wrap: wrap; gap: 6px }
 #hoja .chip-adj { display: flex; align-items: center; gap: 9px; max-width: 100%; padding: 6px; border-radius: 12px; background: var(--s2); border: 1px solid var(--linea) }
 #hoja .chip-adj b { display: block; font: var(--t-cuerpo-f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #hoja .chip-adj small { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
-#hoja .chip-adj .doc { width: 26px; height: 32px; flex: none; display: grid; place-items: end center; padding-bottom: 5px; border-radius: 4px 9px 4px 4px; background: var(--crema); color: var(--tinta); font: 600 7px/1 var(--m) }
+#hoja .chip-adj .doc { width: 26px; height: 32px; flex: none; display: grid; place-items: end center; padding-bottom: 5px; border-radius: 4px 9px 4px 4px; background: var(--crema); color: var(--tinta); font: 600 8px/1 var(--m) }
 #hoja .campo { display: flex; align-items: flex-end; gap: 4px; padding: 5px; border-radius: 14px; background: var(--s1); border: 1px solid var(--linea); transition: border-color var(--d-color), box-shadow var(--d-color) }
 #hoja .campo:focus-within { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
 #hoja .campo textarea {
-  flex: 1; min-width: 0; height: 36px; max-height: 120px; padding: 9px 4px; resize: none; overflow-y: auto; border: 0; outline: none;
+  flex: 1; min-width: 0; height: 36px; max-height: 120px; padding: 8px 4px; resize: none; overflow-y: auto; border: 0; outline: none;
   background: none; color: var(--crema); font: var(--t-cuerpo);
 }
 #hoja .campo textarea::placeholder { color: var(--tenue) }
@@ -1283,7 +1284,7 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .tg.v { color: var(--rojo); background: color-mix(in srgb, var(--rojo) 14%, var(--s2)) }
 #hoja .deshacer {
   position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 10px; border-radius: var(--r-pildora);
-  border: 1px solid var(--linea-hover); color: var(--crema2); font: 700 11.5px/1 var(--f); white-space: nowrap;
+  border: 1px solid var(--linea-hover); color: var(--crema2); font: 700 12.5px/1 var(--f); white-space: nowrap;
   transition: background var(--d-color), color var(--d-color), transform var(--d-presion) ease
 }
 #hoja .deshacer:hover { background: var(--s3); color: var(--crema) }
@@ -1323,7 +1324,7 @@ body:not(.colocada) #hoja { visibility: hidden }
 }
 #hoja .mini {
   position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 10px; border-radius: var(--r-pildora);
-  border: 1px solid var(--linea-hover); color: var(--crema); font: 700 11.5px/1 var(--f); white-space: nowrap;
+  border: 1px solid var(--linea-hover); color: var(--crema); font: 700 12.5px/1 var(--f); white-space: nowrap;
   transition: background var(--d-color), color var(--d-color), border-color var(--d-color), transform var(--d-presion) ease
 }
 #hoja .mini::after { content: ""; position: absolute; inset: -2px 0 }
@@ -1356,7 +1357,7 @@ body:not(.colocada) #hoja { visibility: hidden }
   position: absolute; inset: 40px 0 0; z-index: 8; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center;
   border-radius: 18px; border: 2px dashed var(--c); background: color-mix(in srgb, var(--c) 12%, rgba(8, 8, 10, .9)); color: var(--crema);
 }
-#hoja .soltar .hoja-doc { width: 58px; height: 72px; display: grid; place-items: end center; padding-bottom: 10px; border-radius: 6px 16px 6px 6px; background: var(--crema); color: var(--tinta); font: 600 10px/1 var(--m); transform: rotate(-8deg); box-shadow: 0 18px 30px -12px #000 }
+#hoja .soltar .hoja-doc { width: 58px; height: 72px; display: grid; place-items: end center; padding-bottom: 10px; border-radius: 6px 16px 6px 6px; background: var(--crema); color: var(--tinta); font: 600 11px/1 var(--m); transform: rotate(-8deg); box-shadow: 0 18px 30px -12px #000 }
 #hoja .soltar b { font: var(--t-display) }
 #hoja .soltar.se-va { pointer-events: none }
 #hoja .soltar span { max-width: 30ch; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
@@ -1372,7 +1373,7 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .h-it { display: grid; gap: 3px; width: 100%; padding: 7px 8px; border-radius: var(--r-fila); text-align: left; color: var(--crema) }
 #hoja .h-it:hover { background: var(--s2) }
 #hoja .h-it.on { background: var(--s3) }
-#hoja .h-it b { font: 700 12px/1.25 var(--f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#hoja .h-it b { font: 700 13px/1.25 var(--f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #hoja .h-it span { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #hoja .h-it span em { font-style: normal; color: var(--crema2) }
 #hoja .hist-vacio { padding: 12px 8px; font: var(--t-chico); color: var(--tenue) }
@@ -1460,9 +1461,9 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .enviar:active { transform: no
 .tok:hover { background: var(--s2) }
 .tok:active { transform: scale(.97) }
 .tok.origen { box-shadow: inset 0 0 0 1px rgba(242, 182, 50, .28) }
-.tok-ic { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); font: 500 10px/1 var(--m) }
-.insig { position: absolute; right: -3px; top: -3px; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--negro); background: var(--ambar); color: var(--negro); font: 600 10px/1 var(--m) }
-.tok-cv { border: 1px solid var(--celeste-borde-s); background: var(--celeste-osc); color: var(--celeste); font: 700 15px/1 var(--f) }
+.tok-ic { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); font: 500 11px/1 var(--m) }
+.insig { position: absolute; right: -3px; top: -3px; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--negro); background: var(--ambar); color: var(--negro); font: 600 11px/1 var(--m) }
+.tok-cv { border: 1px solid var(--celeste-borde-s); background: var(--celeste-osc); color: var(--celeste); font: 700 16px/1 var(--f) }
 .tok-cv:hover { background: var(--celeste-osc); border-color: var(--celeste-borde-f) }
 .tok-cv.activa { background: var(--celeste-velo-f); border-color: var(--celeste) }
 .tok-cv.fin { background: transparent; border-color: var(--linea); color: var(--crema2) }
@@ -1476,14 +1477,14 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .enviar:active { transform: no
 #marco.dividida .cab-c-t { display: block; flex: 1; min-width: 0; cursor: grab; user-select: none }
 .cab-c-t > * { pointer-events: none }
 .cab .kick { margin: 0; font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--celeste) }
-.cab .h1-c { display: flex; min-width: 0; margin-top: 5px; font: 800 19px/1.2 var(--f); letter-spacing: -.02em; color: var(--crema); white-space: nowrap; overflow: hidden }
+.cab .h1-c { display: flex; min-width: 0; margin-top: 5px; font: 800 20px/1.2 var(--f); letter-spacing: -.02em; color: var(--crema); white-space: nowrap; overflow: hidden }
 .h1-c .n { min-width: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis }
 .flecha-c { flex: none; margin: 0 6px; color: var(--celeste) }
-.cab .sub-c { margin-top: 2px; font: 500 11.5px/1.35 var(--f); color: var(--crema2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.cab .sub-c { margin-top: 2px; font: 500 12.5px/1.35 var(--f); color: var(--crema2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #marco.dividida .volver { display: inline-flex }
 .volver {
   position: relative; flex: none; align-items: center; gap: 4px; height: 34px; padding: 0 12px 0 10px; white-space: nowrap;
-  border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s1); color: var(--crema); font: 700 12.5px/1 var(--f); cursor: pointer;
+  border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s1); color: var(--crema); font: 700 13.5px/1 var(--f); cursor: pointer;
   transition: background var(--d-color) ease, border-color var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
 }
 /* Zona de toque de 44 sobre los 34 dibujados */
@@ -1502,7 +1503,7 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .enviar:active { transform: no
 .pestanas { display: flex; gap: 6px; padding: 5px 0; margin: -5px 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: var(--linea-hover) transparent }
 .pest {
   position: relative; flex: none; display: inline-flex; align-items: center; gap: 6px; min-width: 140px; height: 34px; padding: 0 12px;
-  border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s1); color: var(--crema2); font: 700 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
+  border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s1); color: var(--crema2); font: 700 12.5px/1 var(--f); white-space: nowrap; cursor: pointer;
   transition: border-color var(--d-color) ease, transform var(--d-presion) ease;
 }
 .pest::before { content: ""; position: absolute; inset: -5px 0 }
@@ -1511,7 +1512,7 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .enviar:active { transform: no
 .pest:hover { border-color: var(--linea-hover) }
 .pest:active { transform: scale(.97) }
 .pest[aria-selected="true"] { border-color: var(--celeste); background: var(--celeste-osc); color: var(--crema) }
-.pest em { font: 500 10px/1 var(--m); font-style: normal; color: var(--crema2) }
+.pest em { font: 500 11px/1 var(--m); font-style: normal; color: var(--crema2) }
 .pest .pt-n, .conv .pt-n { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--celeste); box-shadow: 0 0 0 3px rgba(127, 179, 255, .2) }
 
 /* Las dos mitades y la costura (5.5 y 5.6): 272 + 26 + 272 */
@@ -1519,11 +1520,11 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .enviar:active { transform: no
 .split-g { display: grid; grid-template-columns: var(--mitad) var(--costura) var(--mitad); justify-content: center }
 .mitad { position: relative; min-width: 0 }
 .mh { height: 66px; padding: 0 2px }
-.mh-p { display: flex; align-items: center; gap: 8px; min-width: 0; font: 800 17px/1.1 var(--f); letter-spacing: -.02em }
+.mh-p { display: flex; align-items: center; gap: 8px; min-width: 0; font: 800 18px/1.1 var(--f); letter-spacing: -.02em }
 .mh-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-.mh-ic { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 7px; background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); font: 500 10px/1 var(--m); font-stretch: 75%; letter-spacing: 0 }
+.mh-ic { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 7px; background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); font: 500 11px/1 var(--m); font-stretch: 75%; letter-spacing: 0 }
 .mh-r { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 6px }
-.mh-r b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 12.5px/1 var(--f); color: var(--crema2) }
+.mh-r b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 13.5px/1 var(--f); color: var(--crema2) }
 .mh .linea { margin-top: 5px; line-height: 1.3 }
 .linea .cv-m { flex: none; color: var(--celeste) }
 .mitad.der .mh { text-align: right }
@@ -1540,22 +1541,22 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .enviar:active { transform: no
 .sub-d .fig { position: absolute; left: 0; top: 0; line-height: 0 }
 .sub-d.dorm .avi { opacity: .6 }
 .rotulo-d { position: absolute; display: flex; flex-direction: column; gap: 1px; text-align: center; white-space: nowrap }
-.rotulo-d b { overflow: hidden; text-overflow: ellipsis; font: 800 12px/1.25 var(--f); color: var(--c) }
-.rotulo-d em { overflow: hidden; text-overflow: ellipsis; font: 500 10px/1.3 var(--m); font-style: normal; color: var(--ce, var(--ambar)) }
-.rotulo-d span:not(.oculto) { font: 500 11px/1.25 var(--f); color: var(--crema2) }
+.rotulo-d b { overflow: hidden; text-overflow: ellipsis; font: 800 13px/1.25 var(--f); color: var(--c) }
+.rotulo-d em { overflow: hidden; text-overflow: ellipsis; font: 500 11px/1.3 var(--m); font-style: normal; color: var(--ce, var(--ambar)) }
+.rotulo-d span:not(.oculto) { font: 500 12px/1.25 var(--f); color: var(--crema2) }
 .mas-d { position: absolute; width: 46px; height: 46px }
-.pila-d { position: absolute; inset: 0; display: grid; place-items: center; border: 1px dashed var(--linea-hover); border-radius: var(--r-ficha); font: 800 15px/1 var(--f); color: var(--crema) }
+.pila-d { position: absolute; inset: 0; display: grid; place-items: center; border: 1px dashed var(--linea-hover); border-radius: var(--r-ficha); font: 800 16px/1 var(--f); color: var(--crema) }
 .pie-m { height: 28px }
 .mitad.der .pie-m { text-align: right }
 /* Chip de turno (5.7): lleno a quien le toca; con borde a quien espera */
-.turno { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border: 1px solid transparent; border-radius: var(--r-pildora); font: 500 10.5px/1 var(--m); white-space: nowrap }
+.turno { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border: 1px solid transparent; border-radius: var(--r-pildora); font: 500 11.5px/1 var(--m); white-space: nowrap }
 .turno.lleno { background: var(--celeste-velo); color: var(--crema) }
 .turno.espera { border-color: var(--celeste-borde); color: var(--celeste) }
 .turno.fin { border-color: var(--linea); color: var(--crema2) }
 .arena { flex: none; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round }
 .costura { position: relative }
 .costura::before { content: ""; position: absolute; left: 12.5px; top: 4px; bottom: 4px; width: 1px; transform-origin: 50% 0; background: linear-gradient(transparent, rgba(127, 179, 255, .5) 25%, rgba(127, 179, 255, .5) 75%, transparent) }
-.pild { position: absolute; left: 50%; top: 250px; z-index: 2; transform: translateX(-50%); padding: 6px 9px; white-space: nowrap; border: 1px solid var(--celeste-borde-f); border-radius: var(--r-pildora); background: var(--negro); color: var(--celeste); font: 500 10px/1 var(--m) }
+.pild { position: absolute; left: 50%; top: 250px; z-index: 2; transform: translateX(-50%); padding: 6px 9px; white-space: nowrap; border: 1px solid var(--celeste-borde-f); border-radius: var(--r-pildora); background: var(--negro); color: var(--celeste); font: 500 11px/1 var(--m) }
 .pild.fin { border-color: var(--linea-hover); color: var(--crema2) }
 
 /* Puente, mensaje y anillo (5.8): el cable no se mueve; la pastilla cruza una vez por mensaje */
@@ -1575,10 +1576,10 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .enviar:active { transform: no
 
 /* Ficha "Último" (4.2), abajo de la columna */
 #marco.dividida .ficha-u { display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; align-items: center; margin-top: auto; padding: 12px 14px; border: 1px solid var(--linea); border-radius: var(--r-cuadro); background: var(--s1) }
-.u-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 12.5px/1.4 var(--f); color: var(--crema2) }
+.u-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 13.5px/1.4 var(--f); color: var(--crema2) }
 .u-t b { font-weight: 700; color: var(--crema) }
 .u-d { font: var(--t-mono); color: var(--tenue); white-space: nowrap }
-.ficha-u small { grid-column: 1 / -1; font: 400 10px/1.4 var(--m); color: var(--tenue) }
+.ficha-u small { grid-column: 1 / -1; font: 400 11px/1.4 var(--m); color: var(--tenue) }
 
 /* Fichas "Conversan" de la barra (5.9): entre la marca y Proyectos */
 .rot-c { display: block; padding: 8px 6px 4px; font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--celeste) }
@@ -1596,14 +1597,14 @@ body.pausa .avi-btn:active #marca-avi, body.pausa .enviar:active { transform: no
 .caras-c .avi + .avi { left: 10px; top: 2px }
 .conv-t { min-width: 0 }
 .conv-t b, .conv-t span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-.conv-t b { font: 700 12px/1.2 var(--f); color: var(--crema) }
-.conv-t span { font: 500 11px/1.2 var(--f); color: var(--celeste) }
+.conv-t b { font: 700 13px/1.2 var(--f); color: var(--crema) }
+.conv-t span { font: 500 12px/1.2 var(--f); color: var(--celeste) }
 .conv.fin .conv-t span { color: var(--crema2) }
-.conv em { font: 500 10px/1 var(--m); font-style: normal; color: var(--crema2) }
+.conv em { font: 500 11px/1 var(--m); font-style: normal; color: var(--crema2) }
 .conv .pt-n { position: absolute; right: 6px; top: 6px }
 
 /* Rastro en la tarjeta escenario (5.10): la tarjeta crece 17 px */
-.ses > .rastro { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 10px/1.3 var(--m); color: var(--celeste) }
+.ses > .rastro { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 11px/1.3 var(--m); color: var(--celeste) }
 .ses > .rastro.fin { color: var(--crema2) }
 .rastro-m { color: var(--celeste) }
 
@@ -1668,7 +1669,7 @@ p.det-rot { margin-top: var(--e-5) }
   flex: 1; min-width: 0; min-height: 32px; max-height: 112px; padding: 7px var(--e-5);
   field-sizing: content; resize: none; overflow-y: auto;
   background: var(--negro); color: var(--crema); border: 1px solid var(--linea); border-radius: var(--r-campo);
-  font: 600 13px/16px var(--f); outline: none; transition: border-color var(--d-color) ease;
+  font: 600 14px/17px var(--f); outline: none; transition: border-color var(--d-color) ease;
 }
 .ctl-in::placeholder { color: var(--tenue); font-weight: 500 }
 .ctl-in:hover { border-color: var(--linea-hover) }
@@ -1711,7 +1712,7 @@ p.det-rot { margin-top: var(--e-5) }
 .ctl-est:has(.ctl-cerrar:not([hidden])) { align-items: center; margin-bottom: var(--e-3) }
 /* M3: ancho mínimo, así "¿Cerrar? Sí" no corre el borde izquierdo entre el primer clic y el segundo.
    D-c: 11,5 px, el tamaño de --t-chico */
-.ctl .ctl-cerrar { position: relative; min-width: 96px; min-height: 24px; justify-content: center; margin-left: auto; padding: 0 var(--e-5); background: none; border: 1px solid var(--linea); color: var(--crema2); font: 700 11.5px/1 var(--f); font-stretch: normal }
+.ctl .ctl-cerrar { position: relative; min-width: 96px; min-height: 24px; justify-content: center; margin-left: auto; padding: 0 var(--e-5); background: none; border: 1px solid var(--linea); color: var(--crema2); font: 700 12.5px/1 var(--f); font-stretch: normal }
 /* M2: el dibujo queda de 24 y el área de clic es de 32 (como .preg-tab; ::after es la barrita) */
 .ctl .ctl-cerrar::before { content: ""; position: absolute; inset: -4px 0 }
 .ctl .ctl-cerrar:hover { border-color: var(--linea-hover); color: var(--crema); filter: none }
@@ -1831,7 +1832,7 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .pestanas { position: relative; display: flex; gap: var(--e-1); border-bottom: 1px solid var(--linea); margin-bottom: var(--e-6) }
 #cfg .pes {
   position: relative; min-height: 36px; padding: 0 var(--e-5); border: 0; border-radius: 8px 8px 0 0; background: none;
-  color: var(--crema2); font: 700 12px/1 var(--f); cursor: pointer; display: inline-flex; align-items: center; gap: var(--e-3);
+  color: var(--crema2); font: 700 13px/1 var(--f); cursor: pointer; display: inline-flex; align-items: center; gap: var(--e-3);
   transition: color var(--d-color) ease, background var(--d-color) ease, transform var(--d-presion) ease;
 }
 #cfg .pes:hover { color: var(--crema); background: var(--s1) }
@@ -1876,7 +1877,7 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .seg.ancho > button { flex: 1 }
 #cfg .seg > button {
   min-height: 32px; padding: 0 var(--e-6); border: 0; border-radius: var(--r-pildora); background: none; color: var(--crema2);
-  font: 700 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
+  font: 700 12.5px/1 var(--f); white-space: nowrap; cursor: pointer;
   transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
 }
 #cfg .seg > button:hover { color: var(--crema) }
@@ -1903,7 +1904,7 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .esc-fig { display: grid; place-items: center; padding-top: var(--e-2) }
 #cfg .esc-t { display: grid; gap: 5px; align-content: center; min-width: 0 }
 #cfg .esc-t .kick { font: var(--t-rotulo); line-height: 1.35; letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
-#cfg .esc-n { margin: 0; font: 800 26px/1 var(--f); letter-spacing: -.04em; color: var(--crema) }
+#cfg .esc-n { margin: 0; font: 800 27px/1 var(--f); letter-spacing: -.04em; color: var(--crema) }
 #cfg .esc-c { margin: 0; max-width: 34ch; font: var(--t-chico); color: var(--crema2) }
 #cfg .esc-t .seg { justify-self: start; margin-top: var(--e-2) }
 #cfg .esc-q { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
@@ -1925,7 +1926,7 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .esp-e { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
 #cfg .esp-ok {
   position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--c); color: var(--negro); font: 800 11px/1 var(--f); font-style: normal;
+  background: var(--c); color: var(--negro); font: 800 12px/1 var(--f); font-style: normal;
 }
 #cfg .esp-error:empty { display: none }
 #cfg .esp-error .aj-error { margin: var(--e-4) 0 0 }
@@ -1966,14 +1967,14 @@ p.det-rot { margin-top: var(--e-5) }
 :is(#cfg, #tar, #hab, #pro) .cifras { font: var(--t-mono-s); color: var(--tenue); font-variant-numeric: tabular-nums }
 :is(#cfg, #tar, #hab, #pro) .lnk {
   min-height: 32px; padding: 0 var(--e-3); border: 0; border-radius: var(--r-tag); background: none; color: var(--crema2);
-  font: 700 12px/1 var(--f); cursor: pointer; transition: color var(--d-color) ease, transform var(--d-presion) ease;
+  font: 700 13px/1 var(--f); cursor: pointer; transition: color var(--d-color) ease, transform var(--d-presion) ease;
 }
 :is(#cfg, #tar, #hab, #pro) .lnk:hover { color: var(--crema); text-decoration: underline }
 :is(#cfg, #tar, #hab, #pro) .lnk:active { transform: scale(.97) }
 :is(#cfg, #tar, #hab, #pro) .lnk.peligro { color: var(--rojo) }
 :is(#cfg, #tar, #hab, #pro) .armado {
   position: relative; overflow: hidden; min-height: 32px; padding: 0 var(--e-6); border: 0; border-radius: var(--r-pildora);
-  background: var(--rojo); color: var(--negro); font: 800 12px/1 var(--f); white-space: nowrap; cursor: pointer;
+  background: var(--rojo); color: var(--negro); font: 800 13px/1 var(--f); white-space: nowrap; cursor: pointer;
 }
 :is(#cfg, #tar, #hab, #pro) .armado:focus-visible { outline-color: var(--crema) }
 /* La línea que se vacía en los 3 s (`--ya` la retoma donde iba si la sección se redibuja) */
@@ -1991,7 +1992,7 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .cl { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: var(--e-2) 12px; padding: 11px 0; border-top: 1px solid var(--linea) }
 #cfg .prov {
   width: 30px; height: 30px; display: grid; place-items: center; border-radius: var(--r-icono); background: var(--s2);
-  border: 1px solid var(--linea); font: 600 12px/1 var(--m); color: var(--crema);
+  border: 1px solid var(--linea); font: 600 13px/1 var(--m); color: var(--crema);
 }
 #cfg .cl-t { display: flex; align-items: baseline; justify-content: space-between; gap: var(--e-4) }
 #cfg .cl-t b { font: var(--t-cuerpo-f) }
@@ -2095,14 +2096,14 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 :is(#tar, #hab) .idx { display: flex; flex-direction: column; gap: var(--e-1); min-height: 0; padding-right: var(--e-5); border-right: 1px solid var(--linea); overflow-y: auto; scrollbar-width: none }
 :is(#tar, #hab) .ix-b {
   flex: none; display: flex; align-items: center; gap: var(--e-4); width: 100%; min-height: 34px; padding: 0 var(--e-4) 0 var(--e-3);
-  border: 0; border-radius: var(--r-fila); background: none; color: var(--crema2); font: 700 12px/1.1 var(--f); text-align: left; cursor: pointer;
+  border: 0; border-radius: var(--r-fila); background: none; color: var(--crema2); font: 700 13px/1.1 var(--f); text-align: left; cursor: pointer;
   transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease;
 }
 :is(#tar, #hab) .ix-b:hover { background: var(--s2); color: var(--crema) }
 :is(#tar, #hab) .ix-b:active { transform: scale(.97) }
 :is(#tar, #hab) .ix-b[aria-current="page"] { background: var(--ambar-osc); color: var(--ambar) }
 :is(#tar, #hab) .ix-b .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-:is(#tar, #hab) .ix-b .ct { flex: none; font: 500 10px/1 var(--m); font-stretch: 75%; color: var(--tenue) }
+:is(#tar, #hab) .ix-b .ct { flex: none; font: 500 11px/1 var(--m); font-stretch: 75%; color: var(--tenue) }
 :is(#tar, #hab) .ix-b .ct.t-aviso { color: var(--ambar) }
 :is(#tar, #hab) .ix-b .ct.t-error { color: var(--rojo) }
 :is(#tar, #hab) .ix-ic { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: var(--r-tag); background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c) }
@@ -2113,7 +2114,7 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 :is(#tar, #hab) .ix-mas .ix-ic { background: none; border: 1px dashed var(--linea-hover); color: var(--tenue) }
 :is(#tar, #hab) .rot-i { margin: var(--e-6) 0 var(--e-2) var(--e-4); font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
 #tar .ix-campo { flex: none; min-height: 34px; padding: 0 var(--e-3) 0 var(--e-4) }
-#tar .ix-campo input { font: 700 12px/1 var(--f) }
+#tar .ix-campo input { font: 700 13px/1 var(--f) }
 #tar .ix-campo > svg { display: none }
 #tar .ix-err { margin: var(--e-2) var(--e-2) var(--e-2) var(--e-4); font: var(--t-chico); color: var(--rojo) }
 
@@ -2121,7 +2122,7 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 :is(#tar, #hab) .pane { min-width: 0; min-height: 0; display: flex; flex-direction: column }
 :is(#tar, #hab) .pane > [data-parte] { flex: none }
 :is(#tar, #hab) .pane-h { display: grid; gap: var(--e-1); margin: 0 0 var(--e-4) var(--e-1) }
-:is(#tar, #hab) .pane-h h2 { display: flex; align-items: center; gap: var(--e-4); min-width: 0; font: 800 19px/1.15 var(--f); letter-spacing: -.03em; overflow-wrap: anywhere }
+:is(#tar, #hab) .pane-h h2 { display: flex; align-items: center; gap: var(--e-4); min-width: 0; font: 800 20px/1.15 var(--f); letter-spacing: -.03em; overflow-wrap: anywhere }
 :is(#tar, #hab) .pane-h h2 .pt { width: 8px; height: 8px }
 :is(#tar, #hab) .pane-s { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--e-3); min-height: 32px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
 :is(#tar, #hab) .pane-s > span:first-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
@@ -2180,7 +2181,7 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 #tar .subc { display: inline-flex; align-items: center; gap: 5px; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
 #tar .subc i { width: 20px; height: 3px; border-radius: 2px; background: linear-gradient(var(--crema2), var(--crema2)) 0 0 / var(--p) 100% no-repeat, var(--s3) }
 #tar .ic-nota { width: 12px; height: 12px; fill: none; stroke: var(--tenue); stroke-width: 1.5; stroke-linecap: round }
-#tar .imp-b { align-self: center; width: 20px; height: 20px; display: grid; place-items: center; border-radius: var(--r-tag); background: var(--ambar-osc); color: var(--ambar); font: 600 11px/1 var(--m) }
+#tar .imp-b { align-self: center; width: 20px; height: 20px; display: grid; place-items: center; border-radius: var(--r-tag); background: var(--ambar-osc); color: var(--ambar); font: 600 12px/1 var(--m) }
 :is(#tar, #hab) .fila.hecha .imp-b { opacity: .4 }
 :is(#tar, #hab) .chispa { position: absolute; left: 18px; top: 19px; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--c); pointer-events: none; opacity: 0 }
 :is(#tar, #hab) .chispa:nth-of-type(even) { background: var(--ambar) }
@@ -2209,13 +2210,13 @@ body.pausa #cfg .esp:hover .avi { transform: none }
   border: 1px dashed var(--linea-hover); border-radius: var(--r-tarjeta);
   background: radial-gradient(180px 70px at 50% 108px, rgba(242, 182, 50, .16), transparent 72%)
 }
-:is(#tar, #hab) .primer b { font: 800 18px/1.2 var(--f); letter-spacing: -.02em }
+:is(#tar, #hab) .primer b { font: 800 19px/1.2 var(--f); letter-spacing: -.02em }
 :is(#tar, #hab) .primer p { max-width: 36ch; font: var(--t-chico); color: var(--crema2) }
 :is(#tar, #hab) .primer .sug { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--e-3); margin-top: var(--e-3) }
 :is(#tar, #hab) .primer .campo { width: 100%; max-width: 280px; margin-top: var(--e-1) }
 :is(#tar, #hab) .fc {
   display: inline-flex; align-items: center; gap: var(--e-3); min-height: 32px; padding: 0 11px 0 var(--e-4); border: 1px solid var(--linea); border-radius: var(--r-pildora);
-  background: none; color: var(--crema2); font: 700 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
+  background: none; color: var(--crema2); font: 700 12.5px/1 var(--f); white-space: nowrap; cursor: pointer;
   transition: color var(--d-color) ease, border-color var(--d-color) ease, transform var(--d-presion) ease
 }
 :is(#tar, #hab) .fc:hover { color: var(--crema); border-color: var(--linea-hover) }
@@ -2237,7 +2238,7 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 #tar .det-tit { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center }
 :is(#tar, #hab) .tit-in {
   display: block; width: 100%; min-height: 36px; padding: var(--e-2) var(--e-3); resize: none; field-sizing: content; overflow: hidden;
-  border: 0; border-radius: var(--e-4); background: none; outline: none; color: var(--crema); font: 800 16px/1.25 var(--f); letter-spacing: -.015em;
+  border: 0; border-radius: var(--e-4); background: none; outline: none; color: var(--crema); font: 800 17px/1.25 var(--f); letter-spacing: -.015em;
   transition: background var(--d-color) ease, color .3s ease
 }
 :is(#tar, #hab) .tit-in:hover { background: var(--s2) }
@@ -2254,7 +2255,7 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 #tar .seg { display: inline-flex; gap: var(--e-1); padding: 2px; border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s2) }
 #tar .seg > button {
   min-height: 28px; padding: 0 var(--e-5); border: 0; border-radius: var(--r-pildora); background: none; color: var(--crema2);
-  font: 700 11px/1 var(--f); white-space: nowrap; cursor: pointer;
+  font: 700 12px/1 var(--f); white-space: nowrap; cursor: pointer;
   transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease
 }
 #tar .seg > button:hover { color: var(--crema) }
@@ -2268,7 +2269,7 @@ body.pausa #cfg .esp:hover .avi { transform: none }
   min-height: 30px; padding: 0 var(--e-4); border: 1px solid var(--linea); border-radius: var(--r-campo); background: var(--s1);
   color: var(--crema2); font: var(--t-mono-s); color-scheme: dark; cursor: pointer
 }
-#tar .sel { max-width: 100%; font: 700 12px/1 var(--f) }
+#tar .sel { max-width: 100%; font: 700 13px/1 var(--f) }
 :is(#tar, #hab) .fecha-in:focus-visible, #tar .sel:focus-visible { outline: 0; border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
 #tar .vence { display: inline-flex; align-items: center; gap: 5px; font: var(--t-mono-s); color: var(--c, var(--tenue)) }
 #tar .vence.t-nada { --c: var(--tenue) }
@@ -2341,7 +2342,7 @@ body.pausa :is(#tar, #hab) .tit-in, body.pausa #tar .seg > button, body.pausa #t
 /* La fila del menú (4.1): la flecha circular con punto; el anillo de hoy con «{h}/{t}», «—» o la pista */
 .mod.hab .mod-ic svg { stroke-width: 1.5 }
 .mod.hab .arco { stroke-dasharray: 30; stroke-dashoffset: 0 }
-.anillo-c { flex: none; display: inline-flex; align-items: center; gap: 5px; font: 500 10px/1 var(--m); color: var(--crema2); font-variant-numeric: tabular-nums }
+.anillo-c { flex: none; display: inline-flex; align-items: center; gap: 5px; font: 500 11px/1 var(--m); color: var(--crema2); font-variant-numeric: tabular-nums }
 .anillo-c svg { width: 14px; height: 14px; transform: rotate(-90deg); fill: none; stroke-width: 2.6 }
 .anillo-c .a-f { stroke: var(--linea-hover) }
 .anillo-c .a-l { stroke: var(--ambar); stroke-linecap: round }
@@ -2381,10 +2382,10 @@ body.pausa :is(#tar, #hab) .tit-in, body.pausa #tar .seg > button, body.pausa #t
 #hab .tag svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round }
 #hab .menos {
   min-height: 22px; padding: 0 7px; margin-left: -4px; border: 1px solid var(--linea); border-radius: var(--r-pildora); background: none;
-  color: var(--crema2); font: 500 10px/1 var(--m); cursor: pointer; transition: border-color var(--d-color) ease, color var(--d-color) ease
+  color: var(--crema2); font: 500 11px/1 var(--m); cursor: pointer; transition: border-color var(--d-color) ease, color var(--d-color) ease
 }
 #hab .menos:hover { border-color: var(--linea-hover); color: var(--crema) }
-#hab .libre-c { width: 36px; height: 38px; display: grid; place-items: center; color: var(--linea-hover); font: 600 14px/1 var(--m) }
+#hab .libre-c { width: 36px; height: 38px; display: grid; place-items: center; color: var(--linea-hover); font: 600 15px/1 var(--m) }
 #hab .rot-p { display: flex; gap: var(--e-4); align-items: center; margin: 14px 0 2px var(--e-3); font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
 #hab .rot-p::after { content: ""; flex: 1; height: 1px; background: var(--linea) }
 #hab .fuera-l .fila { opacity: .7 }
@@ -2398,11 +2399,11 @@ body.pausa :is(#tar, #hab) .tit-in, body.pausa #tar .seg > button, body.pausa #t
 #hab .sum .sg { stroke: var(--s3) }
 #hab .sum .sg.on { stroke: var(--ambar) }
 #hab .sum:hover .sg:not(.on) { stroke: color-mix(in srgb, var(--c) 45%, var(--s3)) }
-#hab .sum .num { grid-area: 1 / 1; display: grid; place-items: center; font: 800 11px/1 var(--f); font-variant-numeric: tabular-nums }
+#hab .sum .num { grid-area: 1 / 1; display: grid; place-items: center; font: 800 12px/1 var(--f); font-variant-numeric: tabular-nums }
 #hab .sum .num svg { width: 12px; height: 12px; fill: none; stroke: var(--ambar); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round }
 #hab .sum .mas {
   position: absolute; right: 0; bottom: 3px; width: 13px; height: 13px; border-radius: 50%; background: var(--ambar); color: var(--negro);
-  font: 700 10px/13px var(--m); font-style: normal; text-align: center; box-shadow: 0 0 0 2px var(--negro); transition: transform var(--d-presion) ease
+  font: 700 11px/14px var(--m); font-style: normal; text-align: center; box-shadow: 0 0 0 2px var(--negro); transition: transform var(--d-presion) ease
 }
 #hab .sum:active .mas { transform: scale(.75) }
 #hab .sum.lleno .mas { background: var(--s3); color: var(--crema2) }
@@ -2439,9 +2440,9 @@ body.pausa :is(#tar, #hab) .tit-in, body.pausa #tar .seg > button, body.pausa #t
 #hab button.cel.s-hecho:hover { filter: brightness(1.12) }
 #hab button.cel:active { transform: scale(.86) }
 #hab button.cel:focus-visible { outline-offset: 2px }
-#hab .letras { display: grid; grid-template-columns: repeat(7, var(--cel)); gap: var(--gap, 3px); font: 500 9px/1 var(--m); color: var(--tenue); text-align: center }
+#hab .letras { display: grid; grid-template-columns: repeat(7, var(--cel)); gap: var(--gap, 3px); font: 500 10px/1 var(--m); color: var(--tenue); text-align: center }
 #hab .letras .hoy { color: var(--ambar); font-weight: 600 }
-#hab .letras small { display: block; margin-top: 3px; font-size: 8px; font-weight: 500; color: var(--tenue) }
+#hab .letras small { display: block; margin-top: 3px; font-size: 9px; font-weight: 500; color: var(--tenue) }
 #hab .letras .hoy small { color: var(--ambar) }
 
 /* La vista Semana (4.9): una fila por hábito con sus 7 celdas de 20 y la franja --brasa de hoy */
@@ -2454,7 +2455,7 @@ body.pausa :is(#tar, #hab) .tit-in, body.pausa #tar .seg > button, body.pausa #t
 #hab .mat-r.mat-cab::after { border-radius: 8px 8px 0 0 }
 #hab .mat-r > * { position: relative; z-index: 1 }
 #hab .rot-m { padding-left: 4px; font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
-#hab .mat-n { display: flex; align-items: center; gap: var(--e-4); min-width: 0; padding: 6px 4px; border: 0; border-radius: 6px; background: none; color: var(--crema); font: 700 12px/1.2 var(--f); text-align: left; cursor: pointer }
+#hab .mat-n { display: flex; align-items: center; gap: var(--e-4); min-width: 0; padding: 6px 4px; border: 0; border-radius: 6px; background: none; color: var(--crema); font: 700 13px/1.2 var(--f); text-align: left; cursor: pointer }
 #hab .mat-n span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 #hab .mat-n .pt { width: 6px; height: 6px; flex: none; box-shadow: none; background: var(--c) }
 #hab .mat-n:hover span { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--linea-hover) }
@@ -2474,8 +2475,8 @@ body.pausa :is(#tar, #hab) .tit-in, body.pausa #tar .seg > button, body.pausa #t
 #hab .racha-g svg { width: 22px; height: 27px; flex: none; fill: var(--ambar); filter: drop-shadow(0 0 8px rgba(242, 182, 50, .6)); transform-origin: 50% 90% }
 #hab .racha-g.r0 svg { fill: var(--s3); filter: none }
 #hab .racha-g.r1 svg { fill: var(--pico); filter: none }
-#hab .racha-g b { display: inline-block; font: 800 34px/1 var(--f); letter-spacing: -.05em; font-variant-numeric: tabular-nums }
-#hab .racha-g span { font: 700 12px/1.3 var(--f); color: var(--crema2) }
+#hab .racha-g b { display: inline-block; font: 800 35px/1 var(--f); letter-spacing: -.05em; font-variant-numeric: tabular-nums }
+#hab .racha-g span { font: 700 13px/1.3 var(--f); color: var(--crema2) }
 #hab .racha-g small { display: block; margin-top: 3px; font: var(--t-mono-s); color: var(--tenue) }
 #hab .cal { display: grid; gap: 6px }
 #hab .cal .sub { margin: 0 }
@@ -2489,14 +2490,14 @@ body.pausa :is(#tar, #hab) .tit-in, body.pausa #tar .seg > button, body.pausa #t
 #hab .fc[aria-checked="true"] { background: var(--crema); color: var(--tinta); border-color: var(--crema) }
 #hab .fc[aria-checked="true"]:focus-visible, #hab .dsem button[aria-pressed="true"]:focus-visible { outline-color: var(--tinta) }
 #hab .paso { display: inline-flex; align-items: center; border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s1) }
-#hab .paso button { width: 30px; height: 28px; border: 0; border-radius: var(--r-pildora); background: none; color: var(--crema2); font: 600 14px/1 var(--m); cursor: pointer; transition: color var(--d-color) ease, background var(--d-color) ease }
+#hab .paso button { width: 30px; height: 28px; border: 0; border-radius: var(--r-pildora); background: none; color: var(--crema2); font: 600 15px/1 var(--m); cursor: pointer; transition: color var(--d-color) ease, background var(--d-color) ease }
 #hab .paso button:hover { color: var(--crema); background: var(--s2) }
-#hab .paso b { min-width: 24px; text-align: center; font: 600 12px/1 var(--m); font-variant-numeric: tabular-nums }
+#hab .paso b { min-width: 24px; text-align: center; font: 600 13px/1 var(--m); font-variant-numeric: tabular-nums }
 #hab .campo.mini { width: 92px; min-height: 30px; padding: 0 var(--e-4) }
 #hab .campo.mini input { font: var(--t-mono-s) }
 #hab .dsem { gap: 4px }
 #hab .dsem button {
-  width: 30px; height: 30px; border: 1px solid var(--linea); border-radius: 9px; background: none; color: var(--crema2); font: 700 11px/1 var(--f); cursor: pointer;
+  width: 30px; height: 30px; border: 1px solid var(--linea); border-radius: 9px; background: none; color: var(--crema2); font: 700 12px/1 var(--f); cursor: pointer;
   transition: background var(--d-color) ease, color var(--d-color) ease, border-color var(--d-color) ease, transform var(--d-presion) ease
 }
 #hab .dsem button:hover { border-color: var(--linea-hover); color: var(--crema) }
@@ -2529,12 +2530,12 @@ body.pausa :is(#tar, #hab) .tit-in, body.pausa #tar .seg > button, body.pausa #t
 
 /* El primer uso (7.2): las sugeridas con su punto y su detalle */
 #hab .primer .fc .pt { width: 6px; height: 6px; box-shadow: none; background: var(--c) }
-#hab .primer .fc .ct { font: 500 10px/1 var(--m); font-stretch: 75%; color: var(--tenue) }
+#hab .primer .fc .ct { font: 500 11px/1 var(--m); font-stretch: 75%; color: var(--tenue) }
 
 /* La píldora del hito (4.14): centrada arriba de la columna, aria-hidden */
 #hab .hito {
   position: absolute; left: 0; right: 0; top: 4px; z-index: 6; width: max-content; max-width: 92%; margin: 0 auto; display: flex; gap: 7px; align-items: center;
-  padding: 8px 13px 8px 10px; border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro); font: 800 12px/1 var(--f); white-space: nowrap;
+  padding: 8px 13px 8px 10px; border-radius: var(--r-pildora); background: var(--ambar); color: var(--negro); font: 800 13px/1 var(--f); white-space: nowrap;
   box-shadow: 0 12px 30px -8px rgba(242, 182, 50, .6); pointer-events: none
 }
 #hab .hito svg { width: 11px; height: 13px; flex: none; fill: currentColor }
@@ -2591,10 +2592,10 @@ body.pausa #hab .sw, body.pausa #hab .sw::after, body.pausa #hab .col::after { t
   position: relative; flex: 1; min-width: 0; display: grid; gap: 7px; padding: 11px 2px 11px 12px; border: 0; border-radius: 14px 0 0 14px;
   background: none; color: inherit; text-align: left; cursor: pointer;
 }
-.globo-tar .globo-t { font: 600 12px/1.35 var(--f) }
+.globo-tar .globo-t { font: 600 13px/1.35 var(--f) }
 .globo-tar .globo-t b { font-weight: 800 }
 .globo-tar b.r, #muesca-globo b.r { color: var(--rojo-tinta) }
-.globo-tar .globo-c { font: 600 10px/1 var(--m); letter-spacing: .03em; color: var(--ambar-tinta) }
+.globo-tar .globo-c { font: 600 11px/1 var(--m); letter-spacing: .03em; color: var(--ambar-tinta) }
 .globo-tar .globo-b:hover .globo-c { text-decoration: underline; text-underline-offset: 3px }
 .globo-tar .globo-x {
   width: 30px; flex: none; display: grid; place-items: start center; padding: 10px 0 0; border: 0; border-radius: 0 14px 14px 0;
@@ -2610,7 +2611,7 @@ body.pausa #hab .sw, body.pausa #hab .sw::after, body.pausa #hab .col::after { t
 #aviso-tar { contain: inline-size }
 .aviso.aviso-tar {
   min-height: 40px; padding: 0 var(--e-1) 0 var(--e-6); gap: var(--e-2); cursor: default;
-  border-color: color-mix(in srgb, var(--ambar) 55%, transparent); background: var(--ambar-osc); color: var(--crema); font: 600 12px/1.3 var(--f);
+  border-color: color-mix(in srgb, var(--ambar) 55%, transparent); background: var(--ambar-osc); color: var(--crema); font: 600 13px/1.3 var(--f);
 }
 .aviso.aviso-tar:hover { background: var(--ambar-osc); border-color: color-mix(in srgb, var(--ambar) 55%, transparent) }
 .aviso.aviso-tar:active { transform: none }
@@ -2619,7 +2620,7 @@ body.pausa #hab .sw, body.pausa #hab .sw::after, body.pausa #hab .col::after { t
 .aviso-tar b.r { color: var(--rojo) }
 .aviso-tar .lnk {
   flex: none; min-height: 32px; padding: 0 var(--e-3); border: 0; border-radius: var(--r-tag); background: none; color: var(--ambar);
-  font: 700 12px/1 var(--f); white-space: nowrap; cursor: pointer;
+  font: 700 13px/1 var(--f); white-space: nowrap; cursor: pointer;
 }
 .aviso-tar .lnk:hover { text-decoration: underline; text-underline-offset: 3px }
 .aviso-tar .tb { flex: none }
@@ -2631,7 +2632,7 @@ body.pausa #hab .sw, body.pausa #hab .sw::after, body.pausa #hab .col::after { t
 #muesca-globo { display: none }
 body.acoplada:not(.abierta):not(.pildora) #muesca-globo:not([hidden]) {
   position: fixed; z-index: 2; display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 8px 12px; border: 0; border-radius: 12px;
-  background: var(--crema); color: var(--tinta); font: 700 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
+  background: var(--crema); color: var(--tinta); font: 700 12.5px/1 var(--f); white-space: nowrap; cursor: pointer;
   box-shadow: 0 10px 24px -10px rgba(0, 0, 0, .6);
 }
 #muesca-globo::before { content: ""; position: absolute; width: 10px; height: 10px; border-radius: 2px; background: var(--crema); transform: rotate(45deg) }
@@ -2644,7 +2645,7 @@ body[data-borde="izquierda"] #muesca-globo::before { left: -4px; top: calc(var(-
 body[data-borde="derecha"] #muesca-globo { transform-origin: 100% var(--cola, 50%) }
 body[data-borde="derecha"] #muesca-globo::before { right: -4px; top: calc(var(--cola, 50%) - 5px) }
 #muesca-globo > * { pointer-events: none }
-#muesca-globo .mt-c { font: 600 10px/1 var(--m); color: var(--ambar-tinta) }
+#muesca-globo .mt-c { font: 600 11px/1 var(--m); color: var(--ambar-tinta) }
 #muesca-globo:hover .mt-c { text-decoration: underline; text-underline-offset: 3px }
 body:not(.colocada) #muesca-globo, body.velada #muesca-globo { visibility: hidden }
 @media (prefers-reduced-motion: reduce) {
@@ -2665,12 +2666,12 @@ body.pausa .globo-tar .globo-x { transition: none }
 .globo-hab .gh-acc { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px }
 .globo-hab .g-hacer {
   height: 28px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px 0 10px; border: 0; border-radius: 999px;
-  background: var(--tinta); color: var(--crema); font: 800 11.5px/1 var(--f); white-space: nowrap; cursor: pointer;
+  background: var(--tinta); color: var(--crema); font: 800 12.5px/1 var(--f); white-space: nowrap; cursor: pointer;
   transition: transform var(--d-presion) ease;
 }
 .globo-hab .g-hacer:active { transform: scale(.96) }
 .globo-hab .g-hacer .pt { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--hc, var(--ambar)) }
-.globo-hab .g-ver { padding: 6px 2px; border: 0; background: none; color: var(--ambar-tinta); font: 600 10px/1 var(--m); letter-spacing: .03em; cursor: pointer }
+.globo-hab .g-ver { padding: 6px 2px; border: 0; background: none; color: var(--ambar-tinta); font: 600 11px/1 var(--m); letter-spacing: .03em; cursor: pointer }
 .globo-hab .g-ver:hover { text-decoration: underline; text-underline-offset: 3px }
 .globo-hab .gh-ok {
   width: 16px; height: 16px; display: inline-grid; place-items: center; margin-right: 6px; vertical-align: -3px; border-radius: 50%;
@@ -2694,7 +2695,7 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
    abajo un solo button.globo-res con la frase (números en 800), las 7 barras (--tinta sobre el crema, alto
    26 × fracción, mínimo 3, con la letra del día debajo) y «Charlemos la semana →». Las barras crecen desde
    abajo, escalonadas 45 ms desde 260 (600 ms --ease); con movimiento reducido o en pausa, aparecen enteras */
-.globo-sem .gh-k { flex: 1; min-width: 0; padding-top: 7px; font: 600 9px/1.4 var(--m); letter-spacing: .12em; text-transform: uppercase; color: #5c554a }
+.globo-sem .gh-k { flex: 1; min-width: 0; padding-top: 7px; font: 600 10px/1.4 var(--m); letter-spacing: .12em; text-transform: uppercase; color: #5c554a }
 .globo-sem .globo-res {
   display: grid; gap: 8px; width: 100%; margin: 0; padding: 0 6px 2px 0; border: 0; border-radius: 8px; background: none;
   color: inherit; font: inherit; text-align: left; cursor: pointer;
@@ -2702,7 +2703,7 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
 .globo-sem .globo-res .globo-t { display: block; padding-top: 0 }
 .globo-sem .globo-res:hover .globo-c { text-decoration: underline; text-underline-offset: 3px }
 .globo-sem .barras { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; align-items: end }
-.globo-sem .barras > span { display: grid; grid-template-rows: 26px auto; gap: 3px; justify-items: center; align-items: end; font: 600 8.5px/1 var(--m); color: #5c554a }
+.globo-sem .barras > span { display: grid; grid-template-rows: 26px auto; gap: 3px; justify-items: center; align-items: end; font: 600 9.5px/1 var(--m); color: #5c554a }
 .globo-sem .barras i { display: block; width: 100%; height: var(--h); border-radius: 3px; background: var(--tinta); transform-origin: bottom }
 @media (prefers-reduced-motion: no-preference) {
   body:not(.pausa) .globo-sem .barras i { animation: barra-sube .6s var(--ease) both; animation-delay: calc(var(--i) * 45ms + 260ms) }
@@ -2738,19 +2739,19 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
 #pro .rot { margin: 2px 0 4px 8px }
 #pro .ix-b {
   position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 0 6px;
-  border: 0; border-radius: var(--r-fila); background: none; color: var(--crema2); font: 700 12px/1.15 var(--f); text-align: left; cursor: pointer;
+  border: 0; border-radius: var(--r-fila); background: none; color: var(--crema2); font: 700 13px/1.15 var(--f); text-align: left; cursor: pointer;
   transition: color var(--d-color) ease, transform var(--d-presion) ease;
 }
 #pro .ix-b:hover, #pro .ix-b[aria-current="page"] { color: var(--crema) }
 #pro .ix-b:active { transform: scale(.97) }
 #pro .ix-b .pt { width: 6px; height: 6px; margin: 0 2px; box-shadow: none }
 #pro .ix-b .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-#pro .ix-b .ct { flex: none; font: 500 10px/1 var(--m); color: var(--tenue) }
+#pro .ix-b .ct { flex: none; font: 500 11px/1 var(--m); color: var(--tenue) }
 #pro .ix-b .mal-p { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--rojo); box-shadow: 0 0 0 3px rgba(255, 122, 107, .2) }
 #pro .ix-b.mas { margin-top: 6px; color: var(--ambar) }
 #pro .ix-b.mas i {
   width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 7px;
-  border: 1px dashed color-mix(in srgb, var(--ambar) 60%, transparent); font: 400 15px/1 var(--f); font-style: normal;
+  border: 1px dashed color-mix(in srgb, var(--ambar) 60%, transparent); font: 400 16px/1 var(--f); font-style: normal;
 }
 /* La píldora (4.2): fondo --s2 con el borde de 3 del color del proyecto; viaja con translateY (proyectosMotion.js) */
 #pro .ind-ix {
@@ -2767,14 +2768,14 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
 #pro .pj-ic {
   width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 11px;
   background: color-mix(in srgb, var(--c) 18%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent);
-  color: var(--c); font: 600 13px/1 var(--m);
+  color: var(--c); font: 600 14px/1 var(--m);
 }
 #pro .f-t { flex: 1; min-width: 0 }
-#pro .f-t h2 { font: 800 18px/1.15 var(--f); letter-spacing: -.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#pro .f-t h2 { font: 800 19px/1.15 var(--f); letter-spacing: -.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #pro .f-t small { display: block; font: var(--t-mono-s); color: var(--tenue) }
 #pro .cta {
   display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 14px 0 8px; border: 0; border-radius: 14px;
-  background: var(--ambar); color: var(--negro); font: 800 13px/1 var(--f); text-align: left; cursor: pointer;
+  background: var(--ambar); color: var(--negro); font: 800 14px/1 var(--f); text-align: left; cursor: pointer;
   box-shadow: 0 14px 30px -18px rgba(242, 182, 50, .8); transition: transform var(--d-presion) ease, filter var(--d-color) ease;
 }
 #pro .cta:hover { filter: brightness(1.06) }
@@ -2794,8 +2795,8 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
   font: var(--t-mono-s); color: var(--crema2); cursor: pointer; transition: background var(--d-color) ease, color var(--d-color) ease;
 }
 #pro .bl-b:hover { background: var(--s3); color: var(--crema) }
-#pro .instr { margin: 0; font: 500 12px/1.5 var(--f); color: var(--crema); white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere }
-#pro .instr::before { content: "“"; margin-right: 2px; color: var(--c); font: 800 18px/0 var(--f); vertical-align: -6px }
+#pro .instr { margin: 0; font: 500 13px/1.5 var(--f); color: var(--crema); white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere }
+#pro .instr::before { content: "“"; margin-right: 2px; color: var(--c); font: 800 19px/0 var(--f); vertical-align: -6px }
 #pro .instr-no { margin: 0; font: var(--t-chico); color: var(--tenue) }
 #pro .bloque .pie { font: var(--t-mono-s); color: var(--tenue) }
 #pro .car-n { display: flex; gap: 8px; align-items: center; min-width: 0 }
@@ -2808,7 +2809,7 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
 #pro .soltar {
   --lh: var(--linea-hover);
   display: grid; place-items: center; align-content: center; gap: 3px; min-height: 54px; padding: 8px; border: 0; border-radius: 10px;
-  font: 600 11px/1.3 var(--f); color: var(--crema2); text-align: center; cursor: pointer; transition: color var(--d-color) ease, background-color .2s ease;
+  font: 600 12px/1.3 var(--f); color: var(--crema2); text-align: center; cursor: pointer; transition: color var(--d-color) ease, background-color .2s ease;
   background:
     linear-gradient(90deg, var(--lh) 50%, transparent 0) 0 0 / 10px 1px repeat-x,
     linear-gradient(90deg, var(--lh) 50%, transparent 0) 0 100% / 10px 1px repeat-x,
@@ -2827,7 +2828,7 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
 #pro .mini-acc { display: flex; gap: 6px; flex-wrap: wrap }
 #pro .mini {
   min-height: 32px; padding: 0 12px; border-radius: var(--r-pildora); border: 1px solid var(--linea-hover); background: none;
-  font: 700 11.5px/1 var(--f); color: var(--crema); cursor: pointer; transition: background var(--d-color) ease, transform var(--d-presion) ease;
+  font: 700 12.5px/1 var(--f); color: var(--crema); cursor: pointer; transition: background var(--d-color) ease, transform var(--d-presion) ease;
 }
 #pro .mini:hover { background: var(--s3) }
 #pro .mini:active { transform: scale(.97) }
@@ -2858,7 +2859,7 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
 
 /* El formulario (4.10) */
 #pro .form { display: grid; gap: 14px; align-content: start; margin: 0 }
-#pro .form > h2 { font: 800 18px/1.15 var(--f); letter-spacing: -.03em }
+#pro .form > h2 { font: 800 19px/1.15 var(--f); letter-spacing: -.03em }
 #pro .fl { display: grid; gap: 6px; min-width: 0 }
 #pro .fl > label, #pro .fl > .lbl { font: var(--t-cuerpo-f) }
 #pro .fl small { font: var(--t-mono-s); color: var(--tenue) }
@@ -2896,7 +2897,7 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
 #pro .car-act.mal .car-n b { text-decoration: line-through; color: var(--crema2) }
 #pro .form-acc { display: flex; gap: 8px; align-items: center; padding-top: 2px }
 #pro .btn-pri, #pro .btn-sec {
-  min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-pildora); font: 800 12.5px/1 var(--f); cursor: pointer;
+  min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-pildora); font: 800 13.5px/1 var(--f); cursor: pointer;
   transition: transform var(--d-presion) ease, filter var(--d-color) ease, background var(--d-color) ease, color var(--d-color) ease;
 }
 #pro .btn-pri { background: var(--ambar); color: var(--negro) }
@@ -2909,7 +2910,7 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
 /* El primer uso (7.2): la mascota de 96 sobre la luz ámbar de piso, el texto, tres píldoras y el botón */
 #pro .vacio { flex: 1; display: grid; place-content: center; justify-items: center; gap: 12px; min-height: 100%; padding: 0 30px 30px; text-align: center }
 #pro .vacio .piso { display: grid; place-items: center; width: 200px; height: 120px; background: radial-gradient(90px 22px at 50% 108px, rgba(242, 182, 50, .28), transparent 70%) }
-#pro .vacio h2 { font: 800 19px/1.15 var(--f); letter-spacing: -.03em }
+#pro .vacio h2 { font: 800 20px/1.15 var(--f); letter-spacing: -.03em }
 #pro .vacio p { margin: 0; max-width: 36ch; font: var(--t-cuerpo); color: var(--crema2) }
 #pro .tres { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px }
 #pro .tres span { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: var(--r-pildora); border: 1px solid var(--linea); font: var(--t-mono-s); color: var(--crema2) }
@@ -2953,10 +2954,10 @@ body.pausa #pro .btn-pri, body.pausa #pro .btn-sec, body.pausa #pro .soltar, bod
 #hoja .pj-chip {
   display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; height: 32px; padding: 0 10px 0 5px; border-radius: var(--r-pildora);
   background: color-mix(in srgb, var(--c) 14%, var(--s2)); border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); color: var(--crema);
-  font: 800 12px/1 var(--f); transition: background var(--d-color) ease;
+  font: 800 13px/1 var(--f); transition: background var(--d-color) ease;
 }
 #hoja .pj-chip:hover { background: color-mix(in srgb, var(--c) 22%, var(--s2)) }
-#hoja .pj-chip .pj-ic { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); font: 600 11px/1 var(--m) }
+#hoja .pj-chip .pj-ic { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); font: 600 12px/1 var(--m) }
 #hoja .pj-chip .n { min-width: 0; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #hoja .pj-chip small { flex: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
 #hoja.baja .pj-chip .n { max-width: 130px }
@@ -2982,7 +2983,7 @@ body.pausa #pro .btn-pri, body.pausa #pro .btn-sec, body.pausa #pro .soltar, bod
 #hoja .h-it .pt-pro { display: inline-block; width: 6px; height: 6px; margin: 0 5px 1px 0; border-radius: 50%; background: var(--c); vertical-align: middle }
 #hoja .filtro-pro {
   display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; padding: 0 4px 0 10px; border-radius: var(--r-fila);
-  background: color-mix(in srgb, var(--c) 12%, var(--s2)); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); font: 700 12px/1.2 var(--f);
+  background: color-mix(in srgb, var(--c) 12%, var(--s2)); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); font: 700 13px/1.2 var(--f);
 }
 #hoja .filtro-pro span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #hoja .filtro-pro .lnk { flex: none; height: 28px; padding: 0 8px; border-radius: 6px; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
