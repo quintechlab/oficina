@@ -170,3 +170,15 @@ test('abrir una plegada no la sube de lugar: sigue al fondo mientras duerme', ()
   const [p] = agruparPorProyecto([vieja, nueva])
   assert.deepEqual(prepararProyecto(p, AHORA, 'avi', new Set(['vieja'])).map(x => x.s.sesion), ['nueva', 'vieja'])
 })
+
+// ------------------------------------------------------------------ Orden por actividad (pedido del 26/11)
+test('arriba las que trabajan o preguntan, después las que esperan tu mensaje, al fondo las dormidas', () => {
+  const quieta = ses({ sesion: 'quieta', inicio: hace(300) }) // mod anterior, esperando tu mensaje
+  const dormida = ses({ sesion: 'dormida', inicio: hace(280), ultimoTurno: hace(90) })
+  const coordina = ses({ sesion: 'coordina', inicio: hace(200), actividad: 'pensando', enTurno: true, agentes: [{ id: 'a1', nombre: 'Panel', estado: 'trabajando', desde: hace(40), hasta: null }] })
+  const pregunta = ses({ sesion: 'pregunta', inicio: hace(150), preguntas: [{ id: 'p1', agente: null }] })
+  const espera = ses({ sesion: 'espera', inicio: hace(100), ultimoTurno: hace(3) })
+  const edita = ses({ sesion: 'edita', inicio: hace(50), actividad: 'editando main.js', enTurno: true })
+  const [p] = agruparPorProyecto([quieta, dormida, coordina, pregunta, espera, edita])
+  assert.deepEqual(prepararProyecto(p, AHORA).map(x => x.s.sesion), ['coordina', 'pregunta', 'edita', 'quieta', 'espera', 'dormida'])
+})

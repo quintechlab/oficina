@@ -10,7 +10,7 @@ import { barraControl, barraPlegada, puedeControlar, LINEA_TARJETA_CERRANDO } fr
 import { vistaHistorial, firmaHistorial } from './historial.js'
 import {
   animoSesion, animoSubagente, personajeDeNombre, personajeSubagente, variantesEquipo, tiempoSubagente, textoActividad, tituloActividad,
-  preguntasPendientes, escapar, tiempoRelativo, nombreProyecto, FUERA_DE_REPO, dormida,
+  preguntasPendientes, escapar, tiempoRelativo, nombreProyecto, FUERA_DE_REPO, dormida, ANIMOS_DE_TRABAJO,
 } from './logica.js'
 
 /** Nombre accesible del estado de un Avi que está solo (la marca y el vacío): "Claude, durmiendo". */
@@ -55,9 +55,10 @@ export function prepararProyecto(proyecto, ahoraMs, especie = 'avi', despiertas 
     return { s, animo: animoSesion(s, ahoraMs), sub, plegada: !despiertas.has(s.sesion) && duerme, abierta: despiertas.has(s.sesion) && duerme }
   })
   // Las dormidas se pliegan y van al fondo (sesiones-dormidas.md, S1); cada grupo conserva su orden
-  // (también las abiertas: abrir una no la sube de lugar)
-  const duerme = p => p.plegada || p.abierta
-  return [...preparadas.filter(p => !duerme(p)), ...preparadas.filter(duerme)]
+  // (también las abiertas: abrir una no la sube de lugar). Arriba de ellas, las que esperan tu mensaje;
+  // primero, las que trabajan o te preguntan (pedido de Quintana del 26/11). Cada grupo, en su orden
+  const grupo = p => (p.plegada || p.abierta ? 2 : ANIMOS_DE_TRABAJO.has(p.animo) || p.animo === 'teEspera' ? 0 : 1)
+  return [0, 1, 2].flatMap(g => preparadas.filter(p => grupo(p) === g))
 }
 
 /**
