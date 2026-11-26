@@ -5052,8 +5052,11 @@ function leerTareas() {
       const r = await invocar('tareas_leer')
       const listas = Array.isArray(r?.listas) ? r.listas : []
       const rotas = Array.isArray(r?.rotas) ? r.rotas.filter(x => typeof x?.archivo === 'string') : []
-      for (const l of listas) anotarBaseTareas(l, r?.huellas?.[l.id])
-      st.tareas = { ...st.tareas, listas: mezclarLectura(listas, st.tareas.listas, listasSinGuardar()), rotas, leido: true, errorLeer: null }
+      const sinGuardar = listasSinGuardar()
+      // La base de lo que queda en pantalla tal cual se leyó; la de lo que no se pisa sigue siendo la de
+      // antes: su guardado (o el reintento de 5 s) choca con la huella y vuelve a aplicar lo suyo (11.5)
+      for (const l of listas) if (!sinGuardar.has(l.id)) anotarBaseTareas(l, r?.huellas?.[l.id])
+      st.tareas = { ...st.tareas, listas: mezclarLectura(listas, st.tareas.listas, sinGuardar), rotas, leido: true, errorLeer: null }
       evaluarAvisoTareas()
     } catch (err) {
       registrar(`tareas: no se pudieron leer: ${err}`)
