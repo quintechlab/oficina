@@ -965,6 +965,26 @@ test('el archivo local dice al instante si hay un turno del hilo principal que f
   expect(s.presencia()?.enTurno).toBe(false)
 })
 
+test('el archivo local dice cuándo fue el último turno del hilo principal, y el latido no lo cambia', async ($, on) => {
+  const s = await abrirSesion($, on)
+  // Sin turnos todavía: cuenta desde que arrancó la sesión
+  const arranque = s.presencia()?.ultimoTurno
+  expect(typeof arranque).toBe('string')
+  await s.reloj.advance(60000)
+  expect(s.presencia()?.ultimoTurno).toBe(arranque)
+  await s.empezarTurno('t1')
+  const empezo = enIso(s.reloj.now())
+  expect(s.presencia()?.ultimoTurno).toBe(empezo)
+  await s.reloj.advance(45000)
+  await s.terminarTurno('t1')
+  const termino = enIso(s.reloj.now())
+  expect(s.presencia()?.ultimoTurno).toBe(termino)
+  // El turno de un subagente no cuenta
+  await s.reloj.advance(45000)
+  await s.empezarTurno('ts', 'agente-1')
+  expect(s.presencia()?.ultimoTurno).toBe(termino)
+})
+
 test('un mensaje con la sesión libre se envía con el texto exacto', async ($, on) => {
   const s = await abrirSesion($, on)
   await s.ordenar({ texto: '  Seguí con los tests\nporfa  ' })

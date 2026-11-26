@@ -20,6 +20,8 @@
 //   ?sincerrar    ninguna sesión se puede cerrar (mod anterior a la v0.11). Sin él, central-nucleo y
 //                 catalogo son de terminal ("Cerrar sesión"; al confirmar, la tarjeta se va a los 2 s) y
 //                 oficina es de la app de escritorio (sin el botón) (#25)
+//   ?dormida      oficina suma una conversación vieja sin turnos hace 2 h: plegada al fondo (sesiones-dormidas);
+//                 «Terminar» la saca en 600 ms. ?dormida=despierta|fallo: Rust no la termina (el error)
 //   ?historial=lento|vacio|error  "Qué hizo" (#25): la lectura tarda 2 s, no hay conversación, o falla.
 //                 Sin él, catalogo y oficina muestran una conversación y central-nucleo está vacía
 //   ?procesos     central-nucleo espera dos procesos en segundo plano (pose "proceso", v0.6)
@@ -390,6 +392,18 @@
     const nucleo = SESIONES.find(s => s.sesion === 'ses-nucleo')
     for (const [k, nombre] of ['quintech-crm', 'webs-portfolio', 'brasa-noble', 'temple-barberia', 'mis-gastos-app', 'playbook'].entries()) {
       SESIONES.push({ ...nucleo, sesion: `ses-extra-${k}`, repo: `quintechlab/${nombre}`, rama: 'main', inicio: hace(20 + k * 7), actividad: 'esperándote', agentes: [] })
+    }
+  }
+  // ?dormida: oficina tiene además una conversación vieja de VS Code sin turnos hace 2 h (mod v0.12):
+  // arrancó antes que la otra, pero va plegada al fondo (odd/tasks/sesiones-dormidas.md)
+  if (url.has('dormida')) {
+    const oficina = SESIONES.find(s => s.sesion === 'ses-oficina')
+    if (oficina) {
+      SESIONES.splice(SESIONES.indexOf(oficina), 0, {
+        ...oficina, sesion: 'ses-oficina-vieja', rama: 'feat/6-estilo-avis-marco', inicio: hace(240), actualizado: hace(0),
+        actividad: 'esperándote', ultimoTurno: hace(125), agentes: [], preguntas: [], procesos: [],
+      })
+      oficina.ultimoTurno = hace(0)
     }
   }
   /** Preguntas que el falso da por tomadas (?envio=listo) o respondidas en Claude (?envio=ya). */
@@ -1855,6 +1869,15 @@
     },
     estado_respuesta: ({ id }) => (url.get('envio') === 'listo' && tomadas.has(id) ? 'consumida' : 'pendiente'),
     borrar_respuesta: () => null,
+    // «Terminar» una sesión dormida (sesiones-dormidas.md, S2): en 600 ms la saca; con ?dormida=despierta|fallo, el error
+    terminar_sesion: ({ sesion }) => new Promise(r => setTimeout(() => {
+      console.info('[terminar_sesion]', sesion)
+      const error = { despierta: 'despierta', fallo: 'fallo' }[url.get('dormida')]
+      if (error) return r({ ok: false, error })
+      const k = SESIONES.findIndex(s => s.sesion === sesion)
+      if (k >= 0) SESIONES.splice(k, 1)
+      r({ ok: true, pid: 23688 })
+    }, 600)),
     // Órdenes (#19): según ?orden, la sesión la toma en 1,2 s, nunca (muda), no pudo (fallo) o el comando falla (error)
     ordenar: ({ sesion, tipo, texto }) => {
       console.info('[ordenar]', JSON.stringify({ sesion, tipo, texto }))

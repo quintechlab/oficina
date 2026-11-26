@@ -19,6 +19,7 @@ import {
   vistaBarra, clicFrenar, validarTexto, teclaControl, lineaResultado, lineaError, pasoOrden,
   borradorTrasOrden, lineaAlEscribir, MS_CONFIRMAR_FRENAR, MS_SONDEO_ORDEN, MS_LINEA,
   clicCerrar, MS_CONFIRMAR_CERRAR, cerrandoSesion, destinoFocoCierre, anuncioCierre, MS_TOPE_CERRANDO, vencerCierre,
+  clicTerminar, confirmandoTerminar, MS_CONFIRMAR_TERMINAR,
 } from './control.js'
 import { MS_RELEER as MS_RELEER_HISTORIAL } from './historial.js'
 import { globo, avisoOtroProyecto, quienPregunta, anuncioPregunta } from './pregunta.js'
@@ -147,6 +148,8 @@ const st = {
    * mientras la sesión no toma la orden y `linea` { texto, tono, desde } con lo que pasó.
    */
   control: {},
+  /** Sesiones dormidas que el usuario abrió con «Abrir» (sesiones-dormidas.md): se ven enteras hasta «Plegar» o su próximo turno. */
+  desplegadas: new Set(),
   /** El IME está componiendo una palabra en una barra: las escenas no se redibujan hasta que termine. */
   componiendo: false,
   proyectos: [],
@@ -539,6 +542,18 @@ function trasCierre(c) {
 /** Estado de la barra de una sesión (se crea vacío). */
 const ctl = sesion => (st.control[sesion] ??= {})
 
+/**
+ * Las sesiones a las que se les está escribiendo desde Avis: con borrador, una orden en curso o el foco
+ * en su barra. No se pliegan aunque duerman (sesiones-dormidas.md, B1 del verificador).
+ */
+function sesionesEscribiendo() {
+  const ids = new Set(Object.entries(st.control).filter(([, u]) => u?.pendiente || String(u?.borrador ?? '').trim()).map(([id]) => id))
+  for (const id of st.desplegadas) ids.add(id)
+  const foco = focoEnBarra()
+  if (foco) ids.add(foco.sesion)
+  return ids
+}
+
 const barraDe = sesion => document.querySelector(`#sesiones .ctl[data-sesion="${CSS.escape(sesion)}"]`)
 
 /** Dónde está el foco, si está en una barra: su sesión, el control y, en el campo, el cursor. */
@@ -658,6 +673,79 @@ function tocarCerrar(sesion) {
   if (r.cerrar) { ordenar(sesion, 'cerrar'); return }
   refrescarBarras(ahora)
   ui.reloj = setTimeout(() => refrescarBarras(), MS_CONFIRMAR_CERRAR + 20)
+}
+
+// ------------------------------------------------------------------ «Terminar» (sesiones-dormidas.md, S2)
+// Solo en la tarjeta plegada de una sesión dormida. El segundo clic le pide a Rust que termine su
+// proceso de Claude Code (terminar.rs vuelve a comprobar que duerme y que el proceso es el suyo).
+
+/** Redibuja ya; si el foco estaba en «Terminar», vuelve a su botón. */
+function repintarTerminar(sesion) {
+  const tenia = document.activeElement?.matches?.('#sesiones .ctl-terminar')
+  pintar()
+  if (tenia) document.querySelector(`#sesiones .ctl-terminar[data-sesion="${CSS.escape(sesion)}"]`)?.focus({ preventScroll: true })
+}
+
+/** Un clic en «Terminar»: el primero pide confirmar por 3 s (vuelve solo); el segundo termina. Nunca por tiempo. */
+function tocarTerminar(sesion) {
+  const ui = ctl(sesion)
+  if (ui.terminando) return
+  const ahora = Date.now()
+  const r = clicTerminar(ui, ahora)
+  ui.terminaHasta = r.terminaHasta
+  ui.error = null
+  clearTimeout(ui.relojTermina)
+  if (r.terminar) { terminarSesion(sesion); return }
+  repintarTerminar(sesion)
+  ui.relojTermina = setTimeout(() => {
+    if (confirmandoTerminar(ui, Date.now())) return
+    ui.terminaHasta = null
+    repintarTerminar(sesion)
+  }, MS_CONFIRMAR_TERMINAR + 20)
+}
+
+/**
+ * «Abrir» una tarjeta plegada (decisión de Quintana del 26/11): se ve entera, con su campo y «Cerrar
+ * sesión», y el foco va al campo para escribirle. «Plegar» la vuelve a plegar con el foco en «Abrir».
+ */
+function abrirPlegada(sesion, abrir) {
+  if (abrir) st.desplegadas.add(sesion)
+  else st.desplegadas.delete(sesion)
+  pintar()
+  const boton = `#sesiones .ses-abrir[data-sesion="${CSS.escape(sesion)}"]`
+  const destino = abrir ? document.querySelector(`#sesiones .ctl-in[data-sesion="${CSS.escape(sesion)}"]`) : null
+  ;(destino ?? document.querySelector(boton))?.focus({ preventScroll: true })
+}
+
+/** Esc en «¿Terminar? Sí» deja de pedir confirmación, sin terminar. */
+function cancelarTerminar(sesion) {
+  const ui = ctl(sesion)
+  ui.terminaHasta = null
+  clearTimeout(ui.relojTermina)
+  repintarTerminar(sesion)
+}
+
+async function terminarSesion(sesion) {
+  const ui = ctl(sesion)
+  if (ui.terminando || !tauri?.core) return
+  ui.terminando = true
+  repintarTerminar(sesion)
+  let r
+  try {
+    r = await invocar('terminar_sesion', { sesion })
+  } catch (e) {
+    registrar(`terminar ${sesion}: el comando falló (${e})`)
+    r = { ok: false, error: 'fallo' }
+  }
+  if (r?.ok) {
+    // La presencia quedó cerrada: en la próxima lectura la tarjeta sale como una cerrada (B1),
+    // con su aviso y el foco a la siguiente
+    ui.cerrando = true
+    return
+  }
+  ui.terminando = false
+  ui.error = r?.error ?? 'fallo'
+  repintarTerminar(sesion)
 }
 
 // ------------------------------------------------------------------ "Qué hizo" (#25)
@@ -1176,7 +1264,9 @@ function pintar() {
   const htmlOtro = avisoOtroProyecto(st.proyectos, enDividida ? -1 : i, st.mascota, st.formas) + (hoja || enDividida ? '' : avisoAsistente(pp, st.mascota) + avisoMod(st.pp.avisoMod, st.mascota))
   poner('#otro', htmlOtro, htmlOtro.replace(/ evol(?=[ "])/g, ''))
 
-  const preparadas = prepararProyecto(proyecto, ahora, st.mascota)
+  const preparadas = prepararProyecto(proyecto, ahora, st.mascota, sesionesEscribiendo())
+  // Una abierta con «Abrir» que volvió a tener turnos ya no duerme: se olvida (la próxima vez se pliega sola)
+  for (const p of preparadas) if (!p.abierta && !p.plegada) st.desplegadas.delete(p.s.sesion)
   const c = conteos(preparadas, ahora)
   // El h1 es el del módulo, «Sesiones»; el proyecto va en la bajada (modulos-ux.md 5 y 11.1, M2)
   const cab = encabezadoSesiones(proyecto, preparadas, c)
@@ -2233,6 +2323,8 @@ document.addEventListener('click', async e => {
   if (a === 'ctl-enviar') { if (!b.disabled) ordenar(b.dataset.sesion, 'mensaje'); return }
   if (a === 'ctl-frenar') { if (!b.disabled) tocarFrenar(b.dataset.sesion); return }
   if (a === 'ctl-cerrar') { if (!b.disabled) tocarCerrar(b.dataset.sesion); return }
+  if (a === 'dorm-terminar') { tocarTerminar(b.dataset.sesion); return }
+  if (a === 'ses-abrir' || a === 'ses-plegar') { abrirPlegada(b.dataset.sesion, a === 'ses-abrir'); return }
   // "Qué hizo" (#25): despliega lo último de la conversación debajo de la cabecera; otro clic lo pliega
   if (a === 'historial') { alternarHistorial(b.dataset.sesion); return }
   if (a === 'volver') {
@@ -2560,6 +2652,12 @@ document.addEventListener('keydown', e => {
   if (e.target.matches?.('#sesiones .ctl-in')) {
     if (teclaControl(e) === 'enviar') { e.preventDefault(); ordenar(e.target.dataset.sesion, 'mensaje'); return }
     if (e.key !== 'Escape') return
+  }
+  // Esc en "¿Terminar? Sí" (sesiones-dormidas.md, S2) deja de pedir confirmación, sin terminar
+  if (e.key === 'Escape' && e.target.matches?.('#sesiones .ctl-terminar.confirma')) {
+    e.preventDefault()
+    cancelarTerminar(e.target.dataset.sesion)
+    return
   }
   // Esc en "¿Frenar? Sí" o "¿Cerrar? Sí" deja de pedir confirmación, sin frenar ni cerrar
   if (e.key === 'Escape' && e.target.matches?.('#sesiones .ctl-frenar.confirma, #sesiones .ctl-cerrar.confirma')) {

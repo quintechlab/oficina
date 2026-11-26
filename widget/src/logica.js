@@ -82,6 +82,19 @@ function procesosEnEspera(s) {
   return deLinea ? (lista || deLinea) : 0
 }
 
+/**
+ * ¿La sesión quedó dormida? Sin turno del hilo principal hace más de 20 min (`ultimoTurno`, mod v0.12)
+ * y sin nada en curso: ni turno, ni pregunta (suya o de un subagente), ni subagente trabajando, ni
+ * procesos. Su tarjeta se pliega y va al fondo (odd/tasks/sesiones-dormidas.md, S1). Sin
+ * `ultimoTurno` (mod anterior), nunca: el latido renueva `actualizado` y no dice nada del último turno.
+ */
+export function dormida(s, ahoraMs) {
+  const t = Date.parse(s.ultimoTurno ?? '')
+  if (Number.isNaN(t) || s.enTurno === true) return false
+  if ((s.preguntas ?? []).length || coordinaEquipo(s) || procesosEnEspera(s)) return false
+  return ahoraMs - t > MINUTOS_INACTIVO * MIN
+}
+
 /** "1 sesión", "3 sesiones": la cifra y la palabra en singular o plural. */
 export const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`
 
@@ -90,6 +103,7 @@ export const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`
  * 1. una pregunta suya pendiente → te espera ("!");
  * 2. subagentes trabajando → coordina el equipo (aunque el turno haya terminado);
  * 3. procesos en segundo plano y nada más que hacer → mira el anillo que gira (5.5);
+ * 3b. sin turnos hace más de 20 min (`dormida`) → duerme, aunque diga "esperándote";
  * 4. "esperándote" → espera tu mensaje, tranquilo y despierto;
  * 5. si no, lo que diga su actividad (dormida si no publica hace rato).
  */
@@ -97,6 +111,7 @@ export function animoSesion(s, ahoraMs) {
   if (preguntaDeLaSesion(s)) return 'teEspera'
   if (coordinaEquipo(s)) return 'coordinando'
   if (procesosEnEspera(s)) return 'proceso'
+  if (dormida(s, ahoraMs)) return 'inactiva'
   if (esperaMensaje(s)) return 'esperando'
   if (inactiva(s, ahoraMs)) return 'inactiva'
   const a = s.actividad
@@ -204,6 +219,7 @@ export function textoActividad(s, ahoraMs) {
   if (animo === 'teEspera') return 'ahora · te hace una pregunta'
   if (animo === 'coordinando') return 'ahora · coordinando el equipo'
   if (animo === 'proceso') return `ahora · esperando ${plural(procesosEnEspera(s), 'proceso', 'procesos')}`
+  if (dormida(s, ahoraMs)) return `dormida · sin turnos hace ${tiempoRelativo(s.ultimoTurno, ahoraMs)}`
   if (esperaMensaje(s)) return 'ahora · esperando tu mensaje'
   if (inactiva(s, ahoraMs)) return `sin actividad hace ${tiempoRelativo(s.actualizado, ahoraMs)}`
   return `ahora · ${s.actividad || 'sin actividad'}`

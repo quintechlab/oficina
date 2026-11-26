@@ -245,6 +245,60 @@ export function vistaBarra(s, ui = {}, ahoraMs) {
 
 const si = (cond, attr) => (cond ? ` ${attr}` : '')
 
+// ------------------------------------------------------------------ «Terminar» una sesión dormida
+// odd/tasks/sesiones-dormidas.md, S2: solo en la tarjeta plegada. Avis termina el proceso de Claude
+// Code (terminar.rs comprueba todo de nuevo). Confirma en el mismo botón, como Cerrar sesión.
+
+/** El primer clic en «Terminar» pide confirmar por este tiempo. */
+export const MS_CONFIRMAR_TERMINAR = 3000
+/** Lo que tiene que pasar entre el primer clic y el que confirma: un doble clic no termina. */
+export const MS_SIN_DOBLE_CLIC = 350
+
+/** ¿«Terminar» está pidiendo confirmación? `ui.terminaHasta`: hasta cuándo. */
+export const confirmandoTerminar = (ui, ahoraMs) => ui?.terminaHasta != null && ahoraMs < ui.terminaHasta
+
+/** Un clic en «Terminar»: el primero (o uno después de los 3 s) pide confirmar; el segundo termina. */
+export function clicTerminar(ui, ahoraMs) {
+  if (ui?.terminando) return { terminaHasta: null, terminar: false }
+  // Un doble clic no termina: el segundo clic recién confirma pasados MS_SIN_DOBLE_CLIC desde el primero
+  if (confirmandoTerminar(ui, ahoraMs) && ahoraMs < ui.terminaHasta - MS_CONFIRMAR_TERMINAR + MS_SIN_DOBLE_CLIC) return { terminaHasta: ui.terminaHasta, terminar: false }
+  if (confirmandoTerminar(ui, ahoraMs)) return { terminaHasta: null, terminar: true }
+  return { terminaHasta: ahoraMs + MS_CONFIRMAR_TERMINAR, terminar: false }
+}
+
+const ERRORES_TERMINAR = {
+  despierta: 'La sesión volvió a trabajar: no se terminó.',
+  'sin-proceso': 'No encuentro el proceso de esta sesión.',
+  'no-coincide': 'El proceso ya no es el de esta sesión: no se terminó.',
+  fallo: 'Windows no dejó terminarla. Probá de nuevo.',
+}
+
+/** El texto de un error de `terminar_sesion` (los códigos de `Falla::codigo` en terminar.rs). */
+export const lineaTerminar = error => ERRORES_TERMINAR[error] ?? ERRORES_TERMINAR.fallo
+
+/** Lo que dice el pie de la tarjeta plegada mientras confirma. */
+export const LINEA_CONFIRMA_TERMINAR = 'Cierra su proceso de Claude Code. La conversación queda guardada.'
+
+/**
+ * El pie de la tarjeta plegada: la línea (confirmación o error) y «Terminar» a la derecha, con las
+ * mismas piezas que «Cerrar sesión» (`.ctl-est`, `.ctl-cerrar`). Es `.dorm`, no `.ctl`: no tiene campo
+ * y las barras de control no la tocan.
+ */
+export function barraPlegada(s, ui = {}, ahoraMs) {
+  const ses = escapar(s.sesion)
+  const donde = escapar(nombreSesion(s))
+  const terminando = ui.terminando === true
+  const confirma = !terminando && confirmandoTerminar(ui, ahoraMs)
+  const transcurrido = confirma ? Math.max(0, MS_CONFIRMAR_TERMINAR - (ui.terminaHasta - ahoraMs)) : 0
+  const etiqueta = terminando ? 'Terminando…' : confirma ? '¿Terminar? Sí' : 'Terminar'
+  const nombre = terminando ? `Terminando la sesión ${donde}` : confirma ? `¿Terminar? Sí: terminar la sesión ${donde}` : `Terminar la sesión ${donde}`
+  const linea = confirma ? { texto: LINEA_CONFIRMA_TERMINAR, tono: '' } : ui.error ? { texto: lineaTerminar(ui.error), tono: 'error' } : { texto: '', tono: '' }
+  return `<div class="dorm" role="group" aria-label="Sesión dormida en ${donde}" data-sesion="${ses}">`
+    + `<p class="ctl-est"><span class="ctl-res" role="status" aria-live="polite" data-tono="${linea.tono}">${escapar(linea.texto)}</span>`
+    + `<button type="button" class="btn sec ctl-cerrar ctl-terminar${confirma ? ' confirma' : ''}" data-accion="dorm-terminar" data-sesion="${ses}" aria-label="${nombre}"${si(confirma, `style="--ya:-${transcurrido}ms"`)}${si(terminando, 'aria-disabled="true"')}>${etiqueta}</button></p>`
+    + '</div>'
+}
+
 /**
  * La barra al pie de la tarjeta (D1). El textarea lleva el borrador guardado (así un redibujo no
  * pierde lo escrito) con un salto de línea de más al principio: el parser de HTML se come uno.

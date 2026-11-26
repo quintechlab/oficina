@@ -50,6 +50,11 @@ export type Presencia = {
   cwd?: string
   /** Se puede cerrar desde el widget: solo una sesión de terminal (`CLAUDE_CODE_ENTRYPOINT` = cli). Desde la v0.11. */
   puedeCerrar?: boolean
+  /**
+   * Cuándo empezó o terminó el último turno del hilo principal (ISO), o el arranque de la sesión si no
+   * hubo ninguno. El widget pliega la sesión sin turnos hace más de 20 min. Desde la v0.12.
+   */
+  ultimoTurno?: string
 }
 
 /**

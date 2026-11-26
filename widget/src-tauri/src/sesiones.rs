@@ -36,7 +36,7 @@ pub fn leer_sesiones_de(carpeta: &Path, ahora: DateTime<Utc>) -> Vec<Value> {
 }
 
 /// Un objeto no cerrado cuya última publicación es posterior al límite.
-fn sesion_viva(sesion: &Value, limite: DateTime<Utc>) -> bool {
+pub(crate) fn sesion_viva(sesion: &Value, limite: DateTime<Utc>) -> bool {
     if !sesion.is_object() || sesion["cerrada"].as_bool() == Some(true) {
         return false;
     }

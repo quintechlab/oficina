@@ -1712,13 +1712,13 @@ p.det-rot { margin-top: var(--e-5) }
 .ctl-est:has(.ctl-cerrar:not([hidden])) { align-items: center; margin-bottom: var(--e-3) }
 /* M3: ancho mínimo, así "¿Cerrar? Sí" no corre el borde izquierdo entre el primer clic y el segundo.
    D-c: 11,5 px, el tamaño de --t-chico */
-.ctl .ctl-cerrar { position: relative; min-width: 96px; min-height: 24px; justify-content: center; margin-left: auto; padding: 0 var(--e-5); background: none; border: 1px solid var(--linea); color: var(--crema2); font: 700 12.5px/1 var(--f); font-stretch: normal }
+:is(.ctl, .dorm) .ctl-cerrar { position: relative; min-width: 96px; min-height: 24px; justify-content: center; margin-left: auto; padding: 0 var(--e-5); background: none; border: 1px solid var(--linea); color: var(--crema2); font: 700 12.5px/1 var(--f); font-stretch: normal }
 /* M2: el dibujo queda de 24 y el área de clic es de 32 (como .preg-tab; ::after es la barrita) */
-.ctl .ctl-cerrar::before { content: ""; position: absolute; inset: -4px 0 }
-.ctl .ctl-cerrar:hover { border-color: var(--linea-hover); color: var(--crema); filter: none }
+:is(.ctl, .dorm) .ctl-cerrar::before { content: ""; position: absolute; inset: -4px 0 }
+:is(.ctl, .dorm) .ctl-cerrar:hover { border-color: var(--linea-hover); color: var(--crema); filter: none }
 /* B2: cerrándose, "Cerrando…" conserva el foco (aria-disabled, sin disabled) y no responde; sin opacidad */
-.ctl .ctl-cerrar[aria-disabled="true"], .ctl .ctl-cerrar[aria-disabled="true"]:hover { border-color: var(--linea); color: var(--tenue); cursor: default }
-.ctl .ctl-cerrar[aria-disabled="true"]:active { transform: none }
+:is(.ctl, .dorm) .ctl-cerrar[aria-disabled="true"], :is(.ctl, .dorm) .ctl-cerrar[aria-disabled="true"]:hover { border-color: var(--linea); color: var(--tenue); cursor: default }
+:is(.ctl, .dorm) .ctl-cerrar[aria-disabled="true"]:active { transform: none }
 .ctl-in:disabled, .ctl-in:disabled:hover { border-color: var(--linea); color: var(--crema2); cursor: not-allowed }
 .ses > .linea.cerrando .pt { background: none; box-shadow: inset 0 0 0 1.5px var(--tenue) }
 /* B1: la tarjeta que se cerró se funde y pliega su alto en 240 ms (estilo-avis 6.2) */
@@ -1729,8 +1729,8 @@ p.det-rot { margin-top: var(--e-5) }
     transition: opacity 240ms var(--ease-cierra), height 240ms var(--ease-cierra), margin 240ms var(--ease-cierra), padding 240ms var(--ease-cierra), border-width 240ms var(--ease-cierra);
   }
 }
-.ctl .ctl-cerrar.confirma { background: var(--rojo); border-color: var(--rojo); color: var(--negro) }
-.ctl .ctl-cerrar.confirma:focus-visible { outline-color: var(--crema) }
+:is(.ctl, .dorm) .ctl-cerrar.confirma { background: var(--rojo); border-color: var(--rojo); color: var(--negro) }
+:is(.ctl, .dorm) .ctl-cerrar.confirma:focus-visible { outline-color: var(--crema) }
 @media (prefers-reduced-motion: no-preference) {
   body:not(.pausa) .ctl-cerrar.confirma::after {
     content: ""; position: absolute; left: var(--e-5); right: var(--e-5); bottom: 3px; height: 2px; border-radius: 1px;
@@ -1743,7 +1743,7 @@ p.det-rot { margin-top: var(--e-5) }
    Un botón chico en la cabecera de la tarjeta, al lado de lo que lleva, y debajo el detalle con las
    piezas del de un subagente: lo último que pidió el usuario ("Vos", en ámbar) y lo que respondió
    Claude, del más nuevo al más viejo. Sin flecha: el botón está en la esquina */
-.ses-hizo {
+:is(.ses-hizo, .ses-abrir) {
   position: relative; flex: none; display: inline-flex; align-items: center; min-height: 24px; margin: -2px 0; padding: 0 var(--e-4);
   /* M4: radio de botón (--r-pildora), no de tag; y la presión de :active */
   border: 1px solid var(--linea); border-radius: var(--r-pildora); background: none; color: var(--crema2);
@@ -1751,14 +1751,14 @@ p.det-rot { margin-top: var(--e-5) }
   transition: border-color var(--d-color) ease, color var(--d-color) ease, background-color var(--d-color) ease, transform var(--d-presion) ease;
 }
 /* M2: el dibujo queda de 24 y el área de clic es de 32 */
-.ses-hizo::after { content: ""; position: absolute; inset: -4px 0 }
+:is(.ses-hizo, .ses-abrir)::after { content: ""; position: absolute; inset: -4px 0 }
 @media (prefers-reduced-motion: no-preference) {
-  body:not(.pausa) .ses-hizo:active { transform: scale(.97) }
+  body:not(.pausa) :is(.ses-hizo, .ses-abrir):active { transform: scale(.97) }
 }
 /* Sin "lleva" (sesión sin inicio), el botón va igual a la derecha */
-.ses-tit + .ses-hizo { margin-left: auto }
-.ses-hizo:hover { border-color: var(--linea-hover); color: var(--crema) }
-.ses-hizo:focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px }
+.ses-tit + :is(.ses-hizo, .ses-abrir) { margin-left: auto }
+:is(.ses-hizo, .ses-abrir):hover { border-color: var(--linea-hover); color: var(--crema) }
+:is(.ses-hizo, .ses-abrir):focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px }
 .ses-hizo[aria-expanded="true"] { border-color: color-mix(in srgb, var(--ambar) 45%, transparent); background: var(--ambar-osc); color: var(--ambar) }
 /* M1: entre el escenario y la barra; leyendo reserva su alto, así la barra no salta al llegar los turnos */
 .det-hist { --flecha: calc(var(--ancho-escena) - 24px); margin: var(--e-4) 0 0 }
@@ -1792,8 +1792,17 @@ p.det-rot { margin-top: var(--e-5) }
   body:not(.pausa) :is(.det-hist.entra, .det-hist.turnos-llegan) .hist-turnos li:nth-child(n+4) { animation-delay: 135ms }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ses-hizo { transition: none }
+  :is(.ses-hizo, .ses-abrir) { transition: none }
 }
+
+/* ------------------------------------------------------------------ Sesión dormida (odd/tasks/sesiones-dormidas.md, S1)
+   Sin turnos hace más de 20 min: plegada a la cabecera y su línea, al fondo de la lista. Un tono más
+   apagada que las despiertas (sin fondo, borde punteado) y Claude durmiendo chiquito en la cabecera */
+.ses.plegada { padding-bottom: var(--e-6); background: none; border-style: dashed }
+.ses.plegada:hover { border-style: solid }
+.ses.plegada .ses-tit b { color: var(--crema2) }
+.ses.plegada .tag { background: var(--s3); color: var(--crema2) }
+.ses-duerme { flex: none; display: inline-flex; margin: -4px 0 }
 
 /* ------------------------------------------------------------------ configuración (docs/diseno/configuracion-ux.md, opción B "Taller")
    La hoja vive en la columna principal (#cfg, 4.2): reemplaza a avisos, pregunta, chips y sesiones
