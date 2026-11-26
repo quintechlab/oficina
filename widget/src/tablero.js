@@ -10,7 +10,7 @@ import { barraControl, puedeControlar, LINEA_TARJETA_CERRANDO } from './control.
 import { vistaHistorial, firmaHistorial } from './historial.js'
 import {
   animoSesion, animoSubagente, personajeDeNombre, personajeSubagente, variantesEquipo, tiempoSubagente, textoActividad, tituloActividad,
-  preguntasPendientes, escapar, tiempoRelativo, nombreProyecto, FUERA_DE_REPO,
+  preguntasPendientes, escapar, tiempoRelativo, nombreProyecto, FUERA_DE_REPO, dormida,
 } from './logica.js'
 
 /** Nombre accesible del estado de un Avi que está solo (la marca y el vacío): "Claude, durmiendo". */
@@ -42,14 +42,16 @@ function listaNombres(nombres) {
  * terminados), así el mismo subagente la conserva entre redibujos y reinicios.
  */
 export function prepararProyecto(proyecto, ahoraMs, especie = 'avi') {
-  return proyecto.sesiones.map(s => {
+  const preparadas = proyecto.sesiones.map(s => {
     const conPregunta = new Set((s.preguntas ?? []).map(p => p.agente).filter(Boolean))
     const variantes = variantesEquipo(s.agentes)
     const sub = (s.agentes ?? []).map(a => ({
       ...a, ...personajeSubagente(a, especie, variantes), animo: animoSubagente(a, ahoraMs, conPregunta.has(a.id)),
     }))
-    return { s, animo: animoSesion(s, ahoraMs), sub }
+    return { s, animo: animoSesion(s, ahoraMs), sub, plegada: dormida(s, ahoraMs) }
   })
+  // Las dormidas se pliegan y van al fondo (sesiones-dormidas.md, S1); cada grupo conserva su orden
+  return [...preparadas.filter(p => !p.plegada), ...preparadas.filter(p => p.plegada)]
 }
 
 /**
@@ -69,7 +71,7 @@ export function subagentesVisibles(sub, { conMas = MAX_SUBAGENTES_VISIBLES, max 
 
 /** Firma de lo que se ve de las sesiones: si no cambia, no se redibuja (y no se cortan las animaciones). */
 export function firmaTablero(preparadas) {
-  return preparadas.map(({ s, animo, sub }) => [s.sesion, s.tarea, s.rama, animo, (s.procesos ?? []).map(p => p.id).join(','), ...sub.map(a => `${a.id}:${a.nombre}:${a.animo}`)].join('|')).join('/')
+  return preparadas.map(({ s, animo, sub, plegada }) => [s.sesion, s.tarea, s.rama, animo, plegada ? 'plegada' : '', (s.procesos ?? []).map(p => p.id).join(','), ...sub.map(a => `${a.id}:${a.nombre}:${a.animo}`)].join('|')).join('/')
 }
 
 /**
@@ -442,12 +444,26 @@ function detalleHistorial(s, h, ahoraMs) {
     + `<p class="det-rot">lo último</p>${cuerpo}</div>`
 }
 
-function tarjeta({ s, animo, sub }, ahoraMs, k, r, abierto, control, mascota, formas, historial) {
+/**
+ * La tarjeta de una sesión dormida (sesiones-dormidas.md, S1): plegada a la cabecera, con Claude
+ * durmiendo chiquito, y la línea de hace cuánto no tiene turnos. Sin escenario ni campo para escribir:
+ * vuelve a la tarjeta de siempre con su próximo turno. "Qué hizo" sigue a mano.
+ */
+function tarjetaPlegada(s, ahoraMs, { tag, titulo, lleva, h, mascota, formas }) {
+  const texto = textoActividad(s, ahoraMs)
+  return `<article class="ses plegada"><div class="ses-cab"><span class="ses-duerme">${claudeEn(mascota, null, formas, 'inactiva', 28)}</span><h3 class="ses-tit">${tag}${titulo}</h3>${lleva}${botonHistorial(s, !!h)}</div>`
+    + `<p class="linea" style="--c:var(--tenue)" title="${escapar(texto)}"><span class="pt" aria-hidden="true"></span><span data-vivo>${escapar(texto)}</span></p>`
+    + (h ? detalleHistorial(s, h, ahoraMs) : '')
+    + '</article>'
+}
+
+function tarjeta({ s, animo, sub, plegada }, ahoraMs, k, r, abierto, control, mascota, formas, historial) {
   const base = k * AVIS_POR_TARJETA
   const tag = s.tarea ? `<span class="tag">#${escapar(s.tarea)}</span>` : '<span class="tag sin">sin tarea</span>'
   const titulo = s.rama ? `<b${s.tarea ? '' : ' class="sin"'} title="${escapar(s.rama)}">${escapar(s.rama)}</b>` : ''
   const lleva = s.inicio ? `<span class="lleva"><span class="oculto">lleva </span><span data-vivo>${escapar(tiempoRelativo(s.inicio, ahoraMs))}</span></span>` : ''
   const h = historial?.sesion === s.sesion ? historial : null
+  if (plegada) return tarjetaPlegada(s, ahoraMs, { tag, titulo, lleva, h, mascota, formas })
   // Cerrándose (B2 de cerrar-sesion-ux.md): la línea lo dice en --tenue, con el punto sin color
   const linea = control?.[s.sesion]?.cerrando === true
     ? `<p class="linea cerrando" style="--c:var(--tenue)" title="${LINEA_TARJETA_CERRANDO}"><span class="pt" aria-hidden="true"></span><span data-vivo>${LINEA_TARJETA_CERRANDO}</span></p>`

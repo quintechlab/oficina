@@ -1795,6 +1795,15 @@ p.det-rot { margin-top: var(--e-5) }
   .ses-hizo { transition: none }
 }
 
+/* ------------------------------------------------------------------ Sesión dormida (odd/tasks/sesiones-dormidas.md, S1)
+   Sin turnos hace más de 20 min: plegada a la cabecera y su línea, al fondo de la lista. Un tono más
+   apagada que las despiertas (sin fondo, borde punteado) y Claude durmiendo chiquito en la cabecera */
+.ses.plegada { padding-bottom: var(--e-6); background: none; border-style: dashed }
+.ses.plegada:hover { border-style: solid }
+.ses.plegada .ses-tit b { color: var(--crema2) }
+.ses.plegada .tag { background: var(--s3); color: var(--crema2) }
+.ses-duerme { flex: none; display: inline-flex; margin: -4px 0 }
+
 /* ------------------------------------------------------------------ configuración (docs/diseno/configuracion-ux.md, opción B "Taller")
    La hoja vive en la columna principal (#cfg, 4.2): reemplaza a avisos, pregunta, chips y sesiones
    mientras está abierta; el encabezado y las pestañas quedan fijos y la pestaña desplaza adentro.
