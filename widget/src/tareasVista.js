@@ -34,9 +34,12 @@ export function ladoFilaTareas(c) {
   return c.vencidas ? `<span class="chip chip-venc" aria-hidden="true"><i></i>${n}</span>` : `<span class="chip chip-preg" aria-hidden="true">${n}</span>`
 }
 
-/** Lo que no cambia mientras la hoja está abierta: la línea de la pregunta, el cuerpo y los anuncios (5.3). */
+/**
+ * Lo que no cambia mientras la hoja está abierta: el cuerpo y los anuncios (5.3). La pregunta pendiente
+ * va en `#aviso-p` (modulos-ux.md 4.5).
+ */
 export function esqueletoTareas() {
-  return '<div id="tar-aviso"></div><div id="tar-cuerpo"></div><p class="oculto" role="status" id="tar-vivo"></p>'
+  return '<div id="tar-cuerpo"></div><p class="oculto" role="status" id="tar-vivo"></p>'
 }
 
 /** La carpeta (3.3): el índice y el panel, cada uno por partes. */
@@ -44,11 +47,6 @@ export const CARPETA = '<div class="carpeta"><nav class="idx" aria-label="Vistas
   + '<section class="pane" aria-labelledby="tar-pane-h"><div data-parte="pane-h"></div><div data-parte="err"></div>'
   + '<div data-parte="nuevo"></div><div class="tar-desplaza" data-parte="lista"></div></section></div>'
 
-/** Con una pregunta pendiente y la hoja abierta (3.1): la línea ámbar de siempre, que cierra la hoja y la muestra. */
-export function avisoPreguntaTareas(pendientes) {
-  if (!pendientes) return ''
-  return '<button type="button" class="aviso cfg-aviso" data-accion="tar-pregunta"><span>Claude te hace una pregunta</span><span class="ir">Ver →</span></button>'
-}
 
 /** La mascota de 40 junto al título (4.10): esperando, o feliz 1,5 s después de un tilde. */
 export function miniTareas(especie, feliz) {

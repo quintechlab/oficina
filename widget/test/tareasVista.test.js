@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   ladoFilaTareas, indiceTareas, cabeceraPanel, campoNueva, cuerpoLista, primerUso, errorGuardar, errorRota,
-  errorCarpeta, avisoPreguntaTareas, esqueletoTareas, CARPETA, miniTareas, atrasTarea, esqueletoDetalle, partesDetalle,
+  errorCarpeta, esqueletoTareas, CARPETA, miniTareas, atrasTarea, esqueletoDetalle, partesDetalle,
   globoMarca, globoMuesca, filaAviso,
 } from '../src/tareasVista.js'
 import { textoGlobo } from '../src/tareas.js'
@@ -31,8 +31,8 @@ test('la fila de la barra: la pista "Ctrl T" sin nada; el chip ámbar con las de
   assert.doesNotMatch(venc, /kbd/)
 })
 
-test('el esqueleto: la línea de la pregunta, el cuerpo y la región de anuncios', () => {
-  assert.match(esqueletoTareas(), /id="tar-aviso"/)
+test('el esqueleto: el cuerpo y la región de anuncios, sin la línea vieja de la pregunta (la reemplazó #aviso-p)', () => {
+  assert.doesNotMatch(esqueletoTareas(), /tar-aviso/)
   assert.match(esqueletoTareas(), /class="oculto" role="status" id="tar-vivo"/)
   for (const parte of ['idx', 'pane-h', 'err', 'nuevo', 'lista']) assert.match(CARPETA, new RegExp(`data-parte="${parte}"`))
   assert.match(CARPETA, /<nav class="idx" aria-label="Vistas y listas"/)
@@ -149,9 +149,7 @@ test('errores (5.2): no se guardó, archivo roto y carpeta ilegible, con sus bot
   assert.match(carpeta, /data-accion="tar-releer"/)
 })
 
-test('la línea de la pregunta pendiente con la hoja abierta (3.1), y la mascota de 40 junto al título', () => {
-  assert.equal(avisoPreguntaTareas(0), '')
-  assert.match(avisoPreguntaTareas(1), /<button type="button" class="aviso cfg-aviso" data-accion="tar-pregunta"><span>Claude te hace una pregunta<\/span><span class="ir">Ver →<\/span><\/button>/)
+test('la mascota de 40 junto al título', () => {
   assert.match(miniTareas('avi', false), /class="avi"/)
   assert.notEqual(miniTareas('avi', true), miniTareas('avi', false))
 })

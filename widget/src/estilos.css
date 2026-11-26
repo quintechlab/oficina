@@ -1818,20 +1818,16 @@ p.det-rot { margin-top: var(--e-5) }
 .mod.engr[aria-current="page"] svg { transform: rotate(90deg) }
 
 /* La hoja en el marco */
-#cfg:empty, #cfg-aviso:empty { display: none }
+#cfg:empty { display: none }
 #marco.con-cfg #vacio-avi, #marco.con-cfg #otro, #marco.con-cfg #pestanas, #marco.con-cfg .split, #marco.con-cfg .ficha-u,
 #marco.con-cfg #w-globo, #marco.con-cfg #pp, #marco.con-cfg .conteos, #marco.con-cfg .sesiones { display: none }
 #marco.con-cfg .principal { overflow: hidden }
-/* Poco alto (16, M4): sin la bajada, el aviso en una línea de 28 y las pestañas de 32 */
+/* Poco alto (16, M4): sin la bajada y las pestañas de 32 */
 #marco.con-cfg.bajo #subtitulo { display: none }
-#marco.bajo #cfg-aviso .aviso { min-height: 28px; padding-block: 0 }
-#marco.bajo #cfg-aviso .aviso > span:not(.ir) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-#marco.bajo #cfg-aviso { margin-bottom: var(--e-3) }
 #marco.bajo #cfg .pes { min-height: 32px }
 #marco.bajo #cfg .pestanas { margin-bottom: var(--e-4) }
 #marco.con-cfg #cfg { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
 #cfg > * { flex: none }
-#cfg-aviso { margin-bottom: var(--e-5) }
 #cfg > .cfg-cuerpo {
   flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
   scrollbar-width: thin; scrollbar-color: var(--linea-hover) transparent; padding: var(--e-1) var(--e-2) var(--e-4) var(--e-1); margin-left: calc(-1 * var(--e-1));
@@ -2079,7 +2075,7 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 .mod.tar[aria-current="page"] .chip-venc { background: color-mix(in srgb, var(--rojo) 22%, var(--s2)); color: var(--rojo) }
 
 /* La hoja en el marco */
-#tar:empty, #tar-aviso:empty { display: none }
+#tar:empty { display: none }
 /* «‹ Tablero» se fue con el menú de módulos (modulos-ux.md 3.2): Esc o la fila de Sesiones vuelven. La bajada
    "martes 24/11 · 2 para hoy · 2 vencidas" va en una línea; si una más larga no entra, se corta con "…" (las
    cuentas siguen a la vista en el índice) */
@@ -2091,7 +2087,6 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 :is(#marco.con-tar, #marco.con-hab, #marco.con-pro).bajo #subtitulo { display: none }
 #marco.con-tar #tar { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
 #tar > * { flex: none }
-#tar-aviso { margin-bottom: var(--e-5) }
 #tar > #tar-cuerpo { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
 
 /* La mascota de 40 junto al título (4.10) */

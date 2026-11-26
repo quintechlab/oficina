@@ -16,7 +16,7 @@ import {
 } from '../src/configuracion.js'
 import { chatInicial, transicionChat } from '../src/chat.js'
 import {
-  pestanasConfiguracion, seccionConfiguracion, avisoPreguntaConfiguracion, esqueletoConfiguracion, partesMascota, miniConfiguracion,
+  pestanasConfiguracion, seccionConfiguracion, esqueletoConfiguracion, partesMascota, miniConfiguracion,
   nombrePestana, partesModelos, seccionMascota,
 } from '../src/configuracionVista.js'
 import { NOMBRES_ESPECIES } from '../src/especies.js'
@@ -242,9 +242,9 @@ test('las pestañas: tablist con una sola en el orden de tabulación y el indica
   assert.match(html, /<span class="ind" aria-hidden="true"><\/span>/)
 })
 
-test('el esqueleto: aviso, pestañas, panel de pestaña enfocable y la región de anuncios', () => {
+test('el esqueleto: pestañas, panel de pestaña enfocable y la región de anuncios, sin la línea vieja de la pregunta', () => {
   const html = esqueletoConfiguracion('panel')
-  assert.match(html, /id="cfg-aviso"/)
+  assert.doesNotMatch(html, /cfg-aviso/)
   assert.match(html, /role="tabpanel" id="cfg-p" aria-labelledby="cfg-t-panel" tabindex="0"/)
   assert.match(html, /class="oculto" role="status" id="cfg-vivo"/)
 })
@@ -427,14 +427,6 @@ test('cada interruptor: el título es su label y la descripción lo describe (16
 
 test('la estrella de la forma evolucionada no se lee (16, D-c)', () => {
   assert.match(partesMascota({ mascota: 'avi', forma: 'base' }).texto, />Faro <span aria-hidden="true">✦<\/span><\/button>/)
-})
-
-test('con una pregunta pendiente, arriba de las pestañas: "Claude te hace una pregunta · Ver →"', () => {
-  assert.equal(avisoPreguntaConfiguracion(0), '')
-  const html = avisoPreguntaConfiguracion(2)
-  assert.match(html, /data-accion="cfg-ver"/)
-  assert.match(html, /Claude te hace una pregunta/)
-  assert.match(html, /Ver →/)
 })
 
 // ------------------------------------------------------------------ Mascota (entrega 2: 4.4, 5, 6.1 y 8)

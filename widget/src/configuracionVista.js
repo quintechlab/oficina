@@ -15,12 +15,11 @@ import { avi, claudeDe } from './avis.js'
 export const TEXTO_ERROR_GUARDAR = 'No se pudo guardar. Probá de nuevo.'
 
 /**
- * Lo que no cambia mientras la hoja está abierta: la línea de la pregunta (`#cfg-aviso`), las
- * pestañas (`#cfg-tabs`), el panel de pestaña (`#cfg-p`, desplaza adentro) y la región de anuncios.
+ * Lo que no cambia mientras la hoja está abierta: las pestañas (`#cfg-tabs`), el panel de pestaña
+ * (`#cfg-p`, desplaza adentro) y la región de anuncios. La pregunta pendiente va en `#aviso-p` (modulos-ux.md 4.5).
  */
 export function esqueletoConfiguracion(tab) {
-  return `<div id="cfg-aviso"></div>`
-    + `<div id="cfg-tabs">${pestanasConfiguracion(tab)}</div>`
+  return `<div id="cfg-tabs">${pestanasConfiguracion(tab)}</div>`
     + `<div class="cfg-cuerpo" role="tabpanel" id="cfg-p" aria-labelledby="cfg-t-${escapar(tab)}" tabindex="0"><div class="cfg-in" id="cfg-cont"></div></div>`
     + `<p class="oculto" role="status" id="cfg-vivo"></p>`
 }
@@ -42,15 +41,6 @@ export function pestanasConfiguracion(tab, puntos = {}) {
     return `<button type="button" class="pes" role="tab" id="cfg-t-${id}" aria-selected="${sel}" aria-controls="cfg-p" tabindex="${sel ? 0 : -1}" data-accion="cfg-tab" data-valor="${id}" data-k="tab-${id}">${nombrePestana(id, puntos[id])}</button>`
   }).join('')
   return `<div class="pestanas" role="tablist" aria-label="Configuración">${tabs}<span class="ind" aria-hidden="true"></span></div>`
-}
-
-/**
- * Con una pregunta pendiente y la configuración abierta (4.1): la línea ámbar que cierra la
- * configuración y muestra la pregunta. Sin preguntas, nada.
- */
-export function avisoPreguntaConfiguracion(pendientes) {
-  if (!pendientes) return ''
-  return '<button type="button" class="aviso cfg-aviso" data-accion="cfg-ver"><span>Claude te hace una pregunta</span><span class="ir">Ver →</span></button>'
 }
 
 /**
