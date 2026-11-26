@@ -4,8 +4,8 @@
 // borra; la ventana nunca manda una ruta, 11.2); lo que viaja a cada motor se dice en la pantalla; borrar
 // confirma en el mismo botón; nada se abre solo. Guardar es explícito (D-p7): el formulario no se guarda
 // mientras se escribe.
-// Entrega P1: los proyectos, su hoja y su carpeta. Las charlas de un proyecto (`charlasDe`,
-// `marcasContexto`, la hoja de la charla) son de la entrega P2: hasta entonces cada proyecto tiene 0.
+// Entrega P1: los proyectos, su hoja y su carpeta. Entrega P2: las charlas de cada proyecto (`charlasDe`,
+// `cuentaCharlas`), las marcas de contexto y los textos de la charla del proyecto (8).
 
 import { plural } from './logica.js'
 import { claveNombre, colorDe, nuevoId } from './tareas.js'
@@ -129,11 +129,73 @@ export function textoBorrar(n) {
   return n ? `¿Borrar con ${plural(n, 'charla', 'charlas')}? Sí` : '¿Borrar? Sí'
 }
 
-/** La línea debajo del borrado armado (5.1). */
+/**
+ * La línea debajo del borrado armado (5.1). Con una sola charla, «su charla» (decisión de P2: 5.1 solo
+ * trae «sus {n} charlas», que con 1 diría «sus 1 charla»).
+ */
 export function lineaBorrar(n) {
+  if (!n) return 'Se va el proyecto. La carpeta y sus archivos quedan en tu PC. Esc cancela.'
+  const charlas = n === 1 ? 'su charla' : `sus ${n} charlas`
+  return `Se van el proyecto y ${charlas}. La carpeta y sus archivos quedan en tu PC. Esc cancela.`
+}
+
+/** Borrar con fallas (5.2): «No se pudieron borrar {k} charlas. Probá de nuevo.» (con 1, en singular). */
+export function textoBorradoFallido(k) {
+  return k === 1 ? 'No se pudo borrar 1 charla. Probá de nuevo.' : `No se pudieron borrar ${k} charlas. Probá de nuevo.`
+}
+
+// ------------------------------------------------------------------ las charlas del proyecto (4.5, 8; entrega P2)
+
+/** Cuántas charlas muestra la ficha (4.5): las más recientes; con más, «Ver las {n} charlas». */
+export const TOPE_CHARLAS_FICHA = 5
+
+/** Las charlas de un proyecto (`listaCharlas` de chat.js, con `proyecto`), de la más nueva a la más vieja (11.6 caso 4). */
+export function charlasDe(charlas, id) {
+  return (charlas ?? []).filter(x => x.proyecto === id).sort((a, b) => b.actualizada - a.actualizada)
+}
+
+/** Cuántas charlas tiene cada proyecto: `{ [id]: n }` (el índice, la línea y el subtítulo de 5.1). */
+export function cuentaCharlas(charlas) {
+  const n = {}
+  for (const x of charlas ?? []) if (x.proyecto) n[x.proyecto] = (n[x.proyecto] ?? 0) + 1
   return n
-    ? `Se van el proyecto y sus ${plural(n, 'charla', 'charlas')}. La carpeta y sus archivos quedan en tu PC. Esc cancela.`
-    : 'Se va el proyecto. La carpeta y sus archivos quedan en tu PC. Esc cancela.'
+}
+
+/** «{n} mensajes» de cada charla de la ficha (4.5). */
+export const textoMensajes = n => plural(Number(n) || 0, 'mensaje', 'mensajes')
+
+/** La fila que abre el cajón filtrado (4.5). Solo se ve con más de 5 charlas. */
+export const verLasCharlas = n => `Ver las ${n} charlas`
+
+/** Arriba del cajón filtrado por un proyecto (8.3): «{proyecto} · {n} charlas». */
+export const filtroCharlas = (nombre, n) => `${nombre} · ${plural(n, 'charla', 'charlas')}`
+
+/** El nombre accesible del chip del proyecto en la hoja (8.2). */
+export const nombreChipProyecto = nombre => `Proyecto ${nombre}: ver el proyecto`
+
+/** Las líneas del hilo de 8.4 y el anuncio de 8.5. */
+export const AVISO_CARPETA_PERDIDA = 'No encuentro la carpeta del proyecto: sigo solo con las instrucciones.'
+export const AVISO_CARPETA_CAMBIO = 'La carpeta del proyecto cambió: Claude sigue sin lo que charlaron antes.'
+export const AVISO_PROYECTO_BORRADO = 'La charla se cerró porque borraste su proyecto.'
+
+/**
+ * Las marcas de contexto de la charla del proyecto (`.ctx-p`, 8.2; 11.6 caso 9): `{ tipo, texto }` con
+ * `si` (✓), `no` (—, punteada) o `mal` (la carpeta perdida, en rojo). `carpeta`: el `estado` de la carpeta.
+ */
+export function marcasContexto({ motor, carpeta }) {
+  const marcas = [{ tipo: 'si', texto: 'Instrucciones' }]
+  if (motor === 'local') marcas.push({ tipo: 'no', texto: 'Carpeta: solo con Claude Code' })
+  else if (carpeta === 'ok') marcas.push({ tipo: 'si', texto: 'Carpeta, cuando hace falta' })
+  else if (carpeta === 'perdida') marcas.push({ tipo: 'mal', texto: 'Carpeta perdida' })
+  return marcas
+}
+
+/**
+ * El pie del campo en una charla del proyecto (8.2): «instrucciones + carpeta» con Claude Code y la
+ * carpeta a mano; si no (Local, o la carpeta perdida: decisión de P2), «solo instrucciones».
+ */
+export function pieContexto({ motor, carpeta }) {
+  return motor !== 'local' && carpeta === 'ok' ? 'instrucciones + carpeta' : 'solo instrucciones'
 }
 
 /** Proyectos rotos (5.2, 7.6), arriba del índice. */

@@ -46,9 +46,9 @@ import * as movimientoPasos from './primerosPasosMotion.js'
 import {
   chatInicial, transicionChat, ocupado, datosAvis, relojEspera, tramoVivo, markdownSeguro, sugerencias, nombreCarpeta,
   carpetasDeProyectos, ladoHoja, rectHoja, hojaBaja, anuncioAdjuntos, SALUDA_MS, FELIZ_MS, ADELANTO_PLIEGUE_MS, aArchivo, guardadosPendientes, GUARDAR_CADA_MS,
-  sobreHoja, nombreArchivo, puedeVencer, modeloValido, nombreModelo, scrollHilo,
+  sobreHoja, nombreArchivo, puedeVencer, modeloValido, nombreModelo, scrollHilo, listaCharlas,
 } from './chat.js'
-import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, menuModelo, cajon, listaHistorial, capaSoltar, htmlPalabras, clipAdjuntar, recibosDe } from './chatVista.js'
+import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, menuModelo, cajon, listaHistorial, capaSoltar, htmlPalabras, clipAdjuntar, recibosDe, chipProyecto, contextoProyecto, filtroCajon } from './chatVista.js'
 import * as movimientoChat from './chatMotion.js'
 import { diferenciaRecibos, armarRecibos, ESCRIBEN, anuncioDeshacer, anuncioRecibo, encabezadoRecibo, pieDeshacer } from './recibos.js'
 import { lineaPuedeHtml, globoPuedeHtml, filaCambioHtml, pieCambiosHtml, reciboHtml } from './recibosVista.js'
@@ -77,7 +77,7 @@ import {
   mezclarLectura, rebasarLista, anuncioAgregada, anuncioBorradaLista, tiempoTilde, focoTrasTildar, hoyArgentina,
   buscarTarea, editarTarea, agregarSubtarea, tildarSubtarea, editarSubtarea, borrarTarea, moverTarea, listaParaGuardar,
   nuevaMudanza, soltarMudanzas, olvidarMudanzas, fechaDeOpcion, abrirDetalle, cerrarDetalle, diferirGuardado, nombreVista,
-  MAX_SUBTAREAS, AVISO_INICIAL, evaluarAviso, verAviso, soltarAviso, textoGlobo, horaGlobo, anuncioGlobo, plano,
+  MAX_SUBTAREAS, AVISO_INICIAL, evaluarAviso, verAviso, soltarAviso, textoGlobo, horaGlobo, anuncioGlobo, plano, colorDe,
 } from './tareas.js'
 import { encolar, quitar, actual as globoActual, claveRec, claveResumen, conResumen } from './globos.js'
 import {
@@ -104,11 +104,11 @@ import {
   empezarEditar as empezarEditarProyecto, editarForm as editarFormProyecto, cerrarFormulario as cerrarFormularioProyecto,
   revisarFormulario as revisarFormularioProyecto, alEscProyectos, esAtajoProyectos, subtituloProyectos, nuevoIdProyecto,
   previaCarpetaAvis, cuentaInstrucciones, textoErrorNombre, textoErrorInstrucciones, textoMotivoCarpeta, anuncioElegido,
-  focoTrasBorrar, ERROR_GUARDAR as ERROR_GUARDAR_PROYECTO,
+  focoTrasBorrar, ERROR_GUARDAR as ERROR_GUARDAR_PROYECTO, charlasDe, cuentaCharlas, textoBorradoFallido,
 } from './proyectos.js'
 import {
   esqueletoProyectos, carpetaPro, indiceProyectos, indiceCargando, fichaProyecto, formularioProyecto, primerUsoProyectos,
-  errorLecturaProyectos, lineaRotos,
+  errorLecturaProyectos, lineaRotos, lineaError as lineaErrorProyecto,
 } from './proyectosVista.js'
 import * as movimientoProyectos from './proyectosMotion.js'
 import { MODULOS, irModulo as planModulo, alEscModulo, cuentaModulo, nombreModulo, avisoPregunta, moduloAlExpandir, cuentasModulosMini, desplazarTira } from './modulos.js'
@@ -6419,8 +6419,19 @@ function pintarHojaProyectos() {
   $('#marco').classList.remove('con-hoja')
   texto('#titulo', 'Proyectos')
   $('#titulo').title = ''
-  texto('#subtitulo', st.pro.leido ? subtituloProyectos(st.pro.lista, 0) : '')
+  texto('#subtitulo', st.pro.leido ? subtituloProyectos(st.pro.lista, totalCharlasProyectos()) : '')
   pintarProyectos()
+}
+
+/**
+ * Las charlas de los proyectos (#44, P2): las del cajón de la charla (`listaCharlas`, la lista del disco y
+ * las de esta ejecución), con su `proyecto`. Una charla de un proyecto que ya no está no cuenta.
+ */
+const charlasConProyecto = () => listaCharlas(st.chat).filter(x => x.proyecto)
+const cuentaPorProyecto = () => cuentaCharlas(charlasConProyecto())
+function totalCharlasProyectos() {
+  const n = cuentaPorProyecto()
+  return st.pro.lista.reduce((suma, p) => suma + (n[p.id] ?? 0), 0)
 }
 
 /**
@@ -6437,7 +6448,11 @@ function panelProyectos(t, ahora = Date.now()) {
   if (!p) return { html: primerUsoProyectos(st.mascota, nombreMascota()), firma: null }
   const armado = !!t.armado && armadoVigente(t, `borrar:${p.id}`, ahora)
   const transcurrido = armado ? Math.max(0, MS_CONFIRMAR - (t.armado.hasta - ahora)) : 0
-  const datos = { p, n: 0, especie: st.mascota, mascota: nombreMascota(), armado, errorCarpeta: t.errorCarpeta }
+  // Sus charlas (4.5): las del cajón de la charla, con la abierta en la hoja marcada
+  const charlas = charlasDe(charlasConProyecto(), p.id)
+  const actual = st.chat.abierta ? st.chat.conversacion?.id ?? null : null
+  const errorBorrar = t.errorBorrar?.id === p.id ? t.errorBorrar.texto : null
+  const datos = { p, n: charlas.length, charlas, actual, ahoraMs: ahora, especie: st.mascota, mascota: nombreMascota(), armado, errorCarpeta: t.errorCarpeta, errorBorrar }
   return { html: fichaProyecto({ ...datos, transcurrido }), firma: fichaProyecto(datos) }
 }
 
@@ -6478,7 +6493,7 @@ function pintarProyectos() {
     ponerParte('pane', '')
   } else if (modo === 'carpeta' || modo === 'sola') {
     ponerParte('rotos', (t.error ? errorLecturaProyectos() : '') + lineaRotos(t.rotas.length))
-    if (modo === 'carpeta') ponerParte('idx', indiceProyectos({ lista: t.lista, elegido: t.elegido, vista: t.vista }))
+    if (modo === 'carpeta') ponerParte('idx', indiceProyectos({ lista: t.lista, elegido: t.elegido, vista: t.vista, charlas: cuentaPorProyecto() }))
     const { html, firma } = panelProyectos(t)
     ponerParte('pane', html, firma ?? html)
     movimientoProyectos.colocarPildora($('#pro .idx'))
@@ -6545,6 +6560,8 @@ function leerProyectos() {
       st.pro = { ...st.pro, cargando: false, fantasmas: false }
       leyendoProyectos = null
       pintar()
+      // La hoja de una charla de proyecto (#44, 8.2): su nombre y su color pudieron cambiar
+      if (st.chat.conversacion?.proyecto) programarHoja()
     }
   })()
   return leyendoProyectos
@@ -6573,6 +6590,8 @@ function enfocarProyectos(k) {
 function ponerProyectoEnLista(p) {
   const lista = st.pro.lista.some(x => x.id === p.id) ? st.pro.lista.map(x => (x.id === p.id ? p : x)) : [...st.pro.lista, p]
   st.pro = { ...st.pro, lista }
+  // La hoja de su charla (8.2): el chip y la luz con el nombre y el color nuevos
+  if (st.chat.conversacion?.proyecto === p.id) programarHoja()
 }
 
 /**
@@ -6589,7 +6608,7 @@ function elegirEnHoja(id) {
   pintarProyectos()
   movimientoProyectos.viajarPildora(nav, desde)
   movimientoProyectos.entraPanel($('#pro-pane'))
-  decirProyectos(anuncioElegido(p, 0))
+  decirProyectos(anuncioElegido(p, cuentaPorProyecto()[id] ?? 0))
 }
 
 /** «+ Nuevo» o «Crear mi primer proyecto» (3.4): el formulario nuevo, con el foco en Nombre (9.4). */
@@ -6793,6 +6812,16 @@ async function clicBorrarProyecto(id) {
   }
   clearTimeout(relojArmadoProyectos)
   pintarProyectos()
+  await borrarProyectoConCharlas(id)
+}
+
+/**
+ * Borra el proyecto y sus charlas (11.3, D-p2), una sola vez: si alguna charla no se borró, el proyecto
+ * queda con «No se pudieron borrar {k} charlas. Probá de nuevo.» y «Reintentar» (5.2). Las borradas salen
+ * de la hoja de la charla y, si la abierta era del proyecto, la hoja pasa a una nueva (8.5).
+ */
+async function borrarProyectoConCharlas(id) {
+  st.pro = { ...st.pro, errorBorrar: null }
   let res
   try { res = await invocar('proyecto_borrar', { id }) } catch (err) { res = { error: String(err?.message ?? err) } }
   if (res?.error) {
@@ -6800,6 +6829,20 @@ async function clicBorrarProyecto(id) {
     await leerProyectos()
     return
   }
+  if (res?.fallidas > 0) {
+    // Las que sí se borraron ya no están: el cajón y la ficha vuelven a leer la lista
+    efectoChat({ tipo: 'historial' })
+    const texto = textoBorradoFallido(res.fallidas)
+    st.pro = { ...st.pro, errorBorrar: { id, texto } }
+    pintarProyectos()
+    decirProyectos(texto)
+    enfocarProyectos('borrar-reintentar')
+    return
+  }
+  // La hoja de la charla (8.5): sus charlas se van y, si la abierta era suya, pasa a una nueva; ninguna se vuelve a guardar
+  proyectosBorrados.add(id)
+  despacharChat({ tipo: 'borrado-proyecto', proyecto: id })
+  efectoChat({ tipo: 'historial' })
   const siguiente = focoTrasBorrar(st.pro.lista, id)
   await movimientoProyectos.plegarFila($(`#pro [data-k="ix-${CSS.escape(id)}"]`))
   const nav = $('#pro .idx')
@@ -6829,6 +6872,13 @@ async function accionProyectos(a, b) {
     case 'pro-car-modo': st.pro = editarFormProyecto(st.pro, 'carpeta', b.dataset.valor); pintarProyectos(); break
     case 'pro-color': st.pro = editarFormProyecto(st.pro, 'color', b.dataset.valor); pintarProyectos(); break
     case 'pro-borrar': await clicBorrarProyecto(b.dataset.valor); break
+    // «Reintentar» del borrado con fallas (5.2): ya se confirmó, se vuelve a intentar con las que quedaron
+    case 'pro-borrar-reintentar': if (st.pro.elegido) await borrarProyectoConCharlas(st.pro.elegido); break
+    // La charla del proyecto (P2, 8.1 y 4.5): «Nueva charla», una de sus charlas y «Ver las {n} charlas».
+    // La hoja de Proyectos queda abierta: la de la charla se abre al lado
+    case 'pro-charla': if (st.pro.elegido) despacharChat({ tipo: 'proyecto-nueva', proyecto: st.pro.elegido }); break
+    case 'pro-retomar': despacharChat({ tipo: 'retomar', id: b.dataset.id, abrir: true }); break
+    case 'pro-ver-charlas': if (st.pro.elegido) despacharChat({ tipo: 'hist-proyecto', proyecto: st.pro.elegido }); break
     // La zona de soltar y «Abrir» (4.7): Rust abre la carpeta del archivo del proyecto, nunca una ruta de la ventana
     case 'pro-abrir-carpeta':
       if (st.pro.elegido) invocar('proyecto_abrir_carpeta', { id: st.pro.elegido }).catch(err => { registrar(`proyectos: no se pudo abrir la carpeta: ${err}`); leerProyectos() })
@@ -6903,7 +6953,23 @@ function modeloVista(ahora = Date.now()) {
     proyectos: carpetasDeProyectos(st.proyectos),
     // Los recibos (#43): los nombres y colores de las listas en pantalla, el día y el estado de «Deshacer»
     recibos: { listas: st.tareas.listas, hoy: hoyArgentina(ahora), ui: vivo.deshacer },
+    // La charla del proyecto (#44, 8): su proyecto y los de la hoja de Proyectos (el cajón, 8.3)
+    proyecto: proyectoDeCharla(), listaProyectos: st.pro.lista,
   }
+}
+
+/**
+ * El proyecto de la charla de ahora (#44, 8.2), o null: el de la hoja de Proyectos (así un cambio de
+ * nombre, color o carpeta se ve enseguida; Rust relee el proyecto en cada envío, 11.4); sin la lista
+ * leída, lo que devolvió `chat_abrir`.
+ */
+function proyectoDeCharla() {
+  const conv = st.chat.conversacion
+  if (!conv?.proyecto) return null
+  const p = st.pro.lista.find(x => x.id === conv.proyecto)
+  if (!p) return conv.proyectoInfo ?? null
+  const c = p.carpeta ?? {}
+  return { id: p.id, nombre: p.nombre, color: p.color, carpeta: { nombre: c.nombre, ruta: c.ruta, estado: c.estado } }
 }
 
 /** El centro de la capa de soltar del último archivo soltado (px de la ventana): de ahí nacen sus chips (6.2). */
@@ -7007,6 +7073,12 @@ function despacharChat(ev) {
     enviarZona()
   }
   pintarHoja()
+  // La hoja de Proyectos (#44, 4.5): las charlas de cada proyecto y la abierta, cuando cambian
+  const ca = antes.conversacion, cd = chat.conversacion
+  if (st.pro.abierta && (chat.charlas !== antes.charlas || ca?.id !== cd?.id || chat.abierta !== antes.abierta || ca?.mensajes.length !== cd?.mensajes.length)) {
+    if (st.pro.leido) texto('#subtitulo', subtituloProyectos(st.pro.lista, totalCharlasProyectos()))
+    pintarProyectos()
+  }
   // La tarjeta del modelo local de la configuración sigue la misma descarga (configuracion-ux.md 7.2)
   if (st.config.abierta && (chat.local !== antes.local || chat.progreso !== antes.progreso)) pintarConfiguracion()
   if (abre && hojaSeVe()) abrirConMudanza()
@@ -7119,9 +7191,12 @@ function guardarCharlas(pendientes) {
   }
 }
 
+/** Los proyectos borrados en esta ejecución (#44, 8.5): sus charlas ya no se guardan (Rust las borró). */
+const proyectosBorrados = new Set()
+
 /** `chat_guardar`: el archivo de la charla y, en un `fin`, la copia en Engram (9.2). */
 function guardarCharla(conv, engram) {
-  if (!tauri?.core) return
+  if (!tauri?.core || proyectosBorrados.has(conv.proyecto)) return
   const pedido = { conversacion: aArchivo(conv), mascota: nombreMascota(), engram }
   colaGuardar = colaGuardar.then(() => invocar('chat_guardar', pedido)).catch(err => registrar(`chat guardar: ${err}`))
 }
@@ -7133,7 +7208,8 @@ function efectoChat(e) {
     case 'abrir': {
       // Precalienta sin mandar nada (D19). Con el motor local, además, qué hay del modelo (solo lee).
       // Con otro modelo de Claude (#35), Rust la vuelve a abrir con él y la misma sesión
-      abriendo = invocar('chat_abrir', { conversacion: e.conversacion, motor: e.motor, carpeta: e.carpeta, mascota: nombreMascota(), usuario: st.nombreUsuario, sesionClaude: e.sesionClaude, modelo: e.modelo })
+      // Con un proyecto (#44, 11.4), Rust lee su carpeta y sus instrucciones: la ventana manda solo su id
+      abriendo = invocar('chat_abrir', { conversacion: e.conversacion, motor: e.motor, carpeta: e.carpeta, mascota: nombreMascota(), usuario: st.nombreUsuario, sesionClaude: e.sesionClaude, modelo: e.modelo, proyecto: e.proyecto ?? null })
         .then(resultado => despacharChat({ tipo: 'abierta', conversacion: e.conversacion, resultado }))
         .catch(err => registrar(`chat abrir: ${err}`))
       if (e.motor === 'local') leerModelo()
@@ -7185,7 +7261,7 @@ function efectoChat(e) {
     case 'leer':
       // Una charla del disco: para retomarla desde el cajón, o la última al arrancar (D11)
       invocar('chat_leer', { id: e.id })
-        .then(doc => despacharChat(e.para === 'recordar' ? { tipo: 'recordar', conversacion: doc } : { tipo: 'retomar', id: e.id, conversacion: doc }))
+        .then(doc => despacharChat(e.para === 'recordar' ? { tipo: 'recordar', conversacion: doc } : { tipo: 'retomar', id: e.id, conversacion: doc, abrir: !!e.abrir }))
         .catch(err => registrar(`chat leer: ${err}`))
       break
     case 'guardar':
@@ -7659,10 +7735,12 @@ function pintarHoja() {
   clipEl.title = clip.titulo
   const hist = $('#hoja .arriba [data-accion="ch-hist"]')
   hist.setAttribute('aria-expanded', String(c.cajon))
+  pintarProyectoEnHoja(m)
   poner('#chat-avi', aviEscena(m))
   texto('#chat-nom', nombre)
   poner('#chat-est', estadoEscena(m))
   ponerConFoco('#chat-cab', cabecera(m))
+  pintarContexto(m)
   pintarPuede(m)
   pintarHilo(m)
   const comp = composer(m)
@@ -7679,6 +7757,25 @@ function pintarHoja() {
   else st.firmas['#chat-menu'] = null
   pintarCajon(m)
   poner('#chat-soltar', capaSoltar(m))
+}
+
+/**
+ * La charla de un proyecto en la hoja (#44, 8.2): el chip del proyecto en la fila de arriba (entre
+ * «Historial» y «Cerrar»; su lugar se crea la primera vez) y la luz del escenario con el color del proyecto
+ * (`--luz`, con su transición de CSS). Sin proyecto, nada de eso.
+ */
+function pintarProyectoEnHoja(m) {
+  if (!$('#ch-proyecto-lugar')) $('#hoja .arriba [data-accion="ch-cerrar"]').insertAdjacentHTML('beforebegin', '<span id="ch-proyecto-lugar" class="pj-lugar"></span>')
+  const p = m.proyecto
+  hojaEl.classList.toggle('de-proyecto', !!p)
+  if (p) hojaEl.style.setProperty('--luz', `var(--${colorDe(p.color)})`)
+  ponerConFoco('#ch-proyecto-lugar', chipProyecto(p))
+}
+
+/** Las marcas de contexto (`.ctx-p`, 8.2), entre la cabecera y la línea «Puede tocar»; su lugar se crea la primera vez. */
+function pintarContexto(m) {
+  if (!$('#ch-ctx-lugar')) $('#chat-cab').insertAdjacentHTML('afterend', '<div id="ch-ctx-lugar"></div>')
+  poner('#ch-ctx-lugar', contextoProyecto(m))
 }
 
 /**
@@ -7710,6 +7807,8 @@ function pintarCajon(m) {
   } else {
     // Con el foco en "Borrar", sigue ahí cuando pasa a "¿Borrar? Sí"
     ponerConFoco('#chat-hist-lista', listaHistorial(m, buscarChat))
+    // El filtro por proyecto (#44, 8.3): «Ver todas» lo saca sin rehacer el armazón
+    poner('#chat-hist-filtro', filtroCajon(m))
   }
 }
 
@@ -7736,6 +7835,24 @@ async function accionChat(a, b) {
       if (st.chat.menu) ($('#chat-menu [aria-checked="true"]') ?? $('#chat-menu [role^="menuitem"]'))?.focus()
       break
     case 'ch-carpeta': despacharChat({ tipo: 'carpeta', carpeta: b.dataset.carpeta || null }); enfocarEnHoja('carpeta'); break
+    // La charla de un proyecto (#44, 8.2): la carpeta de la cabecera la abre en el Explorador (Rust lee la
+    // ruta del proyecto, 11.2); el chip lleva a la hoja de Proyectos con el foco en su nombre (9.4)
+    case 'ch-carpeta-pro': {
+      const id = c.conversacion?.proyecto
+      if (b.getAttribute('aria-disabled') === 'true' || !id) return
+      invocar('proyecto_abrir_carpeta', { id }).catch(err => { registrar(`chat: no se pudo abrir la carpeta del proyecto: ${err}`); leerProyectos() })
+      break
+    }
+    case 'ch-proyecto': {
+      const id = b.dataset.id
+      if (!id) return
+      await irModulo('proyectos', { proyecto: id, foco: null })
+      if (leyendoProyectos) await leyendoProyectos
+      if (st.pro.elegido !== id) elegirEnHoja(id)
+      $('#pro-h2')?.focus({ preventScroll: false })
+      break
+    }
+    case 'ch-filtro-todas': despacharChat({ tipo: 'filtro-todas' }); $('#chat-buscar')?.focus(); break
     case 'ch-modelo-menu':
       // Con un turno en curso queda en aria-disabled: el modelo cambia entre turnos (#35)
       if (b.getAttribute('aria-disabled') === 'true') return
