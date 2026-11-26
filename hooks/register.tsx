@@ -363,6 +363,9 @@ function dejarDeVigilarOrdenes(): void {
 async function revisarOrden($: EngineInterface): Promise<void> {
   const ruta = await rutaOrden($, await $.session.id())
   if (!ruta) return
+  // Sin orden (lo normal) no se lee: el motor anota en stderr cada lectura que falla, y esa cola es
+  // lo que VS Code muestra cuando el proceso termina
+  if (!(await $.fs.exists(ruta).catch(() => false))) return
   const texto = await $.fs.read(ruta).then(t => String(t)).catch(() => null)
   if (texto === null || ordenesVistas.has(`archivo:${texto}`)) return
   let datos: unknown = null
