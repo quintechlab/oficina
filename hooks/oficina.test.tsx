@@ -30,6 +30,7 @@ import {
   mapaNombres,
   NOMBRES_INVENTADOS,
   nombreSubagente,
+  subagentesEnCurso,
   anotarPaso,
   MAX_PASOS,
   podarSubagentes,
@@ -1121,4 +1122,27 @@ test('lo de antes sigue: al terminar el turno la sesión publica que te espera',
   await s.reloj.advance(15000)
   expect(s.presencia()?.actividad).toBe('esperándote')
   expect(s.presencia()?.puedeResponder).toBe(true)
+})
+
+// ------------------------------------------------------------------ v0.12.1: subagentes tras /reload-plugins
+test('los subagentes que siguen corriendo se recuperan de la lista del motor, sin repetir los conocidos', () => {
+  const lista = [
+    { id: 'a1', description: 'Panel — T2.2b composición', type: 'general-purpose', status: 'running', kind: 'local_agent' },
+    { id: 'a2', description: 'revisar', type: 'Explore', status: 'pending', kind: 'local_agent' },
+    { id: 'a3', description: 'Edad — T2.1', type: 'general-purpose', status: 'waiting', kind: 'local_agent' },
+    { id: 'a4', description: 'Costos — listo', type: 'general-purpose', status: 'completed', kind: 'local_agent' },
+    { id: 'a5', description: 'Equipo — x', type: 'teammate', status: 'running', kind: 'in_process_teammate' },
+    { id: 'a6', description: 'Ya conocido — y', type: 'general-purpose', status: 'running', kind: 'local_agent' },
+  ]
+  const r = subagentesEnCurso(lista, new Set(['a6']), '2026-11-26T18:00:00.000Z')
+  expect(r.map(s => s.id)).toEqual(['a1', 'a2', 'a3'])
+  expect(r[0]).toEqual({ id: 'a1', nombre: 'Panel', inventado: false, tipo: 'general-purpose', tarea: 'T2.2b composición', desde: '2026-11-26T18:00:00.000Z', estado: 'trabajando', hasta: null })
+  expect(r[1]?.inventado).toBe(true)
+})
+
+test('al arrancar (también tras /reload-plugins) la presencia trae los subagentes que siguen corriendo', async ($, on) => {
+  on('agent.list', () => ({ value: [{ id: 'ag-1', description: 'Panel — composición', type: 'general-purpose', status: 'running', kind: 'local_agent', taskStatus: 'running' }] }) as never)
+  const s = await abrirSesion($, on)
+  const agentes = s.presencia()?.agentes as Array<Record<string, unknown>>
+  expect(agentes.map(a => [a.id, a.nombre, a.estado])).toEqual([['ag-1', 'Panel', 'trabajando']])
 })

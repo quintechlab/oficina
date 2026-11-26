@@ -18,6 +18,7 @@ import {
   MS_ENTRE_ORDENES,
   vigilarRespuesta,
   nombreSubagente,
+  subagentesEnCurso,
   anotarPaso,
   podarSubagentes,
   idProcesoDesdeResultado,
@@ -656,6 +657,10 @@ async function refrescar($: EngineInterface): Promise<void> {
 // ------------------------------------------------------------------ arranque y comandos
 async function arrancar($: EngineInterface): Promise<void> {
   await $.store.delete('sesion').catch(() => undefined) // clave de la v0.2, compartida entre sesiones
+  // v0.12.1: tras /reload-plugins el mod arranca sin memoria; los subagentes que siguen corriendo se recuperan
+  const enCurso = await $.agent.list().catch(() => [])
+  const ahora = new Date(await $.clock.now()).toISOString()
+  for (const s of subagentesEnCurso(enCurso, new Set(subagentes.keys()), ahora)) subagentes.set(s.id, s)
   try {
     await publicar($, true, false) // abrir una sesión es volver a la oficina
   } catch (err) {
