@@ -661,6 +661,8 @@ async function arrancar($: EngineInterface): Promise<void> {
   const enCurso = await $.agent.list().catch(() => [])
   const ahora = new Date(await $.clock.now()).toISOString()
   for (const s of subagentesEnCurso(enCurso, new Set(subagentes.keys()), ahora)) subagentes.set(s.id, s)
+  // v0.12.2: sin turno en curso, Claude espera tu mensaje (antes decía "sin actividad" hasta el primer turno)
+  if (actividad === null && turnoEnCurso === null) actividad = actividadEnEspera(procesos.size)
   try {
     await publicar($, true, false) // abrir una sesión es volver a la oficina
   } catch (err) {
