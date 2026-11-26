@@ -286,7 +286,7 @@ Hoy la ventana guarda **la lista entera** que tiene en memoria (`tareas_guardar`
 - `tareas_guardar(lista, huella)`: si el archivo cambió desde esa huella, no escribe y devuelve `{ ok: false, error: "cambio" }`. La ventana relee esa lista, vuelve a aplicar **la acción** que estaba guardando (tildar, el título, mover…) una vez y guarda de nuevo; si choca otra vez, el error de tareas-ux 7.4. Sin `huella` (compatibilidad), guarda como hoy.
 - Al recibir `oficina://tareas`, la ventana relee la lista enseguida (8).
 - Es Risk item 4 (dos escritores) e item 3 (cambia `tareas_guardar`, que comparte toda la hoja de Tareas): su test de lo de antes (guardar sin cambios ajenos funciona igual) va con la entrega.
-- **Hábitos, desde C3** (decisión de Quintana del 26/11): la misma regla con `habitos_leer` (`huellas`) y `habitos_guardar(habito, huella)`. Al volver a aplicar, cada campo que cambió la ventana y cada día del registro que cambió la ventana quedan como en la ventana; el resto, como lo dejó la charla (si los dos cambiaron el mismo día, gana la ventana: es el último clic).
+- **Hábitos, desde C3** (decisión de Quintana del 26/11): la misma regla con `habitos_leer` (`huellas`) y `habitos_guardar(habito, huella)`. Al volver a aplicar, cada campo que cambió la ventana y cada día del registro que cambió la ventana quedan como en la ventana; el resto, como lo dejó la charla (si los dos cambiaron el mismo día: en cantidad se suman las dos acciones, la ventana aplica su diferencia sobre lo del disco, de 0 a 999; en los demás tipos queda lo de la ventana).
 
 ### 11.6 Eventos a la ventana
 

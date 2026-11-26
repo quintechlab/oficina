@@ -498,8 +498,10 @@ const igual = (a, b) => JSON.stringify(canonico(a)) === JSON.stringify(canonico(
  * marcó el hábito en el disco (`disco`) después de que la ventana lo leyó (`base`) y lo cambió en
  * pantalla (`pantalla`). Vuelve a aplicar lo de la ventana sobre lo del disco: cada campo que la ventana
  * cambió (el nombre, la meta, `mejor`…) y, en `registro`, cada día que la ventana cambió (también uno
- * que desmarcó); lo demás queda como lo dejó la charla. Si los dos cambiaron el mismo día, gana la
- * ventana: es el último clic del usuario. Los campos desconocidos sobreviven (los del disco, salvo que la
+ * que desmarcó); lo demás queda como lo dejó la charla. En cantidad la ventana vuelve a aplicar su
+ * acción (11.5), no su valor: suma su diferencia con la base a lo del disco (de 0 a 999; 0 saca el día),
+ * así un +1 de la ventana y un +1 de la charla el mismo día dan +2 (T4, 26/11). En sí/no, por semana o
+ * algunos días, el día queda como lo dejó la ventana. Los campos desconocidos sobreviven (los del disco, salvo que la
  * ventana los haya cambiado). Sin base o sin disco, lo de la pantalla. "Cambió" compara el contenido sin
  * mirar el orden de las claves.
  */
@@ -510,10 +512,14 @@ export function rebasarHabito(base, pantalla, disco) {
   const deBase = base.registro ?? {}
   const enPantalla = pantalla.registro ?? {}
   const registro = { ...(disco.registro ?? {}) }
+  const suma = base.tipo === 'cantidad' && pantalla.tipo === 'cantidad' && disco.tipo === 'cantidad'
   for (const d of new Set([...Object.keys(deBase), ...Object.keys(enPantalla)])) {
     if (igual(enPantalla[d], deBase[d])) continue
-    if (enPantalla[d] === undefined) delete registro[d]
-    else registro[d] = enPantalla[d]
+    const nuevo = suma
+      ? Math.max(0, Math.min(MAX_CANTIDAD, (Number(registro[d]) || 0) + (Number(enPantalla[d]) || 0) - (Number(deBase[d]) || 0)))
+      : enPantalla[d]
+    if (nuevo === undefined || (suma && nuevo === 0)) delete registro[d]
+    else registro[d] = nuevo
   }
   return { ...h, registro }
 }

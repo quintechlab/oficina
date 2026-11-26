@@ -811,17 +811,30 @@ test('rebasarHabito: la ventana cambió el nombre y la charla marcó hoy: quedan
   assert.deepEqual(rebasarHabito(base, pantalla, disco), { ...base, nombre: 'Tomar agua', registro: { [dia(-1)]: 8, [HOY]: 3 } })
 })
 
-test('rebasarHabito: si los dos cambiaron el mismo día, gana la ventana (es el último clic del usuario); los otros días, el disco', () => {
+test('rebasarHabito: en cantidad, si los dos cambiaron el mismo día se suman las dos acciones (11.5: la ventana vuelve a aplicar la acción); los otros días, el disco', () => {
   const base = hab({ tipo: 'cantidad', registro: { [dia(-2)]: 5, [dia(-1)]: 4, [HOY]: 2 } })
-  // La ventana: +1 hoy y corrigió anteayer a sin hacer (sin la clave); la charla: +1 hoy (3)
+  // La ventana: +1 hoy y bajó anteayer a 0 (sin la clave); la charla: +1 hoy (3)
   const pantalla = { ...base, registro: { [dia(-1)]: 4, [HOY]: 3 } }
   const disco = { ...base, registro: { [dia(-2)]: 5, [dia(-1)]: 4, [HOY]: 3 } }
-  assert.deepEqual(rebasarHabito(base, pantalla, disco).registro, { [dia(-1)]: 4, [HOY]: 3 })
-  // La ventana desmarcó hoy y la charla lo había puesto en 3: queda desmarcado
-  assert.deepEqual(rebasarHabito(base, { ...base, registro: { [dia(-2)]: 5, [dia(-1)]: 4 } }, disco).registro, { [dia(-2)]: 5, [dia(-1)]: 4 })
+  assert.deepEqual(rebasarHabito(base, pantalla, disco).registro, { [dia(-1)]: 4, [HOY]: 4 })
+  // La ventana bajó hoy de 2 a 0 (−2) y la charla sumó 1: queda 1
+  assert.deepEqual(rebasarHabito(base, { ...base, registro: { [dia(-2)]: 5, [dia(-1)]: 4 } }, disco).registro, { [dia(-2)]: 5, [dia(-1)]: 4, [HOY]: 1 })
+  // Nunca baja de 0 ni pasa de 999
+  const alto = { ...base, registro: { [HOY]: 998 } }
+  assert.equal(rebasarHabito(base, { ...base, registro: { ...base.registro, [HOY]: 5 } }, alto).registro[HOY], 999)
+  const bajo = { ...base, registro: { [HOY]: 0 } }
+  assert.equal(rebasarHabito(base, { ...base, registro: { ...base.registro, [HOY]: 0 } }, bajo).registro[HOY], undefined)
   // Un día que solo cambió la charla queda como lo dejó (también si lo sacó)
   const sinAyer = { ...base, registro: { [dia(-2)]: 5, [HOY]: 2 } }
   assert.deepEqual(rebasarHabito(base, { ...base, nombre: 'Agua' }, sinAyer).registro, { [dia(-2)]: 5, [HOY]: 2 })
+})
+
+test('rebasarHabito: en sí/no el mismo día queda lo de la ventana (tildar dos veces es 1, no 2)', () => {
+  const base = hab({ tipo: 'diario', registro: { [dia(-1)]: 1 } })
+  const disco = { ...base, registro: { [dia(-1)]: 1, [HOY]: 1 } }
+  assert.deepEqual(rebasarHabito(base, { ...base, registro: { [dia(-1)]: 1, [HOY]: 1 } }, disco).registro, { [dia(-1)]: 1, [HOY]: 1 })
+  // La ventana desmarcó ayer; la charla tildó hoy: quedan los dos
+  assert.deepEqual(rebasarHabito(base, { ...base, registro: {} }, disco).registro, { [HOY]: 1 })
 })
 
 test('rebasarHabito: los campos desconocidos sobreviven (los del disco y los que cambió la ventana)', () => {
