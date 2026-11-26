@@ -245,6 +245,12 @@
 //   ?chat=error        un error reintentable («No se pudo guardar…») con «Reintentar» y «Abrir Tareas»
 //   ?chat=nollego      dos tarea_crear y un solo cambio: «Un cambio no llegó a Avis»
 //   ?chat=local-herr   con Local: la línea punteada, la respuesta en texto y su globo abierto
+// Con los hábitos (#43, C3): las herramientas falsas marcan en los hábitos falsos (window.__habitos) y avisan
+// por oficina://habitos, como mcp_avis.rs:
+//   ?chat=habito       «marcá que tomé agua»: el recibo «Marqué en Hábitos» con el anillo de 18 y «Ver en Hábitos →»
+//   ?chat=habitos      tildar una tarea y marcar Agua y Caminar: «3 cambios», «tareas y hábitos» y «Deshacer los 3»
+//   ?chat=lectura-hab  «¿Qué tengo hoy?» con tareas y hábitos: la lectura con la fila de hábitos de hoy (píldoras)
+//   Con &habitos=hoy, la hoja de Hábitos abierta: la fila marcada destella
 // La charla del proyecto (#44, P2, proyectos-ux.md 8): con ?proyectos=lista (o sola), «Nueva charla» de un proyecto
 //   ?chat=proyecto            Presupuestos 2027: el chip, la luz ámbar, «✓ Carpeta, cuando hace falta» y una respuesta
 //                             que lee tarifas-2027.xlsx de la carpeta («↳ Leyó …»)
@@ -1261,7 +1267,7 @@
   // ---- La charla con herramientas (#43, C2; chat-herramientas-ux.md 11.4 a 11.9): como mcp_avis.rs, cada
   // herramienta escribe en las listas falsas (window.__tareas), emite su cambio por oficina://chat y la
   // lista tocada por oficina://tareas; chat_deshacer y chat_reintentar siguen sus reglas.
-  const ESCENAS_HERR = new Set(['recibo', 'recibos', 'deshecho', 'despues', 'lectura', 'borrar', 'error', 'nollego'])
+  const ESCENAS_HERR = new Set(['recibo', 'recibos', 'deshecho', 'despues', 'lectura', 'borrar', 'error', 'nollego', 'habito', 'habitos', 'lectura-hab'])
   /** El turno de una charla de proyecto con Claude Code (#44, 8.2): la línea «↳ Leyó …» y la respuesta. */
   function turnoProyectoFalso(c, turno, luego, terminar) {
     const perdida = conocidas.get(c).carpeta === 'perdida'
@@ -1280,6 +1286,10 @@
   const idCambio = () => `c-falso${++nCambio}`
   const listaDeTarea = id => [...listasTareas.values()].find(l => l.tareas.some(t => t.id === id)) ?? null
   const avisarTareas = (lista, tarea) => emitir('oficina://tareas', { lista, tarea, origen: 'chat' })
+  const avisarHabito = habito => emitir('oficina://habitos', { habito, origen: 'chat' })
+  // C3: hoy, toca y hecho de un hábito falso (habitos-ux 11.3), como mcp_avis.rs
+  const tocaHoyF = h => h.tipo !== 'dias' || (h.dias ?? []).includes(semanaAr(0))
+  const hechoHoyF = h => (Number(h.registro?.[diaAr(0)]) || 0) >= (h.tipo === 'cantidad' ? h.meta : 1)
   const cambioBase = (herramienta, estado, lista, tarea, titulo) => ({ id: idCambio(), herramienta, estado, lista, tarea, titulo, antes: null, despues: null, motivo: null, reintentable: false, args: null })
   const herr = {
     crear: ({ titulo, lista = 'l-compras', fecha = null }) => {
@@ -1323,12 +1333,36 @@
       const l = listaDeTarea(id)
       return { ...cambioBase('tarea_mostrar', 'mostrar', l.id, id, l.tareas.find(x => x.id === id).titulo), resumen: { para: 'borrar' } }
     },
+    // C3: marcar un hábito de hoy (valor o sumar) y ver los de hoy
+    marcar: ({ id, valor, sumar }) => {
+      const h = habitosFalsos.get(id)
+      const dia = diaAr(0)
+      const antes = Number(h.registro?.[dia]) || 0
+      const tope = h.tipo === 'cantidad' ? 999 : 1
+      const n = Math.max(0, Math.min(tope, valor ?? antes + sumar))
+      const registro = { ...h.registro }
+      if (n) registro[dia] = n
+      else delete registro[dia]
+      habitosFalsos.set(id, { ...h, registro })
+      avisarHabito(id)
+      return {
+        ...cambioBase('habito_marcar', 'hecho', null, null, h.nombre), habito: id, antes: { dia, valor: antes }, despues: { dia, valor: n },
+        marca: { tipo: h.tipo, meta: h.meta, unidad: h.unidad, color: h.color },
+      }
+    },
+    verHabitos: () => {
+      const de = [...habitosFalsos.values()].sort((a, b) => a.orden - b.orden).filter(tocaHoyF)
+      const habitos = de.slice(0, 6).map(h => ({ habito: h.id, nombre: h.nombre, tipo: h.tipo, meta: h.meta, valor: Number(h.registro?.[diaAr(0)]) || 0, hecho: hechoHoyF(h), color: h.color }))
+      return { ...cambioBase('habitos_ver', 'lectura', null, null, null), resumen: { vista: 'habitos', hoy: diaAr(0), hechas: de.filter(hechoHoyF).length, total: de.length, mas: de.length - habitos.length, habitos } }
+    },
   }
   const RESPUESTAS_HERR = {
     recibo: 'Listo, para mañana en Compras.', deshecho: 'Listo, para mañana en Compras.', despues: 'Listo, para mañana en Compras.',
     recibos: 'Hecho, tres cambios.', lectura: 'Tenés tres para hoy y una ya tildada. Arrancaría por el PR.',
     borrar: 'Borrar lo hacés vos, con un clic: así nada se va por un malentendido. Te la dejo a mano:',
     error: 'No pude anotarla: el archivo no se guardó.', nollego: 'Anoté el pan y la yerba.',
+    habito: 'Listo, sumé un vaso de agua.', habitos: 'Hecho: tildé la luz y marqué agua y caminar.',
+    'lectura-hab': 'Tenés tres tareas para hoy y te faltan dos hábitos. Arrancaría por el PR.',
   }
   /** El turno falso con las herramientas de Avis: las llamadas (`↳`, que no se ven), los cambios y el texto. */
   function turnoConHerramientas(c, turno, luego, terminar) {
@@ -1345,6 +1379,13 @@
       borrar: [['tareas_ver', null], ['tarea_mostrar', () => herr.mostrar('t-falsa9')]],
       error: [['tarea_crear', () => ({ ...cambioBase('tarea_crear', 'error', null, null, 'Turno con el dentista'), motivo: 'No se pudo guardar. No cambió nada.', reintentable: true, args: { titulo: 'Turno con el dentista', lista: 'l-casa', fecha: diaAr(5) } })]],
       nollego: [['tarea_crear', () => herr.crear({ titulo: 'Comprar pan', fecha: diaAr(1) })], ['tarea_crear', null]],
+      habito: [['habitos_ver', null], ['habito_marcar', () => herr.marcar({ id: 'h-agua', sumar: 1 })]],
+      habitos: [
+        ['tarea_tildar', () => herr.tildar({ id: 't-falsa7' })],
+        ['habito_marcar', () => herr.marcar({ id: 'h-agua', sumar: 1 })],
+        ['habito_marcar', () => herr.marcar({ id: 'h-caminar', valor: 1 })],
+      ],
+      'lectura-hab': [['tareas_ver', () => herr.ver('hoy')], ['habitos_ver', () => herr.verHabitos()]],
     }[chatEsc]
     // Con &tareas, el cambio llega después de que la mascota aterrizó: da tiempo a escribir en Tareas
     let t = url.has('tareas') ? 2200 : 700
@@ -1360,6 +1401,19 @@
   }
   /** Como `mcp_avis::deshacer`: vuelve a `antes` si la tarea sigue como `despues`; si no, «cambió después». */
   function deshacerFalso(cambio) {
+    // C3: un hábito vuelve a `antes` si hoy sigue como lo dejó la charla y todavía es ese día
+    if (cambio.herramienta === 'habito_marcar') {
+      const h = habitosFalsos.get(cambio.habito)
+      const actual = Number(h?.registro?.[cambio.despues.dia]) || 0
+      if (!h || cambio.despues.dia !== diaAr(0)) return { estado: 'cambio-despues' }
+      if (actual !== cambio.despues.valor) return { estado: actual === cambio.antes.valor ? 'deshecho' : 'cambio-despues' }
+      const registro = { ...h.registro }
+      if (cambio.antes.valor) registro[cambio.antes.dia] = cambio.antes.valor
+      else delete registro[cambio.antes.dia]
+      habitosFalsos.set(h.id, { ...h, registro })
+      avisarHabito(h.id)
+      return { estado: 'deshecho' }
+    }
     const l = listaDeTarea(cambio.tarea)
     const t = l?.tareas.find(x => x.id === cambio.tarea)
     const coincide = (campos, lid) => Object.entries(campos ?? {}).every(([k, v]) => (k === 'lista' ? v === lid : t[k] === v))
@@ -1573,8 +1627,15 @@
         case 'recibos':
           preguntar('tildá lo de la luz, pasá lo del PR al viernes y mové el cable a Trabajo')
           break
-        case 'lectura':
+        case 'lectura': case 'lectura-hab':
           preguntar('¿Qué tengo hoy?')
+          break
+        // C3: los hábitos (Agua suma un vaso; con «habitos», también una tarea y Caminar)
+        case 'habito':
+          preguntar('marcá que tomé agua')
+          break
+        case 'habitos':
+          preguntar('tildá lo de la luz y marcá que tomé agua y que caminé')
           break
         case 'borrar':
           preguntar('borrá la del DNI')

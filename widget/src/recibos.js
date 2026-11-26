@@ -7,10 +7,16 @@
 import { etiquetaFecha, colorDe, fechaCorta } from './tareas.js'
 import { diasEntre } from './fechas.js'
 
-/** Las herramientas que escriben (11.4): sus cambios van al recibo de cambios, con «Deshacer». */
-export const ESCRIBEN = Object.freeze(['tarea_crear', 'tarea_editar', 'tarea_tildar'])
+/** Las herramientas que escriben (11.4; C3 suma `habito_marcar`): sus cambios van al recibo de cambios, con «Deshacer». */
+export const ESCRIBEN = Object.freeze(['tarea_crear', 'tarea_editar', 'tarea_tildar', 'habito_marcar'])
+/** Las que leen y pueden dejar el recibo de lectura (4.5). */
+const LEEN = Object.freeze(['tareas_ver', 'habitos_ver'])
+/** Las vistas de `tareas_ver` que dejan recibo de lectura (D-c10). */
+const VISTAS_LECTURA = Object.freeze(['hoy', 'vencidas', 'lista'])
 const PREFIJO = 'mcp__avis__'
 const escribe = c => ESCRIBEN.includes(c?.herramienta)
+/** ¿Es de hábitos (C3)? Su fila lleva el anillo y su vínculo va a Hábitos. */
+export const esDeHabitos = c => c?.herramienta === 'habito_marcar' || c?.herramienta === 'habitos_ver'
 const cambiosDe = msg => (Array.isArray(msg?.cambios) ? msg.cambios.filter(c => typeof c?.id === 'string') : [])
 const terminado = msg => msg?.estado !== 'escribiendo'
 
@@ -27,6 +33,7 @@ export function verboCambio(c) {
   const despues = c?.despues ?? {}
   switch (c?.herramienta) {
     case 'tarea_crear': return 'anotada'
+    case 'habito_marcar': return 'marcado'
     case 'tarea_tildar': return despues.hecha === true ? 'tildada' : 'destildada'
     default: {
       const campos = camposEditados(c ?? {})
@@ -50,6 +57,7 @@ export function encabezadoRecibo(cambios) {
   const c = cs[0]
   if (!c) return ''
   if (c.herramienta === 'tarea_crear') return 'Anoté en Tareas'
+  if (c.herramienta === 'habito_marcar') return 'Marqué en Hábitos'
   if (c.herramienta === 'tarea_tildar') return c.despues?.hecha === true ? 'Tildé en Tareas' : 'Destildé en Tareas'
   return verboCambio(c) === 'movida' ? 'Moví en Tareas' : 'Cambié en Tareas'
 }
@@ -58,7 +66,40 @@ export function encabezadoRecibo(cambios) {
 export function encabezadoError(c) {
   if (c?.herramienta === 'tarea_crear') return 'No se anotó'
   if (c?.herramienta === 'tarea_tildar') return 'No se tildó'
+  // C3: 4.7 no lo nombra; sigue la forma de los de tareas
+  if (c?.herramienta === 'habito_marcar') return 'No se marcó'
   return 'No se cambió'
+}
+
+/**
+ * La etiqueta de la fila de un hábito (C3, 4.3): en cantidad «{n} de {meta} {unidad} hoy» (como el boceto);
+ * en los demás «hecho hoy» o «sin marcar hoy». Un error no lleva etiqueta.
+ */
+function chipHabito(c) {
+  if (c?.estado === 'error') return null
+  const valor = Number(c?.despues?.valor) || 0
+  const m = c?.marca ?? {}
+  if (m.tipo === 'cantidad') return { tipo: 'habito', texto: `${valor} de ${Number(m.meta) || 1}${m.unidad ? ` ${m.unidad}` : ''} hoy` }
+  return { tipo: 'habito', texto: valor >= 1 ? 'hecho hoy' : 'sin marcar hoy' }
+}
+
+/**
+ * El vínculo del encabezado del recibo de cambios (4.2, 5.2): «Ver en Hábitos →» si todos son de hábitos;
+ * si no, «Ver en Tareas →» con la lista y la tarea del último cambio de tareas.
+ */
+export function vinculoRecibo(cambios) {
+  const cs = cambios ?? []
+  if (cs.length && cs.every(esDeHabitos)) return { texto: 'Ver en Hábitos →', accion: 'ch-ver-habitos', lista: '', tarea: '' }
+  const u = cs.filter(c => !esDeHabitos(c)).at(-1)
+  return { texto: 'Ver en Tareas →', accion: 'ch-ver-tareas', lista: u?.lista ?? '', tarea: u?.tarea ?? '' }
+}
+
+/** El rótulo de la izquierda del pie (5.2): «tareas», «tareas y hábitos» o (todos de hábitos) «hábitos». */
+export function etiquetaPie(cambios) {
+  const cs = cambios ?? []
+  const hab = cs.filter(esDeHabitos).length
+  if (!hab) return 'tareas'
+  return hab === cs.length ? 'hábitos' : 'tareas y hábitos'
 }
 
 const SEMANA = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
@@ -98,6 +139,7 @@ const chipLista = (listas, id) => {
  * que ya no existe (o que todavía no se leyó) no lleva chip. `[{ tipo, texto, tono | color }]`.
  */
 export function metaCambio(c, listas, hoy) {
+  if (c?.herramienta === 'habito_marcar') return [chipHabito(c)].filter(Boolean)
   const despues = c?.despues ?? {}
   const antes = c?.antes ?? {}
   const meta = []
@@ -134,19 +176,35 @@ export function metaFila(f, listas, hoy) {
 /** Los nombres de herramientas de Avis del turno, sin el prefijo (`mcp__avis__`), en orden. */
 const deAvis = msg => (msg?.herramientas ?? []).map(h => String(h?.nombre ?? '')).filter(n => n.startsWith(PREFIJO)).map(n => n.slice(PREFIJO.length))
 
+/** ¿Es una lectura que deja recibo? `tareas_ver` con vista `hoy`, `vencidas` o `lista`, o (C3) `habitos_ver`. */
+const lecturaConRecibo = c => c?.estado === 'lectura'
+  && ((c.herramienta === 'tareas_ver' && VISTAS_LECTURA.includes(c.resumen?.vista)) || c.herramienta === 'habitos_ver')
+
 /**
  * ¿Sale el recibo de lectura (4.5)? Solo si el turno terminó, no hizo ningún cambio (ni uno que
- * falló) y su última llamada fue `tareas_ver` con vista `hoy`, `vencidas` o `lista`: una lectura que el
- * modelo hace para buscar un id antes de cambiar algo no deja recibo (D-c10).
+ * falló) y su última llamada fue `tareas_ver` con vista `hoy`, `vencidas` o `lista`, o (C3)
+ * `habitos_ver`: una lectura que el modelo hace para buscar un id antes de cambiar algo no deja recibo (D-c10).
  */
 export function debeMostrarLectura(msg) {
   if (!terminado(msg)) return false
   const cambios = cambiosDe(msg)
   if (cambios.some(escribe)) return false
   const ultimo = cambios.at(-1)
-  if (ultimo?.estado !== 'lectura' || !['hoy', 'vencidas', 'lista'].includes(ultimo.resumen?.vista)) return false
+  if (!lecturaConRecibo(ultimo)) return false
   const llamadas = deAvis(msg)
-  return !llamadas.length || llamadas.at(-1) === 'tareas_ver'
+  return !llamadas.length || (LEEN.includes(llamadas.at(-1)) && llamadas.at(-1) === ultimo.herramienta)
+}
+
+/**
+ * El recibo de lectura de un mensaje (4.5): la última lectura de tareas que deja recibo y, si el turno
+ * también leyó los hábitos (C3), su fila de hábitos de hoy en `habitos`. Solo hábitos: `cambio` es esa lectura.
+ */
+function reciboLectura(msg) {
+  const lecturas = cambiosDe(msg).filter(lecturaConRecibo)
+  const deTareas = lecturas.filter(c => c.herramienta === 'tareas_ver').at(-1)
+  const deHabitos = lecturas.filter(c => c.herramienta === 'habitos_ver').at(-1)
+  if (deTareas && deHabitos) return { tipo: 'lectura', cambio: deTareas, habitos: deHabitos }
+  return { tipo: 'lectura', cambio: deTareas ?? deHabitos }
 }
 
 /**
@@ -174,7 +232,7 @@ export function armarRecibos(msg) {
       deCambios.cambios.push(c)
     } else if (c.estado === 'mostrar') recibos.push({ tipo: 'mostrar', cambio: c })
   }
-  if (debeMostrarLectura(msg)) recibos.push({ tipo: 'lectura', cambio: cambiosDe(msg).at(-1) })
+  if (debeMostrarLectura(msg)) recibos.push(reciboLectura(msg))
   const n = terminado(msg) ? faltantes(msg) : 0
   if (n) recibos.push({ tipo: 'nollego', n })
   return recibos

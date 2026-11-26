@@ -1306,6 +1306,19 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .rec .prog i { display: block; height: 100%; width: var(--p); border-radius: 2px; background: var(--ambar) }
 #hoja .rec .cuenta { flex: none; padding-right: 6px; letter-spacing: 0; text-transform: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
 #hoja .rec .mas-l { padding: 4px 12px 8px; border-top: 1px solid var(--linea); font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+/* C3 (#43, 4.3 y 4.5): el anillo de 18 de un hábito, en su fila y en las píldoras de «Hábitos de hoy» */
+#hoja .anillo { width: 18px; height: 18px; flex: none; transform: rotate(-90deg) }
+#hoja .anillo circle { fill: none; stroke-width: 2.6 }
+#hoja .anillo .f { stroke: var(--linea-hover) }
+#hoja .anillo .l { stroke-linecap: round }
+#hoja .rf.deshecho > .anillo { opacity: .45 }
+#hoja .rec .hab { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--linea) }
+#hoja .rec .hab .pil { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 2px 10px 2px 4px; border-radius: var(--r-pildora); border: 1px solid var(--linea); background: var(--s2); font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2); white-space: nowrap }
+#hoja .rec .hab .pil.hecho { color: var(--crema) }
+#hoja .rec-pie .acc-l { display: flex; align-items: center; gap: 4px }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) #hoja .anillo .l { transition: stroke-dasharray .6s var(--ease) }
+}
 #hoja .mini {
   position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 10px; border-radius: var(--r-pildora);
   border: 1px solid var(--linea-hover); color: var(--crema); font: 700 11.5px/1 var(--f); white-space: nowrap;

@@ -50,7 +50,7 @@ import {
 } from './chat.js'
 import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, menuModelo, cajon, listaHistorial, capaSoltar, htmlPalabras, clipAdjuntar, recibosDe, chipProyecto, contextoProyecto, filtroCajon } from './chatVista.js'
 import * as movimientoChat from './chatMotion.js'
-import { diferenciaRecibos, armarRecibos, ESCRIBEN, anuncioDeshacer, anuncioRecibo, encabezadoRecibo, pieDeshacer } from './recibos.js'
+import { diferenciaRecibos, armarRecibos, ESCRIBEN, anuncioDeshacer, anuncioRecibo, encabezadoRecibo, pieDeshacer, vinculoRecibo, etiquetaPie } from './recibos.js'
 import { lineaPuedeHtml, globoPuedeHtml, filaCambioHtml, pieCambiosHtml, reciboHtml } from './recibosVista.js'
 import * as movimientoRecibos from './recibosMotion.js'
 import {
@@ -5901,6 +5901,29 @@ function leerHabitos() {
   return leyendoHabitos
 }
 
+/**
+ * `oficina://habitos` (#43 C3): la charla marcó un hábito. Se relee enseguida (como Tareas, 8): la cuenta
+ * de la fila del menú, el globo del recordatorio y, con la hoja abierta, la fila, que destella una vez sin
+ * redibujar. Un hábito que se está guardando no se pisa con lo leído (`mezclarLectura`).
+ */
+function alCambiarHabitosFuera(p) {
+  const id = p?.habito
+  if (typeof id !== 'string' || !st.habitos.leido) return
+  // Una lectura que ya estaba en curso pudo empezar antes de la marca: se lee otra vez después
+  const enCurso = leyendoHabitos
+  ;(enCurso ? enCurso.then(() => leerHabitos()) : leerHabitos())?.then(() => destellarHabito(id))
+}
+
+/** La fila de un hábito destella una vez (`.recien`, como `destellarTarea`), solo con la hoja abierta. */
+function destellarHabito(id) {
+  const fila = id && st.habitos.abierta ? $(`#hab .fila[data-id="${CSS.escape(id)}"]`) : null
+  if (!fila) return
+  fila.classList.remove('recien')
+  void fila.offsetWidth
+  fila.classList.add('recien')
+  fila.addEventListener('animationend', () => fila.classList.remove('recien'), { once: true })
+}
+
 /** Por hábito: el guardado en curso (`promesa`) y si hay que guardarlo otra vez al terminar. */
 const guardadosHabitos = new Map()
 /** Los hábitos cuyo último guardado falló: se reintentan a los 5 s o con «Reintentar ahora» (7.4). */
@@ -7593,10 +7616,18 @@ function ponerTextosRecibo(sec, cambios, k) {
   const t = sec.querySelector('.rec-h .rec-t')
   if (t && t.textContent !== titulo) t.textContent = titulo
   sec.setAttribute('aria-label', titulo)
-  const ultimo = cambios.at(-1)
+  // El vínculo (C3: «Ver en Hábitos →» si todos son de hábitos; si no, el de la última tarea): solo sus datos y su texto
+  const l = vinculoRecibo(cambios)
   const lnk = sec.querySelector('.rec-h .lnk')
-  if (lnk) { lnk.dataset.lista = ultimo?.lista ?? ''; lnk.dataset.tarea = ultimo?.tarea ?? '' }
+  if (lnk) {
+    lnk.dataset.accion = l.accion
+    lnk.dataset.lista = l.lista
+    lnk.dataset.tarea = l.tarea
+    if (lnk.textContent !== l.texto) lnk.textContent = l.texto
+  }
   const pie = sec.querySelector('.rec-pie')
+  const rotulo = pie?.querySelector(':scope > span:first-child')
+  if (rotulo && !rotulo.classList.contains('estado-d') && rotulo.textContent !== etiquetaPie(cambios)) rotulo.textContent = etiquetaPie(cambios)
   if (!pie) {
     const html = pieCambiosHtml(cambios, k)
     if (html) sec.insertAdjacentHTML('beforeend', html)
@@ -7766,6 +7797,19 @@ async function verEnTareas({ lista = null, tarea = null, abrir = false } = {}) {
 }
 
 /**
+ * «Ver en Hábitos →», «Abrir Hábitos» y «Hábitos →» de los recibos (C3): abre Hábitos en Hoy; si ya está
+ * abierta, pasa a Hoy y el foco va al título.
+ */
+async function verEnHabitos() {
+  if (st.modulo === 'habitos') {
+    if (st.habitos.ver !== 'hoy') verHabitosEnHoja('hoy')
+    $('#titulo')?.focus()
+    return
+  }
+  await irModulo('habitos', { ver: 'hoy' })
+}
+
+/**
  * La fila de una tarea lleva el destello de «recién agregada» una vez (tareas-ux.md 10, `.recien`) sin
  * redibujar la lista; `entra`: además baja y aparece (una fila que llegó por la charla, 8).
  */
@@ -7871,7 +7915,8 @@ function pintarPuede(m) {
   if (!$('#ch-puede-lugar')) $('#chat-hilo').insertAdjacentHTML('beforebegin', '<div id="ch-puede-lugar" class="puede-lugar"></div>')
   const motor = m.chat.conversacion?.motor ?? m.chat.motor
   const abierto = !!m.chat.puede
-  ponerConFoco('#ch-puede-lugar', lineaPuedeHtml({ motor, abierto }) + globoPuedeHtml({ motor, abierto, mascota: nombreMascota() }))
+  // C3 (#43): con Claude Code, «Puede tocar tus tareas y hábitos»
+  ponerConFoco('#ch-puede-lugar', lineaPuedeHtml({ motor, abierto, habitos: true }) + globoPuedeHtml({ motor, abierto, habitos: true, mascota: nombreMascota() }))
   if (abierto && !puedeAbierto) movimientoRecibos.globo($('#ch-puede-lugar .puede-globo'))
   puedeAbierto = abierto
 }
@@ -7985,6 +8030,7 @@ async function accionChat(a, b) {
     case 'ch-reintentar-cambio': await reintentarCambio(b.dataset.cambio); break
     case 'ch-ver-tareas': await verEnTareas({ lista: b.dataset.lista || null, tarea: b.dataset.tarea || null }); break
     case 'ch-abrir-tareas': await verEnTareas(); break
+    case 'ch-ver-habitos': case 'ch-abrir-habitos': await verEnHabitos(); break
     case 'ch-ir-tarea': if (b.getAttribute('aria-disabled') !== 'true') await verEnTareas({ lista: b.dataset.lista || null, tarea: b.dataset.tarea || null, abrir: true }); break
   }
 }
@@ -8196,6 +8242,7 @@ async function iniciar() {
       despacharChat({ tipo: 'backend', payload: ev.payload })
     })
     escuchar('oficina://tareas', ev => alCambiarTareasFuera(ev.payload))
+    escuchar('oficina://habitos', ev => alCambiarHabitosFuera(ev.payload))
     // El modelo de esta PC (3.6): la descarga y el borrado desde la configuración
     escuchar('oficina://modelo', ev => alEventoModelo(ev.payload))
     // Los archivos que se sueltan (10): Tauri los toma antes que el HTML (`dragDropEnabled`)

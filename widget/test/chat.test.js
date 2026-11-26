@@ -506,11 +506,11 @@ test('tituloConversacion: las primeras 6 palabras sin signos al final; vacío o 
 
 test('sugerencias(motor, carpeta): los textos de 4.1 con la carpeta; sin carpeta, los de sesiones', () => {
   // Con Claude Code, también las de Tareas (#43, chat-herramientas-ux.md 5.4); con Local, no
-  assert.deepEqual(sugerencias('claude', 'catalogo').map(s => s.texto), ['¿En qué anda cada sesión?', '¿Qué cambió hoy en catalogo?', 'Armame la documentación de catalogo', 'Anotame comprar pan para mañana', '¿Qué tengo hoy?', 'Resumime un PDF'])
-  assert.deepEqual(sugerencias('claude', null).map(s => s.texto), ['¿En qué anda cada sesión?', '¿Quién me está esperando?', '¿Qué preguntas tengo pendientes?', 'Anotame comprar pan para mañana', '¿Qué tengo hoy?', 'Resumime un PDF'])
+  assert.deepEqual(sugerencias('claude', 'catalogo').map(s => s.texto), ['¿En qué anda cada sesión?', '¿Qué cambió hoy en catalogo?', 'Armame la documentación de catalogo', 'Anotame comprar pan para mañana', '¿Qué tengo hoy?', 'Marcá que tomé agua', 'Resumime un PDF'])
+  assert.deepEqual(sugerencias('claude', null).map(s => s.texto), ['¿En qué anda cada sesión?', '¿Quién me está esperando?', '¿Qué preguntas tengo pendientes?', 'Anotame comprar pan para mañana', '¿Qué tengo hoy?', 'Marcá que tomé agua', 'Resumime un PDF'])
   assert.deepEqual(sugerencias('local', null).map(s => s.texto), ['¿Quién me está esperando?', '¿Cuántos subagentes trabajan ahora?', '¿Qué pregunta tengo pendiente?'])
   // "Resumime un PDF" abre el selector de archivos, no manda nada
-  assert.deepEqual(sugerencias('claude', 'x').map(s => !!s.adjuntar), [false, false, false, false, false, true])
+  assert.deepEqual(sugerencias('claude', 'x').map(s => !!s.adjuntar), [false, false, false, false, false, false, true])
 })
 
 test('validarAdjunto: PDF hasta 20 MB, texto hasta 200 KB, 5 por mensaje y nada con el motor local', () => {
