@@ -4,7 +4,8 @@
 //!
 //! Antes de terminar comprueba, en este orden:
 //! 1. el id de la sesión es válido;
-//! 2. su presencia (`~/.claude/oficina/sesiones/<id>.json`) dice que está dormida: no cerrada, sin turno,
+//! 2. su presencia (`~/.claude/oficina/sesiones/<id>.json`) es de esa sesión, late (como `sesion_viva`
+//!    de sesiones.rs: la que el widget muestra) y dice que está dormida: no cerrada, sin turno,
 //!    pregunta, subagente trabajando ni procesos, y con `ultimoTurno` de hace más de 20 min (las mismas
 //!    reglas que `dormida` de logica.js: la ventana no puede pedir que se termine una sesión despierta);
 //! 3. un solo `~/.claude/sessions/<pid>.json` de Claude Code asocia un PID a esa sesión, con su `procStart`;
@@ -124,7 +125,9 @@ pub fn terminar_con(oficina: &Path, claude: &Path, sesion: &str, ahora: DateTime
     }
     let ruta = oficina.join(format!("{sesion}.json"));
     let p = std::fs::read_to_string(&ruta).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()).ok_or(Falla::Despierta)?;
-    if !presencia_dormida(&p, ahora) {
+    // La presencia tiene que ser la que el widget muestra: de esta sesión y latiendo (`sesion_viva`)
+    let viva = crate::sesiones::sesion_viva(&p, ahora - Duration::minutes(crate::sesiones::MINUTOS_VIGENCIA));
+    if p["sesion"].as_str() != Some(sesion) || !viva || !presencia_dormida(&p, ahora) {
         return Err(Falla::Despierta);
     }
     let (pid, arranque) = proceso_de_sesion(claude, sesion).ok_or(Falla::SinProceso)?;
@@ -349,6 +352,19 @@ mod tests {
         registro_bien(&c);
         let p = falsos(vec![(PID, ARRANQUE, "claude.exe")]);
         assert_eq!(terminar_con(&c.oficina, &c.claude, SESION, ahora(), &p), Err(Falla::Despierta));
+    }
+
+    #[test]
+    fn una_presencia_vieja_o_de_otra_sesion_no_sirve() {
+        // Sin latir hace más de 2 min (el widget ya no la muestra) o con otro id adentro (A2 del verificador)
+        for (k, extra) in [json!({ "actualizado": hace(3) }), json!({ "sesion": "otra-sesion" })].into_iter().enumerate() {
+            let c = carpetas(&format!("vieja-{k}"));
+            presencia(&c, extra);
+            registro_bien(&c);
+            let p = falsos(vec![(PID, ARRANQUE, "claude.exe")]);
+            assert_eq!(terminar_con(&c.oficina, &c.claude, SESION, ahora(), &p), Err(Falla::Despierta));
+            assert!(p.terminados.borrow().is_empty());
+        }
     }
 
     #[test]

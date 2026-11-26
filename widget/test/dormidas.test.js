@@ -128,3 +128,17 @@ test('la tarjeta plegada lleva su barra, y la firma cambia al confirmar o termin
   assert.notEqual(quieta, firmaEscenas(p.repo, prep, new Map(), null, null, { 'ses-1': { terminando: true } }))
   assert.notEqual(quieta, firmaEscenas(p.repo, prep, new Map(), null, null, { 'ses-1': { error: 'fallo' } }))
 })
+
+test('no se pliega mientras le escribís: con borrador, el foco en su campo o una orden en curso (B1 del verificador)', () => {
+  const [p] = agruparPorProyecto([ses({ sesion: 'a', ultimoTurno: hace(30) }), ses({ sesion: 'b', ultimoTurno: hace(30) })])
+  const prep = prepararProyecto(p, AHORA, 'avi', new Set(['a']))
+  assert.deepEqual(prep.map(x => [x.s.sesion, x.plegada]), [['a', false], ['b', true]])
+  // Sin retener, las dos se pliegan como antes
+  assert.deepEqual(prepararProyecto(p, AHORA).map(x => x.plegada), [true, true])
+})
+
+test('un doble clic no termina: la confirmación recién vale después de 350 ms (A1 del verificador)', () => {
+  const armado = clicTerminar({}, AHORA)
+  assert.deepEqual(clicTerminar(armado, AHORA + 200), { terminaHasta: armado.terminaHasta, terminar: false })
+  assert.deepEqual(clicTerminar(armado, AHORA + 350), { terminaHasta: null, terminar: true })
+})

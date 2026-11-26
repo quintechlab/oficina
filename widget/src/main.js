@@ -540,6 +540,17 @@ function trasCierre(c) {
 /** Estado de la barra de una sesión (se crea vacío). */
 const ctl = sesion => (st.control[sesion] ??= {})
 
+/**
+ * Las sesiones a las que se les está escribiendo desde Avis: con borrador, una orden en curso o el foco
+ * en su barra. No se pliegan aunque duerman (sesiones-dormidas.md, B1 del verificador).
+ */
+function sesionesEscribiendo() {
+  const ids = new Set(Object.entries(st.control).filter(([, u]) => u?.pendiente || String(u?.borrador ?? '').trim()).map(([id]) => id))
+  const foco = focoEnBarra()
+  if (foco) ids.add(foco.sesion)
+  return ids
+}
+
 const barraDe = sesion => document.querySelector(`#sesiones .ctl[data-sesion="${CSS.escape(sesion)}"]`)
 
 /** Dónde está el foco, si está en una barra: su sesión, el control y, en el campo, el cursor. */
@@ -1237,7 +1248,7 @@ function pintar() {
   const htmlOtro = avisoOtroProyecto(st.proyectos, enDividida ? -1 : i, st.mascota, st.formas) + (hoja || enDividida ? '' : avisoAsistente(pp, st.mascota) + avisoMod(st.pp.avisoMod, st.mascota))
   poner('#otro', htmlOtro, htmlOtro.replace(/ evol(?=[ "])/g, ''))
 
-  const preparadas = prepararProyecto(proyecto, ahora, st.mascota)
+  const preparadas = prepararProyecto(proyecto, ahora, st.mascota, sesionesEscribiendo())
   const c = conteos(preparadas, ahora)
   // El h1 es el del módulo, «Sesiones»; el proyecto va en la bajada (modulos-ux.md 5 y 11.1, M2)
   const cab = encabezadoSesiones(proyecto, preparadas, c)

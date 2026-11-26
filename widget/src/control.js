@@ -251,6 +251,8 @@ const si = (cond, attr) => (cond ? ` ${attr}` : '')
 
 /** El primer clic en «Terminar» pide confirmar por este tiempo. */
 export const MS_CONFIRMAR_TERMINAR = 3000
+/** Lo que tiene que pasar entre el primer clic y el que confirma: un doble clic no termina. */
+export const MS_SIN_DOBLE_CLIC = 350
 
 /** ¿«Terminar» está pidiendo confirmación? `ui.terminaHasta`: hasta cuándo. */
 export const confirmandoTerminar = (ui, ahoraMs) => ui?.terminaHasta != null && ahoraMs < ui.terminaHasta
@@ -258,6 +260,8 @@ export const confirmandoTerminar = (ui, ahoraMs) => ui?.terminaHasta != null && 
 /** Un clic en «Terminar»: el primero (o uno después de los 3 s) pide confirmar; el segundo termina. */
 export function clicTerminar(ui, ahoraMs) {
   if (ui?.terminando) return { terminaHasta: null, terminar: false }
+  // Un doble clic no termina: el segundo clic recién confirma pasados MS_SIN_DOBLE_CLIC desde el primero
+  if (confirmandoTerminar(ui, ahoraMs) && ahoraMs < ui.terminaHasta - MS_CONFIRMAR_TERMINAR + MS_SIN_DOBLE_CLIC) return { terminaHasta: ui.terminaHasta, terminar: false }
   if (confirmandoTerminar(ui, ahoraMs)) return { terminaHasta: null, terminar: true }
   return { terminaHasta: ahoraMs + MS_CONFIRMAR_TERMINAR, terminar: false }
 }

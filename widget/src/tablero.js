@@ -41,14 +41,16 @@ function listaNombres(nombres) {
  * otra, con su variante, sacada de la lista completa de la sesión (`variantesEquipo`, también los
  * terminados), así el mismo subagente la conserva entre redibujos y reinicios.
  */
-export function prepararProyecto(proyecto, ahoraMs, especie = 'avi') {
+export function prepararProyecto(proyecto, ahoraMs, especie = 'avi', despiertas = new Set()) {
   const preparadas = proyecto.sesiones.map(s => {
     const conPregunta = new Set((s.preguntas ?? []).map(p => p.agente).filter(Boolean))
     const variantes = variantesEquipo(s.agentes)
     const sub = (s.agentes ?? []).map(a => ({
       ...a, ...personajeSubagente(a, especie, variantes), animo: animoSubagente(a, ahoraMs, conPregunta.has(a.id)),
     }))
-    return { s, animo: animoSesion(s, ahoraMs), sub, plegada: dormida(s, ahoraMs) }
+    // `despiertas`: las que se le están escribiendo desde Avis (borrador, foco en su campo u orden en
+    // curso, main.js): no se pliegan aunque duerman, así el campo no desaparece mientras se escribe
+    return { s, animo: animoSesion(s, ahoraMs), sub, plegada: !despiertas.has(s.sesion) && dormida(s, ahoraMs) }
   })
   // Las dormidas se pliegan y van al fondo (sesiones-dormidas.md, S1); cada grupo conserva su orden
   return [...preparadas.filter(p => !p.plegada), ...preparadas.filter(p => p.plegada)]
