@@ -2809,25 +2809,28 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
 #pro .car-n b { display: block; font: var(--t-cuerpo-f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #pro .car-n small { display: block; font: var(--t-mono-s); color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #pro .tag { display: inline-flex; justify-self: start; padding: 3px 7px; border-radius: 6px; background: var(--s3); font: var(--t-mono-s); color: var(--crema2) }
-/* La zona de soltar (4.7): el borde punteado dibujado con gradientes; encendida (`.vivo`, 7.3), al pasar o con archivos encima (`.encima`, P3), las hormigas marchan */
+/* La zona de soltar (4.7): el borde punteado es un rectángulo redondeado del svg `.borde` (con gradientes de fondo
+   el radio recortaba las esquinas, 26/11); encendida (`.vivo`, 7.3), al pasar o con archivos encima (`.encima`, P3),
+   las hormigas marchan */
 #pro .soltar {
   --lh: var(--linea-hover);
-  display: grid; place-items: center; align-content: center; gap: 3px; min-height: 54px; padding: 8px; border: 0; border-radius: 10px;
+  position: relative; display: grid; place-items: center; align-content: center; gap: 3px; min-height: 54px; padding: 8px; border: 0; border-radius: 10px;
   font: 600 12px/1.3 var(--f); color: var(--crema2); text-align: center; cursor: pointer; transition: color var(--d-color) ease, background-color .2s ease;
-  background:
-    linear-gradient(90deg, var(--lh) 50%, transparent 0) 0 0 / 10px 1px repeat-x,
-    linear-gradient(90deg, var(--lh) 50%, transparent 0) 0 100% / 10px 1px repeat-x,
-    linear-gradient(var(--lh) 50%, transparent 0) 0 0 / 1px 10px repeat-y,
-    linear-gradient(var(--lh) 50%, transparent 0) 100% 0 / 1px 10px repeat-y;
+  background-color: transparent;
+}
+#pro .soltar .borde { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none }
+#pro .soltar .borde rect {
+  x: .5px; y: .5px; width: calc(100% - 1px); height: calc(100% - 1px); rx: 10px;
+  fill: none; stroke: var(--lh); stroke-width: 1px; stroke-dasharray: 5 5; transition: stroke var(--d-color) ease;
 }
 #pro .soltar small { font: var(--t-mono-s); color: var(--tenue) }
 #pro .soltar:hover, #pro .soltar.vivo, #pro .soltar.encima { --lh: var(--c); color: var(--crema) }
 #pro .soltar.vivo, #pro .soltar.encima { background-color: color-mix(in srgb, var(--c) 8%, transparent) }
 /* P3: archivos encima o copiando (`.encima`, 4.7 y 10); copiando, además `aria-busy` */
 #pro .soltar[aria-busy="true"] { cursor: progress }
-@keyframes proHormigas { to { background-position: 10px 0, -10px 100%, 0 -10px, 100% 10px } }
+@keyframes proHormigas { to { stroke-dashoffset: -10 } }
 @media (prefers-reduced-motion: no-preference) {
-  body:not(.pausa) #pro .soltar:hover, body:not(.pausa) #pro .soltar.vivo, body:not(.pausa) #pro .soltar.encima { animation: proHormigas 1s linear infinite }
+  body:not(.pausa) #pro .soltar:hover .borde rect, body:not(.pausa) #pro .soltar.vivo .borde rect, body:not(.pausa) #pro .soltar.encima .borde rect { animation: proHormigas 1s linear infinite }
 }
 #pro .mini-acc { display: flex; gap: 6px; flex-wrap: wrap }
 #pro .mini {
@@ -2845,7 +2848,7 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
 #pro .bloque.mal p { margin: 0; font: var(--t-chico); color: var(--crema2); overflow-wrap: anywhere }
 #pro .bloque.mal p b { color: var(--rojo) }
 /* Qué ve cada motor (4.8): una tabla de tres columnas; el ✓ en --verde y el — en --tenue, siempre con su texto */
-#pro .matriz { display: grid; grid-template-columns: auto 1fr 1fr; border-radius: 14px; border: 1px solid var(--linea); overflow: hidden; font: var(--t-chico) }
+#pro .matriz { display: grid; grid-template-columns: auto minmax(min-content, 1fr) minmax(min-content, 1fr); border-radius: 14px; border: 1px solid var(--linea); overflow: hidden; font: var(--t-chico) }
 #pro .mz-f { display: contents }
 #pro .mz-f > * { display: flex; gap: 6px; align-items: center; min-width: 0; padding: 8px 10px; border-top: 1px solid var(--linea) }
 #pro .mz-f > .h { border-top: 0; background: var(--s1); font: var(--t-rotulo); letter-spacing: .1em; text-transform: uppercase; color: var(--tenue) }

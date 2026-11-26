@@ -93,7 +93,7 @@ test('el estado de la zona: encima sin redibujar de más, copiando, el error, y 
 test('fichaProyecto con la zona: encima (hormigas), copiando (aria-busy) y el error debajo; sin soltar, el HTML de antes', () => {
   const antes = fichaProyecto({ p: PRESU })
   assert.equal(fichaProyecto({ p: PRESU, soltar: null }), antes)
-  assert.match(antes, /<button type="button" class="soltar" data-accion="pro-abrir-carpeta" data-k="soltar">Soltá archivos acá<small>3 adentro · Abrir en el Explorador<\/small><\/button>/)
+  assert.match(antes, /<button type="button" class="soltar" data-accion="pro-abrir-carpeta" data-k="soltar">Soltá archivos acá<small>3 adentro · Abrir en el Explorador<\/small><svg class="borde" aria-hidden="true" focusable="false"><rect><\/rect><\/svg><\/button>/)
   const encima = fichaProyecto({ p: PRESU, soltar: { id: 'p-presu', encima: true, copiando: false, error: null } })
   assert.match(encima, /<button type="button" class="soltar encima" data-accion="pro-abrir-carpeta" data-k="soltar">Soltá archivos acá/)
   const copiando = fichaProyecto({ p: PRESU, soltar: { id: 'p-presu', encima: false, copiando: true, error: null } })
