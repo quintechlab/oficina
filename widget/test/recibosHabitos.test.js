@@ -128,7 +128,9 @@ test('anilloHtml: el anillo de 18 con su avance (decorativo), lleno con la meta 
   assert.match(anilloHtml(3, 8, 'celeste'), new RegExp(`stroke-dasharray="${(C * 3 / 8).toFixed(2)} ${C.toFixed(2)}"`))
   assert.match(anilloHtml(3, 8, 'celeste'), /style="stroke:var\(--celeste\)"/)
   assert.match(anilloHtml(12, 8, 'verde'), new RegExp(`stroke-dasharray="${C.toFixed(2)} ${C.toFixed(2)}"`))
-  assert.match(anilloHtml(0, 1, 'rosa'), /stroke-dasharray="0\.00 /)
+  // En 0 no hay trazo de avance: el remate redondo dibujaría un punto de color
+  assert.doesNotMatch(anilloHtml(0, 1, 'rosa'), /class="l"/)
+  assert.match(anilloHtml(0, 1, 'rosa'), /class="f"/)
   // Un color que no es de la paleta cae al primero
   assert.match(anilloHtml(1, 1, 'fucsia"><script>'), /style="stroke:var\(--celeste\)"/)
 })

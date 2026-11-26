@@ -1299,6 +1299,8 @@ body:not(.colocada) #hoja { visibility: hidden }
 #hoja .rec.mal .rec-h { color: var(--rojo) }
 #hoja .rec.mal .motivo { padding: 2px 12px 0; font: var(--t-chico); color: var(--crema2) }
 #hoja .rec.mal .rec-pie { border-top: 0; justify-content: flex-start }
+/* La lectura con «Abrir Tareas →» y «Hábitos →» (C3): «solo lectura · no cambió nada» en una línea */
+#hoja .rec.lee .rec-pie > span { white-space: nowrap }
 #hoja .rec.lee .rec-h, #hoja .rec.neutro .rec-h { color: var(--crema2) }
 #hoja .rec.lee .rec-luz, #hoja .rec.neutro .rec-luz { display: none }
 #hoja .rec.lee .rf { min-height: 44px }

@@ -66,8 +66,11 @@ export function anilloHtml(valor, meta, color) {
   const m = Math.max(1, Number(meta) || 1)
   const f = Math.max(0, Math.min(1, (Number(valor) || 0) / m))
   const c = COLORES.includes(color) ? color : COLORES[0]
-  return `<svg class="anillo" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" class="f"/>`
-    + `<circle cx="9" cy="9" r="7" class="l" style="stroke:var(--${c})" stroke-dasharray="${(C * f).toFixed(2)} ${C.toFixed(2)}"/></svg>`
+  // En 0, sin trazo de avance: el remate redondo dibujaría un punto de color
+  const avance = f > 0
+    ? `<circle cx="9" cy="9" r="7" class="l" style="stroke:var(--${c})" stroke-dasharray="${(C * f).toFixed(2)} ${C.toFixed(2)}"/>`
+    : ''
+  return `<svg class="anillo" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" class="f"/>${avance}</svg>`
 }
 
 /** La marca de la fila de un cambio: el anillo de un hábito o el círculo de Tareas. */
