@@ -482,6 +482,23 @@ fn un_cambio_de_habito_y_su_lectura_sobreviven_a_normalizar() {
 }
 
 #[test]
+fn el_error_de_un_habito_con_id_invalido_sobrevive_y_uno_hecho_sin_habito_no() {
+    // El modelo mandó un id que no sirve ("agua"): el servidor emite el error con `habito: null`.
+    // Al reabrir la charla el recibo de error tiene que seguir (si no, `faltantes` diría «no llegó»).
+    let error = json!({
+        "id": "c-hmal", "herramienta": "habito_marcar", "estado": "error", "lista": null, "tarea": null, "habito": null, "titulo": null,
+        "antes": null, "despues": null, "motivo": "Ese hábito ya no está.", "reintentable": false,
+        "args": { "id": "agua", "sumar": 1 },
+    });
+    let mut hecho = cambio_marcar();
+    hecho["id"] = json!("c-hsin");
+    hecho["habito"] = Value::Null;
+    let doc = con_cambios(json!([error.clone(), hecho]));
+    let n = normalizar(&doc).unwrap();
+    assert_eq!(n["mensajes"][1]["cambios"], json!([error]));
+}
+
+#[test]
 fn un_cambio_de_habito_que_no_sirve_se_descarta() {
     let mut malos = Vec::new();
     for (k, v) in [

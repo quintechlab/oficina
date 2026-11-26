@@ -289,10 +289,10 @@ fn cambio(c: &Value) -> Option<Value> {
     if let Some(l) = lista_nueva_de(&c["listaNueva"]) {
         x["listaNueva"] = l;
     }
-    // C3: un `habito_marcar` lleva su hábito (`h-…`, siempre) y, para la fila del recibo, la marca
-    // (`{ tipo, meta, unidad, color }`; si no sirve, el cambio queda sin ella)
+    // C3: un `habito_marcar` lleva su hábito (`h-…`; null solo en un error, cuando el modelo mandó un id que
+    // no sirve) y, para la fila del recibo, la marca (`{ tipo, meta, unidad, color }`; si no sirve, sin ella)
     if herramienta == "habito_marcar" {
-        x["habito"] = id_o_nulo(&c["habito"], "h-").filter(Value::is_string)?;
+        x["habito"] = id_o_nulo(&c["habito"], "h-").filter(|h| h.is_string() || estado == "error")?;
         if let Some(m) = marca_de(&c["marca"]) {
             x["marca"] = m;
         }
