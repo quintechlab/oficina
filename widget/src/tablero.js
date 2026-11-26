@@ -50,10 +50,14 @@ export function prepararProyecto(proyecto, ahoraMs, especie = 'avi', despiertas 
     }))
     // `despiertas`: las que se le están escribiendo desde Avis (borrador, foco en su campo u orden en
     // curso, main.js): no se pliegan aunque duerman, así el campo no desaparece mientras se escribe
-    return { s, animo: animoSesion(s, ahoraMs), sub, plegada: !despiertas.has(s.sesion) && dormida(s, ahoraMs) }
+    // `abierta`: dormida pero desplegada por el usuario («Abrir») o porque le está escribiendo
+    const duerme = dormida(s, ahoraMs)
+    return { s, animo: animoSesion(s, ahoraMs), sub, plegada: !despiertas.has(s.sesion) && duerme, abierta: despiertas.has(s.sesion) && duerme }
   })
   // Las dormidas se pliegan y van al fondo (sesiones-dormidas.md, S1); cada grupo conserva su orden
-  return [...preparadas.filter(p => !p.plegada), ...preparadas.filter(p => p.plegada)]
+  // (también las abiertas: abrir una no la sube de lugar)
+  const duerme = p => p.plegada || p.abierta
+  return [...preparadas.filter(p => !duerme(p)), ...preparadas.filter(duerme)]
 }
 
 /**
@@ -73,7 +77,7 @@ export function subagentesVisibles(sub, { conMas = MAX_SUBAGENTES_VISIBLES, max 
 
 /** Firma de lo que se ve de las sesiones: si no cambia, no se redibuja (y no se cortan las animaciones). */
 export function firmaTablero(preparadas) {
-  return preparadas.map(({ s, animo, sub, plegada }) => [s.sesion, s.tarea, s.rama, animo, plegada ? 'plegada' : '', (s.procesos ?? []).map(p => p.id).join(','), ...sub.map(a => `${a.id}:${a.nombre}:${a.animo}`)].join('|')).join('/')
+  return preparadas.map(({ s, animo, sub, plegada, abierta }) => [s.sesion, s.tarea, s.rama, animo, plegada ? 'plegada' : abierta ? 'abierta' : '', (s.procesos ?? []).map(p => p.id).join(','), ...sub.map(a => `${a.id}:${a.nombre}:${a.animo}`)].join('|')).join('/')
 }
 
 /**
@@ -456,16 +460,25 @@ function detalleHistorial(s, h, ahoraMs) {
  * durmiendo chiquito, y la línea de hace cuánto no tiene turnos. Sin escenario ni campo para escribir:
  * vuelve a la tarjeta de siempre con su próximo turno. "Qué hizo" sigue a mano.
  */
+/**
+ * «Abrir» en la plegada y «Plegar» en la que se abrió (decisión de Quintana del 26/11): abierta es la
+ * tarjeta de siempre, con su campo y «Cerrar sesión», mientras se la usa.
+ */
+function botonAbrir(s, abierta) {
+  const verbo = abierta ? 'Plegar' : 'Abrir'
+  return `<button type="button" class="ses-abrir" data-accion="ses-${abierta ? 'plegar' : 'abrir'}" data-sesion="${escapar(s.sesion)}" aria-expanded="${abierta}" aria-label="${escapar(`${verbo} la sesión ${s.rama || s.repo || 'esta sesión'}`)}">${verbo}</button>`
+}
+
 function tarjetaPlegada(s, ahoraMs, { tag, titulo, lleva, h, mascota, formas, ui }) {
   const texto = textoActividad(s, ahoraMs)
-  return `<article class="ses plegada"><div class="ses-cab"><span class="ses-duerme">${claudeEn(mascota, null, formas, 'inactiva', 28)}</span><h3 class="ses-tit">${tag}${titulo}</h3>${lleva}${botonHistorial(s, !!h)}</div>`
+  return `<article class="ses plegada"><div class="ses-cab"><span class="ses-duerme">${claudeEn(mascota, null, formas, 'inactiva', 28)}</span><h3 class="ses-tit">${tag}${titulo}</h3>${lleva}${botonAbrir(s, false)}${botonHistorial(s, !!h)}</div>`
     + `<p class="linea" style="--c:var(--tenue)" title="${escapar(texto)}"><span class="pt" aria-hidden="true"></span><span data-vivo>${escapar(texto)}</span></p>`
     + (h ? detalleHistorial(s, h, ahoraMs) : '')
     + barraPlegada(s, ui, ahoraMs)
     + '</article>'
 }
 
-function tarjeta({ s, animo, sub, plegada }, ahoraMs, k, r, abierto, control, mascota, formas, historial) {
+function tarjeta({ s, animo, sub, plegada, abierta }, ahoraMs, k, r, abierto, control, mascota, formas, historial) {
   const base = k * AVIS_POR_TARJETA
   const tag = s.tarea ? `<span class="tag">#${escapar(s.tarea)}</span>` : '<span class="tag sin">sin tarea</span>'
   const titulo = s.rama ? `<b${s.tarea ? '' : ' class="sin"'} title="${escapar(s.rama)}">${escapar(s.rama)}</b>` : ''
@@ -476,7 +489,7 @@ function tarjeta({ s, animo, sub, plegada }, ahoraMs, k, r, abierto, control, ma
   const linea = control?.[s.sesion]?.cerrando === true
     ? `<p class="linea cerrando" style="--c:var(--tenue)" title="${LINEA_TARJETA_CERRANDO}"><span class="pt" aria-hidden="true"></span><span data-vivo>${LINEA_TARJETA_CERRANDO}</span></p>`
     : `<p class="linea" style="--c:${colorEstado(animo)}" title="${escapar(tituloActividad(s, ahoraMs))}"><span class="pt" aria-hidden="true"></span><span data-vivo>${escapar(textoActividad(s, ahoraMs))}</span></p>`
-  return `<article class="ses"><div class="ses-cab"><h3 class="ses-tit">${tag}${titulo}</h3>${lleva}${botonHistorial(s, !!h)}</div>`
+  return `<article class="ses"><div class="ses-cab"><h3 class="ses-tit">${tag}${titulo}</h3>${lleva}${abierta ? botonAbrir(s, true) : ''}${botonHistorial(s, !!h)}</div>`
     + linea
     + rastro(r)
     + escena(animo, sub, ahoraMs, base, s.sesion, abierto?.sesion === s.sesion ? abierto.id : null, mascota, formas)

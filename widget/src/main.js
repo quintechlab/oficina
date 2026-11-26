@@ -148,6 +148,8 @@ const st = {
    * mientras la sesión no toma la orden y `linea` { texto, tono, desde } con lo que pasó.
    */
   control: {},
+  /** Sesiones dormidas que el usuario abrió con «Abrir» (sesiones-dormidas.md): se ven enteras hasta «Plegar» o su próximo turno. */
+  desplegadas: new Set(),
   /** El IME está componiendo una palabra en una barra: las escenas no se redibujan hasta que termine. */
   componiendo: false,
   proyectos: [],
@@ -546,6 +548,7 @@ const ctl = sesion => (st.control[sesion] ??= {})
  */
 function sesionesEscribiendo() {
   const ids = new Set(Object.entries(st.control).filter(([, u]) => u?.pendiente || String(u?.borrador ?? '').trim()).map(([id]) => id))
+  for (const id of st.desplegadas) ids.add(id)
   const foco = focoEnBarra()
   if (foco) ids.add(foco.sesion)
   return ids
@@ -699,6 +702,19 @@ function tocarTerminar(sesion) {
     ui.terminaHasta = null
     repintarTerminar(sesion)
   }, MS_CONFIRMAR_TERMINAR + 20)
+}
+
+/**
+ * «Abrir» una tarjeta plegada (decisión de Quintana del 26/11): se ve entera, con su campo y «Cerrar
+ * sesión», y el foco va al campo para escribirle. «Plegar» la vuelve a plegar con el foco en «Abrir».
+ */
+function abrirPlegada(sesion, abrir) {
+  if (abrir) st.desplegadas.add(sesion)
+  else st.desplegadas.delete(sesion)
+  pintar()
+  const boton = `#sesiones .ses-abrir[data-sesion="${CSS.escape(sesion)}"]`
+  const destino = abrir ? document.querySelector(`#sesiones .ctl-in[data-sesion="${CSS.escape(sesion)}"]`) : null
+  ;(destino ?? document.querySelector(boton))?.focus({ preventScroll: true })
 }
 
 /** Esc en «¿Terminar? Sí» deja de pedir confirmación, sin terminar. */
@@ -1249,6 +1265,8 @@ function pintar() {
   poner('#otro', htmlOtro, htmlOtro.replace(/ evol(?=[ "])/g, ''))
 
   const preparadas = prepararProyecto(proyecto, ahora, st.mascota, sesionesEscribiendo())
+  // Una abierta con «Abrir» que volvió a tener turnos ya no duerme: se olvida (la próxima vez se pliega sola)
+  for (const p of preparadas) if (!p.abierta && !p.plegada) st.desplegadas.delete(p.s.sesion)
   const c = conteos(preparadas, ahora)
   // El h1 es el del módulo, «Sesiones»; el proyecto va en la bajada (modulos-ux.md 5 y 11.1, M2)
   const cab = encabezadoSesiones(proyecto, preparadas, c)
@@ -2306,6 +2324,7 @@ document.addEventListener('click', async e => {
   if (a === 'ctl-frenar') { if (!b.disabled) tocarFrenar(b.dataset.sesion); return }
   if (a === 'ctl-cerrar') { if (!b.disabled) tocarCerrar(b.dataset.sesion); return }
   if (a === 'dorm-terminar') { tocarTerminar(b.dataset.sesion); return }
+  if (a === 'ses-abrir' || a === 'ses-plegar') { abrirPlegada(b.dataset.sesion, a === 'ses-abrir'); return }
   // "Qué hizo" (#25): despliega lo último de la conversación debajo de la cabecera; otro clic lo pliega
   if (a === 'historial') { alternarHistorial(b.dataset.sesion); return }
   if (a === 'volver') {

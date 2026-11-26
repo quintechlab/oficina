@@ -142,3 +142,31 @@ test('un doble clic no termina: la confirmación recién vale después de 350 ms
   assert.deepEqual(clicTerminar(armado, AHORA + 200), { terminaHasta: armado.terminaHasta, terminar: false })
   assert.deepEqual(clicTerminar(armado, AHORA + 350), { terminaHasta: null, terminar: true })
 })
+
+// ------------------------------------------------------------------ Abrir una plegada (decisión del 26/11)
+test('la plegada se abre con «Abrir»; abierta es la tarjeta de siempre con «Plegar», y la firma cambia', () => {
+  const [p] = agruparPorProyecto([ses({ ultimoTurno: hace(125), puedeCerrar: true })])
+  const plegada = sesiones(prepararProyecto(p, AHORA), AHORA)
+  assert.match(plegada, /<button type="button" class="ses-abrir" data-accion="ses-abrir" data-sesion="ses-1" aria-expanded="false" aria-label="Abrir la sesión feat\/mejoras-s2">Abrir<\/button>/)
+  const prep = prepararProyecto(p, AHORA, 'avi', new Set(['ses-1']))
+  assert.equal(prep[0].plegada, false)
+  assert.equal(prep[0].abierta, true)
+  const abierta = sesiones(prep, AHORA, new Map(), null, { 'ses-1': {} })
+  assert.match(abierta, /^<article class="ses">/)
+  assert.match(abierta, /<textarea/)
+  assert.match(abierta, /data-accion="ctl-cerrar"/)
+  assert.match(abierta, /<button type="button" class="ses-abrir" data-accion="ses-plegar" data-sesion="ses-1" aria-expanded="true" aria-label="Plegar la sesión feat\/mejoras-s2">Plegar<\/button>/)
+  assert.notEqual(firmaEscenas(p.repo, prepararProyecto(p, AHORA)), firmaEscenas(p.repo, prep))
+  // Despierta (con un turno), no lleva «Plegar» aunque esté en el conjunto
+  const [q] = agruparPorProyecto([ses({ ultimoTurno: hace(2) })])
+  const despierta = prepararProyecto(q, AHORA, 'avi', new Set(['ses-1']))
+  assert.equal(despierta[0].abierta, false)
+  assert.doesNotMatch(sesiones(despierta, AHORA), /ses-abrir/)
+})
+
+test('abrir una plegada no la sube de lugar: sigue al fondo mientras duerme', () => {
+  const vieja = ses({ sesion: 'vieja', inicio: hace(300), ultimoTurno: hace(125) })
+  const nueva = ses({ sesion: 'nueva', inicio: hace(10), ultimoTurno: hace(1) })
+  const [p] = agruparPorProyecto([vieja, nueva])
+  assert.deepEqual(prepararProyecto(p, AHORA, 'avi', new Set(['vieja'])).map(x => x.s.sesion), ['nueva', 'vieja'])
+})
