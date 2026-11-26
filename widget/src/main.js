@@ -105,6 +105,7 @@ import {
   revisarFormulario as revisarFormularioProyecto, alEscProyectos, esAtajoProyectos, subtituloProyectos, nuevoIdProyecto,
   previaCarpetaAvis, cuentaInstrucciones, textoErrorNombre, textoErrorInstrucciones, textoMotivoCarpeta, anuncioElegido,
   focoTrasBorrar, ERROR_GUARDAR as ERROR_GUARDAR_PROYECTO, charlasDe, cuentaCharlas, textoBorradoFallido, proyectoParaAbrir,
+  puedeSoltar, pieSoltar, textosSoltado, soltarFallido, soltarDe, zonaEncima, empezarSoltar, terminarSoltar,
 } from './proyectos.js'
 import {
   esqueletoProyectos, carpetaPro, indiceProyectos, indiceCargando, fichaProyecto, formularioProyecto, primerUsoProyectos,
@@ -6403,8 +6404,8 @@ async function accionHabitos(a, b) {
 // `"avis"` crea `Documentos › Avis › <nombre>`, 11.2) y Rust valida el id antes de armar
 // `<config>/proyectos/<id>.json`. Guardar es explícito (D-p7); borrar confirma en el mismo botón; nada se
 // abre solo. La hoja vive en #pro, en la columna principal, como Tareas y Hábitos.
-// Entrega P1: los proyectos y su hoja. La charla del proyecto (el botón, la lista de charlas, el chip y la
-// luz de la hoja) es de P2 y soltar archivos, de P3: hasta entonces cada proyecto tiene 0 charlas.
+// Entrega P1: los proyectos y su hoja. P2: la charla del proyecto (el botón, la lista de charlas, el chip y la
+// luz de la hoja). P3: soltar archivos en la zona de la carpeta (`soltarEnProyecto`, junto a `alArrastrarArchivo`).
 
 /** La fila «Proyectos» del menú (4.1): la pista o el número, con el punto de la carpeta perdida, y su nombre. */
 function pintarFilaProyectos() {
@@ -6452,7 +6453,7 @@ function panelProyectos(t, ahora = Date.now()) {
   const charlas = charlasDe(charlasConProyecto(), p.id)
   const actual = st.chat.abierta ? st.chat.conversacion?.id ?? null : null
   const errorBorrar = t.errorBorrar?.id === p.id ? t.errorBorrar.texto : null
-  const datos = { p, n: charlas.length, charlas, actual, ahoraMs: ahora, especie: st.mascota, mascota: nombreMascota(), armado, errorCarpeta: t.errorCarpeta, errorBorrar }
+  const datos = { p, n: charlas.length, charlas, actual, ahoraMs: ahora, especie: st.mascota, mascota: nombreMascota(), armado, errorCarpeta: t.errorCarpeta, errorBorrar, soltar: soltarDe(t, p.id) }
   return { html: fichaProyecto({ ...datos, transcurrido }), firma: fichaProyecto(datos) }
 }
 
@@ -6980,12 +6981,17 @@ let rutasArrastre = []
 /**
  * Los archivos que se arrastran sobre la ventana (10, `onDragDropEvent` de Tauri: px físicos y
  * rutas). Solo sobre la hoja a la vista (D26): la capa con el nombre mientras está encima; al
- * soltar, Rust revisa cada ruta. Fuera de la hoja, cerrada o plegada, nada.
+ * soltar, Rust revisa cada ruta. Fuera de la hoja, cerrada o plegada, nada. Fuera de la hoja, sobre la
+ * zona de soltar de un proyecto (#44, P3, proyectos-ux.md 4.7): las hormigas mientras está encima y, al
+ * soltar, `proyecto_soltar`. La hoja de la charla manda: encima de ella, la zona no cuenta.
  */
 function alArrastrarArchivo(p) {
   if (!p?.type) return
   if (p.type === 'enter' || p.type === 'drop') rutasArrastre = Array.isArray(p.paths) ? p.paths.filter(r => typeof r === 'string') : rutasArrastre
   const sobre = p.type !== 'leave' && hojaSeVe() && sobreHoja(p.position, window.devicePixelRatio || 1, st.disp?.local?.hoja)
+  const zona = p.type !== 'leave' && !sobre ? zonaSoltarBajo(p.position) : null
+  if (p.type === 'drop' && zona) soltarEnProyecto([...rutasArrastre])
+  else marcarZonaProyecto((p.type === 'enter' || p.type === 'over') && !!zona)
   if (p.type === 'drop' && sobre) {
     const rutas = rutasArrastre
     rutasArrastre = []
@@ -6996,6 +7002,75 @@ function alArrastrarArchivo(p) {
   if (p.type === 'drop' || p.type === 'leave') rutasArrastre = []
   const nombre = sobre && p.type !== 'drop' ? nombreArchivo(rutasArrastre[0]) || 'archivo' : null
   if ((st.chat.soltando?.nombre ?? null) !== nombre) despacharChat({ tipo: 'soltando', nombre })
+}
+
+// ---- soltar archivos en la carpeta de un proyecto (#44, P3, proyectos-ux.md 4.7, 10 y 11.2)
+
+/** El rectángulo de un elemento en px CSS de la ventana, como lo pide `sobreHoja`. */
+const rectDe = el => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, ancho: r.width, alto: r.height } }
+
+/**
+ * La zona de soltar del proyecto elegido si `posicion` (px físicos de Tauri) cae sobre ella y sobre la
+ * parte del panel que se ve (desplazada fuera del panel no cuenta); si no, `null`. Solo con la hoja de
+ * Proyectos a la vista y una carpeta creada por Avis que está (`puedeSoltar`).
+ */
+function zonaSoltarBajo(posicion) {
+  if (!st.pro.abierta || st.pro.vista !== 'proyecto' || st.fuera || st.mini || (st.acople && !st.vista)) return null
+  if (!puedeSoltar(st.pro.lista.find(x => x.id === st.pro.elegido))) return null
+  const zona = $('#pro .soltar')
+  const pane = $('#pro-pane')
+  if (!zona || !pane) return null
+  const dpr = window.devicePixelRatio || 1
+  return sobreHoja(posicion, dpr, rectDe(zona)) && sobreHoja(posicion, dpr, rectDe(pane)) ? zona : null
+}
+
+/** Archivos encima de la zona o no: las hormigas y el fondo del color (4.7, 10). Solo redibuja si cambia. */
+function marcarZonaProyecto(encima) {
+  const id = st.pro.elegido
+  if (!id) return
+  const t = zonaEncima(st.pro, id, encima)
+  if (t === st.pro) return
+  st.pro = t
+  pintarProyectos()
+}
+
+/** Los soltados, de a uno por vez: el segundo espera a que termine el primero. */
+let colaSoltar = Promise.resolve()
+
+/**
+ * Se soltaron archivos sobre la zona (4.7): la zona se asienta (10) y queda copiando; Rust copia (nunca
+ * mueve ni pisa) a la carpeta del proyecto. La ventana manda el id y las rutas que entregó Tauri, nunca
+ * el destino (11.2).
+ */
+function soltarEnProyecto(rutas) {
+  const id = st.pro.elegido
+  if (!id || !rutas.length || !puedeSoltar(st.pro.lista.find(x => x.id === id))) return
+  movimientoProyectos.soltar($('#pro .soltar'))
+  st.pro = empezarSoltar(st.pro, id)
+  pintarProyectos()
+  colaSoltar = colaSoltar.then(() => copiarAlProyecto(id, rutas)).catch(err => registrar(`proyectos: soltar: ${err}`))
+}
+
+/**
+ * `proyecto_soltar` y lo que sigue: lo que no entró queda debajo de la zona (5.2), se vuelven a leer los
+ * proyectos (el número de archivos lo cuenta Rust), el número cuenta hasta el nuevo (10) y se anuncia
+ * (5.3: «Copiados {n} archivos a {carpeta}», «Copiado como {nombre} (2)», «No se pudo copiar {nombre}.»).
+ */
+async function copiarAlProyecto(id, rutas) {
+  const p = st.pro.lista.find(x => x.id === id)
+  const antes = p?.carpeta?.archivos ?? 0
+  st.pro = empezarSoltar(st.pro, id)
+  let res
+  try { res = await invocar('proyecto_soltar', { id, rutas }) } catch (err) { res = { error: String(err?.message ?? err) } }
+  if (res?.error) registrar(`proyectos: no se pudo soltar: ${res.error}`)
+  const textos = res?.error ? soltarFallido(rutas) : textosSoltado(res, p?.carpeta?.nombre ?? '')
+  st.pro = terminarSoltar(st.pro, id, textos.error)
+  // Una lectura que ya estaba en curso empezó antes de copiar: se espera y se lee otra vez
+  await leyendoProyectos
+  await leerProyectos()
+  const despues = st.pro.lista.find(x => x.id === id)?.carpeta?.archivos ?? antes
+  if (st.pro.elegido === id) movimientoProyectos.contarArchivos($('#pro .soltar'), antes, despues, pieSoltar)
+  decirProyectos(textos.anuncio)
 }
 
 /**

@@ -279,6 +279,7 @@ export function proyectosInicial() {
   return {
     abierta: false, lista: [], rotas: [], elegido: null, vista: 'proyecto', form: null, armado: null,
     leido: false, cargando: false, fantasmas: false, error: null, errorForm: null, errorCarpeta: null, trabajando: false, recien: null,
+    soltar: null,
   }
 }
 
@@ -298,9 +299,12 @@ export function elegidoValido(t) {
   return { ...t, elegido: t.lista[0]?.id ?? null }
 }
 
-/** Elegir un proyecto en el índice: el proyecto, sin formulario y desarmado. */
+/**
+ * Elegir un proyecto en el índice: el proyecto, sin formulario y desarmado. El error de soltar del otro
+ * se olvida (P3); una copia en curso sigue.
+ */
 export function elegirProyecto(t, id) {
-  return { ...t, elegido: id, vista: 'proyecto', form: null, armado: null, errorForm: null, errorCarpeta: null }
+  return { ...t, elegido: id, vista: 'proyecto', form: null, armado: null, errorForm: null, errorCarpeta: null, soltar: t.soltar?.copiando ? t.soltar : null }
 }
 
 /** Lo que el formulario compara para saber si hay cambios. */
@@ -353,4 +357,87 @@ export function revisarFormulario(form, lista) {
   if (!i.ok) errores.instrucciones = i.motivo
   if (!n.ok || !i.ok) return { ok: false, errores }
   return { ok: true, errores, nombre: n.nombre, instrucciones: i.texto }
+}
+
+// ------------------------------------------------------------------ soltar archivos (4.7, 5.2, 5.3, 11.2; entrega P3)
+// Copia, nunca mueve ni pisa, y solo en una carpeta creada por Avis (S6, D-p17). La ventana manda el id del
+// proyecto y las rutas que entregó el evento de soltar de Tauri; Rust arma el destino y revisa cada una.
+
+/** Hasta 20 archivos por vez (D-p18; Rust lo hace cumplir, `proyectos::TOPE_SOLTAR`). */
+export const TOPE_SOLTAR = 20
+
+/** ¿Tiene zona de soltar? Una carpeta creada por Avis que está (4.7); la de la PC, perdida o ninguna, no (5.2). */
+export function puedeSoltar(p) {
+  return p?.carpeta?.tipo === 'avis' && p.carpeta.estado === 'ok'
+}
+
+/** El nombre de un archivo a partir de su ruta (sin la carpeta). */
+const nombreDeRuta = ruta => String(ruta ?? '').split(/[\\/]/).filter(Boolean).at(-1) ?? ''
+
+/** «Copiados {n} archivos a {carpeta}» (5.3); con uno, «Copiado 1 archivo a {carpeta}». */
+export function textoCopiados(n, carpeta) {
+  return n === 1 ? `Copiado 1 archivo a ${carpeta}` : `Copiados ${n} archivos a ${carpeta}`
+}
+
+/** «Copiado como {nombre} (2)» (5.2): el nombre de la copia sin su extensión. */
+export function textoCopiadoComo(como) {
+  const s = String(como ?? '')
+  const i = s.lastIndexOf('.')
+  return `Copiado como ${i > 0 ? s.slice(0, i) : s}`
+}
+
+/** «No se pudo copiar {nombre}.» (5.2). */
+export const textoNoCopiado = nombre => `No se pudo copiar ${nombre}.`
+
+/** Los que pasaron del tope de 20 (14, P3: «los 20 primeros y el aviso»). Texto propuesto: 5.2 no lo fija. */
+export function textoTopeSoltar(k) {
+  return `Van hasta ${TOPE_SOLTAR} archivos por vez: ${k === 1 ? '1 quedó' : `${k} quedaron`} sin copiar.`
+}
+
+/** Frases en una sola línea, cada una con su punto. */
+const frases = lista => lista.map(f => (/[.!?]$/.test(f) ? f : `${f}.`)).join(' ')
+
+/**
+ * Lo que se dice después de `proyecto_soltar` (`{ copiados, renombrados, fallidos }`): `anuncio` (5.3, en
+ * `role=status`: lo copiado, cada copia renombrada y los errores) y `error` (lo que queda a la vista debajo
+ * de la zona: «No se pudo copiar {nombre}.» por cada uno que no entró y, si sobraron, el aviso del tope),
+ * o `null` si todo entró.
+ */
+export function textosSoltado(r, carpeta) {
+  const copiados = Array.isArray(r?.copiados) ? r.copiados : []
+  const renombrados = Array.isArray(r?.renombrados) ? r.renombrados : []
+  const fallidos = Array.isArray(r?.fallidos) ? r.fallidos : []
+  const sobran = fallidos.filter(f => f?.motivo === 'tope').length
+  const errores = fallidos.filter(f => f?.motivo !== 'tope').map(f => textoNoCopiado(f?.nombre ?? ''))
+  if (sobran) errores.push(textoTopeSoltar(sobran))
+  const dichos = [...(copiados.length ? [textoCopiados(copiados.length, carpeta)] : []), ...renombrados.map(x => textoCopiadoComo(x?.como)), ...errores]
+  return { anuncio: frases(dichos), error: errores.length ? frases(errores) : null }
+}
+
+/** Rust no copió ninguno (la carpeta ya no sirve, el proyecto no está): «No se pudo copiar {nombre}.» por cada uno. */
+export function soltarFallido(rutas) {
+  const texto = frases((rutas ?? []).map(r => textoNoCopiado(nombreDeRuta(r))))
+  return { anuncio: texto, error: texto || null }
+}
+
+/** El estado de la zona del proyecto `id` (`{ id, encima, copiando, error }`), o `null` si es de otro. */
+export function soltarDe(t, id) {
+  return t.soltar?.id === id ? t.soltar : null
+}
+
+/** Archivos encima de la zona o no (4.7, 10). Sin cambios devuelve el mismo estado (nada que redibujar). */
+export function zonaEncima(t, id, encima) {
+  const s = soltarDe(t, id)
+  if ((s?.encima ?? false) === encima) return t
+  return { ...t, soltar: { id, encima, copiando: s?.copiando ?? false, error: s?.error ?? null } }
+}
+
+/** Se soltó: copiando, sin el error de antes. */
+export function empezarSoltar(t, id) {
+  return { ...t, soltar: { id, encima: false, copiando: true, error: null } }
+}
+
+/** Terminó de copiar, con el error que queda a la vista (o `null`). */
+export function terminarSoltar(t, id, error = null) {
+  return { ...t, soltar: { id, encima: false, copiando: false, error } }
 }

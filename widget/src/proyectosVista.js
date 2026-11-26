@@ -114,9 +114,11 @@ function carpetaNombre(c) {
 /**
  * El bloque Carpeta (4.7, 7.4): creada por Avis, la zona de soltar (que abre la carpeta; encendida, `.vivo`,
  * sin archivos ni charlas, 7.3); de la PC, «Abrir» y «Cambiar»; perdida, el texto de 5.2 con «Elegir otra»
- * y «Crear una nueva». `error`: la carpeta rechazada o que no se pudo crear (5.2).
+ * y «Crear una nueva». `error`: la carpeta rechazada o que no se pudo crear (5.2). `soltar` (P3): con
+ * archivos encima o copiando, las hormigas (`.encima`; copiando, además `aria-busy`), y debajo lo que no
+ * se pudo copiar (5.2).
  */
-function bloqueCarpeta(p, n, error) {
+function bloqueCarpeta(p, n, error, soltar = null) {
   const c = p.carpeta ?? { estado: 'sin' }
   const err = error ? lineaError(error) : ''
   const otra = '<div class="mini-acc"><button type="button" class="mini pri" data-accion="pro-carpeta-elegir" data-k="car-elegir">Elegir otra</button>'
@@ -128,7 +130,8 @@ function bloqueCarpeta(p, n, error) {
   }
   if (c.estado === 'sin') return `<section class="bloque car">${cab}${otra}${err}</section>`
   const extra = c.tipo === 'avis'
-    ? `<button type="button" class="soltar${!c.archivos && !n ? ' vivo' : ''}" data-accion="pro-abrir-carpeta" data-k="soltar">Soltá archivos acá<small>${escapar(pieSoltar(c.archivos))}</small></button>`
+    ? `<button type="button" class="soltar${!c.archivos && !n ? ' vivo' : ''}${soltar?.encima || soltar?.copiando ? ' encima' : ''}"${soltar?.copiando ? ' aria-busy="true"' : ''} data-accion="pro-abrir-carpeta" data-k="soltar">Soltá archivos acá<small>${escapar(pieSoltar(c.archivos))}</small></button>`
+      + (soltar?.error ? lineaError(soltar.error) : '')
     : '<div class="mini-acc"><button type="button" class="mini" data-accion="pro-abrir-carpeta" data-k="car-abrir">Abrir</button>'
       + '<button type="button" class="mini" data-accion="pro-carpeta-elegir" data-k="car-cambiar">Cambiar</button></div>'
   return `<section class="bloque car">${cab}${carpetaNombre(c)}<span class="tag">${escapar(etiquetaCarpeta(c))}</span>${extra}${err}</section>`
@@ -164,7 +167,7 @@ function sinCharlas(p, especie, mascota = 'Avi') {
  * `charlas`: las del proyecto, de la más nueva a la más vieja (`charlasDe`); `actual`: la abierta en la hoja.
  * `armado`/`transcurrido`: el borrado que espera el segundo clic (4.11).
  */
-export function fichaProyecto({ p, n = 0, charlas = [], actual = null, ahoraMs = Date.now(), especie = 'avi', mascota = 'Avi', armado = false, transcurrido = 0, errorCarpeta = null, errorBorrar = null }) {
+export function fichaProyecto({ p, n = 0, charlas = [], actual = null, ahoraMs = Date.now(), especie = 'avi', mascota = 'Avi', armado = false, transcurrido = 0, errorCarpeta = null, errorBorrar = null, soltar = null }) {
   const nombre = escapar(p.nombre)
   const perdida = p.carpeta?.estado === 'perdida'
   const linea = perdida ? escapar(lineaProyecto(p, n)).replace('carpeta perdida', '<span class="rojo">carpeta perdida</span>') : escapar(lineaProyecto(p, n))
@@ -183,7 +186,7 @@ export function fichaProyecto({ p, n = 0, charlas = [], actual = null, ahoraMs =
     ? `<section class="chs"><h3 class="rot">Charlas</h3>${listaCharlasFicha(charlas, n, actual, ahoraMs)}</section>`
     : `<h3 class="oculto">Charlas</h3>${sinCharlas(p, especie, mascota)}`
   return `<div class="ficha" style="--c:${color(p.color)}">${cab}${cta}${lista}`
-    + `${bloqueInstrucciones(p, mascota)}${bloqueCarpeta(p, n, errorCarpeta)}<h3 class="oculto">Qué ve cada motor</h3>${MATRIZ}${borrar}</div>`
+    + `${bloqueInstrucciones(p, mascota)}${bloqueCarpeta(p, n, errorCarpeta, soltar)}<h3 class="oculto">Qué ve cada motor</h3>${MATRIZ}${borrar}</div>`
 }
 
 /**

@@ -2793,7 +2793,7 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
 #pro .car-n b { display: block; font: var(--t-cuerpo-f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #pro .car-n small { display: block; font: var(--t-mono-s); color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 #pro .tag { display: inline-flex; justify-self: start; padding: 3px 7px; border-radius: 6px; background: var(--s3); font: var(--t-mono-s); color: var(--crema2) }
-/* La zona de soltar (4.7): el borde punteado dibujado con gradientes; encendida (`.vivo`, 7.3) o al pasar, las hormigas marchan */
+/* La zona de soltar (4.7): el borde punteado dibujado con gradientes; encendida (`.vivo`, 7.3), al pasar o con archivos encima (`.encima`, P3), las hormigas marchan */
 #pro .soltar {
   --lh: var(--linea-hover);
   display: grid; place-items: center; align-content: center; gap: 3px; min-height: 54px; padding: 8px; border: 0; border-radius: 10px;
@@ -2805,11 +2805,13 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
     linear-gradient(var(--lh) 50%, transparent 0) 100% 0 / 1px 10px repeat-y;
 }
 #pro .soltar small { font: var(--t-mono-s); color: var(--tenue) }
-#pro .soltar:hover, #pro .soltar.vivo { --lh: var(--c); color: var(--crema) }
-#pro .soltar.vivo { background-color: color-mix(in srgb, var(--c) 8%, transparent) }
+#pro .soltar:hover, #pro .soltar.vivo, #pro .soltar.encima { --lh: var(--c); color: var(--crema) }
+#pro .soltar.vivo, #pro .soltar.encima { background-color: color-mix(in srgb, var(--c) 8%, transparent) }
+/* P3: archivos encima o copiando (`.encima`, 4.7 y 10); copiando, además `aria-busy` */
+#pro .soltar[aria-busy="true"] { cursor: progress }
 @keyframes proHormigas { to { background-position: 10px 0, -10px 100%, 0 -10px, 100% 10px } }
 @media (prefers-reduced-motion: no-preference) {
-  body:not(.pausa) #pro .soltar:hover, body:not(.pausa) #pro .soltar.vivo { animation: proHormigas 1s linear infinite }
+  body:not(.pausa) #pro .soltar:hover, body:not(.pausa) #pro .soltar.vivo, body:not(.pausa) #pro .soltar.encima { animation: proHormigas 1s linear infinite }
 }
 #pro .mini-acc { display: flex; gap: 6px; flex-wrap: wrap }
 #pro .mini {

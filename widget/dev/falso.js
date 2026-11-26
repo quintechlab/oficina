@@ -121,6 +121,14 @@
 //   ?proyectos=guardarfalla  crear y guardar fallan: «No se pudo guardar el proyecto. Probá de nuevo.» con «Reintentar»
 //   &proyectoslento      proyectos_leer tarda 1,2 s (las filas esqueleto de 7.1)
 //   «Una de esta PC» imita el diálogo de Windows (D:\Proyectos\{nombre}); lo guardado queda en window.__proyectos.
+// Soltar archivos (#44, P3, proyectos-ux.md 4.7 y 10): con ?proyectos=lista (Presupuestos 2027, creada por Avis, con
+//   tarifas-2027.xlsx, informe.pdf y notas.md), window.__soltarEnZona([rutas]) suelta sobre la zona como Tauri.
+//   &soltar=encima     los archivos encima de la zona, sin soltar (las hormigas y el fondo del color)
+//   &soltar=copiando   soltados y Rust todavía copiando (la zona sigue viva, aria-busy)
+//   &soltar=listo      3 archivos, uno repetido: «Copiados 3 archivos a Presupuestos 2027. Copiado como informe (2).», 3 → 6
+//   &soltar=rechazado  una carpeta y un archivo: «No se pudo copiar Fotos.» debajo de la zona; el archivo entra
+//   &soltar=tope       21 archivos: los 20 primeros y «Van hasta 20 archivos por vez: 1 quedó sin copiar.»
+//   Un nombre sin punto se toma como carpeta; lo copiado queda en window.__soltados.
 // Resumen semanal de Hábitos (#41, entrega H3, habitos-ux.md 8.4): sin ?resumen, preferencias.json ya dice que se
 //   vio el de esta semana (habitosResumen) y no sale. Con ?resumen, nunca se vio: sale el de la semana pasada
 //   (o el de esta, un domingo desde las 18 de Argentina), con los cinco hábitos falsos. Sin la pregunta de catalogo.
@@ -898,6 +906,42 @@
     },
     proyecto_abrir_carpeta: ({ id }) => console.info('[explorador]', proyectosFalsos.get(id)?.carpeta?.ruta),
     proyectos_abrir_carpeta: () => console.info('[explorador] <config>\\proyectos'),
+    // Como proyectos::soltar (P3): solo en la carpeta de Avis; copia sin pisar (« (2)»), una carpeta no, hasta 20
+    proyecto_soltar: ({ id, rutas }) => new Promise(r => setTimeout(() => {
+      const p = proyectosFalsos.get(id)
+      if (!p || p.carpeta?.tipo !== 'avis' || p.carpeta.estado !== 'ok') { r({ error: 'la carpeta del proyecto no es de Avis', motivo: null }); return }
+      const hay = adentroFalso.get(id) ?? new Set()
+      adentroFalso.set(id, hay)
+      const copiados = [], renombrados = [], fallidos = []
+      rutas.forEach((ruta, i) => {
+        const nombre = String(ruta).split('\\').pop()
+        if (i >= 20) { fallidos.push({ nombre, motivo: 'tope' }); return }
+        if (!nombre.includes('.')) { fallidos.push({ nombre, motivo: 'carpeta' }); return }
+        let como = nombre
+        for (let k = 2; hay.has(como.toLowerCase()); k++) como = nombre.replace(/(\.[^.]+)?$/, ` (${k})$1`)
+        hay.add(como.toLowerCase())
+        copiados.push(como)
+        if (como !== nombre) renombrados.push({ nombre, como })
+      })
+      proyectosFalsos.set(id, { ...p, carpeta: { ...p.carpeta, archivos: hay.size } })
+      window.__soltados.push({ id, copiados, renombrados, fallidos })
+      console.info('[proyectos] soltar', id, copiados, fallidos)
+      r({ copiados, renombrados, fallidos })
+    }, url.get('soltar') === 'copiando' ? 600000 : 700)),
+  }
+  /** Lo que hay en la carpeta de cada proyecto creada por Avis (para el « (2)»). */
+  const adentroFalso = new Map([['p-presu', new Set(modoProyectos === 'recien' ? [] : ['tarifas-2027.xlsx', 'informe.pdf', 'notas.md'])]])
+  window.__soltados = []
+  /** Suelta archivos sobre la zona del proyecto elegido, como Tauri: enter, over y drop en px físicos. */
+  window.__soltarEnZona = (rutas, { soltar = true } = {}) => {
+    const zona = document.querySelector('#pro .soltar')
+    if (!zona || !window.__arrastrar) return
+    zona.scrollIntoView({ block: 'nearest' })
+    const r = zona.getBoundingClientRect()
+    const position = { x: (r.left + r.width / 2) * devicePixelRatio, y: (r.top + r.height / 2) * devicePixelRatio }
+    window.__arrastrar({ type: 'enter', paths: rutas, position })
+    window.__arrastrar({ type: 'over', position })
+    if (soltar) setTimeout(() => window.__arrastrar({ type: 'drop', paths: rutas, position }), 700)
   }
   // ?proyectos=…: abre la hoja como el usuario (el clic en la fila «Proyectos») y va a cada caso
   if (modoProyectos !== null) {
@@ -909,6 +953,16 @@
         else if (modoProyectos === 'perdida') clic('ix-p-mud')
         else if (modoProyectos === 'borrar') clic('borrar')
         else if (modoProyectos === 'editar') clic('editar')
+        // &soltar=…: los archivos sobre la zona de Presupuestos 2027 (P3)
+        const D = 'C:\\Users\\quintana\\Downloads'
+        const casoSoltar = {
+          encima: [[`${D}\\presupuesto-espiga.pdf`], { soltar: false }],
+          copiando: [[`${D}\\presupuesto-espiga.pdf`, `${D}\\logo.png`]],
+          listo: [[`${D}\\presupuesto-espiga.pdf`, `${D}\\informe.pdf`, `${D}\\fotos-local.zip`]],
+          rechazado: [[`${D}\\Fotos`, `${D}\\presupuesto-espiga.pdf`]],
+          tope: [Array.from({ length: 21 }, (_, i) => `${D}\\factura-${String(i + 1).padStart(2, '0')}.pdf`)],
+        }[url.get('soltar')]
+        if (casoSoltar) setTimeout(() => window.__soltarEnZona(...casoSoltar), 600)
       }, 400)
     }, 900)
   }
