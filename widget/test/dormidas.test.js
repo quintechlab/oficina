@@ -78,3 +78,53 @@ test('la firma de las escenas cambia cuando la sesión se pliega', () => {
   const despues = firmaEscenas(q.repo, prepararProyecto(q, AHORA + 2 * 60000))
   assert.notEqual(antes, despues)
 })
+
+// ------------------------------------------------------------------ «Terminar» (S2)
+import { clicTerminar, MS_CONFIRMAR_TERMINAR, barraPlegada, lineaTerminar } from '../src/control.js'
+
+test('Terminar: el primer clic pide confirmar 3 s, el segundo termina, y nunca por tiempo', () => {
+  assert.equal(MS_CONFIRMAR_TERMINAR, 3000)
+  const r1 = clicTerminar({}, AHORA)
+  assert.deepEqual(r1, { terminaHasta: AHORA + 3000, terminar: false })
+  assert.deepEqual(clicTerminar({ terminaHasta: r1.terminaHasta }, AHORA + 2999), { terminaHasta: null, terminar: true })
+  // Pasados los 3 s, vuelve a pedir confirmación
+  assert.deepEqual(clicTerminar({ terminaHasta: r1.terminaHasta }, AHORA + 3000), { terminaHasta: AHORA + 6000, terminar: false })
+  // Terminando, el clic se ignora
+  assert.deepEqual(clicTerminar({ terminando: true, terminaHasta: AHORA + 1000 }, AHORA), { terminaHasta: null, terminar: false })
+})
+
+test('la tarjeta plegada lleva «Terminar» con el nombre de la sesión; confirmando y terminando cambian el botón', () => {
+  const s = ses({ ultimoTurno: hace(125) })
+  const h = barraPlegada(s, {}, AHORA)
+  assert.match(h, /^<div class="dorm" role="group" aria-label="Sesión dormida en feat\/mejoras-s2" data-sesion="ses-1">/)
+  assert.match(h, /data-accion="dorm-terminar" data-sesion="ses-1" aria-label="Terminar la sesión feat\/mejoras-s2">Terminar<\/button>/)
+  const c = barraPlegada(s, { terminaHasta: AHORA + 1000 }, AHORA)
+  assert.match(c, /class="btn sec ctl-cerrar ctl-terminar confirma"/)
+  assert.match(c, /style="--ya:-2000ms"/)
+  assert.match(c, />¿Terminar\? Sí<\/button>/)
+  assert.match(c, /Cierra su proceso de Claude Code\. La conversación queda guardada\./)
+  const t = barraPlegada(s, { terminando: true }, AHORA)
+  assert.match(t, /aria-disabled="true"[^>]*>Terminando…<\/button>/)
+  const e = barraPlegada(s, { error: 'despierta' }, AHORA)
+  assert.match(e, /data-tono="error">La sesión volvió a trabajar: no se terminó\.</)
+  // El nombre escapa lo que viene de la sesión
+  assert.match(barraPlegada(ses({ rama: '<x>' }), {}, AHORA), /Sesión dormida en &lt;x&gt;/)
+})
+
+test('cada error de Rust tiene su texto; uno desconocido, el genérico', () => {
+  assert.equal(lineaTerminar('despierta'), 'La sesión volvió a trabajar: no se terminó.')
+  assert.equal(lineaTerminar('sin-proceso'), 'No encuentro el proceso de esta sesión.')
+  assert.equal(lineaTerminar('no-coincide'), 'El proceso ya no es el de esta sesión: no se terminó.')
+  assert.equal(lineaTerminar('fallo'), 'Windows no dejó terminarla. Probá de nuevo.')
+  assert.equal(lineaTerminar('otra cosa'), 'Windows no dejó terminarla. Probá de nuevo.')
+})
+
+test('la tarjeta plegada lleva su barra, y la firma cambia al confirmar o terminar', () => {
+  const [p] = agruparPorProyecto([ses({ ultimoTurno: hace(125) })])
+  const prep = prepararProyecto(p, AHORA)
+  assert.match(sesiones(prep, AHORA, new Map(), null, { 'ses-1': {} }), /<div class="dorm"[\s\S]*<\/div><\/article>$/)
+  const quieta = firmaEscenas(p.repo, prep, new Map(), null, null, {})
+  assert.notEqual(quieta, firmaEscenas(p.repo, prep, new Map(), null, null, { 'ses-1': { terminaHasta: AHORA + 3000 } }))
+  assert.notEqual(quieta, firmaEscenas(p.repo, prep, new Map(), null, null, { 'ses-1': { terminando: true } }))
+  assert.notEqual(quieta, firmaEscenas(p.repo, prep, new Map(), null, null, { 'ses-1': { error: 'fallo' } }))
+})

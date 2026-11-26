@@ -21,6 +21,7 @@ mod primeros_pasos;
 mod respuestas;
 mod sesiones;
 mod tareas;
+mod terminar;
 
 use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::{Mutex, PoisonError};
@@ -1674,6 +1675,30 @@ fn borrar_orden(sesion: String) -> Result<(), String> {
     ordenes::borrar_orden(&carpeta_de_ordenes()?, &sesion)
 }
 
+/// Termina el proceso de Claude Code de una sesión dormida (odd/tasks/sesiones-dormidas.md, S2), solo
+/// desde el segundo clic de «Terminar». Rust comprueba todo de nuevo (terminar.rs): la ventana no puede
+/// terminar una sesión despierta ni otro proceso. `{ ok: true, pid }` o `{ ok: false, error }`.
+#[tauri::command]
+fn terminar_sesion(sesion: String) -> serde_json::Value {
+    let (Some(oficina), Some(claude)) = (sesiones::carpeta_sesiones(), transcripcion::carpeta_claude()) else {
+        return serde_json::json!({ "ok": false, "error": "fallo" });
+    };
+    #[cfg(windows)]
+    let r = terminar::terminar_con(&oficina, &claude.join("sessions"), &sesion, chrono::Utc::now(), &terminar::Windows);
+    #[cfg(not(windows))]
+    let r: Result<serde_json::Value, terminar::Falla> = { let _ = (oficina, claude); Err(terminar::Falla::Fallo) };
+    match r {
+        Ok(v) => {
+            registrar(format!("terminar: sesión {sesion}, proceso {} terminado", v["pid"]));
+            v
+        }
+        Err(f) => {
+            registrar(format!("terminar: sesión {sesion} no ({})", f.codigo()));
+            serde_json::json!({ "ok": false, "error": f.codigo() })
+        }
+    }
+}
+
 /// Lo último de la conversación de una sesión (#25), en solo lectura de su transcripción:
 /// `{ entradas: [{ rol, texto, cuando }] }`. Fuera del hilo principal: puede leer hasta 8 MB.
 #[tauri::command]
@@ -2173,6 +2198,7 @@ pub fn run() {
             ordenar,
             estado_orden,
             borrar_orden,
+            terminar_sesion,
             leer_historial,
             registrar,
             revisar_primeros_pasos,

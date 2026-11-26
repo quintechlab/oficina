@@ -30,9 +30,10 @@ sha2 = "0.10"
 getrandom = "0.3"
 
 # Claves de API (#23, configuracion-ux.md 9.4): CredWriteW/CredReadW/CredDeleteW del Administrador de
-# credenciales de Windows. La misma versión que ya trae Tauri (0.61.2 en Cargo.lock): solo suma features
+# credenciales de Windows. La misma versión que ya trae Tauri (0.61.2 en Cargo.lock): solo suma features.
+# Threading: OpenProcess/GetProcessTimes/TerminateProcess para terminar una sesión dormida (terminar.rs)
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Credentials"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Credentials", "Win32_System_Threading"] }
 
 # Desarrollo: los errores siguen diciendo archivo y línea, sin la info de depuración completa
 [profile.dev]

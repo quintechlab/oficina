@@ -1712,13 +1712,13 @@ p.det-rot { margin-top: var(--e-5) }
 .ctl-est:has(.ctl-cerrar:not([hidden])) { align-items: center; margin-bottom: var(--e-3) }
 /* M3: ancho mínimo, así "¿Cerrar? Sí" no corre el borde izquierdo entre el primer clic y el segundo.
    D-c: 11,5 px, el tamaño de --t-chico */
-.ctl .ctl-cerrar { position: relative; min-width: 96px; min-height: 24px; justify-content: center; margin-left: auto; padding: 0 var(--e-5); background: none; border: 1px solid var(--linea); color: var(--crema2); font: 700 12.5px/1 var(--f); font-stretch: normal }
+:is(.ctl, .dorm) .ctl-cerrar { position: relative; min-width: 96px; min-height: 24px; justify-content: center; margin-left: auto; padding: 0 var(--e-5); background: none; border: 1px solid var(--linea); color: var(--crema2); font: 700 12.5px/1 var(--f); font-stretch: normal }
 /* M2: el dibujo queda de 24 y el área de clic es de 32 (como .preg-tab; ::after es la barrita) */
-.ctl .ctl-cerrar::before { content: ""; position: absolute; inset: -4px 0 }
-.ctl .ctl-cerrar:hover { border-color: var(--linea-hover); color: var(--crema); filter: none }
+:is(.ctl, .dorm) .ctl-cerrar::before { content: ""; position: absolute; inset: -4px 0 }
+:is(.ctl, .dorm) .ctl-cerrar:hover { border-color: var(--linea-hover); color: var(--crema); filter: none }
 /* B2: cerrándose, "Cerrando…" conserva el foco (aria-disabled, sin disabled) y no responde; sin opacidad */
-.ctl .ctl-cerrar[aria-disabled="true"], .ctl .ctl-cerrar[aria-disabled="true"]:hover { border-color: var(--linea); color: var(--tenue); cursor: default }
-.ctl .ctl-cerrar[aria-disabled="true"]:active { transform: none }
+:is(.ctl, .dorm) .ctl-cerrar[aria-disabled="true"], :is(.ctl, .dorm) .ctl-cerrar[aria-disabled="true"]:hover { border-color: var(--linea); color: var(--tenue); cursor: default }
+:is(.ctl, .dorm) .ctl-cerrar[aria-disabled="true"]:active { transform: none }
 .ctl-in:disabled, .ctl-in:disabled:hover { border-color: var(--linea); color: var(--crema2); cursor: not-allowed }
 .ses > .linea.cerrando .pt { background: none; box-shadow: inset 0 0 0 1.5px var(--tenue) }
 /* B1: la tarjeta que se cerró se funde y pliega su alto en 240 ms (estilo-avis 6.2) */
@@ -1729,8 +1729,8 @@ p.det-rot { margin-top: var(--e-5) }
     transition: opacity 240ms var(--ease-cierra), height 240ms var(--ease-cierra), margin 240ms var(--ease-cierra), padding 240ms var(--ease-cierra), border-width 240ms var(--ease-cierra);
   }
 }
-.ctl .ctl-cerrar.confirma { background: var(--rojo); border-color: var(--rojo); color: var(--negro) }
-.ctl .ctl-cerrar.confirma:focus-visible { outline-color: var(--crema) }
+:is(.ctl, .dorm) .ctl-cerrar.confirma { background: var(--rojo); border-color: var(--rojo); color: var(--negro) }
+:is(.ctl, .dorm) .ctl-cerrar.confirma:focus-visible { outline-color: var(--crema) }
 @media (prefers-reduced-motion: no-preference) {
   body:not(.pausa) .ctl-cerrar.confirma::after {
     content: ""; position: absolute; left: var(--e-5); right: var(--e-5); bottom: 3px; height: 2px; border-radius: 1px;
