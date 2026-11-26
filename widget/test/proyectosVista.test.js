@@ -61,7 +61,7 @@ test('fichaProyecto, creado por Avis: encabezado con lápiz, el botón de charla
   assert.match(html, /<p class="instr">Respondé en pesos\.\nCon el IVA aparte\.<\/p><small class="pie">Van al empezar cada charla<\/small>/)
   assert.match(html, /aria-label="Editar las instrucciones">Editar<\/button>/)
   assert.match(html, /<span class="tag">La creó Avis · 3 archivos<\/span>/)
-  assert.match(html, /<button type="button" class="soltar" data-accion="pro-abrir-carpeta" data-k="soltar">Soltá archivos acá<small>3 adentro · Abrir en el Explorador<\/small><\/button>/)
+  assert.match(html, /<button type="button" class="soltar" data-accion="pro-abrir-carpeta" data-k="soltar">Soltá archivos acá<small>3 adentro · Abrir en el Explorador<\/small><svg class="borde" aria-hidden="true" focusable="false"><rect><\/rect><\/svg><\/button>/)
   assert.match(html, /title="C:\\Users\\q\\Documents\\Avis\\Presupuestos 2027">C:\\…\\Avis\\Presupuestos 2027<\/small>/)
   assert.match(html, /data-accion="pro-borrar" data-valor="p-presu" data-k="borrar">Borrar proyecto<\/button>/)
   assert.ok(html.includes(MATRIZ))
@@ -168,4 +168,24 @@ test('los textos de Proyectos usan el nombre de la mascota, escapado (L5 de odd/
   assert.ok(formularioProyecto({ form: t.form, mascota: n }).includes(`placeholder="Qué tiene que saber ${e} de este tema, cómo querés que responda…"`))
   assert.ok(primerUsoProyectos('avi', n).includes(`<p>Un proyecto junta lo que ${e} tiene que saber de un tema:`))
   assert.doesNotMatch(sinEtiquetas(ficha), /\bAvi\b/)
+})
+
+// ------------------------------------------------------------------ Detalles visuales (26/11, con la letra +1 px)
+import { readFileSync } from 'node:fs'
+const css = readFileSync(new URL('../src/estilos.css', import.meta.url), 'utf8')
+/** El cuerpo de la regla cuyo selector es exactamente `sel` (al principio de una línea). */
+const regla = sel => {
+  const i = css.indexOf(`\n${sel} {`)
+  return i < 0 ? '' : css.slice(i + sel.length + 3, css.indexOf('}', i))
+}
+
+test('la tabla: las columnas de Instrucciones y Carpeta no se achican por debajo de su rótulo', () => {
+  assert.match(regla('#pro .matriz'), /grid-template-columns: auto minmax\(min-content, 1fr\) minmax\(min-content, 1fr\)/)
+})
+
+test('la zona de soltar dibuja el borde con un rectángulo redondeado del svg, no con gradientes (las esquinas quedaban vacías)', () => {
+  assert.doesNotMatch(regla('#pro .soltar'), /linear-gradient/)
+  assert.match(regla('#pro .soltar .borde rect'), /rx: 10px/)
+  assert.match(regla('#pro .soltar .borde rect'), /stroke-dasharray: 5 5/)
+  assert.match(css, /@keyframes proHormigas \{ to \{ stroke-dashoffset: -10 \} \}/)
 })

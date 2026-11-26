@@ -118,6 +118,12 @@ function carpetaNombre(c) {
  * archivos encima o copiando, las hormigas (`.encima`; copiando, además `aria-busy` y «Copiando…»), y debajo lo que no
  * se pudo copiar (5.2).
  */
+/**
+ * El borde punteado de la zona de soltar: un rectángulo redondeado (el CSS le da tamaño, radio y punteado).
+ * Con gradientes de fondo, el radio recortaba las esquinas y las rayas no se juntaban (26/11).
+ */
+const BORDE_SOLTAR = '<svg class="borde" aria-hidden="true" focusable="false"><rect></rect></svg>'
+
 function bloqueCarpeta(p, n, error, soltar = null) {
   const c = p.carpeta ?? { estado: 'sin' }
   const err = error ? lineaError(error) : ''
@@ -130,7 +136,7 @@ function bloqueCarpeta(p, n, error, soltar = null) {
   }
   if (c.estado === 'sin') return `<section class="bloque car">${cab}${otra}${err}</section>`
   const extra = c.tipo === 'avis'
-    ? `<button type="button" class="soltar${!c.archivos && !n ? ' vivo' : ''}${soltar?.encima || soltar?.copiando ? ' encima' : ''}"${soltar?.copiando ? ' aria-busy="true"' : ''} data-accion="pro-abrir-carpeta" data-k="soltar">${soltar?.copiando ? 'Copiando…' : 'Soltá archivos acá'}<small>${escapar(pieSoltar(c.archivos))}</small></button>`
+    ? `<button type="button" class="soltar${!c.archivos && !n ? ' vivo' : ''}${soltar?.encima || soltar?.copiando ? ' encima' : ''}"${soltar?.copiando ? ' aria-busy="true"' : ''} data-accion="pro-abrir-carpeta" data-k="soltar">${soltar?.copiando ? 'Copiando…' : 'Soltá archivos acá'}<small>${escapar(pieSoltar(c.archivos))}</small>${BORDE_SOLTAR}</button>`
       + (soltar?.error ? lineaError(soltar.error) : '')
     : '<div class="mini-acc"><button type="button" class="mini" data-accion="pro-abrir-carpeta" data-k="car-abrir">Abrir</button>'
       + '<button type="button" class="mini" data-accion="pro-carpeta-elegir" data-k="car-cambiar">Cambiar</button></div>'
