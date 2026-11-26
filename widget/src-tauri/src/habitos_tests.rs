@@ -354,3 +354,57 @@ fn si_el_motor_prende_despues_del_tope_no_se_manda_el_pedido() {
     std::thread::sleep(Duration::from_millis(900));
     assert!(l.accept().is_err(), "el pedido salió después del corte");
 }
+
+// ---------------------------------------------------------------- #43 C3: `modificar` (la charla marca un hábito)
+
+#[test]
+fn modificar_lee_cambia_y_escribe_con_el_formato() {
+    let c = carpeta_temporal();
+    guardar(&c, &habito("h-agua", "Agua")).unwrap();
+    let (r, guardado) = modificar(&c, "h-agua", |doc| {
+        doc["registro"]["2026-11-25"] = json!(3);
+        Ok(7)
+    })
+    .unwrap();
+    assert_eq!(r, 7);
+    assert_eq!(guardado["registro"]["2026-11-25"], 3);
+    assert_eq!(listar(&c).habitos[0]["registro"], json!({ "2026-11-23": 8, "2026-11-24": 6, "2026-11-25": 3 }));
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn modificar_conserva_lo_desconocido_del_archivo() {
+    let c = carpeta_temporal();
+    let mut futuro = habito("h-agua", "Agua");
+    futuro["icono"] = json!("gota");
+    fs::write(c.join("h-agua.json"), serde_json::to_vec(&futuro).unwrap()).unwrap();
+    modificar(&c, "h-agua", |doc| {
+        doc["registro"]["2026-11-25"] = json!(1);
+        Ok(())
+    })
+    .unwrap();
+    let crudo: Value = serde_json::from_slice(&fs::read(c.join("h-agua.json")).unwrap()).unwrap();
+    assert_eq!(crudo["icono"], "gota");
+    assert_eq!(crudo["registro"]["2026-11-25"], 1);
+    fs::remove_dir_all(c).unwrap();
+}
+
+#[test]
+fn modificar_no_toca_un_archivo_roto_ni_uno_que_no_esta_ni_lo_que_la_regla_niega() {
+    let c = carpeta_temporal();
+    guardar(&c, &habito("h-agua", "Agua")).unwrap();
+    fs::write(c.join("h-roto.json"), "{ roto").unwrap();
+    let roto = fs::read(c.join("h-roto.json")).unwrap();
+    let agua = fs::read(c.join("h-agua.json")).unwrap();
+    assert!(matches!(modificar(&c, "h-roto", |_| Ok(())), Err(crate::tareas::Falla::Rota)));
+    assert!(matches!(modificar(&c, "h-nada", |_| Ok(())), Err(crate::tareas::Falla::NoExiste)));
+    assert!(matches!(modificar(&c, "../x", |_| Ok(())), Err(crate::tareas::Falla::NoExiste)));
+    assert!(matches!(modificar(&c, "h-agua", |_| Err::<(), _>(String::from("no"))), Err(crate::tareas::Falla::Regla(m)) if m == "no"));
+    // Lo que deja la regla tiene que ser un hábito del formato, del mismo id
+    assert!(matches!(modificar(&c, "h-agua", |doc| { doc["tipo"] = json!("raro"); Ok(()) }), Err(crate::tareas::Falla::Regla(_))));
+    assert!(matches!(modificar(&c, "h-agua", |doc| { doc["id"] = json!("h-otro"); Ok(()) }), Err(crate::tareas::Falla::Regla(_))));
+    assert_eq!(fs::read(c.join("h-roto.json")).unwrap(), roto);
+    assert_eq!(fs::read(c.join("h-agua.json")).unwrap(), agua);
+    assert!(!c.join("h-otro.json").exists());
+    fs::remove_dir_all(c).unwrap();
+}

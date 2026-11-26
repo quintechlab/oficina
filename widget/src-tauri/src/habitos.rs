@@ -27,7 +27,7 @@ use std::sync::{mpsc, Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use crate::chat_local::{self, Avance, FinLectura, MotorLocal};
-use crate::tareas::{desconocidas, fecha, id_con, ms, COLORES};
+use crate::tareas::{desconocidas, fecha, id_con, ms, Falla, COLORES};
 
 /// Los tipos de hábito (S2).
 pub const TIPOS: [&str; 4] = ["diario", "cantidad", "dias", "semana"];
@@ -186,6 +186,35 @@ pub fn guardar(carpeta: &Path, doc: &Value) -> Result<Value, String> {
     }
     crate::atomico::escribir(&destino, &serde_json::to_vec(&limpio).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     Ok(limpio)
+}
+
+/// Lee el hábito `id`, lo cambia con `f` y lo escribe, todo con el candado de las escrituras tomado (#43
+/// C3, chat-herramientas-ux.md 11.4): la ventana y la charla nunca se pisan a medias. Es el `modificar` de
+/// `tareas.rs` para un hábito: `f` recibe el hábito del formato (sin las claves desconocidas, que se
+/// conservan al escribir) y lo que deja tiene que seguir siendo un hábito del formato, del mismo id. Un
+/// archivo roto no se toca (`Rota`), uno que no está es `NoExiste`, y si `f` se niega no se escribe nada.
+pub fn modificar<R>(carpeta: &Path, id: &str, f: impl FnOnce(&mut Value) -> Result<R, String>) -> Result<(R, Value), Falla> {
+    let destino = ruta(carpeta, id).ok_or(Falla::NoExiste)?;
+    let _candado = bloquear();
+    if !destino.is_file() {
+        return Err(Falla::NoExiste);
+    }
+    let crudo = leer_crudo(&destino, id).map_err(|e| {
+        registrar(&format!("hábitos: {id}.json: {e}"));
+        Falla::Rota
+    })?;
+    let mut doc = normalizar(&crudo).map_err(|_| Falla::Rota)?;
+    let r = f(&mut doc).map_err(Falla::Regla)?;
+    let mut limpio = normalizar(&doc).map_err(Falla::Regla)?;
+    if limpio["id"] != json!(id) {
+        return Err(Falla::Regla(String::from("el cambio es de otro hábito")));
+    }
+    if let Some(o) = limpio.as_object_mut() {
+        o.extend(desconocidas(&crudo, &CLAVES));
+    }
+    let bytes = serde_json::to_vec(&limpio).map_err(|e| Falla::Disco(e.to_string()))?;
+    crate::atomico::escribir(&destino, &bytes).map_err(|e| Falla::Disco(e.to_string()))?;
+    Ok((r, limpio))
 }
 
 /// Borra el archivo del hábito. Lo que ya no existe no es un error; un archivo roto no se borra.

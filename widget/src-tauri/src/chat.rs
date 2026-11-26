@@ -10,8 +10,8 @@
 //!   («--restricted: path outside the working directory»), medido el 25/11. Los adjuntos no pasan por
 //!   ahí (Rust los lee y los manda como bloques).
 //!   Cualquier herramienta nueva vuelve a diseño: la única vuelta fue #43 (docs/diseno/chat-herramientas-ux.md),
-//!   que suma el servidor de Avis (`mcp_avis.rs`) con sus cinco herramientas de tareas, por nombre
-//!   exacto en `--allowedTools` y con un token por lanzamiento (`Mcp`).
+//!   que suma el servidor de Avis (`mcp_avis.rs`) con sus cinco herramientas de tareas y (C3) las dos de
+//!   hábitos, por nombre exacto en `--allowedTools` y con un token por lanzamiento (`Mcp`).
 //! - Nada se manda sin un clic o Enter: `enviar` solo lo llama la ventana con el mensaje del usuario.
 //!   Abrir (precalentar) lanza el proceso sin escribirle nada, y así no gasta tokens (medido en E0).
 //! - Como mucho un proceso vivo (D20), dentro de un trabajo de Windows que lo mata con Avis.
@@ -41,13 +41,15 @@ pub const EVENTO: &str = "oficina://chat";
 
 /// Las instrucciones de sistema (4.3), con `{Mascota}` en lugar del nombre. Una sola línea: viaja
 /// como argumento.
-/// #43 (chat-herramientas-ux.md 11.3) la reemplazó: suma las herramientas de tareas de Avis. La última
-/// frase es de #44 (L9 de Proyectos, decisión de Quintana del 25/11): medido, Haiku dejaba de leer la
-/// carpeta después de un turno sin herramientas («solo tengo las de Avis»).
+/// #43 (chat-herramientas-ux.md 11.3) la reemplazó: suma las herramientas de tareas de Avis, y C3 las
+/// de hábitos (cambia «las tareas de Avis» por «las tareas y los hábitos de Avis» y «tildar» por «tildar
+/// tareas y marcar hábitos de hoy», tal cual 11.3). La última frase es de #44 (L9 de Proyectos, decisión
+/// de Quintana del 25/11): medido, Haiku dejaba de leer la carpeta después de un turno sin herramientas
+/// («solo tengo las de Avis»).
 pub const INSTRUCCION_CHAT: &str = "Sos {Mascota}, la mascota de Avis, el panel que muestra en qué anda Claude Code. \
 Respondés en español rioplatense, de vos, breve y concreto. \
 No modificás archivos ni corrés comandos (no tenés esas herramientas). \
-Sí podés ver, anotar, editar y tildar las tareas de Avis con tus herramientas de Avis: usalas solo cuando el usuario lo pida y después confirmá en una frase corta qué hiciste, sin repetir los detalles (Avis muestra cada cambio con «Deshacer»). \
+Sí podés ver, anotar, editar y tildar tareas y marcar hábitos de hoy las tareas y los hábitos de Avis con tus herramientas de Avis: usalas solo cuando el usuario lo pida y después confirmá en una frase corta qué hiciste, sin repetir los detalles (Avis muestra cada cambio con «Deshacer»). \
 Nunca borrás: si te piden borrar una tarea, usá tarea_mostrar con para \"borrar\" y decí que el borrado lo hace el usuario con un clic. \
 Para saber qué día es hoy, usá tareas_ver. \
 Si te piden algo que requiere actuar fuera de eso, explicá qué haría falta. \
@@ -59,7 +61,8 @@ Podés leer los archivos de la carpeta de trabajo con Read, Glob y Grep cuando l
 pub const HERRAMIENTAS: &str = "Read,Glob,Grep";
 /// Las de Avis (#43, 11.2): la lista exacta, sin comodín (D-c5). `--tools` no las filtra (M-H3), así
 /// que van solo en `--allowedTools`; lo que no está acá, Claude Code lo niega solo (M-H4).
-pub const HERRAMIENTAS_AVIS: &str = "mcp__avis__tareas_ver,mcp__avis__tarea_crear,mcp__avis__tarea_editar,mcp__avis__tarea_tildar,mcp__avis__tarea_mostrar";
+/// C3 suma exactamente las dos de hábitos.
+pub const HERRAMIENTAS_AVIS: &str = "mcp__avis__tareas_ver,mcp__avis__tarea_crear,mcp__avis__tarea_editar,mcp__avis__tarea_tildar,mcp__avis__tarea_mostrar,mcp__avis__habitos_ver,mcp__avis__habito_marcar";
 /// Tope de gasto por proceso (D16).
 pub const TOPE_USD: &str = "2";
 /// Sin eco ni ningún evento del turno a los 15 s del envío: error `proceso` (7.4).
@@ -903,8 +906,8 @@ struct Interno {
     apagado: AtomicBool,
     /// El modelo de esta PC (8): lo pone `lib.rs` con `modelo::IA`; los tests, uno falso.
     motor_local: Mutex<Option<MotorLocal>>,
-    /// Las herramientas de Avis (#43): la carpeta de tareas y el servidor, que arranca con el primer
-    /// lanzamiento de `claude`.
+    /// Las herramientas de Avis (#43): las carpetas de tareas y hábitos y el servidor, que arranca con
+    /// el primer lanzamiento de `claude`.
     herramientas: Mutex<Herramientas>,
     /// `<config>/proyectos` (#44): de ahí se leen las instrucciones y la carpeta de cada charla de proyecto.
     proyectos: Mutex<Option<PathBuf>>,
@@ -913,8 +916,9 @@ struct Interno {
 /// Lo que hace falta para el servidor de Avis (#43): sin carpeta, la charla no tiene herramientas.
 #[derive(Default)]
 struct Herramientas {
-    carpeta: Option<PathBuf>,
+    carpetas: Option<mcp_avis::Carpetas>,
     emitir_tareas: Option<Emisor>,
+    emitir_habitos: Option<Emisor>,
     servidor: Option<McpAvis>,
 }
 
@@ -954,21 +958,23 @@ impl Chat {
         }))
     }
 
-    /// Las herramientas de Avis para la charla (#43): `<config>/tareas` y el aviso `oficina://tareas`.
-    /// El servidor arranca recién con el primer lanzamiento de `claude` (11.1).
-    pub fn poner_herramientas(&self, carpeta_tareas: PathBuf, emitir_tareas: Emisor) {
+    /// Las herramientas de Avis para la charla (#43): `<config>/tareas` y `<config>/habitos` (C3), y los
+    /// avisos `oficina://tareas` y `oficina://habitos`. El servidor arranca recién con el primer
+    /// lanzamiento de `claude` (11.1).
+    pub fn poner_herramientas(&self, carpetas: mcp_avis::Carpetas, emitir_tareas: Emisor, emitir_habitos: Emisor) {
         let mut h = bloquear(&self.0.herramientas);
-        h.carpeta = Some(carpeta_tareas);
+        h.carpetas = Some(carpetas);
         h.emitir_tareas = Some(emitir_tareas);
+        h.emitir_habitos = Some(emitir_habitos);
     }
 
     /// El servidor de Avis, arrancado si hace falta. `None` sin herramientas o si no pudo escuchar.
     fn servidor(&self) -> Option<McpAvis> {
         let mut h = bloquear(&self.0.herramientas);
         if h.servidor.is_none() {
-            let (carpeta, emitir_tareas) = (h.carpeta.clone()?, h.emitir_tareas.clone()?);
+            let (carpetas, emitir_tareas, emitir_habitos) = (h.carpetas.clone()?, h.emitir_tareas.clone()?, h.emitir_habitos.clone()?);
             let reloj: mcp_avis::Reloj = Arc::new(|| chrono::Utc::now().timestamp_millis());
-            match McpAvis::arrancar(carpeta, self.0.emitir.clone(), emitir_tareas, reloj) {
+            match McpAvis::arrancar(carpetas, self.0.emitir.clone(), emitir_tareas, emitir_habitos, reloj) {
                 Ok(s) => h.servidor = Some(s),
                 Err(e) => {
                     registrar(&format!("chat: el servidor de Avis no arrancó: {e}"));

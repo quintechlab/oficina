@@ -954,20 +954,26 @@ async fn tareas_guardar(app: AppHandle, lista: serde_json::Value, huella: Option
 }
 
 /// «Deshacer» de un recibo de la charla (#43, chat-herramientas-ux.md 11.7), solo con el clic: vuelve
-/// el cambio a su `antes` si la tarea sigue como la dejó la charla. `{ estado: "deshecho" |
-/// "cambio-despues" | "error", motivo? }`. No le manda nada a la mascota: el próximo mensaje lleva
-/// `<avis-deshecho>`. Un cambio con otra forma es un error del comando.
+/// el cambio a su `antes` si la tarea (o el hábito, C3) sigue como la dejó la charla. `{ estado:
+/// "deshecho" | "cambio-despues" | "error", motivo? }`. No le manda nada a la mascota: el próximo
+/// mensaje lleva `<avis-deshecho>`. Un cambio con otra forma es un error del comando.
 #[tauri::command]
 async fn chat_deshacer(app: AppHandle, conversacion: String, cambio: serde_json::Value) -> Result<serde_json::Value, String> {
     if !chat::conversacion_valida(&conversacion) {
         return Err(String::from("id de conversación inválido"));
     }
-    let carpeta = carpeta_tareas(&app)?;
+    let de_habitos = mcp_avis::es_de_habitos(&cambio);
+    let carpeta = if de_habitos { carpeta_habitos(&app)? } else { carpeta_tareas(&app)? };
     let para_avisar = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let d = mcp_avis::deshacer(&carpeta, &cambio, chrono::Utc::now().timestamp_millis())?;
+        let ahora = chrono::Utc::now().timestamp_millis();
+        let (d, evento) = if de_habitos {
+            (mcp_avis::deshacer_habito(&carpeta, &cambio, ahora)?, mcp_avis::EVENTO_HABITOS)
+        } else {
+            (mcp_avis::deshacer(&carpeta, &cambio, ahora)?, mcp_avis::EVENTO_TAREAS)
+        };
         for t in &d.tocadas {
-            let _ = para_avisar.emit(mcp_avis::EVENTO_TAREAS, t);
+            let _ = para_avisar.emit(evento, t);
         }
         if d.estado == "deshecho" && !d.tocadas.is_empty() {
             el_chat()?.anotar_deshecho(&conversacion, &mcp_avis::linea_deshecho(&cambio));
@@ -988,12 +994,18 @@ async fn chat_reintentar(app: AppHandle, conversacion: String, cambio: serde_jso
     if !chat::conversacion_valida(&conversacion) {
         return Err(String::from("id de conversación inválido"));
     }
-    let carpeta = carpeta_tareas(&app)?;
+    let de_habitos = mcp_avis::es_de_habitos(&cambio);
+    let carpeta = if de_habitos { carpeta_habitos(&app)? } else { carpeta_tareas(&app)? };
     let para_avisar = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let (nuevo, tocadas) = mcp_avis::reintentar(&carpeta, &cambio, chrono::Utc::now().timestamp_millis())?;
+        let ahora = chrono::Utc::now().timestamp_millis();
+        let ((nuevo, tocadas), evento) = if de_habitos {
+            (mcp_avis::reintentar_habito(&carpeta, &cambio, ahora)?, mcp_avis::EVENTO_HABITOS)
+        } else {
+            (mcp_avis::reintentar(&carpeta, &cambio, ahora)?, mcp_avis::EVENTO_TAREAS)
+        };
         for t in &tocadas {
-            let _ = para_avisar.emit(mcp_avis::EVENTO_TAREAS, t);
+            let _ = para_avisar.emit(evento, t);
         }
         Ok(nuevo)
     })
@@ -2096,12 +2108,16 @@ pub fn run() {
                     };
                     modelo::IA.motor_charla(&avisar).map(|(puerto, uso)| (puerto, Box::new(uso) as Box<dyn chat_local::UsoMotor>))
                 }));
-                // Las herramientas de tareas de la charla (#43): el servidor arranca con el primer `claude`
+                // Las herramientas de tareas y hábitos de la charla (#43, C3): el servidor arranca con el primer `claude`
                 let para_tareas = handle.clone();
+                let para_habitos = handle.clone();
                 el.poner_herramientas(
-                    config.join("tareas"),
+                    mcp_avis::Carpetas { tareas: config.join("tareas"), habitos: config.join("habitos") },
                     std::sync::Arc::new(move |v| {
                         let _ = para_tareas.emit(mcp_avis::EVENTO_TAREAS, v);
+                    }),
+                    std::sync::Arc::new(move |v| {
+                        let _ = para_habitos.emit(mcp_avis::EVENTO_HABITOS, v);
                     }),
                 );
                 // Las charlas de proyecto (#44, proyectos-ux.md 11.4): sus instrucciones y su carpeta se leen de acá
