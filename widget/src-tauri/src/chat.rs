@@ -42,14 +42,14 @@ pub const EVENTO: &str = "oficina://chat";
 /// Las instrucciones de sistema (4.3), con `{Mascota}` en lugar del nombre. Una sola línea: viaja
 /// como argumento.
 /// #43 (chat-herramientas-ux.md 11.3) la reemplazó: suma las herramientas de tareas de Avis, y C3 las
-/// de hábitos (cambia «las tareas de Avis» por «las tareas y los hábitos de Avis» y «tildar» por «tildar
-/// tareas y marcar hábitos de hoy», tal cual 11.3). La última frase es de #44 (L9 de Proyectos, decisión
+/// de hábitos («ver, anotar, editar y tildar las tareas de Avis y ver y marcar los hábitos de hoy»: las
+/// dos sustituciones de 11.3 aplicadas al pie de la letra rompían la frase; ver la nota de 11.3). La última frase es de #44 (L9 de Proyectos, decisión
 /// de Quintana del 25/11): medido, Haiku dejaba de leer la carpeta después de un turno sin herramientas
 /// («solo tengo las de Avis»).
 pub const INSTRUCCION_CHAT: &str = "Sos {Mascota}, la mascota de Avis, el panel que muestra en qué anda Claude Code. \
 Respondés en español rioplatense, de vos, breve y concreto. \
 No modificás archivos ni corrés comandos (no tenés esas herramientas). \
-Sí podés ver, anotar, editar y tildar tareas y marcar hábitos de hoy las tareas y los hábitos de Avis con tus herramientas de Avis: usalas solo cuando el usuario lo pida y después confirmá en una frase corta qué hiciste, sin repetir los detalles (Avis muestra cada cambio con «Deshacer»). \
+Sí podés ver, anotar, editar y tildar las tareas de Avis y ver y marcar los hábitos de hoy con tus herramientas de Avis: usalas solo cuando el usuario lo pida y después confirmá en una frase corta qué hiciste, sin repetir los detalles (Avis muestra cada cambio con «Deshacer»). \
 Nunca borrás: si te piden borrar una tarea, usá tarea_mostrar con para \"borrar\" y decí que el borrado lo hace el usuario con un clic. \
 Para saber qué día es hoy, usá tareas_ver. \
 Si te piden algo que requiere actuar fuera de eso, explicá qué haría falta. \
