@@ -286,6 +286,23 @@ export function nombreSubagente(descripcion: string, id: string): { nombre: stri
   return { nombre, tarea: descripcion.trim(), inventado: true }
 }
 
+/** Lo que importa de cada entrada de `$.agent.list()`. */
+type AgenteDelMotor = { id: string; description: string; type: string; status: string; kind: string }
+
+/**
+ * Los subagentes que siguen corriendo según el motor (`$.agent.list()`) y el mod no conoce (v0.12.1).
+ * Tras /reload-plugins el mod arranca sin memoria: sin esto, una sesión que coordina en segundo plano
+ * se veía "sin actividad" y a los 20 min se plegaba con «Terminar». `desde` es ahora (el motor no lo dice).
+ */
+export function subagentesEnCurso(lista: ReadonlyArray<AgenteDelMotor>, conocidos: ReadonlySet<string>, ahora: string): Subagente[] {
+  return lista
+    .filter(a => a.kind === 'local_agent' && ['pending', 'running', 'waiting'].includes(a.status) && !conocidos.has(a.id))
+    .map(a => {
+      const { nombre, tarea, inventado } = nombreSubagente(a.description, a.id)
+      return { id: a.id, nombre, inventado, tipo: a.type, tarea, desde: ahora, estado: 'trabajando', hasta: null }
+    })
+}
+
 const LARGO_ACTIVIDAD = 60
 
 function recortarActividad(texto: string): string {
