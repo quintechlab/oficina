@@ -827,6 +827,8 @@ async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean
   mock.store(on, { yo: { login: 'nicoequintana', nombre: 'Quintana' } })
   const archivos = new Map<string, string>()
   const escrituras: string[] = []
+  /** Cada `$.fs.read`: el motor anota en stderr cada lectura que falla. */
+  const lecturas: string[] = []
   const enviados: string[] = []
   const abortados: string[] = []
   const comoUsuario: boolean[] = []
@@ -848,7 +850,9 @@ async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   // El motor entrega las rutas con la barra de la plataforma: se comparan siempre con "/"
   const barras = (ruta: string) => ruta.replace(/\\/g, '/')
+  on('fs.exists', (_, e) => ({ value: archivos.has(barras(e.path)) }) as never)
   on('fs.read', (_, e) => {
+    lecturas.push(barras(e.path))
     const texto = archivos.get(barras(e.path))
     if (texto === undefined) throw new Error('no existe')
     return { value: texto }
@@ -887,6 +891,7 @@ async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean
     archivos,
     comentarios,
     escrituras,
+    lecturas,
     enviados,
     comoUsuario,
     abortados,
@@ -1028,6 +1033,15 @@ test('frenar sin turno en curso no corta nada (el turno de un subagente no cuent
   await s.ordenar({ tipo: 'frenar', texto: undefined })
   expect(s.abortados).toEqual([])
   expect(s.resultado()?.resultado).toBe('sin-turno')
+})
+
+test('sin orden del widget, la vigilancia no lee el archivo (el motor anotaría ENOENT en stderr cada segundo)', async ($, on) => {
+  const s = await abrirSesion($, on)
+  await s.reloj.advance(MS_ENTRE_ORDENES * 5)
+  expect(s.lecturas.filter(p => p === RUTA_ORDEN)).toEqual([])
+  // Con una orden, la lee y la ejecuta como siempre
+  await s.ordenar({ tipo: 'mensaje', texto: 'hola' })
+  expect(s.enviados).toEqual(['hola'])
 })
 
 test('si el motor rechaza el frenar, la orden queda como fallo con su motivo', async ($, on) => {
