@@ -9,7 +9,9 @@ mod engram;
 mod equipo;
 mod habitos;
 mod historial;
+mod ids;
 mod preferencias;
+mod proyectos;
 mod mcp_avis;
 mod modelo;
 mod mod_auto;
@@ -1103,6 +1105,179 @@ async fn habitos_frase(app: AppHandle, datos: serde_json::Value) -> Result<serde
     }
 }
 
+// ------------------------------------------------------------------ proyectos (#44)
+
+/// `<config>/proyectos`: un archivo por proyecto (`proyectos.rs`).
+fn carpeta_proyectos(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path().app_config_dir().map(|c| c.join("proyectos")).map_err(|e| e.to_string())
+}
+
+/// Lo que no se acepta como carpeta de un proyecto (proyectos-ux.md 11.2): Windows, Archivos de
+/// programa y la configuración de Avis (además de la raíz de un disco y la red, en `carpeta_valida`).
+fn reglas_proyectos(app: &AppHandle) -> Result<proyectos::Reglas, String> {
+    app.path().app_config_dir().map(|c| proyectos::Reglas::del_sistema(&c)).map_err(|e| e.to_string())
+}
+
+/// La respuesta de un error de los comandos de proyectos: `{ error, motivo? }`. `motivo`: `repetido`
+/// (el nombre) o el de la carpeta (`grande`, `red`, `no-existe`, `crear`); la ventana elige el texto de 5.2.
+fn error_proyecto(error: &str, motivo: Option<&str>) -> serde_json::Value {
+    let motivo = motivo.or((error == proyectos::REPETIDO).then_some(proyectos::REPETIDO));
+    serde_json::json!({ "error": error, "motivo": motivo })
+}
+
+/// La carpeta que pide la ventana con un modo, nunca con una ruta (11.2, D-p10): `"elegir"` abre el
+/// diálogo de Windows (bloquea: se llama desde `spawn_blocking`) y valida lo elegido; `"avis"` crea
+/// `Documentos › Avis › <nombre>`. `Ok(None)`: se canceló el diálogo. `Err`: la respuesta de error.
+fn carpeta_pedida(app: &AppHandle, modo: &str, nombre: &str, reglas: &proyectos::Reglas) -> Result<Option<serde_json::Value>, serde_json::Value> {
+    use tauri_plugin_dialog::DialogExt;
+    let falla = |m: proyectos::Motivo| {
+        registrar(format!("proyectos: carpeta rechazada ({})", m.codigo()));
+        error_proyecto("carpeta rechazada", Some(m.codigo()))
+    };
+    match modo {
+        "elegir" => {
+            let mut dialogo = app.dialog().file().set_title("Elegí la carpeta del proyecto");
+            if let Some(v) = ventana(app) {
+                dialogo = dialogo.set_parent(&v);
+            }
+            let Some(elegida) = dialogo.blocking_pick_folder().and_then(|r| r.into_path().ok()) else { return Ok(None) };
+            let r = proyectos::carpeta_valida(&elegida, reglas).map_err(falla)?;
+            Ok(Some(serde_json::json!({ "tipo": "pc", "ruta": r.to_string_lossy() })))
+        }
+        "avis" => {
+            let documentos = app.path().document_dir().map_err(|_| falla(proyectos::Motivo::Crear))?;
+            let r = proyectos::crear_carpeta_avis(&documentos, nombre, reglas).map_err(falla)?;
+            Ok(Some(serde_json::json!({ "tipo": "avis", "ruta": r.to_string_lossy() })))
+        }
+        _ => Err(error_proyecto("modo de carpeta desconocido", None)),
+    }
+}
+
+/// Todos los proyectos, en orden, con el estado de su carpeta (proyectos-ux.md 11.3): `{ proyectos,
+/// rotas: [{ archivo, motivo }] }`. Solo lectura. Una carpeta que existe y no se puede leer es un error.
+#[tauri::command]
+async fn proyectos_leer(app: AppHandle) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_proyectos(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Err(e) = std::fs::read_dir(&carpeta) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                registrar(format!("proyectos: no se pudo leer la carpeta: {e}"));
+                return Err(String::from("No se pudo abrir la carpeta de proyectos."));
+            }
+        }
+        let l = proyectos::listar(&carpeta);
+        let lista: Vec<serde_json::Value> = l.proyectos.iter().map(proyectos::con_estado).collect();
+        Ok(serde_json::json!({ "proyectos": lista, "rotas": l.rotas }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Crea un proyecto (11.3): `datos` = `{ id, nombre, color, instrucciones, carpeta: "avis" | "elegir" }`.
+/// Primero se revisa el nombre y el id; con `"elegir"`, después el diálogo (cancelado: `{ cancelado: true
+/// }` y nada se crea); con `"avis"`, la carpeta en Documentos. `{ proyecto }` (con el estado de su
+/// carpeta) o `{ error, motivo }`.
+#[tauri::command]
+async fn proyecto_crear(app: AppHandle, datos: serde_json::Value) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_proyectos(&app)?;
+    let reglas = reglas_proyectos(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let ahora = chrono::Utc::now().timestamp_millis().max(0) as u64;
+        let mut doc = match proyectos::nuevo(&carpeta, &datos, ahora) {
+            Ok(d) => d,
+            Err(e) => return Ok(error_proyecto(&e, None)),
+        };
+        let nombre = doc["nombre"].as_str().unwrap_or_default().to_string();
+        doc["carpeta"] = match carpeta_pedida(&app, datos["carpeta"].as_str().unwrap_or_default(), &nombre, &reglas) {
+            Ok(Some(c)) => c,
+            Ok(None) => return Ok(serde_json::json!({ "cancelado": true })),
+            Err(e) => return Ok(e),
+        };
+        Ok(match proyectos::crear(&carpeta, &doc) {
+            Ok(p) => serde_json::json!({ "proyecto": proyectos::con_estado(&p) }),
+            Err(e) => {
+                registrar(format!("proyectos: no se pudo crear: {e}"));
+                error_proyecto(&e, None)
+            }
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Guarda lo que se edita de un proyecto (nombre, color, orden, instrucciones; 11.3). **La `carpeta` del
+/// documento se ignora** (11.1). `{ proyecto }` o `{ error, motivo }` (la ventana lo anota).
+#[tauri::command]
+async fn proyectos_guardar(app: AppHandle, proyecto: serde_json::Value) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_proyectos(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || proyectos::guardar(&carpeta, &proyecto)).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok(p) => serde_json::json!({ "proyecto": proyectos::con_estado(&p) }),
+        Err(e) => error_proyecto(&e, None),
+    })
+}
+
+/// Cambia la carpeta de un proyecto (Editar › «Cambiar…», «Elegir otra» o «Crear una nueva», 11.2):
+/// `modo` `"elegir"` o `"avis"`. `{ proyecto }`, `{ cancelado: true }` o `{ error, motivo }`.
+#[tauri::command]
+async fn proyecto_cambiar_carpeta(app: AppHandle, id: String, modo: String) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_proyectos(&app)?;
+    let reglas = reglas_proyectos(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let actual = match proyectos::leer(&carpeta, &id) {
+            Ok(p) => p,
+            Err(e) => return Ok(error_proyecto(&e, None)),
+        };
+        let nueva = match carpeta_pedida(&app, &modo, actual["nombre"].as_str().unwrap_or_default(), &reglas) {
+            Ok(Some(c)) => c,
+            Ok(None) => return Ok(serde_json::json!({ "cancelado": true })),
+            Err(e) => return Ok(e),
+        };
+        Ok(match proyectos::cambiar_carpeta(&carpeta, &id, &nueva) {
+            Ok(p) => serde_json::json!({ "proyecto": proyectos::con_estado(&p) }),
+            Err(e) => {
+                registrar(format!("proyectos: no se pudo cambiar la carpeta: {e}"));
+                error_proyecto(&e, None)
+            }
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Borra un proyecto (solo con el segundo clic de «¿Borrar…? Sí»): su archivo, **nunca su carpeta** ni un
+/// archivo roto. Entrega P1: todavía sin charlas de proyecto (llegan con P2), así que `{ charlas: 0,
+/// fallidas: 0 }`; o `{ error }`.
+#[tauri::command]
+async fn proyecto_borrar(app: AppHandle, id: String) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_proyectos(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || proyectos::borrar(&carpeta, &id)).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok(()) => serde_json::json!({ "charlas": 0, "fallidas": 0 }),
+        Err(error) => {
+            registrar(format!("proyectos: no se pudo borrar: {error}"));
+            error_proyecto(&error, None)
+        }
+    })
+}
+
+/// Abre la carpeta de un proyecto en el Explorador (11.2): Rust lee la ruta del archivo del proyecto y la
+/// revalida; nunca una ruta de la ventana.
+#[tauri::command]
+async fn proyecto_abrir_carpeta(app: AppHandle, id: String) -> Result<(), String> {
+    let carpeta = carpeta_proyectos(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || proyectos::ruta_para_abrir(&carpeta, &id)).await.map_err(|e| e.to_string())??;
+    std::process::Command::new("explorer").arg(&r).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// Abre `<config>/proyectos/` en el Explorador (7.6: «Abrir la carpeta» de un proyecto roto).
+#[tauri::command]
+fn proyectos_abrir_carpeta(app: AppHandle) -> Result<(), String> {
+    let carpeta = carpeta_proyectos(&app)?;
+    std::fs::create_dir_all(&carpeta).map_err(|e| e.to_string())?;
+    std::process::Command::new("explorer").arg(&carpeta).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 /// El motor, la carpeta y el modelo de la charla (chat-avis-ux.md 3.4 y #35): quedan para la próxima
 /// charla nueva y la carpeta va primera en las recientes. `modelo`: uno de `chat::MODELOS` o `null`
 /// ("Por defecto"), guardado tal cual. Devuelve `{ motor, carpeta, recientes, modelo }` como el `chat`
@@ -1967,6 +2142,13 @@ pub fn run() {
             habitos_borrar,
             habitos_abrir_carpeta,
             habitos_frase,
+            proyectos_leer,
+            proyecto_crear,
+            proyectos_guardar,
+            proyecto_cambiar_carpeta,
+            proyecto_borrar,
+            proyecto_abrir_carpeta,
+            proyectos_abrir_carpeta,
             guardar_chat,
             elegir_carpeta,
             borrar_modelo,

@@ -29,7 +29,6 @@ const TOPE_NOTAS: usize = 4_000;
 const TOPE_SUBTAREAS: usize = 50;
 /// Tope de forma: más que esto no es una lista de Avis.
 const TOPE_TAREAS: usize = 5_000;
-const TOPE_ID: usize = 40;
 /// Los colores de lista (6); otro valor se lee como el primero.
 pub const COLORES: [&str; 6] = ["celeste", "verde", "rosa", "violeta", "ambar", "rojo"];
 
@@ -40,14 +39,9 @@ const CLAVES_SUBTAREA: [&str; 3] = ["id", "titulo", "hecha"];
 
 static ESCRITURA: Mutex<()> = Mutex::new(());
 
-/// Un id de 11.1 (`^[a-z0-9-]{1,40}$`) que empieza con su prefijo (`l-`, `t-`, `s-`): nunca `..`, una
-/// barra, un punto ni un nombre reservado de Windows (`con`, `nul`… no tienen prefijo).
-pub(crate) fn id_con(prefijo: &str, id: &str) -> bool {
-    id.len() <= TOPE_ID
-        && id.len() > prefijo.len()
-        && id.starts_with(prefijo)
-        && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
-}
+/// La regla de los ids de 11.1 con su prefijo (`l-`, `t-`, `s-`): vive en `ids.rs`, compartida con
+/// hábitos y proyectos (#44), que la toman de acá o de allá.
+pub(crate) use crate::ids::id_con;
 
 /// Un id de lista: `l-…`.
 pub fn id_valido(id: &str) -> bool {

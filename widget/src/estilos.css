@@ -1924,11 +1924,11 @@ p.det-rot { margin-top: var(--e-5) }
 
 /* Modelos e Instalación (6.1, entrega 3): píldoras de estado con su texto siempre, tarjetas del
    modelo local y del mod, y el "¿Borrar? Sí" que confirma en el mismo botón (D5) */
-:is(#cfg, #tar, #hab) .t-ok { --c: var(--verde) }
-:is(#cfg, #tar, #hab) .t-aviso { --c: var(--ambar) }
-:is(#cfg, #tar, #hab) .t-proc { --c: var(--celeste) }
-:is(#cfg, #tar, #hab) .t-error { --c: var(--rojo) }
-:is(#cfg, #tar, #hab) .t-nada { --c: var(--tenue) }
+:is(#cfg, #tar, #hab, #pro) .t-ok { --c: var(--verde) }
+:is(#cfg, #tar, #hab, #pro) .t-aviso { --c: var(--ambar) }
+:is(#cfg, #tar, #hab, #pro) .t-proc { --c: var(--celeste) }
+:is(#cfg, #tar, #hab, #pro) .t-error { --c: var(--rojo) }
+:is(#cfg, #tar, #hab, #pro) .t-nada { --c: var(--tenue) }
 /* El punto de estado de una pestaña (6.3): el texto va oculto al lado, el color nunca solo */
 #cfg .pes .pt { width: 6px; height: 6px; box-shadow: none }
 #cfg .pill {
@@ -1948,26 +1948,26 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .barra { background: var(--s3) }
 #cfg .barra i { background: linear-gradient(90deg, var(--celeste), #B5D3FF); transition: transform .4s var(--ease) }
 #cfg .barra i::after { display: none }
-:is(#cfg, #tar, #hab) .cifras { font: var(--t-mono-s); color: var(--tenue); font-variant-numeric: tabular-nums }
-:is(#cfg, #tar, #hab) .lnk {
+:is(#cfg, #tar, #hab, #pro) .cifras { font: var(--t-mono-s); color: var(--tenue); font-variant-numeric: tabular-nums }
+:is(#cfg, #tar, #hab, #pro) .lnk {
   min-height: 32px; padding: 0 var(--e-3); border: 0; border-radius: var(--r-tag); background: none; color: var(--crema2);
   font: 700 12px/1 var(--f); cursor: pointer; transition: color var(--d-color) ease, transform var(--d-presion) ease;
 }
-:is(#cfg, #tar, #hab) .lnk:hover { color: var(--crema); text-decoration: underline }
-:is(#cfg, #tar, #hab) .lnk:active { transform: scale(.97) }
-:is(#cfg, #tar, #hab) .lnk.peligro { color: var(--rojo) }
-:is(#cfg, #tar, #hab) .armado {
+:is(#cfg, #tar, #hab, #pro) .lnk:hover { color: var(--crema); text-decoration: underline }
+:is(#cfg, #tar, #hab, #pro) .lnk:active { transform: scale(.97) }
+:is(#cfg, #tar, #hab, #pro) .lnk.peligro { color: var(--rojo) }
+:is(#cfg, #tar, #hab, #pro) .armado {
   position: relative; overflow: hidden; min-height: 32px; padding: 0 var(--e-6); border: 0; border-radius: var(--r-pildora);
   background: var(--rojo); color: var(--negro); font: 800 12px/1 var(--f); white-space: nowrap; cursor: pointer;
 }
-:is(#cfg, #tar, #hab) .armado:focus-visible { outline-color: var(--crema) }
+:is(#cfg, #tar, #hab, #pro) .armado:focus-visible { outline-color: var(--crema) }
 /* La línea que se vacía en los 3 s (`--ya` la retoma donde iba si la sección se redibuja) */
-:is(#cfg, #tar, #hab) .armado::after {
+:is(#cfg, #tar, #hab, #pro) .armado::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--negro); opacity: .45;
   transform-origin: 0 50%; animation: drena var(--d-confirma) linear var(--ya, 0ms) both;
 }
 #cfg .ver-avis { margin: var(--e-7) 0 0; font: var(--t-mono-s); color: var(--tenue) }
-:is(#cfg, #tar, #hab) .lnk[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none; transform: none }
+:is(#cfg, #tar, #hab, #pro) .lnk[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none; transform: none }
 
 /* Claves de API (6.1 y 7.1, entrega 4): el candado, una fila por proveedor con su inicial (sin logos,
    D11), el estado con la máscara del final y, editando, el campo de contraseña con su ayuda */
@@ -1989,14 +1989,14 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .cl > .acc, #cfg .cl > .aj-error { grid-column: 2 }
 #cfg .cl > .aj-error { margin: 0 }
 #cfg .cl-form { grid-column: 2; display: grid; gap: 6px; margin-top: 6px }
-:is(#cfg, #tar, #hab) .campo {
+:is(#cfg, #tar, #hab, #pro) .campo {
   display: flex; align-items: center; gap: var(--e-2); padding: 0 var(--e-2) 0 12px; min-height: 38px; border: 1px solid var(--linea);
   border-radius: var(--r-campo); background: var(--s1); transition: border-color var(--d-color) ease, box-shadow var(--d-color) ease;
 }
-:is(#cfg, #tar, #hab) .campo:focus-within { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
-:is(#cfg, #tar, #hab) .campo.mal { border-color: rgba(255, 122, 107, .7) }
-:is(#cfg, #tar, #hab) .campo input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--crema); font: var(--t-mono); letter-spacing: .03em }
-:is(#cfg, #tar, #hab) .campo input::placeholder { color: var(--tenue) }
+:is(#cfg, #tar, #hab, #pro) .campo:focus-within { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
+:is(#cfg, #tar, #hab, #pro) .campo.mal { border-color: rgba(255, 122, 107, .7) }
+:is(#cfg, #tar, #hab, #pro) .campo input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--crema); font: var(--t-mono); letter-spacing: .03em }
+:is(#cfg, #tar, #hab, #pro) .campo input::placeholder { color: var(--tenue) }
 #cfg .cl-ayuda { margin: 0; font: var(--t-chico); color: var(--tenue) }
 #cfg .cl-ayuda.mal { color: var(--rojo) }
 #cfg .cl-ayuda.aviso { color: var(--ambar) }
@@ -2007,18 +2007,18 @@ p.det-rot { margin-top: var(--e-5) }
   body:not(.pausa) #cfg .cl.recien { animation: cfgRecien 1.2s var(--ease) }
 }
 @media (prefers-reduced-motion: reduce) {
-  :is(#cfg, #tar, #hab) .campo { transition: none }
+  :is(#cfg, #tar, #hab, #pro) .campo { transition: none }
 }
 @keyframes cfgLate { 50% { opacity: .35 } }
 @media (prefers-reduced-motion: no-preference) {
-  body:not(.pausa) :is(#cfg, #tar, #hab) .t-proc .pt { animation: cfgLate 1.2s ease-in-out infinite }
+  body:not(.pausa) :is(#cfg, #tar, #hab, #pro) .t-proc .pt { animation: cfgLate 1.2s ease-in-out infinite }
 }
 @media (prefers-reduced-motion: reduce) {
-  #cfg .barra i, :is(#cfg, #tar, #hab) .lnk { transition: none }
-  :is(#cfg, #tar, #hab) .armado::after { animation: none }
+  #cfg .barra i, :is(#cfg, #tar, #hab, #pro) .lnk { transition: none }
+  :is(#cfg, #tar, #hab, #pro) .armado::after { animation: none }
 }
 body.pausa #cfg .barra i { transition: none }
-body.pausa :is(#cfg, #tar, #hab) .armado::after { animation: none }
+body.pausa :is(#cfg, #tar, #hab, #pro) .armado::after { animation: none }
 
 /* El Avi de 40 junto al título, fuera de Mascota (6.1 `.mini`) */
 .cfg-mini { display: none }
@@ -2058,12 +2058,12 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 /* «‹ Tablero» se fue con el menú de módulos (modulos-ux.md 3.2): Esc o la fila de Sesiones vuelven. La bajada
    "martes 24/11 · 2 para hoy · 2 vencidas" va en una línea; si una más larga no entra, se corta con "…" (las
    cuentas siguen a la vista en el índice) */
-:is(#marco.con-tar, #marco.con-hab) .controles { align-items: center }
-:is(#marco.con-tar, #marco.con-hab) #subtitulo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-:is(#marco.con-tar, #marco.con-hab) #vacio-avi, :is(#marco.con-tar, #marco.con-hab) #otro, :is(#marco.con-tar, #marco.con-hab) #pestanas, :is(#marco.con-tar, #marco.con-hab) .split, :is(#marco.con-tar, #marco.con-hab) .ficha-u,
-:is(#marco.con-tar, #marco.con-hab) #w-globo, :is(#marco.con-tar, #marco.con-hab) #pp, :is(#marco.con-tar, #marco.con-hab) .conteos, :is(#marco.con-tar, #marco.con-hab) .sesiones { display: none }
-:is(#marco.con-tar, #marco.con-hab) .principal { overflow: hidden }
-:is(#marco.con-tar, #marco.con-hab).bajo #subtitulo { display: none }
+:is(#marco.con-tar, #marco.con-hab, #marco.con-pro) .controles { align-items: center }
+:is(#marco.con-tar, #marco.con-hab, #marco.con-pro) #subtitulo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+:is(#marco.con-tar, #marco.con-hab, #marco.con-pro) #vacio-avi, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) #otro, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) #pestanas, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) .split, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) .ficha-u,
+:is(#marco.con-tar, #marco.con-hab, #marco.con-pro) #w-globo, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) #pp, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) .conteos, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) .sesiones { display: none }
+:is(#marco.con-tar, #marco.con-hab, #marco.con-pro) .principal { overflow: hidden }
+:is(#marco.con-tar, #marco.con-hab, #marco.con-pro).bajo #subtitulo { display: none }
 #marco.con-tar #tar { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
 #tar > * { flex: none }
 #tar-aviso { margin-bottom: var(--e-5) }
@@ -2693,3 +2693,213 @@ body.pausa .globo-hab .globo-x, body.pausa .globo-hab .g-hacer { transition: non
   body:not(.pausa) .globo-sem .barras i { animation: barra-sube .6s var(--ease) both; animation-delay: calc(var(--i) * 45ms + 260ms) }
 }
 @keyframes barra-sube { from { transform: scaleY(0) } }
+
+/* ------------------------------------------------------------------ Proyectos (#44, docs/diseno/proyectos-ux.md, opción B · Carpeta)
+   El índice de 136 con la píldora que viaja y toma el color del proyecto, el proyecto elegido (encabezado,
+   botón de charla, charlas, instrucciones, carpeta, la matriz de qué ve cada motor y borrar), el
+   formulario y el primer uso. Lo compartido con las otras hojas (`.lnk`, `.armado`, ocultar el tablero) va
+   en sus `:is(…)` de arriba; lo propio, bajo #pro o .mod.pro. Los controles miden 32 de alto (D-p5) */
+
+/* La fila del menú (4.1): el punto rojo de 6 a la derecha del chip si algún proyecto perdió su carpeta */
+.mod.pro .mod-ic svg { stroke-width: 1.5 }
+.mod .pro-mal { width: 6px; height: 6px; --c: var(--rojo); box-shadow: none }
+
+/* La columna con la hoja abierta (3.2) */
+#pro:empty { display: none }
+#marco.con-pro #pro { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
+#pro > * { flex: none }
+#pro > #pro-cuerpo { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
+#pro .rojo { color: var(--rojo); font-weight: 600 }
+
+/* La carpeta (3.3): los rotos arriba, el índice de 136 y el panel que desplaza por su lado (13) */
+#pro .carp { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--ancho-indice) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 0 14px }
+#pro .carp.sin-idx { grid-template-columns: minmax(0, 1fr) }
+#pro .pro-rotos { grid-column: 1 / -1 }
+#pro .pro-rotos:empty { display: none }
+#pro .pro-rotos > * { margin: 0 0 var(--e-4) }
+#pro .idx { position: relative; min-width: 0; min-height: 0; padding-right: 10px; border-right: 1px solid var(--linea); overflow-y: auto; scrollbar-width: none }
+#pro .idx::-webkit-scrollbar { display: none }
+#pro .ix-filas { display: flex; flex-direction: column; gap: 2px }
+#pro .rot { margin: 2px 0 4px 8px }
+#pro .ix-b {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 0 6px;
+  border: 0; border-radius: var(--r-fila); background: none; color: var(--crema2); font: 700 12px/1.15 var(--f); text-align: left; cursor: pointer;
+  transition: color var(--d-color) ease, transform var(--d-presion) ease;
+}
+#pro .ix-b:hover, #pro .ix-b[aria-current="page"] { color: var(--crema) }
+#pro .ix-b:active { transform: scale(.97) }
+#pro .ix-b .pt { width: 6px; height: 6px; margin: 0 2px; box-shadow: none }
+#pro .ix-b .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+#pro .ix-b .ct { flex: none; font: 500 10px/1 var(--m); color: var(--tenue) }
+#pro .ix-b .mal-p { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--rojo); box-shadow: 0 0 0 3px rgba(255, 122, 107, .2) }
+#pro .ix-b.mas { margin-top: 6px; color: var(--ambar) }
+#pro .ix-b.mas i {
+  width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 7px;
+  border: 1px dashed color-mix(in srgb, var(--ambar) 60%, transparent); font: 400 15px/1 var(--f); font-style: normal;
+}
+/* La píldora (4.2): fondo --s2 con el borde de 3 del color del proyecto; viaja con translateY (proyectosMotion.js) */
+#pro .ind-ix {
+  position: absolute; left: 0; right: 10px; top: 0; height: 36px; border-radius: var(--r-fila); background: var(--s2);
+  box-shadow: inset 3px 0 0 var(--c, var(--ambar)); transition: box-shadow .3s ease, opacity .2s ease; pointer-events: none;
+}
+#pro .ind-ix.apagada { opacity: 0 }
+#pro .ix-fantasma { display: block; height: 36px; margin: 0 6px 2px 0; border-radius: var(--r-fila); background: var(--s2) }
+#pro .pane { min-width: 0; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--linea-hover) transparent; padding: 0 4px 4px 0 }
+
+/* El proyecto (4.3 a 4.9), de arriba abajo en el orden en que se usa */
+#pro .ficha { display: grid; gap: 12px; align-content: start }
+#pro .f-cab { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding-bottom: 2px; background: var(--negro) }
+#pro .pj-ic {
+  width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 11px;
+  background: color-mix(in srgb, var(--c) 18%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent);
+  color: var(--c); font: 600 13px/1 var(--m);
+}
+#pro .f-t { flex: 1; min-width: 0 }
+#pro .f-t h2 { font: 800 18px/1.15 var(--f); letter-spacing: -.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#pro .f-t small { display: block; font: var(--t-mono-s); color: var(--tenue) }
+#pro .cta {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 14px 0 8px; border: 0; border-radius: 14px;
+  background: var(--ambar); color: var(--negro); font: 800 13px/1 var(--f); text-align: left; cursor: pointer;
+  box-shadow: 0 14px 30px -18px rgba(242, 182, 50, .8); transition: transform var(--d-presion) ease, filter var(--d-color) ease;
+}
+#pro .cta:hover { filter: brightness(1.06) }
+#pro .cta:active { transform: scale(.98) }
+#pro .cta:focus-visible { outline-color: var(--crema) }
+/* La charla del proyecto llega con la entrega P2: hasta entonces el botón se ve apagado */
+#pro .cta[aria-disabled="true"] { opacity: .55; cursor: not-allowed; filter: none; transform: none }
+#pro .cta-av { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--negro); overflow: hidden }
+#pro .vacio-ch { display: flex; gap: 10px; align-items: center; margin: 0; padding: 12px; border-radius: 14px; border: 1px dashed var(--linea-hover); font: var(--t-chico); color: var(--crema2) }
+#pro .vacio-ch .av { flex: none; display: grid; place-items: center }
+#pro .vacio-ch b { color: var(--crema) }
+#pro .bloque { display: grid; gap: 8px; align-content: start; min-width: 0; padding: 12px; border-radius: 14px; background: var(--s1); border: 1px solid var(--linea) }
+#pro .bloque .rot { margin: 0 }
+#pro .bl-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px }
+#pro .bl-b {
+  min-height: 32px; margin: -8px -6px -8px 0; padding: 0 8px; border: 0; border-radius: 8px; background: none;
+  font: var(--t-mono-s); color: var(--crema2); cursor: pointer; transition: background var(--d-color) ease, color var(--d-color) ease;
+}
+#pro .bl-b:hover { background: var(--s3); color: var(--crema) }
+#pro .instr { margin: 0; font: 500 12px/1.5 var(--f); color: var(--crema); white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere }
+#pro .instr::before { content: "“"; margin-right: 2px; color: var(--c); font: 800 18px/0 var(--f); vertical-align: -6px }
+#pro .instr-no { margin: 0; font: var(--t-chico); color: var(--tenue) }
+#pro .bloque .pie { font: var(--t-mono-s); color: var(--tenue) }
+#pro .car-n { display: flex; gap: 8px; align-items: center; min-width: 0 }
+#pro .car-n svg { width: 22px; height: 22px; flex: none; fill: color-mix(in srgb, var(--c) 22%, transparent); stroke: var(--c); stroke-width: 1.3 }
+#pro .car-n > div { min-width: 0 }
+#pro .car-n b { display: block; font: var(--t-cuerpo-f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#pro .car-n small { display: block; font: var(--t-mono-s); color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#pro .tag { display: inline-flex; justify-self: start; padding: 3px 7px; border-radius: 6px; background: var(--s3); font: var(--t-mono-s); color: var(--crema2) }
+/* La zona de soltar (4.7): el borde punteado dibujado con gradientes; encendida (`.vivo`, 7.3) o al pasar, las hormigas marchan */
+#pro .soltar {
+  --lh: var(--linea-hover);
+  display: grid; place-items: center; align-content: center; gap: 3px; min-height: 54px; padding: 8px; border: 0; border-radius: 10px;
+  font: 600 11px/1.3 var(--f); color: var(--crema2); text-align: center; cursor: pointer; transition: color var(--d-color) ease, background-color .2s ease;
+  background:
+    linear-gradient(90deg, var(--lh) 50%, transparent 0) 0 0 / 10px 1px repeat-x,
+    linear-gradient(90deg, var(--lh) 50%, transparent 0) 0 100% / 10px 1px repeat-x,
+    linear-gradient(var(--lh) 50%, transparent 0) 0 0 / 1px 10px repeat-y,
+    linear-gradient(var(--lh) 50%, transparent 0) 100% 0 / 1px 10px repeat-y;
+}
+#pro .soltar small { font: var(--t-mono-s); color: var(--tenue) }
+#pro .soltar:hover, #pro .soltar.vivo { --lh: var(--c); color: var(--crema) }
+#pro .soltar.vivo { background-color: color-mix(in srgb, var(--c) 8%, transparent) }
+@keyframes proHormigas { to { background-position: 10px 0, -10px 100%, 0 -10px, 100% 10px } }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) #pro .soltar:hover, body:not(.pausa) #pro .soltar.vivo { animation: proHormigas 1s linear infinite }
+}
+#pro .mini-acc { display: flex; gap: 6px; flex-wrap: wrap }
+#pro .mini {
+  min-height: 32px; padding: 0 12px; border-radius: var(--r-pildora); border: 1px solid var(--linea-hover); background: none;
+  font: 700 11.5px/1 var(--f); color: var(--crema); cursor: pointer; transition: background var(--d-color) ease, transform var(--d-presion) ease;
+}
+#pro .mini:hover { background: var(--s3) }
+#pro .mini:active { transform: scale(.97) }
+#pro .mini.pri { background: var(--crema); color: var(--tinta); border-color: var(--crema) }
+#pro .mini.pri:focus-visible { outline-color: var(--ambar) }
+/* Carpeta perdida (7.4): borde y velo rojos, el nombre tachado; siempre con su texto */
+#pro .bloque.mal { --c: var(--rojo); border-color: rgba(255, 122, 107, .45); background: linear-gradient(170deg, rgba(255, 122, 107, .09), var(--s1) 70%) }
+#pro .bloque.mal .car-n svg { fill: rgba(255, 122, 107, .12) }
+#pro .bloque.mal .car-n b { text-decoration: line-through; text-decoration-color: rgba(255, 122, 107, .7); color: var(--crema2) }
+#pro .bloque.mal p { margin: 0; font: var(--t-chico); color: var(--crema2); overflow-wrap: anywhere }
+#pro .bloque.mal p b { color: var(--rojo) }
+/* Qué ve cada motor (4.8): una tabla de tres columnas; el ✓ en --verde y el — en --tenue, siempre con su texto */
+#pro .matriz { display: grid; grid-template-columns: auto 1fr 1fr; border-radius: 14px; border: 1px solid var(--linea); overflow: hidden; font: var(--t-chico) }
+#pro .mz-f { display: contents }
+#pro .mz-f > * { display: flex; gap: 6px; align-items: center; min-width: 0; padding: 8px 10px; border-top: 1px solid var(--linea) }
+#pro .mz-f > .h { border-top: 0; background: var(--s1); font: var(--t-rotulo); letter-spacing: .1em; text-transform: uppercase; color: var(--tenue) }
+#pro .matriz .mt { font: var(--t-mono-s); color: var(--crema); white-space: nowrap }
+#pro .matriz .si { color: var(--crema); flex-wrap: wrap }
+#pro .matriz .si::before { content: "✓"; color: var(--verde); font-weight: 800 }
+#pro .matriz .si small { font: var(--t-mono-s); color: var(--tenue) }
+#pro .matriz .no { color: var(--tenue) }
+#pro .matriz .no::before { content: "—"; color: var(--tenue) }
+/* Borrar (4.9 y 4.11): el «¿Borrar…? Sí» de siempre (`.armado`) y, debajo, qué se va y qué queda */
+#pro .borrar-z { display: grid; gap: 6px; justify-items: start; padding: 6px 0 4px }
+#pro .borrar-z small { font: var(--t-mono-s); color: var(--crema2) }
+#pro .pro-err { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; margin: 0; font: var(--t-chico); color: var(--rojo) }
+#pro .pro-err .lnk { color: var(--crema) }
+
+/* El formulario (4.10) */
+#pro .form { display: grid; gap: 14px; align-content: start; margin: 0 }
+#pro .form > h2 { font: 800 18px/1.15 var(--f); letter-spacing: -.03em }
+#pro .fl { display: grid; gap: 6px; min-width: 0 }
+#pro .fl > label, #pro .fl > .lbl { font: var(--t-cuerpo-f) }
+#pro .fl small { font: var(--t-mono-s); color: var(--tenue) }
+#pro .inp {
+  width: 100%; min-height: 38px; padding: 0 12px; border-radius: var(--r-campo); background: var(--s1); border: 1px solid var(--linea);
+  color: var(--crema); font: var(--t-cuerpo); outline: none; transition: border-color var(--d-color) ease, box-shadow var(--d-color) ease;
+}
+#pro .inp:focus { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
+#pro .inp[aria-invalid="true"] { border-color: rgba(255, 122, 107, .7) }
+#pro .inp::placeholder { color: var(--tenue) }
+/* Las instrucciones crecen con lo escrito de 86 a 220 y después desplazan */
+#pro textarea.inp { min-height: 86px; max-height: 220px; padding: 9px 12px; resize: none; line-height: 1.5; field-sizing: content; overflow-y: auto }
+#pro .f-pie { display: flex; justify-content: space-between; gap: 10px }
+#pro .f-cuenta { flex: none; color: var(--crema2) }
+#pro .f-err { margin: 0; font: var(--t-chico); color: var(--rojo) }
+#pro .f-aviso { margin: 0; font: var(--t-chico); color: var(--ambar) }
+#pro .opc-c { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+#pro .oc {
+  display: grid; gap: 4px; align-content: start; min-height: 32px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--linea);
+  background: var(--s1); color: var(--crema); text-align: left; cursor: pointer; transition: border-color var(--d-color) ease, background var(--d-color) ease;
+}
+#pro .oc b { display: flex; gap: 7px; align-items: center; font: var(--t-cuerpo-f) }
+#pro .oc b::before { content: ""; width: 12px; height: 12px; flex: none; border-radius: 50%; border: 1.5px solid var(--linea-hover); box-sizing: border-box; transition: border .2s ease }
+#pro .oc span { font: var(--t-mono-s); color: var(--tenue); overflow-wrap: anywhere }
+#pro .oc:hover { border-color: var(--linea-hover) }
+#pro .oc[aria-checked="true"] { border-color: var(--ambar); background: var(--ambar-osc) }
+#pro .oc[aria-checked="true"] b::before { border: 4px solid var(--ambar) }
+#pro .colores { display: flex; gap: 2px }
+#pro .col { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer }
+#pro .col::after { content: ""; width: 14px; height: 14px; border-radius: 50%; background: var(--c); transition: transform .2s var(--rebote) }
+#pro .col[aria-checked="true"] { box-shadow: inset 0 0 0 1.5px var(--c) }
+#pro .col:hover::after { transform: scale(1.18) }
+#pro .car-act { display: flex; align-items: center; gap: 10px; min-width: 0 }
+#pro .car-act .car-n { flex: 1 }
+#pro .car-act.mal .car-n b { text-decoration: line-through; color: var(--crema2) }
+#pro .form-acc { display: flex; gap: 8px; align-items: center; padding-top: 2px }
+#pro .btn-pri, #pro .btn-sec {
+  min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-pildora); font: 800 12.5px/1 var(--f); cursor: pointer;
+  transition: transform var(--d-presion) ease, filter var(--d-color) ease, background var(--d-color) ease, color var(--d-color) ease;
+}
+#pro .btn-pri { background: var(--ambar); color: var(--negro) }
+#pro .btn-pri:hover { filter: brightness(1.06) }
+#pro .btn-pri:active, #pro .btn-sec:active { transform: scale(.97) }
+#pro .btn-pri:focus-visible { outline-color: var(--crema) }
+#pro .btn-sec { padding: 0 14px; background: none; color: var(--crema2); font-weight: 700 }
+#pro .btn-sec:hover { background: var(--s2); color: var(--crema) }
+
+/* El primer uso (7.2): la mascota de 96 sobre la luz ámbar de piso, el texto, tres píldoras y el botón */
+#pro .vacio { flex: 1; display: grid; place-content: center; justify-items: center; gap: 12px; min-height: 100%; padding: 0 30px 30px; text-align: center }
+#pro .vacio .piso { display: grid; place-items: center; width: 200px; height: 120px; background: radial-gradient(90px 22px at 50% 108px, rgba(242, 182, 50, .28), transparent 70%) }
+#pro .vacio h2 { font: 800 19px/1.15 var(--f); letter-spacing: -.03em }
+#pro .vacio p { margin: 0; max-width: 36ch; font: var(--t-cuerpo); color: var(--crema2) }
+#pro .tres { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px }
+#pro .tres span { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: var(--r-pildora); border: 1px solid var(--linea); font: var(--t-mono-s); color: var(--crema2) }
+#pro .tres i { width: 6px; height: 6px; border-radius: 50%; background: var(--c) }
+
+@media (prefers-reduced-motion: reduce) {
+  #pro .ix-b, #pro .cta, #pro .mini, #pro .oc, #pro .col::after, #pro .btn-pri, #pro .btn-sec, #pro .soltar, #pro .ind-ix { transition: none }
+}
+body.pausa #pro .ix-b, body.pausa #pro .cta, body.pausa #pro .mini, body.pausa #pro .oc, body.pausa #pro .col::after,
+body.pausa #pro .btn-pri, body.pausa #pro .btn-sec, body.pausa #pro .soltar, body.pausa #pro .ind-ix { transition: none }

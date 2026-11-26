@@ -1,9 +1,10 @@
 // La barra como menú de módulos (#42, docs/diseno/modulos-ux.md, opción A "Menú"): lógica pura.
-// Sesiones es la portada (abre ahí y Esc vuelve ahí); Tareas y Configuración son hojas de la columna;
-// Hábitos (#41) entra con su entrega H1 (habitos-ux.md 14). `st.modulo` (main.js) es la única fuente de
+// Sesiones es la portada (abre ahí y Esc vuelve ahí); Tareas, Hábitos (#41), Proyectos (#44) y
+// Configuración son hojas de la columna. `st.modulo` (main.js) es la única fuente de
 // qué se ve, y `irModulo` (main.js), la única entrada: este archivo decide qué cerrar, qué abrir y a
-// qué proyecto ir; main.js hace los actos, la lectura y el foco. Sin DOM: se prueba en node.
-// Entrega M1: el menú, la píldora, `#aviso-p` y Esc → Sesiones. La tira de proyectos es M2.
+// repo ir; main.js hace los actos, la lectura y el foco. Sin DOM: se prueba en node.
+// Entrega M1: el menú, la píldora, `#aviso-p` y Esc → Sesiones. M2: la tira de repos (`desplazarTira`) y
+// la tira mini.
 
 import { escapar, plural, preguntasPendientes, tiempoRelativo } from './logica.js'
 import { quienPregunta } from './pregunta.js'
@@ -11,17 +12,21 @@ import { ladoFilaTareas } from './tareasVista.js'
 import { nombreFilaTareas } from './tareas.js'
 import { ladoFilaHabitos } from './habitosVista.js'
 import { nombreFilaHabitos } from './habitos.js'
+import { ladoFilaProyectos } from './proyectosVista.js'
+import { nombreFilaProyectos } from './proyectos.js'
 
 /** Los módulos, en el orden del menú (3.1). `pie`: va aparte, abajo (`.lado-cfg`). `tecla`: la pista visible. */
 export const MODULOS = [
   { id: 'sesiones', nombre: 'Sesiones', atajo: 'Escape', tecla: 'Esc' },
   { id: 'tareas', nombre: 'Tareas', atajo: 'Control+T', tecla: 'Ctrl T' },
   { id: 'habitos', nombre: 'Hábitos', atajo: 'Control+H', tecla: 'Ctrl H' },
+  // Ctrl P (proyectos-ux.md 9.2, D-p16): sujeto a la medición M-P4 (frenar el diálogo de imprimir de WebView2)
+  { id: 'proyectos', nombre: 'Proyectos', atajo: 'Control+P', tecla: 'Ctrl P' },
   { id: 'config', nombre: 'Configuración', atajo: 'Control+Comma', tecla: 'Ctrl ,', pie: true },
 ]
 
-/** Los que se pueden abrir hoy. Hábitos se sumó con #41 (`habitos-ux.md` 14, H1). */
-export const MODULOS_ACTIVOS = ['sesiones', 'tareas', 'habitos', 'config']
+/** Los que se pueden abrir hoy. Hábitos se sumó con #41 (`habitos-ux.md` 14, H1) y Proyectos con #44 (`proyectos-ux.md` 14, P1). */
+export const MODULOS_ACTIVOS = ['sesiones', 'tareas', 'habitos', 'proyectos', 'config']
 
 const modulo = id => MODULOS.find(m => m.id === id)
 
@@ -62,8 +67,9 @@ const pista = id => `<kbd aria-hidden="true">${escapar(modulo(id)?.tecla ?? '')}
 /**
  * La cuenta de una fila (4.2), `aria-hidden` (el texto va en el nombre de la fila). Sesiones: el número
  * de sesiones (0 también; null = cargando, «…») y, con preguntas, el chip ámbar «1 ?». Tareas: la de hoy
- * (`ladoFilaTareas`, tareas-ux.md 4.1). Hábitos: la pista, «—» o el anillo (`ladoFilaHabitos`, habitos-ux.md 4.1). Configuración: el punto de
- * pestaña (`puntoPestana`) si hay algo que mirar, o la pista.
+ * (`ladoFilaTareas`, tareas-ux.md 4.1). Hábitos: la pista, «—» o el anillo (`ladoFilaHabitos`, habitos-ux.md 4.1). Proyectos:
+ * la pista o el número de proyectos con el punto de la carpeta perdida (`ladoFilaProyectos`, proyectos-ux.md 4.1; `datos`
+ * es la lista). Configuración: el punto de pestaña (`puntoPestana`) si hay algo que mirar, o la pista.
  */
 export function cuentaModulo(id, datos) {
   if (id === 'sesiones') {
@@ -73,13 +79,15 @@ export function cuentaModulo(id, datos) {
   }
   if (id === 'tareas') return ladoFilaTareas(datos ?? { hoy: 0, vencidas: 0 })
   if (id === 'habitos') return ladoFilaHabitos(datos)
+  if (id === 'proyectos') return ladoFilaProyectos(datos)
   if (id === 'config') return datos?.punto ? `<i class="pt t-${escapar(datos.punto.tono)}" aria-hidden="true"></i>` : pista('config')
   return ''
 }
 
 /**
  * El nombre accesible de una fila (4.1): «Sesiones, 3 abiertas, 1 te hace una pregunta» · «Tareas, 2
- * para hoy, 2 vencidas» · «Hábitos, 2 de 5 hechos hoy» · «Configuración», sin la parte que vale 0.
+ * para hoy, 2 vencidas» · «Hábitos, 2 de 5 hechos hoy» · «Proyectos, 3, 1 con la carpeta perdida» · «Configuración», sin
+ * la parte que vale 0.
  */
 export function nombreModulo(id, datos) {
   if (id === 'sesiones') {
@@ -91,6 +99,7 @@ export function nombreModulo(id, datos) {
   }
   if (id === 'tareas') return nombreFilaTareas(datos ?? { hoy: 0, vencidas: 0 })
   if (id === 'habitos') return nombreFilaHabitos(datos)
+  if (id === 'proyectos') return nombreFilaProyectos(datos)
   if (id === 'config') return `Configuración${datos?.punto?.texto ?? ''}`
   return ''
 }

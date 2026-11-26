@@ -99,6 +99,18 @@ import {
   globoHab, globoMuescaHab, filaAvisoHab, globoResumen, globoMuescaResumen, filaAvisoResumen,
 } from './habitosVista.js'
 import * as movimientoHabitos from './habitosMotion.js'
+import {
+  proyectosInicial, abrirProyectos, cerrarProyectos, elegirProyecto, elegidoValido, empezarNuevo as empezarNuevoProyecto,
+  empezarEditar as empezarEditarProyecto, editarForm as editarFormProyecto, cerrarFormulario as cerrarFormularioProyecto,
+  revisarFormulario as revisarFormularioProyecto, alEscProyectos, esAtajoProyectos, subtituloProyectos, nuevoIdProyecto,
+  previaCarpetaAvis, cuentaInstrucciones, textoErrorNombre, textoErrorInstrucciones, textoMotivoCarpeta, anuncioElegido,
+  focoTrasBorrar, ERROR_GUARDAR as ERROR_GUARDAR_PROYECTO,
+} from './proyectos.js'
+import {
+  esqueletoProyectos, carpetaPro, indiceProyectos, indiceCargando, fichaProyecto, formularioProyecto, primerUsoProyectos,
+  errorLecturaProyectos, lineaRotos,
+} from './proyectosVista.js'
+import * as movimientoProyectos from './proyectosMotion.js'
 import { MODULOS, irModulo as planModulo, alEscModulo, cuentaModulo, nombreModulo, avisoPregunta, moduloAlExpandir, cuentasModulosMini, desplazarTira } from './modulos.js'
 import { avisoPreguntaHtml, cuentasMiniHtml } from './modulosVista.js'
 import * as movimientoModulos from './modulosMotion.js'
@@ -201,6 +213,14 @@ const st = {
   habitos: habitosInicial(),
   /** Partes de la hoja de Hábitos ya dibujadas (y la fila del menú). */
   habFirmas: {},
+  /**
+   * Los proyectos y su hoja (#44, proyectos-ux.md 3.5; `st.proyectos` ya son los repos de Sesiones):
+   * abierta (la sigue `st.modulo`), lo leído de `proyectos_leer` (`lista`, `rotas`), el elegido (no
+   * se guarda entre ejecuciones), la vista, el formulario, el borrado armado y los errores (proyectos.js).
+   */
+  pro: proyectosInicial(),
+  /** Partes de la hoja de Proyectos ya dibujadas. */
+  proFirmas: {},
   /**
    * El aviso diario de tareas (tareas-ux.md 8 y 11.4): `avisoTar` (`evaluarAviso`, una vez por
    * ejecución) y `avisadoTar` (`tareas.avisado` de preferencias.json, leído al arrancar).
@@ -1093,6 +1113,8 @@ function pintar() {
   pintarFilaTareas()
   // La fila «Hábitos» del menú, con lo de hoy (habitos-ux.md 4.1), siempre
   pintarFilaHabitos()
+  // La fila «Proyectos» del menú (proyectos-ux.md 4.1), siempre
+  pintarFilaProyectos()
   // El menú de módulos (modulos-ux.md 4, #42): la fila abierta, las cuentas, la píldora y la pregunta
   // vista desde otro módulo (`#aviso-p`). `st.modulo` decide; `config.abierta` y `tareas.abierta` lo siguen
   pintarModulos(ahora, totalPend)
@@ -1108,6 +1130,10 @@ function pintar() {
   $('#marco').classList.toggle('con-hab', st.habitos.abierta)
   if (st.habitos.abierta) { pintarHojaHabitos(); return }
   pintarHabitos()
+  // Proyectos (proyectos-ux.md 3.2): la hoja hermana de #tar, #hab y #cfg; una por vez (`irModulo` cierra la otra)
+  $('#marco').classList.toggle('con-pro', st.pro.abierta)
+  if (st.pro.abierta) { pintarHojaProyectos(); return }
+  pintarProyectos()
 
   if (!st.proyectos.length && forma === 'escenario') {
     // Sin tablero y con algo pendiente: el escenario de primeros pasos en lugar del vacío (3.2)
@@ -1232,7 +1258,7 @@ function verRepoElegido() {
 // ------------------------------------------------------------------ módulos (#42, docs/diseno/modulos-ux.md)
 
 /** Las filas del menú, por módulo (Configuración está aparte, en `.lado-cfg`). */
-const FILAS_MODULO = { sesiones: '#mod-sesiones', tareas: '#tar-fila', habitos: '#hab-fila', config: '#cfg-fila' }
+const FILAS_MODULO = { sesiones: '#mod-sesiones', tareas: '#tar-fila', habitos: '#hab-fila', proyectos: '#pro-fila', config: '#cfg-fila' }
 
 /**
  * La única entrada a un módulo (3.2 y 11.3): las filas del menú, Ctrl T, Ctrl ,, Esc, la bandeja, el globo
@@ -1242,14 +1268,15 @@ const FILAS_MODULO = { sesiones: '#mod-sesiones', tareas: '#tar-fila', habitos: 
  * dividida y de la tira, así `st.modulo` y la hoja abierta cambian juntos. El mismo módulo solo cambia la
  * pestaña o el proyecto pedidos y lleva el foco al título (9.2).
  * Opciones: `repo` (Sesiones en ese proyecto), `tab` (la pestaña de Configuración), `ver` (la vista de
- * Tareas o de Hábitos) y `foco`: 'h1' (por defecto: el título del módulo, 9.4), 'fila' (la fila de Sesiones: volver
+ * Tareas o de Hábitos), `proyecto` (el id del proyecto a elegir en Proyectos, proyectos-ux.md 3.1) y `foco`: 'h1' (por defecto: el título del módulo, 9.4), 'fila' (la fila de Sesiones: volver
  * con Esc) o false (lo pone quien llama). Devuelve si el id existía.
  */
-async function irModulo(id, { repo, tab, ver, foco = 'h1' } = {}) {
+async function irModulo(id, { repo, tab, ver, proyecto, foco = 'h1' } = {}) {
   const plan = planModulo({ modulo: st.modulo }, id, { repo })
   if (!plan) return false
   if (plan.foco) {
     if (id === 'config' && tab && tab !== st.config.tab) cambiarPestanaConfig(tab)
+    if (id === 'proyectos' && proyecto) elegirEnHoja(proyecto)
     if (plan.repo && plan.repo !== st.repo) irAProyecto(plan.repo, 1)
     if (foco === 'h1') $('#titulo').focus()
     else if (foco === 'fila') $(FILAS_MODULO[id])?.focus()
@@ -1268,11 +1295,13 @@ async function irModulo(id, { repo, tab, ver, foco = 'h1' } = {}) {
     if (h === 'config') cerrarConfig({ acto: !plan.abrir })
     else if (h === 'tareas') cerrarTareasHoja({ acto: !plan.abrir })
     else if (h === 'habitos') cerrarHabitosHoja({ acto: !plan.abrir })
+    else if (h === 'proyectos') cerrarProyectosHoja({ acto: !plan.abrir })
   }
   const enfocarTitulo = foco === 'h1'
   if (plan.abrir === 'config') abrirConfig({ tab, foco: enfocarTitulo })
   else if (plan.abrir === 'tareas') abrirTareasHoja({ ver, foco: enfocarTitulo })
   else if (plan.abrir === 'habitos') abrirHabitosHoja({ ver, foco: enfocarTitulo })
+  else if (plan.abrir === 'proyectos') abrirProyectosHoja({ proyecto, foco: enfocarTitulo })
   else if (plan.repo && plan.repo !== st.repo) irAProyecto(plan.repo, 1)
   else pintar()
   movimientoModulos.viajarPildora(nav, desde)
@@ -2170,6 +2199,12 @@ document.addEventListener('click', async e => {
     await accionHabitos(a, b)
     return
   }
+  if (a.startsWith('pro-')) {
+    // Proyectos (proyectos-ux.md): cada botón hace solo lo suyo, y solo con el clic; uno apagado
+    // (aria-disabled: la charla, que llega con P2) no hace nada
+    if (b.getAttribute('aria-disabled') !== 'true') await accionProyectos(a, b)
+    return
+  }
   if (a === 'mod') {
     // Una fila del menú de módulos (modulos-ux.md 4.1): su módulo, con el foco en su título
     await irModulo(b.dataset.mod)
@@ -2371,10 +2406,41 @@ document.addEventListener('change', e => {
   if (/^\d{2}:\d{2}$/.test(c.value)) editarFormulario('aviso', c.value)
   else c.value = formularioActual()?.h.aviso ?? ''
 })
+// Proyectos (proyectos-ux.md 4.10): lo que se escribe vive en su campo y en `st.pro.form` (guardar es
+// explícito, D-p7); la carpeta de «Que Avis cree una» y la cuenta de las instrucciones lo siguen al
+// instante, sin redibujar. El error de ese campo y el aviso de descartar se van al escribir
+document.addEventListener('input', e => {
+  const c = e.target
+  if (!c.matches?.('#pro-form [data-campo]') || !st.pro.form) return
+  const campo = c.dataset.campo
+  const habia = st.pro.form.aviso || !!st.pro.form.errores?.[campo]
+  st.pro = editarFormProyecto(st.pro, campo, c.value)
+  if (campo === 'nombre') { const previa = $('#pro-form [data-previa]'); if (previa) previa.textContent = previaCarpetaAvis(c.value) }
+  if (campo === 'instrucciones') { const cuenta = $('#pro-form [data-cuenta]'); if (cuenta) cuenta.textContent = cuentaInstrucciones(c.value) ?? '' }
+  if (habia) {
+    const errores = { ...st.pro.form.errores }
+    delete errores[campo]
+    st.pro = { ...st.pro, form: { ...st.pro.form, errores } }
+    pintarProyectos()
+  }
+})
+// El formulario nunca se envía solo (Enter en el nombre): guarda el botón o Ctrl Enter
+document.addEventListener('submit', e => { if (e.target.id === 'pro-form') e.preventDefault() })
+// Al volver a la ventana con la hoja abierta, se vuelven a leer los proyectos (3.5: una carpeta pudo
+// desaparecer o llenarse de archivos); nunca en el ciclo de 1,5 s
+window.addEventListener('focus', () => { if (st.pro.abierta) leerProyectos() })
 document.addEventListener('compositionstart', e => { if (e.target.matches?.('.ctl-in')) st.componiendo = true })
 document.addEventListener('compositionend', () => { st.componiendo = false })
 
 document.addEventListener('keydown', e => {
+  // Ctrl P con el panel a la vista abre Proyectos (proyectos-ux.md 9.2, D-p16), también mientras se escribe.
+  // WebView2 usa Ctrl P para imprimir: el preventDefault va primero y antes que todo (M-P4 de 11.8: sin
+  // medir todavía en la app; si el diálogo de imprimir igual se abre, Proyectos queda sin atajo)
+  if (esAtajoProyectos(e)) {
+    e.preventDefault()
+    if (!st.mini && (!st.acople || st.vista)) irModulo('proyectos')
+    return
+  }
   // Las teclas de la hoja de la charla (chat-avis-ux.md 3.5): van antes que el Esc de la pregunta y el de la muesca
   if (teclaChat(e)) return
   // Esc con el foco en el globo de un recordatorio o del resumen: es su × («Ahora no» o «Más tarde», habitos-ux.md 9.1)
@@ -2448,6 +2514,19 @@ document.addEventListener('keydown', e => {
   }
   // Tipo y Color (4.11): un solo tope, foco itinerante con las flechas (9.3)
   if (st.habitos.abierta && teclaRadios(e, '#hab')) return
+  // Esc con la hoja de Proyectos abierta, una capa por vez (proyectos-ux.md 9.1)
+  if (e.key === 'Escape' && st.pro.abierta) {
+    e.preventDefault()
+    escProyectos()
+    return
+  }
+  // Ctrl Enter en el formulario de un proyecto guarda (9.2); Enter solo no hace nada (guardar es explícito, D-p7)
+  if (e.key === 'Enter' && st.pro.abierta && e.target.closest?.('#pro-form')) {
+    if (e.ctrlKey && !e.isComposing) { e.preventDefault(); guardarFormProyecto(); return }
+    if (e.target.matches('input')) { e.preventDefault(); return }
+  }
+  // Carpeta y Color del formulario (4.10): un solo tope, foco itinerante con las flechas (12)
+  if (st.pro.abierta && teclaRadios(e, '#pro')) return
   // Enter en el título de la tarea abierta no hace salto de línea: confirma (4.7) y el foco queda
   if (e.key === 'Enter' && e.target.matches?.('#tar textarea[data-campo="titulo"]')) {
     e.preventDefault()
@@ -2811,6 +2890,8 @@ function aplicarFoco() {
   else if (foco === 'tar' && st.tareas.abierta) $('#titulo').focus()
   // Hábitos: su título al abrir (habitos-ux.md 9.4)
   else if (foco === 'hab' && st.habitos.abierta) $('#titulo').focus()
+  // Proyectos: su título al abrir (proyectos-ux.md 9.4)
+  else if (foco === 'pro' && st.pro.abierta) $('#titulo').focus()
   else ($('#repos [aria-current]') ?? $('#repos [data-proy]') ?? $('#marco [data-accion="pin"]'))?.focus()
 }
 
@@ -6316,6 +6397,451 @@ async function accionHabitos(a, b) {
 }
 
 
+// ------------------------------------------------------------------ proyectos (#44, docs/diseno/proyectos-ux.md)
+// Reglas (2): la carpeta es de quien la eligió (Avis nunca la mueve, renombra ni borra); la ventana nunca
+// manda una ruta: los comandos de Rust reciben un id y un modo (`"elegir"` abre el diálogo de Windows,
+// `"avis"` crea `Documentos › Avis › <nombre>`, 11.2) y Rust valida el id antes de armar
+// `<config>/proyectos/<id>.json`. Guardar es explícito (D-p7); borrar confirma en el mismo botón; nada se
+// abre solo. La hoja vive en #pro, en la columna principal, como Tareas y Hábitos.
+// Entrega P1: los proyectos y su hoja. La charla del proyecto (el botón, la lista de charlas, el chip y la
+// luz de la hoja) es de P2 y soltar archivos, de P3: hasta entonces cada proyecto tiene 0 charlas.
+
+/** La fila «Proyectos» del menú (4.1): la pista o el número, con el punto de la carpeta perdida, y su nombre. */
+function pintarFilaProyectos() {
+  const lista = st.pro.leido ? st.pro.lista : []
+  poner('#pro-fila-ct', cuentaModulo('proyectos', lista))
+  ponerNombre('#pro-fila', nombreModulo('proyectos', lista))
+}
+
+/** El encabezado con la hoja abierta: «Proyectos» y su bajada (5.1); la tira de repos es solo de Sesiones. */
+function pintarHojaProyectos() {
+  modoMarco('tablero')
+  $('#marco').classList.remove('con-hoja')
+  texto('#titulo', 'Proyectos')
+  $('#titulo').title = ''
+  texto('#subtitulo', st.pro.leido ? subtituloProyectos(st.pro.lista, 0) : '')
+  pintarProyectos()
+}
+
+/**
+ * El panel (3.4): el formulario (Nuevo o Editar), el proyecto elegido o el primer uso, con su firma. La
+ * firma no lleva lo que se escribe en el formulario (vive en su campo) ni cuánto lleva armado el borrado:
+ * un redibujo no pisa nada ni repite nada.
+ */
+function panelProyectos(t, ahora = Date.now()) {
+  if ((t.vista === 'nuevo' || t.vista === 'editar') && t.form) {
+    const datos = { form: t.form, proyecto: t.lista.find(p => p.id === t.form.id) ?? null, mascota: nombreMascota(), errorForm: t.errorForm, errorCarpeta: t.errorCarpeta }
+    return { html: formularioProyecto(datos), firma: formularioProyecto({ ...datos, form: { ...t.form, nombre: '', instrucciones: '' } }) }
+  }
+  const p = t.lista.find(x => x.id === t.elegido)
+  if (!p) return { html: primerUsoProyectos(st.mascota, nombreMascota()), firma: null }
+  const armado = !!t.armado && armadoVigente(t, `borrar:${p.id}`, ahora)
+  const transcurrido = armado ? Math.max(0, MS_CONFIRMAR - (t.armado.hasta - ahora)) : 0
+  const datos = { p, n: 0, especie: st.mascota, mascota: nombreMascota(), armado, errorCarpeta: t.errorCarpeta }
+  return { html: fichaProyecto({ ...datos, transcurrido }), firma: fichaProyecto(datos) }
+}
+
+/**
+ * Dibuja la hoja en #pro por partes (3.3): el esqueleto una vez; el error de lectura, la carga o la
+ * carpeta; y en la carpeta la línea de los rotos, el índice y el panel, cada uno solo si cambió. Un
+ * campo que se escribe nunca se pisa (`ponerParteConCampo`) y el foco vuelve a la misma pieza (`data-k`).
+ * La píldora del índice se queda sobre el elegido. Cerrada, vacía.
+ */
+function pintarProyectos() {
+  const raiz = $('#pro')
+  if (!st.pro.abierta) {
+    if (raiz.firstChild) { raiz.innerHTML = ''; st.proFirmas = {} }
+    return
+  }
+  if (!raiz.firstChild) { raiz.innerHTML = esqueletoProyectos(); st.proFirmas = {} }
+  if (st.pro.leido) st.pro = elegidoValido(st.pro)
+  const t = st.pro
+  const f = st.proFirmas
+  const cuerpo = $('#pro-cuerpo')
+  const activo = raiz.contains(document.activeElement) ? document.activeElement : null
+  const k = activo?.closest('[data-k]')?.dataset.k ?? null
+  const modo = t.error && !t.leido ? 'error' : !t.leido ? (t.fantasmas ? 'carga' : 'nada') : t.lista.length ? 'carpeta' : 'sola'
+  if (f.modo !== modo) {
+    cuerpo.innerHTML = modo === 'error' ? errorLecturaProyectos() : modo === 'nada' ? '' : carpetaPro(modo === 'sola')
+    for (const p of ['rotos', 'idx', 'pane']) delete f[p]
+    f.modo = modo
+  }
+  const ponerParte = (parte, html, firma = html) => {
+    const el = cuerpo.querySelector(`[data-parte="${parte}"]`)
+    if (!el || (firma != null && f[parte] === firma)) return false
+    ponerParteConCampo(el, html, 'input[data-campo], textarea[data-campo]')
+    f[parte] = firma ?? html
+    return true
+  }
+  if (modo === 'carga') {
+    ponerParte('idx', indiceCargando())
+    ponerParte('pane', '')
+  } else if (modo === 'carpeta' || modo === 'sola') {
+    ponerParte('rotos', (t.error ? errorLecturaProyectos() : '') + lineaRotos(t.rotas.length))
+    if (modo === 'carpeta') ponerParte('idx', indiceProyectos({ lista: t.lista, elegido: t.elegido, vista: t.vista }))
+    const { html, firma } = panelProyectos(t)
+    ponerParte('pane', html, firma ?? html)
+    movimientoProyectos.colocarPildora($('#pro .idx'))
+  }
+  if (k && !raiz.contains(document.activeElement)) raiz.querySelector(`[data-k="${CSS.escape(k)}"]`)?.focus({ preventScroll: true })
+  else if (activo?.id === 'pro-h2' && !raiz.contains(document.activeElement)) $('#pro-h2')?.focus({ preventScroll: true })
+}
+
+/**
+ * Abre la hoja de Proyectos (la fila del menú o Ctrl P): acoplada, abre también el panel. Solo la llama
+ * `irModulo` (modulos-ux.md 11.1), que ya cerró la otra hoja, la dividida y la tira. Al abrir se vuelven a
+ * leer los proyectos (solo lectura). `proyecto`: el que se pide ver (3.1). El foco va al `h1` (9.4).
+ */
+function abrirProyectosHoja({ proyecto, foco = true } = {}) {
+  if (st.pro.abierta) return
+  st.pro = abrirProyectos(st.pro, proyecto)
+  leerProyectos()
+  pintar()
+  movimientoProyectos.abrirHoja($('#marco .cab'), $('#pro-cuerpo'))
+  if (st.acople) {
+    evento({ tipo: 'clic' })
+    if (foco) { st.focoPendiente = 'pro'; aplicarFoco() }
+  } else if (foco) {
+    $('#titulo').focus()
+  }
+}
+
+/**
+ * Cierra la hoja (solo desde `irModulo`): el formulario se descarta (guardar es explícito) y el borrado
+ * se desarma. De vuelta en Sesiones el tablero vuelve con su acto (`acto`); hacia otra hoja, sin él.
+ */
+function cerrarProyectosHoja({ acto = true } = {}) {
+  if (!st.pro.abierta) return
+  st.pro = cerrarProyectos(st.pro)
+  pintar()
+  if (acto) movimientoConfig.cerrarHoja([$('#otro'), $('#w-globo'), $('#conteos'), ...document.querySelectorAll('#sesiones > .ses')])
+}
+
+let leyendoProyectos = null
+/**
+ * Lee los proyectos (`proyectos_leer`, solo lectura, 3.5): al arrancar (la cuenta de la fila), al abrir
+ * la hoja, al volver a la ventana con la hoja abierta, después de un comando que falló y con
+ * «Reintentar». Si la primera lectura tarda más de 150 ms, el índice muestra sus filas esqueleto (7.1).
+ */
+function leerProyectos() {
+  if (!tauri?.core) return null
+  if (leyendoProyectos) return leyendoProyectos
+  st.pro = { ...st.pro, cargando: true }
+  const reloj = setTimeout(() => {
+    if (!st.pro.cargando || st.pro.leido) return
+    st.pro = { ...st.pro, fantasmas: true }
+    pintarProyectos()
+  }, 150)
+  leyendoProyectos = (async () => {
+    try {
+      const r = await invocar('proyectos_leer')
+      const lista = Array.isArray(r?.proyectos) ? r.proyectos : []
+      const rotas = Array.isArray(r?.rotas) ? r.rotas : []
+      st.pro = { ...st.pro, lista, rotas, leido: true, error: null }
+    } catch (err) {
+      st.pro = { ...st.pro, error: String(err?.message ?? err).slice(0, 120) || 'sin detalle' }
+    } finally {
+      clearTimeout(reloj)
+      st.pro = { ...st.pro, cargando: false, fantasmas: false }
+      leyendoProyectos = null
+      pintar()
+    }
+  })()
+  return leyendoProyectos
+}
+
+// ---- acciones
+
+/** Un anuncio en la región `role=status` de la hoja (5.3): vacía antes, así se vuelve a oír. */
+let anuncioProyectosEn = null
+function decirProyectos(mensaje) {
+  const el = $('#pro-vivo')
+  if (!el || !mensaje) return
+  el.textContent = ''
+  clearTimeout(anuncioProyectosEn)
+  anuncioProyectosEn = setTimeout(() => { el.textContent = mensaje }, 150)
+}
+
+/** Pone el foco en una pieza de la hoja (`data-k`, o el `h2`). */
+function enfocarProyectos(k) {
+  const el = k === 'h2' ? $('#pro-h2') : $(`#pro [data-k="${CSS.escape(k)}"]`)
+  el?.focus({ preventScroll: false })
+  return !!el
+}
+
+/** Lo que dejó el proyecto que cambió Rust (crear, guardar, la carpeta), en su lugar de la lista. */
+function ponerProyectoEnLista(p) {
+  const lista = st.pro.lista.some(x => x.id === p.id) ? st.pro.lista.map(x => (x.id === p.id ? p : x)) : [...st.pro.lista, p]
+  st.pro = { ...st.pro, lista }
+}
+
+/**
+ * Elegir un proyecto en el índice (o pedido con `irModulo`): la píldora viaja, las piezas del proyecto
+ * entran y se anuncia «{nombre}, {n} charlas» (5.3). El foco se queda en la fila (9.4).
+ */
+function elegirEnHoja(id) {
+  const p = st.pro.lista.find(x => x.id === id)
+  if (!p || !st.pro.abierta) { if (p) st.pro = { ...st.pro, elegido: id }; return }
+  if (st.pro.elegido === id && st.pro.vista === 'proyecto') return
+  const nav = $('#pro .idx')
+  const desde = movimientoProyectos.posicionPildora(nav)
+  st.pro = elegirProyecto(st.pro, id)
+  pintarProyectos()
+  movimientoProyectos.viajarPildora(nav, desde)
+  movimientoProyectos.entraPanel($('#pro-pane'))
+  decirProyectos(anuncioElegido(p, 0))
+}
+
+/** «+ Nuevo» o «Crear mi primer proyecto» (3.4): el formulario nuevo, con el foco en Nombre (9.4). */
+function nuevoEnHoja(origen) {
+  const nav = $('#pro .idx')
+  const desde = movimientoProyectos.posicionPildora(nav)
+  st.pro = empezarNuevoProyecto(st.pro)
+  st.pro = { ...st.pro, form: { ...st.pro.form, origen } }
+  pintarProyectos()
+  movimientoProyectos.viajarPildora($('#pro .idx'), desde)
+  movimientoProyectos.entraPanel($('#pro-pane'))
+  enfocarProyectos('f-nombre')
+}
+
+/** El lápiz o «Editar»/«Escribirlas» de Instrucciones (3.4): el formulario con los datos y el foco en `campo`. */
+function editarEnHoja(campo, origen) {
+  const id = st.pro.elegido
+  if (!id) return
+  st.pro = empezarEditarProyecto(st.pro, id)
+  st.pro = { ...st.pro, form: { ...st.pro.form, origen } }
+  pintarProyectos()
+  movimientoProyectos.entraPanel($('#pro-pane'))
+  const c = $(`#pro [data-k="${campo}"]`)
+  if (c) { c.focus(); try { c.setSelectionRange(c.value.length, c.value.length) } catch { /* sin selección */ } }
+}
+
+/** Cancelar, Esc o el segundo Esc con cambios (9.1): vuelve al proyecto (o al primer uso) y el foco al botón que abrió el formulario (9.4). */
+function cancelarFormProyecto() {
+  const origen = st.pro.form?.origen
+  const nav = $('#pro .idx')
+  const desde = movimientoProyectos.posicionPildora(nav)
+  st.pro = cerrarFormularioProyecto(st.pro)
+  pintarProyectos()
+  movimientoProyectos.viajarPildora($('#pro .idx'), desde)
+  movimientoProyectos.entraPanel($('#pro-pane'))
+  if (!(origen && enfocarProyectos(origen))) enfocarProyectos('h2')
+}
+
+/**
+ * Esc con la hoja abierta (9.1): desarma el borrado (el foco queda en el botón), avisa «¿Descartar los
+ * cambios? Esc otra vez», descarta o cierra el formulario, o, sin capas, va a Sesiones con el foco en su
+ * fila (modulos-ux.md 9.1).
+ */
+function escProyectos() {
+  const accion = alEscProyectos(st.pro)
+  if (alEscModulo('proyectos', accion) === 'sesiones') { irModulo('sesiones', { foco: 'fila' }); return }
+  if (accion === 'desarmar') {
+    st.pro = { ...st.pro, armado: null }
+    pintarProyectos()
+    enfocarProyectos('borrar')
+    return
+  }
+  if (accion === 'avisar-descartar') {
+    st.pro = { ...st.pro, form: { ...st.pro.form, aviso: true } }
+    pintarProyectos()
+    decirProyectos('¿Descartar los cambios? Esc otra vez')
+    return
+  }
+  cancelarFormProyecto()
+}
+
+/** El error de un comando de Rust (5.2): el del nombre va a su campo; el de la carpeta y el de guardar, debajo de los botones. */
+function errorDeComando(r, que) {
+  if (r?.motivo === 'repetido') {
+    st.pro = { ...st.pro, form: { ...st.pro.form, errores: { nombre: 'repetido' } } }
+    pintarProyectos()
+    enfocarProyectos('f-nombre')
+    decirProyectos(textoErrorNombre('repetido'))
+    return
+  }
+  const deCarpeta = ['grande', 'red', 'crear'].includes(r?.motivo)
+  const textoErr = deCarpeta ? textoMotivoCarpeta(r.motivo) : ERROR_GUARDAR_PROYECTO
+  if (!deCarpeta) registrar(`proyectos: no se pudo ${que}: ${r?.error ?? 'sin detalle'}`)
+  st.pro = { ...st.pro, errorForm: { texto: textoErr, reintentar: !deCarpeta } }
+  pintarProyectos()
+  decirProyectos(textoErr)
+}
+
+/**
+ * «Crear proyecto» o «Guardar cambios» (y Ctrl Enter, 9.2): revisa el nombre y las instrucciones (los
+ * errores van a su campo, con el foco en el primero); si están bien, Rust crea (con la carpeta pedida:
+ * con «Una de esta PC», el diálogo primero; si se cancela no se crea nada y el foco vuelve al botón) o
+ * guarda. Lo escrito queda si algo falla (7.7).
+ */
+async function guardarFormProyecto() {
+  const t = st.pro
+  if (!t.form || t.trabajando) return
+  const r = revisarFormularioProyecto(t.form, t.lista)
+  if (!r.ok) {
+    st.pro = { ...t, errorForm: null, form: { ...t.form, errores: r.errores, aviso: false } }
+    pintarProyectos()
+    enfocarProyectos(r.errores.nombre ? 'f-nombre' : 'f-ins')
+    decirProyectos(textoErrorNombre(r.errores.nombre) ?? textoErrorInstrucciones(r.errores.instrucciones))
+    return
+  }
+  st.pro = { ...t, trabajando: true, errorForm: null, form: { ...t.form, errores: {}, aviso: false } }
+  pintarProyectos()
+  try {
+    if (t.form.id) await guardarCambiosProyecto(r)
+    else await crearProyectoEnHoja(r)
+  } finally {
+    st.pro = { ...st.pro, trabajando: false }
+  }
+}
+
+/** Crea el proyecto (11.3): el id nuevo nunca repite uno que existe ni el de un archivo roto. */
+async function crearProyectoEnHoja(r) {
+  const form = st.pro.form
+  const usados = new Set([...st.pro.lista.map(p => p.id), ...st.pro.rotas.map(x => String(x.archivo).replace(/\.json$/, ''))])
+  const datos = { id: nuevoIdProyecto(Date.now(), Math.random, usados), nombre: r.nombre, color: form.color, instrucciones: r.instrucciones, carpeta: form.carpeta }
+  let res
+  try { res = await invocar('proyecto_crear', { datos }) } catch (err) { res = { error: String(err?.message ?? err) } }
+  // Lo que Rust creó entra a la lista siempre; el formulario, solo si sigue abierto
+  const sigue = st.pro.abierta && st.pro.vista === 'nuevo'
+  if (res?.proyecto && !sigue) { ponerProyectoEnLista(res.proyecto); pintar(); return }
+  if (!sigue) return
+  if (res?.cancelado) { enfocarProyectos('f-guardar'); return }
+  if (!res?.proyecto) { errorDeComando(res, 'crear'); return }
+  const desde = movimientoProyectos.posicionPildora($('#pro .idx'))
+  ponerProyectoEnLista(res.proyecto)
+  st.pro = { ...cerrarFormularioProyecto(st.pro), elegido: res.proyecto.id }
+  pintar()
+  movimientoProyectos.entraFila($(`#pro [data-k="ix-${CSS.escape(res.proyecto.id)}"]`))
+  movimientoProyectos.viajarPildora($('#pro .idx'), desde)
+  movimientoProyectos.entraPanel($('#pro-pane'))
+  enfocarProyectos('h2')
+  decirProyectos('Proyecto creado')
+}
+
+/** Guarda lo editado (11.3): nombre, color e instrucciones; Rust ignora la carpeta del documento (11.1). */
+async function guardarCambiosProyecto(r) {
+  const form = st.pro.form
+  const p = st.pro.lista.find(x => x.id === form.id)
+  if (!p) return
+  const proyecto = { ...p, nombre: r.nombre, instrucciones: r.instrucciones, color: form.color }
+  let res
+  try { res = await invocar('proyectos_guardar', { proyecto }) } catch (err) { res = { error: String(err?.message ?? err) } }
+  if (res?.proyecto) ponerProyectoEnLista(res.proyecto)
+  if (!st.pro.abierta || st.pro.vista !== 'editar' || st.pro.form?.id !== form.id) { pintar(); return }
+  if (!res?.proyecto) { errorDeComando(res, 'guardar'); return }
+  st.pro = cerrarFormularioProyecto(st.pro)
+  pintar()
+  movimientoProyectos.entraPanel($('#pro-pane'))
+  enfocarProyectos('h2')
+  decirProyectos('Cambios guardados')
+}
+
+/**
+ * «Cambiar» / «Cambiar…» / «Elegir otra» (`elegir`, el diálogo de Windows) y «Crear una nueva» (`avis`,
+ * en Documentos › Avis) de 4.7, 4.10 y 7.4: Rust elige o crea la carpeta, la valida y la guarda en el
+ * proyecto; la ventana solo manda el id y el modo (11.2). Cancelado, nada cambia.
+ */
+async function cambiarCarpetaProyecto(modo) {
+  const id = st.pro.form?.id ?? st.pro.elegido
+  if (!id || st.pro.trabajando) return
+  st.pro = { ...st.pro, trabajando: true, errorCarpeta: null }
+  pintarProyectos()
+  let res
+  try { res = await invocar('proyecto_cambiar_carpeta', { id, modo }) } catch (err) { res = { error: String(err?.message ?? err) } }
+  st.pro = { ...st.pro, trabajando: false }
+  if (res?.cancelado) return
+  if (res?.proyecto) {
+    ponerProyectoEnLista(res.proyecto)
+    pintar()
+    decirProyectos('Carpeta cambiada')
+    return
+  }
+  const textoErr = textoMotivoCarpeta(res?.motivo)
+  if (!['grande', 'red', 'crear'].includes(res?.motivo)) registrar(`proyectos: no se pudo cambiar la carpeta: ${res?.error ?? 'sin detalle'}`)
+  st.pro = { ...st.pro, errorCarpeta: textoErr }
+  pintarProyectos()
+  decirProyectos(textoErr)
+}
+
+let relojArmadoProyectos = null
+/** El «¿Borrar…? Sí» vuelve solo a los 3 s (4.11), como el de Tareas. */
+function vigilarArmadoProyectos() {
+  clearTimeout(relojArmadoProyectos)
+  const a = st.pro.armado
+  if (!a) return
+  relojArmadoProyectos = setTimeout(() => {
+    const t = desarmarVencido(st.pro, Date.now())
+    if (t === st.pro) return vigilarArmadoProyectos()
+    st.pro = t
+    pintarProyectos()
+  }, Math.max(0, a.hasta - Date.now()) + 20)
+}
+
+/**
+ * «Borrar proyecto» (4.9, 4.11): el primer clic arma «¿Borrar? Sí» 3 s; el segundo borra el archivo del
+ * proyecto, una sola vez (**nunca su carpeta**; sus charlas, con P2). La fila se pliega y el foco va a la
+ * que ocupa su lugar (9.4). Si Rust no pudo, el proyecto queda y se vuelve a leer.
+ */
+async function clicBorrarProyecto(id) {
+  const { config, ejecutar } = clicBorrar(st.pro, `borrar:${id}`, Date.now())
+  st.pro = config
+  if (!ejecutar) {
+    pintarProyectos()
+    vigilarArmadoProyectos()
+    return
+  }
+  clearTimeout(relojArmadoProyectos)
+  pintarProyectos()
+  let res
+  try { res = await invocar('proyecto_borrar', { id }) } catch (err) { res = { error: String(err?.message ?? err) } }
+  if (res?.error) {
+    registrar(`proyectos: no se pudo borrar ${id}: ${res.error}`)
+    await leerProyectos()
+    return
+  }
+  const siguiente = focoTrasBorrar(st.pro.lista, id)
+  await movimientoProyectos.plegarFila($(`#pro [data-k="ix-${CSS.escape(id)}"]`))
+  const nav = $('#pro .idx')
+  const desde = movimientoProyectos.posicionPildora(nav)
+  st.pro = { ...elegirProyecto(st.pro, siguiente), lista: st.pro.lista.filter(p => p.id !== id) }
+  pintar()
+  movimientoProyectos.viajarPildora($('#pro .idx'), desde)
+  movimientoProyectos.entraPanel($('#pro-pane'))
+  if (!(siguiente ? enfocarProyectos(`ix-${siguiente}`) : enfocarProyectos('ix-nuevo') || enfocarProyectos('primer'))) enfocarProyectos('h2')
+  decirProyectos('Proyecto borrado')
+}
+
+/** Los botones de la hoja de Proyectos (`data-accion="pro-…"`). Un clic en otra cosa desarma el «¿Borrar…? Sí» (4.11). */
+async function accionProyectos(a, b) {
+  if (st.pro.armado && a !== 'pro-borrar') {
+    st.pro = { ...st.pro, armado: null }
+    pintarProyectos()
+  }
+  switch (a) {
+    case 'pro-ver': elegirEnHoja(b.dataset.id); break
+    case 'pro-nuevo': nuevoEnHoja(b.dataset.k); break
+    case 'pro-editar': editarEnHoja('f-nombre', b.dataset.k); break
+    case 'pro-editar-ins': editarEnHoja('f-ins', b.dataset.k); break
+    case 'pro-cancelar': cancelarFormProyecto(); break
+    case 'pro-guardar': await guardarFormProyecto(); break
+    // «Que Avis cree una» / «Una de esta PC» y el Color (4.10): solo cambian el formulario
+    case 'pro-car-modo': st.pro = editarFormProyecto(st.pro, 'carpeta', b.dataset.valor); pintarProyectos(); break
+    case 'pro-color': st.pro = editarFormProyecto(st.pro, 'color', b.dataset.valor); pintarProyectos(); break
+    case 'pro-borrar': await clicBorrarProyecto(b.dataset.valor); break
+    // La zona de soltar y «Abrir» (4.7): Rust abre la carpeta del archivo del proyecto, nunca una ruta de la ventana
+    case 'pro-abrir-carpeta':
+      if (st.pro.elegido) invocar('proyecto_abrir_carpeta', { id: st.pro.elegido }).catch(err => { registrar(`proyectos: no se pudo abrir la carpeta: ${err}`); leerProyectos() })
+      break
+    case 'pro-carpeta-elegir': await cambiarCarpetaProyecto('elegir'); break
+    case 'pro-carpeta-crear': await cambiarCarpetaProyecto('avis'); break
+    // «Abrir la carpeta» de los rotos (7.6): siempre `<config>/proyectos/`
+    case 'pro-carpeta-cfg': invocar('proyectos_abrir_carpeta').catch(err => registrar(`proyectos: no se pudo abrir la carpeta: ${err}`)); break
+    case 'pro-releer': await leerProyectos(); break
+    default: break
+  }
+}
+
 // ------------------------------------------------------------------ la charla con la mascota (docs/diseno/chat-avis-ux.md)
 // Reglas de oro: un clic, nunca solo (abrir la hoja no manda nada; solo Enter, Enviar, una
 // sugerencia, Reintentar o "Volver a preguntar" mandan); nunca se pierde lo escrito (el borrador
@@ -7480,6 +8006,8 @@ async function iniciar() {
     leerTareas()
     // Los hábitos (habitos-ux.md 11.5): lo de hoy en la fila del menú desde el arranque
     leerHabitos()
+    // Los proyectos (proyectos-ux.md 4.1): la cuenta de la fila del menú desde el arranque
+    leerProyectos()
   } else {
     // Sin Tauri (el HTML abierto solo): la ventana del navegador hace de área
     ubicarAlArrancar()
