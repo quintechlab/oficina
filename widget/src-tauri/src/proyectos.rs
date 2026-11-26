@@ -10,7 +10,8 @@
 //!   y `cambiar_carpeta`, con una ruta que eligió el diálogo de Windows o que armó Rust
 //!   (`crear_carpeta_avis`), siempre validada con `carpeta_valida`.
 //! - Avis nunca mueve, renombra ni borra la carpeta de un proyecto ni sus archivos: borrar el proyecto
-//!   borra solo su archivo.
+//!   borra solo su archivo. Lo único que escribe adentro son las copias de lo que se suelta (`soltar`,
+//!   P3), solo en una carpeta que creó Avis, sin pisar nada.
 //!
 //! Formato v1: `{ v: 1, id: "p-…", nombre, color, orden, creado: ms, instrucciones, carpeta: { tipo:
 //! "avis" | "pc", ruta } | null }`.
@@ -481,6 +482,117 @@ pub fn ruta_para_abrir(carpeta: &Path, id: &str) -> Result<PathBuf, String> {
         return Err(String::from("la carpeta del proyecto no está"));
     }
     Ok(p)
+}
+
+// ------------------------------------------------------------------ soltar archivos (11.2, P3)
+
+/// Hasta 20 archivos por vez (D-p18): los que sobran no se copian (`motivo: "tope"`).
+pub const TOPE_SOLTAR: usize = 20;
+/// Hasta 200 MB cada uno (D-p18).
+pub const TOPE_BYTES_SOLTAR: u64 = 200 * 1024 * 1024;
+
+/// El nombre de la copia `k` (5.2): el primero tal cual; después «{nombre} (k).{ext}». Un nombre que
+/// empieza con punto y no tiene otro (`.env`) es todo nombre.
+pub fn nombre_copia(nombre: &str, k: u32) -> String {
+    if k <= 1 {
+        return nombre.to_string();
+    }
+    match nombre.rsplit_once('.') {
+        Some((base, ext)) if !base.is_empty() => format!("{base} ({k}).{ext}"),
+        _ => format!("{nombre} ({k})"),
+    }
+}
+
+/// Copia un archivo soltado a `destino` (ya validada) **sin mover el original y sin pisar nada**: el
+/// destino se abre con `create_new`, así que un nombre que ya existe (o que otro creó recién) pasa a
+/// « (2)», « (3)»… Devuelve el nombre final, o el motivo: `ruta` (no absoluta), `no-existe`, `enlace`,
+/// `carpeta`, `no-archivo`, `adentro` (ya está en la carpeta destino), `grande` (más de `tope` bytes) o
+/// `copiar`. Una copia a medias (solo la que creó esta llamada) se borra.
+fn copiar_uno(destino: &Path, origen: &Path, tope: u64) -> Result<String, &'static str> {
+    if !origen.is_absolute() {
+        return Err("ruta");
+    }
+    let meta = fs::symlink_metadata(origen).map_err(|_| "no-existe")?;
+    let tipo = meta.file_type();
+    if tipo.is_symlink() {
+        return Err("enlace");
+    }
+    if tipo.is_dir() {
+        return Err("carpeta");
+    }
+    if !tipo.is_file() {
+        return Err("no-archivo");
+    }
+    if meta.len() > tope {
+        return Err("grande");
+    }
+    let real = fs::canonicalize(origen).map_err(|_| "no-existe")?;
+    if dentro(&sin_prefijo(&real), destino) {
+        return Err("adentro");
+    }
+    let mut leido = fs::File::open(origen).map_err(|_| "copiar")?;
+    let nombre = crate::adjuntos::nombre_de(origen);
+    for k in 1..1000 {
+        let final_ = nombre_copia(&nombre, k);
+        let ruta = destino.join(&final_);
+        let mut escrito = match fs::OpenOptions::new().write(true).create_new(true).open(&ruta) {
+            Ok(f) => f,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(_) => return Err("copiar"),
+        };
+        let copiado = std::io::copy(&mut std::io::Read::take(&mut leido, tope + 1), &mut escrito);
+        drop(escrito);
+        return match copiado {
+            Ok(n) if n <= tope => Ok(final_),
+            Ok(_) => {
+                let _ = fs::remove_file(&ruta);
+                Err("grande")
+            }
+            Err(_) => {
+                let _ = fs::remove_file(&ruta);
+                Err("copiar")
+            }
+        };
+    }
+    Err("copiar")
+}
+
+/// `proyecto_soltar` (11.2): copia los archivos soltados a la carpeta del proyecto, **solo si la creó Avis**
+/// (`tipo: "avis"`) y sigue siendo válida (`carpeta_valida`). La ruta destino sale del archivo del
+/// proyecto, nunca de la ventana; las de origen son las del evento de soltar de Tauri, y cada una se revisa
+/// (`copiar_uno`). Hasta `TOPE_SOLTAR` por vez (el resto, `motivo: "tope"`) y `TOPE_BYTES_SOLTAR` cada uno.
+/// Devuelve `{ copiados: [nombre final], renombrados: [{ nombre, como }], fallidos: [{ nombre, motivo }] }`.
+pub fn soltar(carpeta: &Path, id: &str, rutas: &[String], reglas: &Reglas) -> Result<Value, String> {
+    soltar_con(carpeta, id, rutas, reglas, TOPE_BYTES_SOLTAR)
+}
+
+/// `soltar` con otro tope de bytes (los tests no escriben 200 MB).
+pub(crate) fn soltar_con(carpeta: &Path, id: &str, rutas: &[String], reglas: &Reglas, tope: u64) -> Result<Value, String> {
+    let d = leer(carpeta, id)?;
+    if d["carpeta"]["tipo"].as_str() != Some("avis") {
+        return Err(String::from("la carpeta del proyecto no es de Avis"));
+    }
+    let r = d["carpeta"]["ruta"].as_str().ok_or("el proyecto no tiene carpeta")?;
+    let destino = carpeta_valida(Path::new(r), reglas).map_err(|m| format!("la carpeta del proyecto no sirve ({})", m.codigo()))?;
+    let (mut copiados, mut renombrados, mut fallidos) = (Vec::new(), Vec::new(), Vec::new());
+    for (i, origen) in rutas.iter().enumerate() {
+        let o = Path::new(origen);
+        let nombre = crate::adjuntos::nombre_de(o);
+        if i >= TOPE_SOLTAR {
+            fallidos.push(json!({ "nombre": nombre, "motivo": "tope" }));
+            continue;
+        }
+        match copiar_uno(&destino, o, tope) {
+            Ok(como) => {
+                if como != nombre {
+                    renombrados.push(json!({ "nombre": nombre, "como": como }));
+                }
+                copiados.push(json!(como));
+            }
+            Err(motivo) => fallidos.push(json!({ "nombre": nombre, "motivo": motivo })),
+        }
+    }
+    Ok(json!({ "copiados": copiados, "renombrados": renombrados, "fallidos": fallidos }))
 }
 
 #[cfg(not(test))]

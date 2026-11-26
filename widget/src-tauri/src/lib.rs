@@ -1288,6 +1288,30 @@ async fn proyecto_abrir_carpeta(app: AppHandle, id: String) -> Result<(), String
     std::process::Command::new("explorer").arg(&r).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
+/// Copia los archivos soltados sobre la zona de un proyecto (11.2, P3): solo en una carpeta creada por Avis,
+/// hasta 20 por vez y 200 MB cada uno; **copia, nunca mueve ni pisa** (« (2)»). La ventana manda el id y
+/// las rutas que entregó el evento de soltar de Tauri; la carpeta destino sale del archivo del proyecto.
+/// `{ copiados, renombrados, fallidos }` o `{ error }`. Al log, solo las cuentas.
+#[tauri::command]
+async fn proyecto_soltar(app: AppHandle, id: String, rutas: Vec<String>) -> Result<serde_json::Value, String> {
+    let carpeta = carpeta_proyectos(&app)?;
+    let reglas = reglas_proyectos(&app)?;
+    let r = tauri::async_runtime::spawn_blocking(move || proyectos::soltar(&carpeta, &id, &rutas, &reglas)).await.map_err(|e| e.to_string())?;
+    Ok(match r {
+        Ok(v) => {
+            let fallidos = v["fallidos"].as_array().map_or(0, Vec::len);
+            if fallidos > 0 {
+                registrar(format!("proyectos: soltar: {} copiados, {fallidos} sin copiar", v["copiados"].as_array().map_or(0, Vec::len)));
+            }
+            v
+        }
+        Err(error) => {
+            registrar(format!("proyectos: no se pudo soltar: {error}"));
+            error_proyecto(&error, None)
+        }
+    })
+}
+
 /// Abre `<config>/proyectos/` en el Explorador (7.6: «Abrir la carpeta» de un proyecto roto).
 #[tauri::command]
 fn proyectos_abrir_carpeta(app: AppHandle) -> Result<(), String> {
@@ -2170,6 +2194,7 @@ pub fn run() {
             proyecto_cambiar_carpeta,
             proyecto_borrar,
             proyecto_abrir_carpeta,
+            proyecto_soltar,
             proyectos_abrir_carpeta,
             guardar_chat,
             elegir_carpeta,
