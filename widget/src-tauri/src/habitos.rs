@@ -5,6 +5,8 @@
 //!   escribe, los topes recortan (y se anota), y un hábito que no sirve se rechaza sin tocar el archivo.
 //! - Los campos que este Avis no conoce y ya estaban en el archivo (de una versión futura) se conservan.
 //! - Escritura atómica (`atomico.rs`), de a una por vez en el proceso.
+//! - Dos escritores (#43 C3, chat-herramientas-ux.md 11.5): la ventana guarda con la `huella` de lo que
+//!   leyó (`guardar_si`); si la charla cambió el archivo desde entonces, no se escribe y el error es `"cambio"`.
 //! - Un archivo roto se informa (`rotas`) y se anota en `widget.log`; nunca se pisa ni se borra.
 //!
 //! Formato v1: `{ v: 1, id: "h-…", nombre, tipo: "diario" | "cantidad" | "dias" | "semana", meta,
@@ -20,6 +22,7 @@
 //! instalado, con 60 tokens y 45 s; no guarda nada.
 
 use serde_json::{json, Map, Value};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,7 +30,7 @@ use std::sync::{mpsc, Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use crate::chat_local::{self, Avance, FinLectura, MotorLocal};
-use crate::tareas::{desconocidas, fecha, id_con, ms, COLORES};
+use crate::tareas::{desconocidas, fecha, huella, id_con, ms, Falla, COLORES};
 
 /// Los tipos de hábito (S2).
 pub const TIPOS: [&str; 4] = ["diario", "cantidad", "dias", "semana"];
@@ -157,15 +160,20 @@ pub fn normalizar(doc: &Value) -> Result<Value, String> {
     }))
 }
 
-/// Lee `<id>.json` tal cual está, si sirve: el valor crudo (con sus desconocidas) o por qué no.
-fn leer_crudo(r: &Path, id: &str) -> Result<Value, String> {
+/// Lee `<id>.json` tal cual está, si sirve: el valor crudo (con sus desconocidas) y su huella
+/// (`tareas::huella`, SHA-256 de los bytes), o por qué no.
+fn leer_con_huella(r: &Path, id: &str) -> Result<(Value, String), String> {
     let bytes = fs::read(r).map_err(|e| e.to_string())?;
     let v: Value = serde_json::from_slice(&bytes).map_err(|e| format!("no es JSON: {e}"))?;
     let d = normalizar(&v)?;
     if d["id"] != json!(id) {
         return Err(String::from("el archivo es de otro hábito"));
     }
-    Ok(v)
+    Ok((v, huella(&bytes)))
+}
+
+fn leer_crudo(r: &Path, id: &str) -> Result<Value, String> {
+    leer_con_huella(r, id).map(|(v, _)| v)
 }
 
 fn bloquear() -> std::sync::MutexGuard<'static, ()> {
@@ -173,19 +181,64 @@ fn bloquear() -> std::sync::MutexGuard<'static, ()> {
 }
 
 /// Guarda el hábito (atómico) y devuelve lo guardado. Nunca pisa un archivo roto.
+#[cfg(test)]
 pub fn guardar(carpeta: &Path, doc: &Value) -> Result<Value, String> {
+    guardar_si(carpeta, doc, None).map(|(limpio, _)| limpio)
+}
+
+/// `guardar` con la huella de lo que leyó la ventana (#43 C3, chat-herramientas-ux.md 11.5, como
+/// `tareas::guardar_si`): si el archivo ya no tiene esa huella (lo cambió la charla, o ya no está), no
+/// escribe y el error es `"cambio"`. Mira y escribe con el candado de `modificar` tomado: una marca de la
+/// charla nunca queda en el medio. Sin huella, guarda como siempre. Devuelve lo guardado y su huella nueva.
+pub fn guardar_si(carpeta: &Path, doc: &Value, huella_leida: Option<&str>) -> Result<(Value, String), String> {
     let mut limpio = normalizar(doc)?;
     let id = limpio["id"].as_str().unwrap_or_default().to_string();
     let destino = ruta(carpeta, &id).ok_or("id de hábito inválido")?;
     let _candado = bloquear();
+    if let Some(h) = huella_leida {
+        let actual = fs::read(&destino).ok().map(|b| huella(&b));
+        if actual.as_deref() != Some(h) {
+            return Err(String::from("cambio"));
+        }
+    }
     if destino.exists() {
         let archivo = leer_crudo(&destino, &id).map_err(|e| format!("el archivo del hábito está roto ({e}): no se pisa"))?;
         if let Some(o) = limpio.as_object_mut() {
             o.extend(desconocidas(&archivo, &CLAVES));
         }
     }
-    crate::atomico::escribir(&destino, &serde_json::to_vec(&limpio).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-    Ok(limpio)
+    let bytes = serde_json::to_vec(&limpio).map_err(|e| e.to_string())?;
+    crate::atomico::escribir(&destino, &bytes).map_err(|e| e.to_string())?;
+    Ok((limpio, huella(&bytes)))
+}
+
+/// Lee el hábito `id`, lo cambia con `f` y lo escribe, todo con el candado de las escrituras tomado (#43
+/// C3, chat-herramientas-ux.md 11.4): la ventana y la charla nunca se pisan a medias. Es el `modificar` de
+/// `tareas.rs` para un hábito: `f` recibe el hábito del formato (sin las claves desconocidas, que se
+/// conservan al escribir) y lo que deja tiene que seguir siendo un hábito del formato, del mismo id. Un
+/// archivo roto no se toca (`Rota`), uno que no está es `NoExiste`, y si `f` se niega no se escribe nada.
+pub fn modificar<R>(carpeta: &Path, id: &str, f: impl FnOnce(&mut Value) -> Result<R, String>) -> Result<(R, Value), Falla> {
+    let destino = ruta(carpeta, id).ok_or(Falla::NoExiste)?;
+    let _candado = bloquear();
+    if !destino.is_file() {
+        return Err(Falla::NoExiste);
+    }
+    let crudo = leer_crudo(&destino, id).map_err(|e| {
+        registrar(&format!("hábitos: {id}.json: {e}"));
+        Falla::Rota
+    })?;
+    let mut doc = normalizar(&crudo).map_err(|_| Falla::Rota)?;
+    let r = f(&mut doc).map_err(Falla::Regla)?;
+    let mut limpio = normalizar(&doc).map_err(Falla::Regla)?;
+    if limpio["id"] != json!(id) {
+        return Err(Falla::Regla(String::from("el cambio es de otro hábito")));
+    }
+    if let Some(o) = limpio.as_object_mut() {
+        o.extend(desconocidas(&crudo, &CLAVES));
+    }
+    let bytes = serde_json::to_vec(&limpio).map_err(|e| Falla::Disco(e.to_string()))?;
+    crate::atomico::escribir(&destino, &bytes).map_err(|e| Falla::Disco(e.to_string()))?;
+    Ok((r, limpio))
 }
 
 /// Borra el archivo del hábito. Lo que ya no existe no es un error; un archivo roto no se borra.
@@ -199,11 +252,13 @@ pub fn borrar(carpeta: &Path, id: &str) -> Result<(), String> {
     fs::remove_file(&r).map_err(|e| e.to_string())
 }
 
-/// Lo que lee `habitos_leer`: los hábitos que sirven, en orden, y los archivos rotos (`{ archivo, motivo }`).
+/// Lo que lee `habitos_leer`: los hábitos que sirven, en orden, los archivos rotos (`{ archivo, motivo }`)
+/// y la huella de cada hábito que sirve (por id, #43 C3, 11.5).
 #[derive(Debug, Default)]
 pub struct Lectura {
     pub habitos: Vec<Value>,
     pub rotas: Vec<Value>,
+    pub huellas: HashMap<String, String>,
 }
 
 /// Todos los hábitos, ordenados por `orden`, `creado` e id (con sus claves desconocidas).
@@ -216,14 +271,17 @@ pub fn listar(carpeta: &Path) -> Lectura {
         if !e.metadata().is_ok_and(|m| m.is_file()) {
             continue;
         }
-        match leer_crudo(&e.path(), id).and_then(|crudo| {
+        match leer_con_huella(&e.path(), id).and_then(|(crudo, h)| {
             let mut d = normalizar(&crudo)?;
             if let Some(o) = d.as_object_mut() {
                 o.extend(desconocidas(&crudo, &CLAVES));
             }
-            Ok(d)
+            Ok((d, h))
         }) {
-            Ok(d) => l.habitos.push(d),
+            Ok((d, h)) => {
+                l.huellas.insert(id.to_string(), h);
+                l.habitos.push(d);
+            }
             Err(motivo) => {
                 registrar(&format!("hábitos: {archivo}: {motivo}"));
                 l.rotas.push(json!({ "archivo": archivo, "motivo": motivo }));

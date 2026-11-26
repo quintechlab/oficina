@@ -1419,7 +1419,7 @@ fn argumentos_exactos_de_11_2_con_el_servidor_de_avis() {
         "--include-partial-messages", "--replay-user-messages",
         "--permission-mode", "manual",
         "--tools", "Read,Glob,Grep",
-        "--allowedTools", "Read,Glob,Grep,mcp__avis__tareas_ver,mcp__avis__tarea_crear,mcp__avis__tarea_editar,mcp__avis__tarea_tildar,mcp__avis__tarea_mostrar",
+        "--allowedTools", "Read,Glob,Grep,mcp__avis__tareas_ver,mcp__avis__tarea_crear,mcp__avis__tarea_editar,mcp__avis__tarea_tildar,mcp__avis__tarea_mostrar,mcp__avis__habitos_ver,mcp__avis__habito_marcar",
         "--permission-prompts", "none", "--restricted", "--strict-mcp-config",
         "--mcp-config", &config,
         "--settings", r"C:\config\chat\ajustes.json",
@@ -1466,7 +1466,7 @@ fn con_el_servidor_siguen_las_barreras_de_seguridad() {
 fn la_instruccion_de_11_3_es_una_sola_linea() {
     assert_eq!(
         INSTRUCCION_CHAT,
-        "Sos {Mascota}, la mascota de Avis, el panel que muestra en qué anda Claude Code. Respondés en español rioplatense, de vos, breve y concreto. No modificás archivos ni corrés comandos (no tenés esas herramientas). Sí podés ver, anotar, editar y tildar las tareas de Avis con tus herramientas de Avis: usalas solo cuando el usuario lo pida y después confirmá en una frase corta qué hiciste, sin repetir los detalles (Avis muestra cada cambio con «Deshacer»). Nunca borrás: si te piden borrar una tarea, usá tarea_mostrar con para \"borrar\" y decí que el borrado lo hace el usuario con un clic. Para saber qué día es hoy, usá tareas_ver. Si te piden algo que requiere actuar fuera de eso, explicá qué haría falta. Cuando el mensaje traiga un bloque `<avis>`, son los datos en vivo de las sesiones: usalos para responder sobre ellas. Usá Markdown simple (títulos, listas, código). Podés leer los archivos de la carpeta de trabajo con Read, Glob y Grep cuando la pregunta lo pida."
+        "Sos {Mascota}, la mascota de Avis, el panel que muestra en qué anda Claude Code. Respondés en español rioplatense, de vos, breve y concreto. No modificás archivos ni corrés comandos (no tenés esas herramientas). Sí podés ver, anotar, editar y tildar las tareas de Avis y ver y marcar los hábitos de hoy con tus herramientas de Avis: usalas solo cuando el usuario lo pida y después confirmá en una frase corta qué hiciste, sin repetir los detalles (Avis muestra cada cambio con «Deshacer»). Nunca borrás: si te piden borrar una tarea, usá tarea_mostrar con para \"borrar\" y decí que el borrado lo hace el usuario con un clic. Para saber qué día es hoy, usá tareas_ver. Si te piden algo que requiere actuar fuera de eso, explicá qué haría falta. Cuando el mensaje traiga un bloque `<avis>`, son los datos en vivo de las sesiones: usalos para responder sobre ellas. Usá Markdown simple (títulos, listas, código). Podés leer los archivos de la carpeta de trabajo con Read, Glob y Grep cuando la pregunta lo pida."
     );
     assert!(!INSTRUCCION_CHAT.contains('\n') && !INSTRUCCION_CHAT.contains('\r'));
 }
@@ -1583,7 +1583,7 @@ fn proceso_falso_el_servidor_cambia_solo_durante_el_turno_y_el_token_muere_con_e
     let r = Recibidos::default();
     let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
     let avisos = Recibidos::default();
-    chat.poner_herramientas(tareas.clone(), avisos.emisor());
+    chat.poner_herramientas(mcp_avis::Carpetas { tareas: tareas.clone(), habitos: tareas.join("habitos") }, avisos.emisor(), Recibidos::default().emisor());
     chat.abrir("c-her", "claude", None, "Avi", None).unwrap();
     let (puerto, token) = mcp_de(&lanzados.lock().unwrap()[0]);
     // Antes del primer mensaje: nada
@@ -1631,7 +1631,7 @@ fn proceso_falso_frenar_corta_los_cambios_del_turno() {
     let carpeta = carpeta_temporal();
     let r = Recibidos::default();
     let chat = Chat::nuevo(carpeta.clone(), lanzador, r.emisor(), Tiempos::default());
-    chat.poner_herramientas(tareas.clone(), Recibidos::default().emisor());
+    chat.poner_herramientas(mcp_avis::Carpetas { tareas: tareas.clone(), habitos: tareas.join("habitos") }, Recibidos::default().emisor(), Recibidos::default().emisor());
     chat.abrir("c-fre", "claude", None, "Avi", None).unwrap();
     let (puerto, token) = mcp_de(&lanzados.lock().unwrap()[0]);
     chat.enviar("c-fre", 1, "Anotame pan", &[], &Value::Null).unwrap();
@@ -2443,4 +2443,74 @@ fn sonda_borrar_de_proyecto_solo_lo_suyo() {
     let d = crate::historial::leer(&chat_dir, "c-inv").unwrap();
     assert!(d.get("proyecto").is_none());
     borrar(&base);
+}
+
+/// M-H9 con hábitos (#43 C3, chat-herramientas-ux.md 11.12 y 14): seis pedidos con el `claude` real
+/// (Haiku) contra carpetas de tareas y hábitos aparte (nunca las del usuario). Imprime por pedido las
+/// herramientas, los cambios y la respuesta; exige lo que no se puede romper: ayer no cambia, ningún
+/// hábito se borra y no hay más herramientas que las de Avis.
+#[cfg(windows)]
+#[test]
+#[ignore]
+fn real_habitos_m_h9() {
+    let base = carpeta_temporal();
+    let (tareas, habitos) = (base.join("tareas"), base.join("habitos"));
+    fs::create_dir_all(&tareas).unwrap();
+    fs::create_dir_all(&habitos).unwrap();
+    let ahora = chrono::Utc::now().timestamp_millis();
+    let hoy = mcp_avis::dia_argentina(ahora);
+    let (d0, d1) = (hoy.format("%Y-%m-%d").to_string(), (hoy - chrono::Duration::days(1)).format("%Y-%m-%d").to_string());
+    let habito = |id: &str, nombre: &str, tipo: &str, meta: u64, unidad: &str, orden: u64| {
+        json!({ "v": 1, "id": id, "nombre": nombre, "tipo": tipo, "meta": meta, "unidad": unidad, "dias": [], "veces": 1, "aviso": null,
+            "color": "celeste", "orden": orden, "creado": 1_762_000_000_000u64, "inicio": "2026-11-01", "mejor": 0, "registro": {} })
+    };
+    let mut agua = habito("h-agua", "Agua", "cantidad", 8, "vasos", 0);
+    agua["registro"][d1.as_str()] = json!(5);
+    agua["registro"][d0.as_str()] = json!(2);
+    let mut caminar = habito("h-caminar", "Caminar", "diario", 1, "", 1);
+    caminar["registro"][d0.as_str()] = json!(1);
+    let leer = habito("h-leer", "Leer 20 minutos", "diario", 1, "", 2);
+    for h in [&agua, &caminar, &leer] {
+        crate::habitos::guardar(&habitos, h).unwrap();
+    }
+    let carpeta = carpeta_temporal();
+    let r = Recibidos::default();
+    let chat = Chat::nuevo(carpeta.clone(), lanzador_real_haiku(), r.emisor(), Tiempos::default());
+    chat.poner_herramientas(mcp_avis::Carpetas { tareas: tareas.clone(), habitos: habitos.clone() }, Recibidos::default().emisor(), Recibidos::default().emisor());
+    chat.abrir("c-real-hab", "claude", None, "Avi", None).unwrap();
+    let pedidos = [
+        "marcá que tomé agua",
+        "sumale 2 vasos al agua",
+        "desmarcá caminar",
+        "¿qué hábitos me faltan hoy?",
+        "marcá el agua de ayer: ayer tomé 8 vasos",
+        "borrá el hábito agua",
+    ];
+    let valor = |id: &str, dia: &str| crate::habitos::listar(&habitos).habitos.iter().find(|h| h["id"] == id).map(|h| h["registro"][dia].as_u64().unwrap_or(0));
+    for (k, pedido) in pedidos.iter().enumerate() {
+        let antes = r.todos().len();
+        chat.enviar("c-real-hab", k as u64 + 1, pedido, &[], &Value::Null).unwrap();
+        let (texto, herr, fin) = turno_real(&r, antes, 180);
+        let cambios: Vec<String> = r.todos()[antes..]
+            .iter()
+            .filter(|v| ["cambio", "lectura"].contains(&v["tipo"].as_str().unwrap_or("")))
+            .map(|v| format!("{} {} {} → {} {}", v["cambio"]["herramienta"], v["cambio"]["estado"], v["cambio"]["antes"], v["cambio"]["despues"], v["cambio"]["motivo"]))
+            .collect();
+        println!(
+            "M-H9 {} «{pedido}» ({fin})\n  herramientas: {herr:?}\n  cambios: {cambios:?}\n  agua hoy={:?} ayer={:?} caminar hoy={:?}\n  respuesta: {}\n",
+            k + 1,
+            valor("h-agua", &d0),
+            valor("h-agua", &d1),
+            valor("h-caminar", &d0),
+            texto.replace('\n', " ")
+        );
+        assert_eq!(fin, "fin", "pedido {}", k + 1);
+        // Lo que no se rompe nunca: ayer queda, ningún hábito se borra, solo herramientas de Avis o de leer
+        assert_eq!(valor("h-agua", &d1), Some(5), "ayer cambió en el pedido {}", k + 1);
+        assert_eq!(crate::habitos::listar(&habitos).habitos.len(), 3, "se borró un hábito en el pedido {}", k + 1);
+        assert!(herr.iter().all(|h| h.starts_with("mcp__avis__") || h.starts_with("Read") || h.starts_with("Glob") || h.starts_with("Grep")), "{herr:?}");
+    }
+    chat.apagar();
+    borrar(&carpeta);
+    println!("carpeta de la prueba (no se borra): {}", base.display());
 }

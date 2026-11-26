@@ -31,8 +31,10 @@ const TOPE_HERRAMIENTAS: usize = 500;
 /// Cambios por mensaje (11.8, D-c16): 20 que escriben, y aparte hasta 10 lecturas o "para borrar".
 const TOPE_CAMBIOS: usize = 20;
 const TOPE_LECTURAS: usize = 10;
-/// Las herramientas que dejan cambios (#43, 11.4) y sus estados (11.8).
-const HERRAMIENTAS_AVIS: [&str; 5] = ["tareas_ver", "tarea_crear", "tarea_editar", "tarea_tildar", "tarea_mostrar"];
+/// Las herramientas que dejan cambios (#43, 11.4; C3 suma las de hábitos) y sus estados (11.8).
+const HERRAMIENTAS_AVIS: [&str; 7] = ["tareas_ver", "tarea_crear", "tarea_editar", "tarea_tildar", "tarea_mostrar", "habitos_ver", "habito_marcar"];
+/// Lo más que se anota en un día de un hábito (habitos-ux 11.1).
+const TOPE_VALOR_HABITO: i64 = 999;
 const ESTADOS_CAMBIO: [&str; 6] = ["hecho", "deshecho", "cambio-despues", "error", "lectura", "mostrar"];
 
 /// Una escritura por vez en todo el proceso: dos guardados a la vez no se pisan el `rename`.
@@ -165,6 +167,9 @@ fn campos_de_tarea(v: &Value) -> Option<Value> {
             "hechaEn" => (valor.is_null() || valor.is_u64()).then(|| valor.clone()),
             "notas" => corto_o_nulo(valor, 4000).filter(|v| v.is_string()),
             "lista" => id_o_nulo(valor, "l-").filter(|v| v.is_string()),
+            // C3: `registro[dia]` de un hábito (`habito_marcar`)
+            "dia" => fecha_o_nulo(valor).filter(Value::is_string),
+            "valor" => valor.as_u64().filter(|n| *n <= TOPE_VALOR_HABITO as u64).map(|_| valor.clone()),
             _ => continue,
         };
         x.insert(k.clone(), bueno?);
@@ -187,6 +192,9 @@ fn args_de(v: &Value) -> Option<Value> {
             "notas" => corto_o_nulo(valor, 4000),
             "id" => corto_o_nulo(valor, 40),
             "importante" | "hecha" => valor.is_boolean().then(|| valor.clone()),
+            // C3: lo que pidió `habito_marcar`
+            "valor" | "sumar" => valor.as_i64().filter(|n| n.abs() <= TOPE_VALOR_HABITO).map(|_| valor.clone()),
+            "dia" => corto_o_nulo(valor, 40),
             _ => continue,
         };
         x.insert(k.clone(), bueno?);
@@ -203,7 +211,7 @@ fn resumen_de(v: &Value) -> Option<Value> {
     let mut x = Map::new();
     for (k, valor) in o {
         let bueno = match k.as_str() {
-            "vista" => valor.as_str().filter(|s| ["hoy", "vencidas", "lista", "todas"].contains(s)).map(|_| valor.clone()),
+            "vista" => valor.as_str().filter(|s| ["hoy", "vencidas", "lista", "todas", "habitos"].contains(s)).map(|_| valor.clone()),
             "para" => valor.as_str().filter(|s| *s == "borrar" || *s == "ver").map(|_| valor.clone()),
             "nombre" => corto_o_nulo(valor, 40),
             "hoy" => fecha_o_nulo(valor),
@@ -227,6 +235,28 @@ fn resumen_de(v: &Value) -> Option<Value> {
                     })
                     .collect::<Option<Vec<_>>>()?;
                 Some(Value::Array(filas))
+            }
+            // C3: las píldoras de los hábitos de hoy de `habitos_ver` (hasta 6)
+            "habitos" => {
+                let pildoras = valor.as_array()?;
+                if pildoras.len() > 6 {
+                    return None;
+                }
+                let pildoras = pildoras
+                    .iter()
+                    .map(|h| {
+                        Some(json!({
+                            "habito": id_o_nulo(&h["habito"], "h-").filter(Value::is_string)?,
+                            "nombre": corto_o_nulo(&h["nombre"], 40).filter(Value::is_string)?,
+                            "tipo": h["tipo"].as_str().filter(|t| crate::habitos::TIPOS.contains(t))?,
+                            "meta": h["meta"].as_u64().filter(|m| (1..=99).contains(m))?,
+                            "valor": h["valor"].as_u64().filter(|n| *n <= TOPE_VALOR_HABITO as u64)?,
+                            "hecho": h["hecho"].as_bool()?,
+                            "color": h["color"].as_str().filter(|c| crate::tareas::COLORES.contains(c))?,
+                        }))
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                Some(Value::Array(pildoras))
             }
             _ => continue,
         };
@@ -259,7 +289,25 @@ fn cambio(c: &Value) -> Option<Value> {
     if let Some(l) = lista_nueva_de(&c["listaNueva"]) {
         x["listaNueva"] = l;
     }
+    // C3: un `habito_marcar` lleva su hábito (`h-…`; null solo en un error, cuando el modelo mandó un id que
+    // no sirve) y, para la fila del recibo, la marca (`{ tipo, meta, unidad, color }`; si no sirve, sin ella)
+    if herramienta == "habito_marcar" {
+        x["habito"] = id_o_nulo(&c["habito"], "h-").filter(|h| h.is_string() || estado == "error")?;
+        if let Some(m) = marca_de(&c["marca"]) {
+            x["marca"] = m;
+        }
+    }
     Some(x)
+}
+
+/// `{ tipo, meta, unidad, color }` de la fila de un hábito: un tipo de `habitos::TIPOS`, una meta de 1 a
+/// 99, una unidad de hasta 16 caracteres y un color de `tareas::COLORES`.
+fn marca_de(v: &Value) -> Option<Value> {
+    let tipo = v["tipo"].as_str().filter(|t| crate::habitos::TIPOS.contains(t))?;
+    let meta = v["meta"].as_u64().filter(|m| (1..=99).contains(m))?;
+    let unidad = v["unidad"].as_str().filter(|u| u.chars().count() <= 16)?;
+    let color = v["color"].as_str().filter(|c| crate::tareas::COLORES.contains(c))?;
+    Some(json!({ "tipo": tipo, "meta": meta, "unidad": unidad, "color": color }))
 }
 
 /// `{ nombre, color }` de la lista nueva de un cambio: un nombre de hasta 100 caracteres y un color de

@@ -7,9 +7,10 @@
 // cambio (`curso` o `fallo`, solo de esta ejecución); `enCurso`: el turno del mensaje sigue corriendo.
 
 import { escapar } from './logica.js'
-import { buscarTarea } from './tareas.js'
+import { buscarTarea, COLORES } from './tareas.js'
 import {
   armarRecibos, verboCambio, encabezadoRecibo, encabezadoError, metaCambio, metaFila, tituloLectura, pieDeshacer, lineaPuede,
+  vinculoRecibo, etiquetaPie, esDeHabitos,
 } from './recibos.js'
 
 const ICONO = Object.freeze({
@@ -55,6 +56,29 @@ function chips(meta) {
 /** El círculo de Tareas (decorativo: el verbo lo dice); tildado, ámbar con el visto. */
 const circulo = (on, extra = '') => `<span class="cir${on ? ' on' : ''}${extra}" aria-hidden="true">${on ? ICONO.tilde : ''}</span>`
 
+/**
+ * El anillo de 18 de un hábito (C3, 4.3 y el boceto): el trazo de su color proporcional a lo de hoy sobre
+ * la meta (lleno con la meta o más). Decorativo: el verbo y la etiqueta lo dicen. Un color que no es de la
+ * paleta cae al primero.
+ */
+export function anilloHtml(valor, meta, color) {
+  const C = 2 * Math.PI * 7
+  const m = Math.max(1, Number(meta) || 1)
+  const f = Math.max(0, Math.min(1, (Number(valor) || 0) / m))
+  const c = COLORES.includes(color) ? color : COLORES[0]
+  // En 0, sin trazo de avance: el remate redondo dibujaría un punto de color
+  const avance = f > 0
+    ? `<circle cx="9" cy="9" r="7" class="l" style="stroke:var(--${c})" stroke-dasharray="${(C * f).toFixed(2)} ${C.toFixed(2)}"/>`
+    : ''
+  return `<svg class="anillo" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" class="f"/>${avance}</svg>`
+}
+
+/** La marca de la fila de un cambio: el anillo de un hábito o el círculo de Tareas. */
+function marcaFila(c) {
+  if (c.herramienta === 'habito_marcar') return anilloHtml(c.despues?.valor, c.marca?.tipo === 'cantidad' ? c.marca?.meta : 1, c.marca?.color)
+  return circulo(c.herramienta === 'tarea_tildar' && c.despues?.hecha === true)
+}
+
 /** «Deshacer» de una fila (4.4) o, ya hecho, «Deshecho» / «Cambió después» (enfocables por código, 9.3). */
 function accionFila(c, solo, ui) {
   const id = escapar(c.id)
@@ -69,22 +93,21 @@ function accionFila(c, solo, ui) {
 /** Una fila de cambio (`.rf`, 4.3): marca, título, verbo y etiquetas, y su acción. Exportada para agregarla sola. */
 export function filaCambioHtml(c, v, { solo = false } = {}) {
   const verbo = verboCambio(c)
-  const tildada = c.herramienta === 'tarea_tildar' && c.despues?.hecha === true
   const clases = ['rf', c.estado === 'deshecho' ? 'deshecho' : ''].filter(Boolean).join(' ')
   const fallo = v.ui?.get(c.id) === 'fallo' ? '<p class="rf-err" role="alert">No se pudo deshacer. Probá de nuevo.</p>' : ''
   return `<div class="${clases}" data-cambio="${escapar(c.id)}" role="group" aria-label="${escapar(`${verbo}: ${c.titulo ?? ''}`)}">`
-    + `${circulo(tildada)}<span class="tx"><b>${escapar(c.titulo ?? '')}<i class="raya" aria-hidden="true"></i></b>`
+    + `${marcaFila(c)}<span class="tx"><b>${escapar(c.titulo ?? '')}<i class="raya" aria-hidden="true"></i></b>`
     + `<span class="meta"><span class="vb">${escapar(verbo)} ·</span>${chips(metaCambio(c, v.listas, v.hoy))}</span></span>`
     + `${accionFila(c, solo, v.ui)}${fallo}</div>`
 }
 
-/** El vínculo del encabezado: «Ver en Tareas →» del último cambio (4.2). */
+/** El vínculo del encabezado (4.2): «Ver en Tareas →» del último cambio de tareas, o (C3) «Ver en Hábitos →». */
 function verEnTareas(cambios) {
-  const u = cambios.at(-1)
-  return `<button type="button" class="lnk" data-accion="ch-ver-tareas" data-lista="${escapar(u?.lista ?? '')}" data-tarea="${escapar(u?.tarea ?? '')}">Ver en Tareas →</button>`
+  const l = vinculoRecibo(cambios)
+  return `<button type="button" class="lnk" data-accion="${l.accion}" data-lista="${escapar(l.lista)}" data-tarea="${escapar(l.tarea)}">${escapar(l.texto)}</button>`
 }
 
-/** El pie del recibo de cambios (desde 2): «tareas» y «Deshacer los {n}» o «Deshechos {k} de {n}». */
+/** El pie del recibo de cambios (desde 2): «tareas» (o «tareas y hábitos», C3) y «Deshacer los {n}» o «Deshechos {k} de {n}». */
 export function pieCambiosHtml(cambios, k) {
   if (cambios.length < 2) return ''
   const p = pieDeshacer(cambios)
@@ -92,7 +115,7 @@ export function pieCambiosHtml(cambios, k) {
     ? `<button type="button" class="deshacer" data-accion="ch-deshacer-todos" data-i="${k}">${ICONO.deshacer}${escapar(p.boton)}</button>`
     : p.estado ? `<span class="estado-d" tabindex="-1" data-estado="pie-${k}">${escapar(p.estado)}</span>` : ''
   // Enfocable por código: «Deshacer los {n}» deja ahí el foco aunque no quede ningún botón (9.3)
-  return `<div class="rec-pie" tabindex="-1" data-pie="${k}"><span>tareas</span>${derecha}</div>`
+  return `<div class="rec-pie" tabindex="-1" data-pie="${k}"><span>${escapar(etiquetaPie(cambios))}</span>${derecha}</div>`
 }
 
 /** El encabezado del recibo de cambios (su texto cambia solo, 7). */
@@ -114,7 +137,9 @@ function reciboError(c, v) {
     + `<div class="rf pedida" role="group" aria-label="${escapar(titulo)}">${circulo(false)}<span class="tx"><b>${escapar(titulo)}</b>`
     + `<span class="meta">${chips(metaCambio(c, [], v.hoy).filter(m => m.tipo === 'fecha'))}</span></span></div>`
     + `<p class="motivo">${escapar(c.motivo ?? '')}</p>`
-    + `<div class="rec-pie">${reintentar}<button type="button" class="mini sutil" data-accion="ch-abrir-tareas">Abrir Tareas</button></div></section>`
+    + `<div class="rec-pie">${reintentar}${esDeHabitos(c)
+      ? '<button type="button" class="mini sutil" data-accion="ch-abrir-habitos">Abrir Hábitos</button>'
+      : '<button type="button" class="mini sutil" data-accion="ch-abrir-tareas">Abrir Tareas</button>'}</div></section>`
 }
 
 function reciboMostrar(c, v) {
@@ -129,8 +154,29 @@ function reciboMostrar(c, v) {
     + `<div class="rf" role="group" aria-label="${escapar(c.titulo ?? '')}">${circulo(!!tarea?.hecha)}<span class="tx"><b>${escapar(c.titulo ?? '')}</b><span class="meta">${chips(meta)}</span></span>${ir}</div></section>`
 }
 
-function reciboLectura(c, v) {
+/**
+ * La fila de hábitos de hoy del recibo de lectura (C3, 4.5 y el boceto): una píldora por hábito con su
+ * anillo, el nombre y, en cantidad, «{n}/{meta}». Hechos, con la clase `hecho`.
+ */
+function filaHabitos(habitos) {
+  const lista = (Array.isArray(habitos) ? habitos : []).slice(0, 6)
+  if (!lista.length) return ''
+  const pildoras = lista.map(h => {
+    const cantidad = h.tipo === 'cantidad'
+    const meta = cantidad ? Number(h.meta) || 1 : 1
+    const texto = cantidad ? `${escapar(h.nombre ?? '')} ${Number(h.valor) || 0}/${meta}` : escapar(h.nombre ?? '')
+    return `<span class="pil${h.hecho ? ' hecho' : ''}">${anilloHtml(h.valor, meta, h.color)}${texto}</span>`
+  }).join('')
+  return `<div class="hab" aria-label="Hábitos de hoy">${pildoras}</div>`
+}
+
+/**
+ * El recibo de lectura (4.5): el de Tareas (con la fila de hábitos de hoy si el turno también los leyó,
+ * C3) o, si solo se leyeron los hábitos, su avance y sus píldoras con «Abrir Hábitos →».
+ */
+function reciboLectura(c, v, deHabitos = null) {
   const r = c.resumen ?? {}
+  const soloHabitos = c.herramienta === 'habitos_ver'
   const total = Number(r.total) || 0
   const hechas = Number(r.hechas) || 0
   const p = total ? Math.round((hechas / total) * 1000) / 10 : 0
@@ -141,9 +187,14 @@ function reciboLectura(c, v) {
       + `<span class="meta">${chips(metaFila(f, v.listas, v.hoy))}</span></span></div>`
   }).join('')
   const mas = Number(r.mas) > 0 ? `<p class="mas-l">y ${Number(r.mas)} más</p>` : ''
+  const habitos = soloHabitos ? filaHabitos(r.habitos) : filaHabitos(deHabitos?.resumen?.habitos)
+  const botones = soloHabitos
+    ? '<button type="button" class="mini pri" data-accion="ch-abrir-habitos">Abrir Hábitos →</button>'
+    : `${habitos ? '<span class="acc-l"><button type="button" class="mini sutil" data-accion="ch-abrir-habitos">Hábitos →</button>' : ''}`
+      + `<button type="button" class="mini pri" data-accion="ch-abrir-tareas">Abrir Tareas →</button>${habitos ? '</span>' : ''}`
   return `<section class="rec lee" data-rec="lectura" data-cambio="${escapar(c.id)}" aria-label="${escapar(titulo)}"><div class="rec-h"><span class="rec-t">${escapar(titulo)}</span>`
     + `<span class="prog" aria-hidden="true" style="--p:${p}%"><i></i></span><span class="cuenta">${hechas} de ${total}</span></div>`
-    + `${filas}${mas}<div class="rec-pie"><span>solo lectura · no cambió nada</span><button type="button" class="mini pri" data-accion="ch-abrir-tareas">Abrir Tareas →</button></div></section>`
+    + `${filas}${mas}${habitos}<div class="rec-pie"><span>solo lectura · no cambió nada</span>${botones}</div></section>`
 }
 
 function reciboNoLlego() {
@@ -159,7 +210,7 @@ export function reciboHtml(r, k, v) {
     case 'cambios': return reciboCambios(r.cambios, k, v)
     case 'error': return reciboError(r.cambio, v)
     case 'mostrar': return reciboMostrar(r.cambio, v)
-    case 'lectura': return reciboLectura(r.cambio, v)
+    case 'lectura': return reciboLectura(r.cambio, v, r.habitos)
     case 'nollego': return reciboNoLlego()
     default: return ''
   }

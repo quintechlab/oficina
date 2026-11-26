@@ -753,3 +753,15 @@ test('rebasarLista: una subtarea agregada en la ventana no deshace lo que la cha
   // El nombre que cambió la charla también queda (la ventana no lo tocó)
   assert.equal(rebasarLista(base, pantalla, comoRust({ ...disco, nombre: 'Hogar' })).nombre, 'Hogar')
 })
+
+// ---------------------------------------------------------------- dos escritores: la base de lo leído (11.5)
+
+test('leerTareas (main.js) no pone al día la base de una lista que no se pisa con lo leído (falló, se guarda o es origen de una mudanza)', async () => {
+  const { readFileSync } = await import('node:fs')
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const leer = main.slice(main.indexOf('function leerTareas('), main.indexOf('function anotarBaseTareas('))
+  // Si no, el reintento de 5 s de un guardado fallido saldría con la huella nueva y pisaría un cambio de la charla
+  assert.match(leer, /const sinGuardar = listasSinGuardar\(\)/)
+  assert.match(leer, /for \(const l of listas\) if \(!sinGuardar\.has\(l\.id\)\) anotarBaseTareas\(l, r\?\.huellas\?\.\[l\.id\]\)/)
+  assert.match(leer, /mezclarLectura\(listas, st\.tareas\.listas, sinGuardar\)/)
+})

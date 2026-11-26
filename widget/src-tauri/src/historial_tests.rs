@@ -448,3 +448,88 @@ fn una_charla_vieja_sin_cambios_se_lee_igual() {
     assert_eq!(n["mensajes"][1].get("cambios"), None);
     assert_eq!(n["mensajes"], doc["mensajes"]);
 }
+
+// ---------------------------------------------------------------- #43 C3: los cambios de hábitos
+
+fn cambio_marcar() -> Value {
+    json!({
+        "id": "c-hab1", "herramienta": "habito_marcar", "estado": "hecho", "lista": null, "tarea": null, "habito": "h-agua",
+        "titulo": "Agua", "antes": { "dia": "2026-11-25", "valor": 2 }, "despues": { "dia": "2026-11-25", "valor": 3 },
+        "marca": { "tipo": "cantidad", "meta": 8, "unidad": "vasos", "color": "celeste" },
+        "motivo": null, "reintentable": false, "args": null,
+    })
+}
+
+#[test]
+fn un_cambio_de_habito_y_su_lectura_sobreviven_a_normalizar() {
+    let error = json!({
+        "id": "c-herr", "herramienta": "habito_marcar", "estado": "error", "lista": null, "tarea": null, "habito": "h-agua", "titulo": "Agua",
+        "antes": null, "despues": null, "motivo": "Solo se marcan los hábitos de hoy.", "reintentable": false,
+        "args": { "id": "h-agua", "sumar": -2, "dia": "2026-11-25" },
+    });
+    let lectura = json!({
+        "id": "c-hlee", "herramienta": "habitos_ver", "estado": "lectura", "lista": null, "tarea": null, "titulo": null,
+        "antes": null, "despues": null, "motivo": null, "reintentable": false, "args": null,
+        "resumen": { "vista": "habitos", "hoy": "2026-11-25", "hechas": 1, "total": 2, "mas": 0,
+            "habitos": [
+                { "habito": "h-agua", "nombre": "Agua", "tipo": "cantidad", "meta": 8, "valor": 3, "hecho": false, "color": "celeste" },
+                { "habito": "h-caminar", "nombre": "Caminar", "tipo": "diario", "meta": 1, "valor": 1, "hecho": true, "color": "verde" },
+            ] },
+    });
+    let doc = con_cambios(json!([cambio_marcar(), error, lectura]));
+    let n = normalizar(&doc).unwrap();
+    assert_eq!(n["mensajes"][1]["cambios"], doc["mensajes"][1]["cambios"]);
+}
+
+#[test]
+fn el_error_de_un_habito_con_id_invalido_sobrevive_y_uno_hecho_sin_habito_no() {
+    // El modelo mandó un id que no sirve ("agua"): el servidor emite el error con `habito: null`.
+    // Al reabrir la charla el recibo de error tiene que seguir (si no, `faltantes` diría «no llegó»).
+    let error = json!({
+        "id": "c-hmal", "herramienta": "habito_marcar", "estado": "error", "lista": null, "tarea": null, "habito": null, "titulo": null,
+        "antes": null, "despues": null, "motivo": "Ese hábito ya no está.", "reintentable": false,
+        "args": { "id": "agua", "sumar": 1 },
+    });
+    let mut hecho = cambio_marcar();
+    hecho["id"] = json!("c-hsin");
+    hecho["habito"] = Value::Null;
+    let doc = con_cambios(json!([error.clone(), hecho]));
+    let n = normalizar(&doc).unwrap();
+    assert_eq!(n["mensajes"][1]["cambios"], json!([error]));
+}
+
+#[test]
+fn un_cambio_de_habito_que_no_sirve_se_descarta() {
+    let mut malos = Vec::new();
+    for (k, v) in [
+        ("habito", json!("h-../x")),
+        ("habito", json!(null)),
+        ("habito", json!("t-agua")),
+        ("antes", json!({ "dia": "ayer", "valor": 2 })),
+        ("despues", json!({ "dia": "2026-11-25", "valor": 1000 })),
+        ("despues", json!({ "dia": "2026-11-25", "valor": -1 })),
+    ] {
+        let mut c = cambio_marcar();
+        c[k] = v;
+        malos.push(c);
+    }
+    let n = normalizar(&con_cambios(json!(malos))).unwrap();
+    assert_eq!(n["mensajes"][1].get("cambios"), None);
+    // Una marca que no sirve: el cambio queda, sin la marca
+    let mut sin_marca = cambio_marcar();
+    sin_marca["marca"] = json!({ "tipo": "raro", "meta": 8, "unidad": "vasos", "color": "celeste" });
+    let n = normalizar(&con_cambios(json!([sin_marca]))).unwrap();
+    let mut esperado = cambio_marcar();
+    esperado.as_object_mut().unwrap().remove("marca");
+    assert_eq!(n["mensajes"][1]["cambios"], json!([esperado]));
+}
+
+#[test]
+fn un_cambio_de_tareas_no_suma_claves_de_habitos() {
+    // Lo de antes: un cambio de tareas se guarda igual que en C1 (sin `habito` ni `marca`)
+    let n = normalizar(&con_cambios(json!([cambio_crear()]))).unwrap();
+    assert_eq!(n["mensajes"][1]["cambios"], json!([cambio_crear()]));
+    let mut con_habito = cambio_crear();
+    con_habito["habito"] = json!("h-agua");
+    assert_eq!(normalizar(&con_cambios(json!([con_habito]))).unwrap()["mensajes"][1]["cambios"], json!([cambio_crear()]));
+}

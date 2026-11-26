@@ -792,3 +792,77 @@ test('fraseGuardada (8.4, una vez por semana entre arranques): la frase guardada
   assert.equal(fraseGuardada(null, L16), null)
   assert.equal(fraseGuardada({ lunes: L16, frase: 'a\nb' }, L16), null)
 })
+
+// ---------------------------------------------------------------- #43 C3: dos escritores (chat-herramientas-ux.md 11.5)
+
+import { rebasarHabito } from '../src/habitos.js'
+import { readFileSync } from 'node:fs'
+
+test('rebasarHabito: sin cambios en la ventana, queda lo del disco (lo que marcó la charla)', () => {
+  const base = hab({ tipo: 'cantidad', registro: { [HOY]: 2 } })
+  const disco = hab({ tipo: 'cantidad', registro: { [HOY]: 3 } })
+  assert.deepEqual(rebasarHabito(base, structuredClone(base), disco), disco)
+})
+
+test('rebasarHabito: la ventana cambió el nombre y la charla marcó hoy: quedan los dos', () => {
+  const base = hab({ tipo: 'cantidad', registro: { [dia(-1)]: 8, [HOY]: 2 } })
+  const pantalla = { ...base, nombre: 'Tomar agua' }
+  const disco = { ...base, registro: { [dia(-1)]: 8, [HOY]: 3 } }
+  assert.deepEqual(rebasarHabito(base, pantalla, disco), { ...base, nombre: 'Tomar agua', registro: { [dia(-1)]: 8, [HOY]: 3 } })
+})
+
+test('rebasarHabito: en cantidad, si los dos cambiaron el mismo día se suman las dos acciones (11.5: la ventana vuelve a aplicar la acción); los otros días, el disco', () => {
+  const base = hab({ tipo: 'cantidad', registro: { [dia(-2)]: 5, [dia(-1)]: 4, [HOY]: 2 } })
+  // La ventana: +1 hoy y bajó anteayer a 0 (sin la clave); la charla: +1 hoy (3)
+  const pantalla = { ...base, registro: { [dia(-1)]: 4, [HOY]: 3 } }
+  const disco = { ...base, registro: { [dia(-2)]: 5, [dia(-1)]: 4, [HOY]: 3 } }
+  assert.deepEqual(rebasarHabito(base, pantalla, disco).registro, { [dia(-1)]: 4, [HOY]: 4 })
+  // La ventana bajó hoy de 2 a 0 (−2) y la charla sumó 1: queda 1
+  assert.deepEqual(rebasarHabito(base, { ...base, registro: { [dia(-2)]: 5, [dia(-1)]: 4 } }, disco).registro, { [dia(-2)]: 5, [dia(-1)]: 4, [HOY]: 1 })
+  // Nunca baja de 0 ni pasa de 999
+  const alto = { ...base, registro: { [HOY]: 998 } }
+  assert.equal(rebasarHabito(base, { ...base, registro: { ...base.registro, [HOY]: 5 } }, alto).registro[HOY], 999)
+  const bajo = { ...base, registro: { [HOY]: 0 } }
+  assert.equal(rebasarHabito(base, { ...base, registro: { ...base.registro, [HOY]: 0 } }, bajo).registro[HOY], undefined)
+  // Un día que solo cambió la charla queda como lo dejó (también si lo sacó)
+  const sinAyer = { ...base, registro: { [dia(-2)]: 5, [HOY]: 2 } }
+  assert.deepEqual(rebasarHabito(base, { ...base, nombre: 'Agua' }, sinAyer).registro, { [dia(-2)]: 5, [HOY]: 2 })
+})
+
+test('rebasarHabito: en sí/no el mismo día queda lo de la ventana (tildar dos veces es 1, no 2)', () => {
+  const base = hab({ tipo: 'diario', registro: { [dia(-1)]: 1 } })
+  const disco = { ...base, registro: { [dia(-1)]: 1, [HOY]: 1 } }
+  assert.deepEqual(rebasarHabito(base, { ...base, registro: { [dia(-1)]: 1, [HOY]: 1 } }, disco).registro, { [dia(-1)]: 1, [HOY]: 1 })
+  // La ventana desmarcó ayer; la charla tildó hoy: quedan los dos
+  assert.deepEqual(rebasarHabito(base, { ...base, registro: {} }, disco).registro, { [HOY]: 1 })
+})
+
+test('rebasarHabito: los campos desconocidos sobreviven (los del disco y los que cambió la ventana)', () => {
+  const base = hab({ icono: 'gota', extra: { a: 1, b: 2 } })
+  const disco = { ...base, icono: 'vaso', registro: { [HOY]: 1 } }
+  // Otro orden de claves no es un cambio de la ventana
+  const r = rebasarHabito(base, { ...base, extra: { b: 2, a: 1 } }, disco)
+  assert.equal(r.icono, 'vaso')
+  assert.deepEqual(r.extra, { a: 1, b: 2 })
+  assert.deepEqual(r.registro, { [HOY]: 1 })
+  assert.equal(rebasarHabito(base, { ...base, icono: 'taza' }, disco).icono, 'taza')
+})
+
+test('rebasarHabito: sin base o sin disco, lo de la pantalla (como antes)', () => {
+  const pantalla = hab({ nombre: 'Agua' })
+  assert.equal(rebasarHabito(null, pantalla, hab()), pantalla)
+  assert.equal(rebasarHabito(hab(), pantalla, null), pantalla)
+})
+
+test('guardarHabito (main.js) guarda con la huella de su base y, con «cambio», relee, vuelve a aplicar una vez y guarda', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const cuerpo = main.slice(main.indexOf('function guardarHabito('), main.indexOf('function ponerErrorGuardarHabitos('))
+  assert.match(cuerpo, /invocar\('habitos_guardar', \{ habito, huella: basesHabitos\.get\(id\)\?\.huella \?\? null \}\)/)
+  assert.match(cuerpo, /r\?\.error === 'cambio' && !rebasado/)
+  assert.match(cuerpo, /await rebasarHabitoEnPantalla\(id\)/)
+  assert.match(cuerpo, /anotarBaseHabito\(r\.habito, r\.huella\)/)
+  // Lo leído pone la base al día (salvo lo que no se pisa con lo leído) y el rebase usa la función pura
+  assert.match(main, /rebasarHabito\(basesHabitos\.get\(id\)\?\.habito, pantalla, disco\)/)
+  const leer = main.slice(main.indexOf('function leerHabitos('), main.indexOf('function alCambiarHabitosFuera('))
+  assert.match(leer, /anotarBaseHabito\(/)
+})

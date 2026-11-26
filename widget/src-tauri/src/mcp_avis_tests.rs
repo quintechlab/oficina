@@ -40,14 +40,18 @@ impl Avisos {
 struct Prueba {
     mcp: McpAvis,
     carpeta: PathBuf,
+    /// `<config>/habitos` de la prueba (#43 C3), aparte de la de tareas.
+    habitos: PathBuf,
     chat: Avisos,
     tareas: Avisos,
+    avisos_habitos: Avisos,
     token: String,
 }
 
 impl Drop for Prueba {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.carpeta);
+        let _ = std::fs::remove_dir_all(&self.habitos);
     }
 }
 
@@ -59,18 +63,42 @@ fn tarea(id: &str, titulo: &str, fecha: Value) -> Value {
     json!({ "id": id, "titulo": titulo, "hecha": false, "hechaEn": null, "fecha": fecha, "importante": false, "notas": "", "subtareas": [], "creada": 1_764_000_000_000u64 })
 }
 
-/// Un servidor con dos listas (Casa primero por `orden`, Compras después), el reloj a `ahora` y un
-/// token de la conversación `c-1` con el turno 4 en curso.
+/// Un hábito del formato v1 de habitos.rs: sí/no con `inicio` el 1/11; `extra` pisa lo que haga falta.
+fn habito(id: &str, nombre: &str, extra: Value) -> Value {
+    let mut h = json!({
+        "v": 1, "id": id, "nombre": nombre, "tipo": "diario", "meta": 1, "unidad": "", "dias": [], "veces": 1, "aviso": null,
+        "color": "celeste", "orden": 0, "creado": 1_762_000_000_000u64, "inicio": "2026-11-01", "mejor": 0, "registro": {},
+    });
+    for (k, v) in extra.as_object().unwrap() {
+        h[k] = v.clone();
+    }
+    h
+}
+
+/// Un servidor con dos listas (Casa primero por `orden`, Compras después), cuatro hábitos (Agua de 8
+/// vasos con 2 hoy, Caminar todos los días, Yoga solo los martes y Correr 3 por semana), el reloj a
+/// `ahora` y un token de la conversación `c-1` con el turno 4 en curso.
 fn prueba_con(ahora: i64) -> Prueba {
     let carpeta = carpeta_temporal();
     tareas::guardar(&carpeta, &lista("l-compras", "Compras", 1, json!([tarea("t-yerba", "Yerba", json!("2026-11-25"))]))).unwrap();
     tareas::guardar(&carpeta, &lista("l-casa", "Casa", 0, json!([tarea("t-luz", "Pagar la luz", json!("2026-11-20"))]))).unwrap();
+    let habitos = carpeta_temporal();
+    for h in [
+        habito("h-agua", "Agua", json!({ "tipo": "cantidad", "meta": 8, "unidad": "vasos", "orden": 0, "registro": { "2026-11-24": 8, "2026-11-25": 2 } })),
+        habito("h-caminar", "Caminar", json!({ "color": "verde", "orden": 1 })),
+        habito("h-yoga", "Yoga", json!({ "tipo": "dias", "dias": [1], "color": "rosa", "orden": 2 })),
+        habito("h-correr", "Correr", json!({ "tipo": "semana", "veces": 3, "color": "violeta", "orden": 3 })),
+    ] {
+        crate::habitos::guardar(&habitos, &h).unwrap();
+    }
     let chat = Avisos::default();
     let avisos_tareas = Avisos::default();
-    let mcp = McpAvis::arrancar(carpeta.clone(), chat.emisor(), avisos_tareas.emisor(), Arc::new(move || ahora)).unwrap();
+    let avisos_habitos = Avisos::default();
+    let carpetas = Carpetas { tareas: carpeta.clone(), habitos: habitos.clone() };
+    let mcp = McpAvis::arrancar(carpetas, chat.emisor(), avisos_tareas.emisor(), avisos_habitos.emisor(), Arc::new(move || ahora)).unwrap();
     let token = mcp.nuevo_token("c-1").unwrap();
     mcp.empezar_turno(&token, 4);
-    Prueba { mcp, carpeta, chat, tareas: avisos_tareas, token }
+    Prueba { mcp, carpeta, habitos, chat, tareas: avisos_tareas, avisos_habitos, token }
 }
 
 fn prueba() -> Prueba {
@@ -267,18 +295,20 @@ fn el_saludo_que_pide_claude_code() {
 }
 
 #[test]
-fn tools_list_son_exactamente_las_cinco() {
+fn tools_list_son_exactamente_las_siete() {
     let p = prueba();
     let v = p.rpc("tools/list", json!({}));
     let herramientas = v["result"]["tools"].as_array().unwrap();
     let nombres: Vec<&str> = herramientas.iter().map(|h| h["name"].as_str().unwrap()).collect();
-    assert_eq!(nombres, ["tareas_ver", "tarea_crear", "tarea_editar", "tarea_tildar", "tarea_mostrar"]);
+    assert_eq!(nombres, ["tareas_ver", "tarea_crear", "tarea_editar", "tarea_tildar", "tarea_mostrar", "habitos_ver", "habito_marcar"]);
     let descripcion = |n: &str| herramientas.iter().find(|h| h["name"] == n).unwrap()["description"].as_str().unwrap().to_string();
     assert_eq!(descripcion("tareas_ver"), "Muestra las tareas de Avis. vista: hoy, vencidas, lista o todas. Devuelve también la fecha de hoy.");
     assert_eq!(descripcion("tarea_crear"), "Anota una tarea nueva. Sin lista va a la primera. fecha: AAAA-MM-DD, \"hoy\", \"mañana\" o \"pasado mañana\".");
     assert_eq!(descripcion("tarea_editar"), "Cambia una tarea: título, fecha (null la quita), importante, notas o lista (la mueve). Pasá solo lo que cambia.");
     assert_eq!(descripcion("tarea_tildar"), "Tilda o destilda una tarea.");
     assert_eq!(descripcion("tarea_mostrar"), "No cambia nada: le muestra al usuario una tarea con un botón para abrirla. Usala cuando pida borrar una tarea (el borrado lo hace él).");
+    assert_eq!(descripcion("habitos_ver"), "Muestra los hábitos de hoy con lo que lleva cada uno. Devuelve también la fecha de hoy.");
+    assert_eq!(descripcion("habito_marcar"), "Marca un hábito de hoy. valor: lo que lleva hoy (0 lo desmarca); o sumar: cuánto agregar.");
     for h in herramientas {
         assert_eq!(h["inputSchema"]["type"], "object", "{h}");
     }
@@ -778,4 +808,373 @@ fn reintentar_repite_la_operacion_solo_con_un_error_reintentable() {
     assert!(reintentar(&p.carpeta, &no, MEDIODIA).is_err());
     assert!(reintentar(&p.carpeta, &nuevo, MEDIODIA).is_err());
     assert_eq!(p.titulos("l-casa"), ["Pagar la luz", "Pan"]);
+}
+
+// ---------------------------------------------------------------- C3: los hábitos (11.4, 11.7 y 11.10)
+
+impl Prueba {
+    fn habito(&self, id: &str) -> Value {
+        crate::habitos::listar(&self.habitos).habitos.into_iter().find(|h| h["id"] == id).unwrap()
+    }
+    fn hoy_de(&self, id: &str) -> Value {
+        self.habito(id)["registro"].get("2026-11-25").cloned().unwrap_or(Value::Null)
+    }
+    fn bytes_habito(&self, id: &str) -> Vec<u8> {
+        std::fs::read(self.habitos.join(format!("{id}.json"))).unwrap()
+    }
+}
+
+#[test]
+fn habitos_ver_devuelve_hoy_y_lo_que_lleva_cada_uno() {
+    let p = prueba();
+    let (texto, error) = p.llamar("habitos_ver", json!({}));
+    assert!(!error, "{texto}");
+    let v: Value = serde_json::from_str(&texto).unwrap();
+    assert_eq!(v["hoy"], "2026-11-25");
+    assert_eq!(
+        v["habitos"],
+        json!([
+            { "id": "h-agua", "nombre": "Agua", "tipo": "cantidad", "meta": 8, "unidad": "vasos", "hoy": 2, "toca": true, "hecho": false },
+            { "id": "h-caminar", "nombre": "Caminar", "tipo": "diario", "meta": 1, "unidad": "", "hoy": 0, "toca": true, "hecho": false },
+            { "id": "h-yoga", "nombre": "Yoga", "tipo": "dias", "meta": 1, "unidad": "", "hoy": 0, "toca": false, "hecho": false },
+            { "id": "h-correr", "nombre": "Correr", "tipo": "semana", "meta": 1, "unidad": "", "hoy": 0, "toca": true, "hecho": false },
+        ])
+    );
+    // El recibo de lectura (4.5): los de hoy (los que tocan) como píldoras, y nada escrito
+    let ev = p.chat.todos().pop().unwrap();
+    assert_eq!(ev["tipo"], "lectura");
+    let c = &ev["cambio"];
+    assert_eq!(c["herramienta"], "habitos_ver");
+    assert_eq!(c["estado"], "lectura");
+    assert_eq!(c["resumen"]["vista"], "habitos");
+    assert_eq!(c["resumen"]["hoy"], "2026-11-25");
+    assert_eq!((c["resumen"]["hechas"].clone(), c["resumen"]["total"].clone()), (json!(0), json!(3)));
+    let nombres: Vec<&str> = c["resumen"]["habitos"].as_array().unwrap().iter().map(|h| h["nombre"].as_str().unwrap()).collect();
+    assert_eq!(nombres, ["Agua", "Caminar", "Correr"]);
+    assert_eq!(c["resumen"]["habitos"][0], json!({ "habito": "h-agua", "nombre": "Agua", "tipo": "cantidad", "meta": 8, "valor": 2, "hecho": false, "color": "celeste" }));
+    assert!(p.avisos_habitos.todos().is_empty());
+}
+
+#[test]
+fn marcar_con_sumar_suma_a_lo_de_hoy() {
+    let p = prueba();
+    let (texto, error) = p.llamar("habito_marcar", json!({ "id": "h-agua", "sumar": 1 }));
+    assert!(!error, "{texto}");
+    assert_eq!(texto, "Marcado «Agua»: 3 de 8.");
+    assert_eq!(p.hoy_de("h-agua"), 3);
+    // Ayer queda como estaba
+    assert_eq!(p.habito("h-agua")["registro"]["2026-11-24"], 8);
+    let c = p.ultimo_cambio();
+    assert_eq!(c["herramienta"], "habito_marcar");
+    assert_eq!(c["estado"], "hecho");
+    assert_eq!(c["habito"], "h-agua");
+    assert_eq!(c["titulo"], "Agua");
+    assert_eq!((c["lista"].clone(), c["tarea"].clone()), (Value::Null, Value::Null));
+    assert_eq!(c["antes"], json!({ "dia": "2026-11-25", "valor": 2 }));
+    assert_eq!(c["despues"], json!({ "dia": "2026-11-25", "valor": 3 }));
+    assert_eq!(c["marca"], json!({ "tipo": "cantidad", "meta": 8, "unidad": "vasos", "color": "celeste" }));
+    // Avisa a la hoja de Hábitos, no a la de Tareas
+    assert_eq!(p.avisos_habitos.todos(), vec![json!({ "habito": "h-agua", "origen": "chat" })]);
+    assert!(p.tareas.todos().is_empty());
+    // Restar no baja de 0; sumar no pasa de 999
+    assert!(!p.llamar("habito_marcar", json!({ "id": "h-agua", "sumar": -10 })).1);
+    assert_eq!(p.hoy_de("h-agua"), Value::Null);
+    assert!(!p.llamar("habito_marcar", json!({ "id": "h-agua", "sumar": 999 })).1);
+    assert!(!p.llamar("habito_marcar", json!({ "id": "h-agua", "sumar": 5 })).1);
+    assert_eq!(p.hoy_de("h-agua"), 999);
+}
+
+#[test]
+fn marcar_con_valor_pone_lo_de_hoy() {
+    let p = prueba();
+    let (texto, _) = p.llamar("habito_marcar", json!({ "id": "h-agua", "valor": 8 }));
+    assert_eq!(texto, "Marcado «Agua»: 8 de 8.");
+    assert_eq!(p.hoy_de("h-agua"), 8);
+    // Un sí/no guarda 1 (habitos-ux 11.1), aunque pidan más
+    let (texto, error) = p.llamar("habito_marcar", json!({ "id": "h-caminar", "valor": 5 }));
+    assert!(!error);
+    assert_eq!(texto, "Marcado «Caminar»: 1.");
+    assert_eq!(p.hoy_de("h-caminar"), 1);
+    // Por semana marca el día de hoy
+    assert!(!p.llamar("habito_marcar", json!({ "id": "h-correr", "sumar": 1 })).1);
+    assert_eq!(p.hoy_de("h-correr"), 1);
+}
+
+#[test]
+fn desmarcar_con_valor_0_saca_el_dia_del_registro() {
+    let p = prueba();
+    p.llamar("habito_marcar", json!({ "id": "h-caminar", "valor": 1 }));
+    let (texto, error) = p.llamar("habito_marcar", json!({ "id": "h-caminar", "valor": 0 }));
+    assert!(!error);
+    assert_eq!(texto, "Marcado «Caminar»: 0.");
+    assert!(p.habito("h-caminar")["registro"].as_object().unwrap().is_empty());
+    assert_eq!(p.ultimo_cambio()["despues"], json!({ "dia": "2026-11-25", "valor": 0 }));
+}
+
+#[test]
+fn marcar_otro_dia_da_error_y_no_escribe() {
+    let p = prueba();
+    let antes = p.bytes_habito("h-agua");
+    for args in [
+        json!({ "id": "h-agua", "valor": 1, "dia": "2026-11-24" }),
+        json!({ "id": "h-agua", "valor": 1, "fecha": "ayer" }),
+        json!({ "id": "h-agua", "sumar": 1, "dia": "mañana" }),
+    ] {
+        let (texto, error) = p.llamar("habito_marcar", args.clone());
+        assert!(error, "{args}");
+        assert_eq!(texto, "Solo se marcan los hábitos de hoy.", "{args}");
+    }
+    assert_eq!(p.bytes_habito("h-agua"), antes);
+    let c = p.ultimo_cambio();
+    assert_eq!(c["estado"], "error");
+    assert_eq!(c["habito"], "h-agua");
+    assert_eq!(c["titulo"], "Agua");
+    assert_eq!(c["reintentable"], false);
+    assert!(p.avisos_habitos.todos().is_empty());
+    // Hoy dicho como día sí sirve
+    assert!(!p.llamar("habito_marcar", json!({ "id": "h-agua", "valor": 4, "dia": "hoy" })).1);
+    assert_eq!(p.hoy_de("h-agua"), 4);
+}
+
+#[test]
+fn las_validaciones_de_marcar() {
+    let p = prueba();
+    let antes = p.bytes_habito("h-agua");
+    for args in [
+        json!({ "id": "h-agua" }),
+        json!({ "id": "h-agua", "valor": 1, "sumar": 1 }),
+        json!({ "id": "h-agua", "valor": -1 }),
+        json!({ "id": "h-agua", "valor": 1000 }),
+        json!({ "id": "h-agua", "valor": "3" }),
+        json!({ "id": "h-agua", "valor": 2.5 }),
+        json!({ "id": "h-agua", "sumar": 1000 }),
+        json!({ "id": "h-agua", "sumar": -1000 }),
+        json!({ "valor": 1 }),
+    ] {
+        assert!(p.llamar("habito_marcar", args.clone()).1, "{args}");
+    }
+    assert_eq!(p.bytes_habito("h-agua"), antes);
+    let (texto, error) = p.llamar("habito_marcar", json!({ "id": "h-nada", "valor": 1 }));
+    assert!(error);
+    assert_eq!(texto, "Ese hábito ya no está.");
+    let (texto, error) = p.llamar("habito_marcar", json!({ "id": "h-../x", "valor": 1 }));
+    assert!(error);
+    assert_eq!(texto, "Ese hábito ya no está.");
+    // Un hábito de algunos días que hoy no toca
+    let (texto, error) = p.llamar("habito_marcar", json!({ "id": "h-yoga", "valor": 1 }));
+    assert!(error);
+    assert_eq!(texto, "Hoy no toca «Yoga».");
+    assert_eq!(p.hoy_de("h-yoga"), Value::Null);
+}
+
+#[test]
+fn un_habito_roto_da_error_y_queda_con_los_mismos_bytes() {
+    let p = prueba();
+    std::fs::write(p.habitos.join("h-roto.json"), "{ roto").unwrap();
+    let antes = p.bytes_habito("h-roto");
+    let (texto, error) = p.llamar("habito_marcar", json!({ "id": "h-roto", "valor": 1 }));
+    assert!(error);
+    assert_eq!(texto, "El archivo del hábito está roto: no lo toco.");
+    assert_eq!(p.bytes_habito("h-roto"), antes);
+    // habitos_ver sigue con los que sirven
+    let v: Value = serde_json::from_str(&p.llamar("habitos_ver", json!({})).0).unwrap();
+    assert_eq!(v["habitos"].as_array().unwrap().len(), 4);
+}
+
+#[test]
+fn un_campo_desconocido_del_habito_sobrevive() {
+    let p = prueba();
+    let mut futuro = p.habito("h-agua");
+    futuro["icono"] = json!("gota");
+    std::fs::write(p.habitos.join("h-agua.json"), serde_json::to_vec(&futuro).unwrap()).unwrap();
+    assert!(!p.llamar("habito_marcar", json!({ "id": "h-agua", "sumar": 1 })).1);
+    let crudo: Value = serde_json::from_slice(&p.bytes_habito("h-agua")).unwrap();
+    assert_eq!(crudo["icono"], "gota");
+    assert_eq!(crudo["registro"]["2026-11-25"], 3);
+}
+
+#[test]
+fn crear_editar_o_borrar_habitos_no_existe() {
+    let p = prueba();
+    let antes = p.bytes_habito("h-agua");
+    for nombre in ["habito_crear", "habito_editar", "habito_borrar", "habitos_borrar", "habito_marcar_dia"] {
+        let v = p.rpc("tools/call", json!({ "name": nombre, "arguments": { "id": "h-agua", "nombre": "X" } }));
+        assert_eq!(v["error"]["code"], -32601, "{nombre}");
+    }
+    assert_eq!(p.bytes_habito("h-agua"), antes);
+    assert!(p.chat.todos().is_empty());
+}
+
+#[test]
+fn sin_turno_los_habitos_tampoco_andan() {
+    let p = prueba();
+    p.mcp.terminar_turno(&p.token);
+    let antes = p.bytes_habito("h-agua");
+    for (nombre, args) in [("habito_marcar", json!({ "id": "h-agua", "sumar": 1 })), ("habitos_ver", json!({}))] {
+        let (texto, error) = p.llamar(nombre, args);
+        assert!(error, "{nombre}");
+        assert_eq!(texto, "No hay un mensaje en curso.");
+    }
+    assert_eq!(p.bytes_habito("h-agua"), antes);
+    assert!(p.chat.todos().is_empty());
+}
+
+#[test]
+fn marcar_cuenta_para_el_tope_de_20_cambios() {
+    let p = prueba();
+    for k in 0..20 {
+        assert!(!p.llamar("tarea_crear", json!({ "titulo": format!("T{k}") })).1);
+    }
+    let antes = p.bytes_habito("h-agua");
+    let (texto, error) = p.llamar("habito_marcar", json!({ "id": "h-agua", "sumar": 1 }));
+    assert!(error);
+    assert_eq!(texto, "Demasiados cambios en un mensaje: hacé de a 20.");
+    assert_eq!(p.bytes_habito("h-agua"), antes);
+    assert_eq!(p.ultimo_cambio()["habito"], "h-agua");
+    // Leer los hábitos no cuenta
+    assert!(!p.llamar("habitos_ver", json!({})).1);
+}
+
+fn deshacer_hab(p: &Prueba, cambio: &Value, ahora: i64) -> Deshacer {
+    deshacer_habito(&p.habitos, cambio, ahora).unwrap()
+}
+
+#[test]
+fn marcar_y_deshacer_vuelve_lo_de_antes() {
+    let p = prueba();
+    p.llamar("habito_marcar", json!({ "id": "h-agua", "sumar": 1 }));
+    let c = p.ultimo_cambio();
+    let r = deshacer_hab(&p, &c, MEDIODIA);
+    assert_eq!(r.estado, "deshecho");
+    assert_eq!(r.tocadas, vec![json!({ "habito": "h-agua", "origen": "chat" })]);
+    assert_eq!(p.hoy_de("h-agua"), 2);
+    // Dos veces: la segunda es "Deshecho" sin tocar nada
+    let antes = p.bytes_habito("h-agua");
+    let r = deshacer_hab(&p, &c, MEDIODIA);
+    assert_eq!(r.estado, "deshecho");
+    assert!(r.tocadas.is_empty());
+    assert_eq!(p.bytes_habito("h-agua"), antes);
+    // Desmarcar y deshacer: vuelve a estar marcado
+    p.llamar("habito_marcar", json!({ "id": "h-caminar", "valor": 1 }));
+    p.llamar("habito_marcar", json!({ "id": "h-caminar", "valor": 0 }));
+    assert_eq!(deshacer_hab(&p, &p.ultimo_cambio(), MEDIODIA).estado, "deshecho");
+    assert_eq!(p.hoy_de("h-caminar"), 1);
+}
+
+#[test]
+fn marcar_cambiar_en_la_ventana_y_deshacer_es_cambio_despues() {
+    let p = prueba();
+    p.llamar("habito_marcar", json!({ "id": "h-agua", "sumar": 1 }));
+    let c = p.ultimo_cambio();
+    // La ventana suma otro vaso
+    let mut agua = p.habito("h-agua");
+    agua["registro"]["2026-11-25"] = json!(4);
+    crate::habitos::guardar(&p.habitos, &agua).unwrap();
+    let antes = p.bytes_habito("h-agua");
+    let r = deshacer_hab(&p, &c, MEDIODIA);
+    assert_eq!(r.estado, "cambio-despues");
+    assert!(r.tocadas.is_empty());
+    assert_eq!(p.bytes_habito("h-agua"), antes);
+    // El hábito ya no está: también
+    std::fs::remove_file(p.habitos.join("h-agua.json")).unwrap();
+    assert_eq!(deshacer_hab(&p, &c, MEDIODIA).estado, "cambio-despues");
+}
+
+#[test]
+fn deshacer_otro_dia_es_cambio_despues() {
+    let p = prueba();
+    p.llamar("habito_marcar", json!({ "id": "h-agua", "sumar": 1 }));
+    let c = p.ultimo_cambio();
+    let antes = p.bytes_habito("h-agua");
+    // 00:30 del 26 en Argentina: ya no es el mismo día
+    assert_eq!(deshacer_hab(&p, &c, ms_argentina("2026-11-26 00:30")).estado, "cambio-despues");
+    assert_eq!(p.bytes_habito("h-agua"), antes);
+}
+
+#[test]
+fn deshacer_un_habito_valida_la_forma_del_cambio() {
+    let p = prueba();
+    p.llamar("habito_marcar", json!({ "id": "h-agua", "sumar": 1 }));
+    let bueno = p.ultimo_cambio();
+    let antes = p.bytes_habito("h-agua");
+    let mut malos = Vec::new();
+    for (k, v) in [
+        ("herramienta", json!("tarea_tildar")),
+        ("habito", json!("h-../x")),
+        ("habito", json!(null)),
+        ("estado", json!("error")),
+        ("despues", json!({ "dia": "2026-11-25" })),
+        ("antes", json!({ "dia": "2026-11-24", "valor": 2 })),
+        ("despues", json!({ "dia": "x", "valor": 3 })),
+    ] {
+        let mut m = bueno.clone();
+        m[k] = v;
+        malos.push(m);
+    }
+    for m in malos {
+        assert!(deshacer_habito(&p.habitos, &m, MEDIODIA).is_err(), "{m}");
+    }
+    // El deshacer de tareas no acepta un cambio de hábitos (y al revés)
+    assert!(deshacer(&p.carpeta, &bueno, MEDIODIA).is_err());
+    p.llamar("tarea_crear", json!({ "titulo": "Pan" }));
+    assert!(deshacer_habito(&p.habitos, &p.ultimo_cambio(), MEDIODIA).is_err());
+    assert_eq!(p.bytes_habito("h-agua"), antes);
+}
+
+#[test]
+fn el_verbo_y_la_linea_de_deshecho_de_un_habito() {
+    let p = prueba();
+    p.llamar("habito_marcar", json!({ "id": "h-agua", "sumar": 1 }));
+    assert_eq!(verbo_cambio(&p.ultimo_cambio()), "marcado");
+    assert_eq!(linea_deshecho(&p.ultimo_cambio()), "Deshecho: marcado «Agua».");
+    assert!(es_de_habitos(&p.ultimo_cambio()));
+    p.llamar("tarea_crear", json!({ "titulo": "Pan" }));
+    assert!(!es_de_habitos(&p.ultimo_cambio()));
+}
+
+#[test]
+fn reintentar_un_habito_repite_la_marca_solo_el_mismo_dia() {
+    let p = prueba();
+    let error = json!({
+        "id": "c-err", "herramienta": "habito_marcar", "estado": "error", "lista": null, "tarea": null, "habito": "h-agua", "titulo": "Agua",
+        "antes": null, "despues": null, "motivo": "No se pudo guardar. No cambió nada.", "reintentable": true,
+        "args": { "id": "h-agua", "sumar": 1, "dia": "2026-11-25" },
+    });
+    let (nuevo, tocadas) = reintentar_habito(&p.habitos, &error, MEDIODIA).unwrap();
+    assert_eq!(nuevo["estado"], "hecho");
+    assert_eq!(nuevo["despues"], json!({ "dia": "2026-11-25", "valor": 3 }));
+    assert_eq!(tocadas, vec![json!({ "habito": "h-agua", "origen": "chat" })]);
+    // Al día siguiente no marca otro día: error
+    let (otro, tocadas) = reintentar_habito(&p.habitos, &error, ms_argentina("2026-11-26 09:00")).unwrap();
+    assert_eq!(otro["estado"], "error");
+    assert_eq!(otro["motivo"], "Solo se marcan los hábitos de hoy.");
+    assert!(tocadas.is_empty());
+    assert_eq!(p.hoy_de("h-agua"), 3);
+    // Lo que no es reintentable, no; el de tareas no acepta uno de hábitos
+    let mut no = error.clone();
+    no["reintentable"] = json!(false);
+    assert!(reintentar_habito(&p.habitos, &no, MEDIODIA).is_err());
+    assert!(reintentar(&p.carpeta, &error, MEDIODIA).is_err());
+}
+
+#[test]
+fn un_error_de_marcar_guarda_el_dia_en_sus_args() {
+    let p = prueba();
+    p.llamar("habito_marcar", json!({ "id": "h-yoga", "valor": 1 }));
+    let c = p.ultimo_cambio();
+    assert_eq!(c["estado"], "error");
+    assert_eq!(c["args"], json!({ "id": "h-yoga", "valor": 1, "dia": "2026-11-25" }));
+}
+
+#[test]
+fn las_herramientas_de_tareas_siguen_igual_con_los_habitos() {
+    // Lo de antes: crear, tildar y ver tareas no tocan los hábitos ni avisan a su hoja
+    let p = prueba();
+    let antes = p.bytes_habito("h-agua");
+    assert_eq!(p.llamar("tarea_crear", json!({ "titulo": "Pan" })).0, "Anotada «Pan» en Casa.");
+    assert_eq!(p.llamar("tarea_tildar", json!({ "id": "t-yerba", "hecha": true })).0, "Tildada «Yerba».");
+    assert!(p.ultimo_cambio().get("habito").is_none());
+    assert_eq!(p.bytes_habito("h-agua"), antes);
+    assert!(p.avisos_habitos.todos().is_empty());
+    assert_eq!(p.tareas.todos().len(), 2);
 }

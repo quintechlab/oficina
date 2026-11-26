@@ -1000,8 +1000,9 @@ export function sugerencias(motor, carpeta) {
   const medio = carpeta
     ? [`¿Qué cambió hoy en ${carpeta}?`, `Armame la documentación de ${carpeta}`]
     : ['¿Quién me está esperando?', '¿Qué preguntas tengo pendientes?']
-  // Las de Tareas (#43, chat-herramientas-ux.md 5.4): solo Claude Code tiene las herramientas de Avis
-  const tareas = ['Anotame comprar pan para mañana', '¿Qué tengo hoy?']
+  // Las de Tareas y Hábitos (#43, chat-herramientas-ux.md 5.4; C3 suma la de hábitos): solo Claude Code
+  // tiene las herramientas de Avis
+  const tareas = ['Anotame comprar pan para mañana', '¿Qué tengo hoy?', 'Marcá que tomé agua']
   return [{ texto: '¿En qué anda cada sesión?' }, ...[...medio, ...tareas].map(texto => ({ texto })), { texto: 'Resumime un PDF', adjuntar: true }]
 }
 

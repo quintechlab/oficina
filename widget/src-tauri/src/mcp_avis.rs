@@ -9,12 +9,15 @@
 //!   atado a la conversación; muere con el proceso (`revocar`). Nunca se anota en `widget.log`.
 //! - Solo durante un turno (`empezar_turno` … `terminar_turno`): antes del primer mensaje, después del
 //!   final o de frenar, ninguna herramienta anda. Como mucho 20 cambios por turno.
-//! - Exactamente las cinco herramientas de 11.4: ver, crear, editar, tildar y mostrar. Nunca borrar,
-//!   ni listas, ni subtareas. Solo toca `<config>/tareas/` con `tareas::modificar` (el candado de
-//!   `tareas.rs`); nunca `~/.claude`, la carpeta de la charla, la red ni comandos.
+//! - Exactamente las siete herramientas de 11.4: ver, crear, editar, tildar y mostrar tareas, y (C3) ver
+//!   y marcar los hábitos de hoy. Nunca borrar, ni listas, ni subtareas, ni crear, editar o borrar
+//!   hábitos, ni marcar otros días. Solo toca `<config>/tareas/` con `tareas::modificar` y
+//!   `<config>/habitos/` con `habitos::modificar` (el candado de cada módulo); nunca `~/.claude`, la
+//!   carpeta de la charla, la red ni comandos.
 //! - Lo que cambió lo cuenta Rust (D-c8): cada escritura emite `oficina://chat` (`tipo: "cambio"`) con
-//!   su `antes` y `despues`, y `oficina://tareas` por cada lista tocada. Deshacer (`deshacer`) y
-//!   reintentar (`reintentar`) son clics del usuario: no necesitan turno.
+//!   su `antes` y `despues`, y `oficina://tareas` por cada lista tocada (`oficina://habitos` por cada
+//!   hábito). Deshacer (`deshacer`, `deshacer_habito`) y reintentar (`reintentar`, `reintentar_habito`)
+//!   son clics del usuario: no necesitan turno.
 //! - Lo que pide Claude Code (M-H5, medido): `server/discover` → error -32601 y cae a `initialize`
 //!   (repite la versión pedida); `notifications/*` → 202; `GET /mcp` → 405; sin SSE ni `Mcp-Session-Id`.
 
@@ -27,6 +30,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
+use crate::habitos;
 use crate::tareas::{self, Falla, Lectura};
 
 /// Emite a la ventana (el mismo tipo que `chat::Emisor`).
@@ -36,10 +40,23 @@ pub type Reloj = Arc<dyn Fn() -> i64 + Send + Sync>;
 
 /// Aviso de una lista que cambió por la charla (11.6): `{ lista, tarea, origen: "chat" }`.
 pub const EVENTO_TAREAS: &str = "oficina://tareas";
+/// Aviso de un hábito que cambió por la charla (C3): `{ habito, origen: "chat" }`.
+pub const EVENTO_HABITOS: &str = "oficina://habitos";
 /// Las herramientas, en el orden de `tools/list` (11.4). Claude Code las ve como `mcp__avis__<nombre>`.
-pub const NOMBRES: [&str; 5] = ["tareas_ver", "tarea_crear", "tarea_editar", "tarea_tildar", "tarea_mostrar"];
+pub const NOMBRES: [&str; 7] = ["tareas_ver", "tarea_crear", "tarea_editar", "tarea_tildar", "tarea_mostrar", "habitos_ver", "habito_marcar"];
 /// Las que escriben: cuentan para el tope del turno y dejan un recibo con «Deshacer».
-const ESCRIBEN: [&str; 3] = ["tarea_crear", "tarea_editar", "tarea_tildar"];
+const ESCRIBEN: [&str; 4] = ["tarea_crear", "tarea_editar", "tarea_tildar", "habito_marcar"];
+/// Las que escriben en las listas (las que deshace y reintenta `deshacer` y `reintentar`).
+const ESCRIBEN_TAREAS: [&str; 3] = ["tarea_crear", "tarea_editar", "tarea_tildar"];
+/// Las de hábitos (C3): escriben en `<config>/habitos` y avisan con `EVENTO_HABITOS`.
+const DE_HABITOS: [&str; 2] = ["habitos_ver", "habito_marcar"];
+
+/// Las carpetas que tocan las herramientas: `<config>/tareas` y `<config>/habitos`.
+#[derive(Clone, Debug)]
+pub struct Carpetas {
+    pub tareas: PathBuf,
+    pub habitos: PathBuf,
+}
 /// Topes de D-c16.
 pub const TOPE_CUERPO: usize = 64 * 1024;
 pub const TOPE_CAMBIOS: u32 = 20;
@@ -72,6 +89,21 @@ const FECHA_MALA: &str = "La fecha no sirve: usá AAAA-MM-DD, \"hoy\", \"mañana
 const FALTA_CAMBIO: &str = "Falta qué cambiar.";
 /// Una regla interna de `deshacer`: la tarea ya no es como la dejó la charla.
 const CAMBIO_DESPUES: &str = "\u{0}cambio-despues";
+/// Otra de `deshacer_habito`: el hábito ya está como antes (deshecho sin tocar nada).
+const YA_COMO_ANTES: &str = "\u{0}ya-como-antes";
+// C3: los motivos de los hábitos (los de 5.2 llevados a un hábito) y las validaciones de `habito_marcar`.
+const HAB_NO_ESTA: &str = "Ese hábito ya no está.";
+const HAB_ROTO: &str = "El archivo del hábito está roto: no lo toco.";
+const SOLO_HOY: &str = "Solo se marcan los hábitos de hoy.";
+const VALOR_O_SUMAR: &str = "Pasá valor o sumar (uno de los dos).";
+const VALOR_MALO: &str = "valor: un número entero de 0 a 999.";
+const SUMAR_MALO: &str = "sumar: un número entero de -999 a 999.";
+/// Lo más que se anota en un día (habitos-ux 11.1).
+const TOPE_VALOR: i64 = 999;
+
+fn no_toca(nombre: &str) -> String {
+    format!("Hoy no toca «{nombre}».")
+}
 
 fn sin_lista(nombre: &str) -> String {
     format!("No existe la lista «{nombre}».")
@@ -224,6 +256,20 @@ pub fn definiciones() -> Value {
             "description": "No cambia nada: le muestra al usuario una tarea con un botón para abrirla. Usala cuando pida borrar una tarea (el borrado lo hace él).",
             "inputSchema": { "type": "object", "properties": { "id": id, "para": { "type": "string", "enum": ["borrar", "ver"] } }, "required": ["id", "para"], "additionalProperties": false },
         },
+        {
+            "name": "habitos_ver",
+            "description": "Muestra los hábitos de hoy con lo que lleva cada uno. Devuelve también la fecha de hoy.",
+            "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
+        },
+        {
+            "name": "habito_marcar",
+            "description": "Marca un hábito de hoy. valor: lo que lleva hoy (0 lo desmarca); o sumar: cuánto agregar.",
+            "inputSchema": { "type": "object", "properties": {
+                "id": { "type": "string", "description": "El id del hábito (h-…), de habitos_ver" },
+                "valor": { "type": "integer", "minimum": 0, "maximum": 999 },
+                "sumar": { "type": "integer", "minimum": -999, "maximum": 999 },
+            }, "required": ["id"], "minProperties": 2, "maxProperties": 2, "additionalProperties": false },
+        },
     ])
 }
 
@@ -245,11 +291,13 @@ struct Fallo {
     lista: Option<String>,
     tarea: Option<String>,
     titulo: Option<String>,
+    /// El hábito del pedido (C3), si se sabe.
+    habito: Option<String>,
 }
 
 impl From<String> for Fallo {
     fn from(motivo: String) -> Fallo {
-        Fallo { motivo, reintentable: false, lista: None, tarea: None, titulo: None }
+        Fallo { motivo, reintentable: false, lista: None, tarea: None, titulo: None, habito: None }
     }
 }
 
@@ -395,9 +443,18 @@ fn id_de_lista(lista: &Value) -> String {
     lista["id"].as_str().unwrap_or_default().to_string()
 }
 
-/// Corre una herramienta sobre `<config>/tareas` (sin turno ni tope: eso lo mira el servidor). `None`
-/// si no es una de las cinco.
-pub fn ejecutar(carpeta: &Path, herramienta: &str, args: &Value, ahora: i64) -> Option<Hecho> {
+/// Corre una herramienta (sin turno ni tope: eso lo mira el servidor): las de tareas sobre
+/// `<config>/tareas` y las de hábitos sobre `<config>/habitos`. `None` si no es una de las siete.
+pub fn ejecutar(carpetas: &Carpetas, herramienta: &str, args: &Value, ahora: i64) -> Option<Hecho> {
+    if DE_HABITOS.contains(&herramienta) {
+        ejecutar_habito(&carpetas.habitos, herramienta, args, ahora)
+    } else {
+        ejecutar_tarea(&carpetas.tareas, herramienta, args, ahora)
+    }
+}
+
+/// Una de las cinco de tareas sobre `<config>/tareas`.
+fn ejecutar_tarea(carpeta: &Path, herramienta: &str, args: &Value, ahora: i64) -> Option<Hecho> {
     let vacio = Value::Object(Map::new());
     let args = if args.is_object() { args } else { &vacio };
     let r = match herramienta {
@@ -411,6 +468,25 @@ pub fn ejecutar(carpeta: &Path, herramienta: &str, args: &Value, ahora: i64) -> 
     Some(r.unwrap_or_else(|f| fallo_a_hecho(herramienta, args, f)))
 }
 
+/// Una de las dos de hábitos (C3) sobre `<config>/habitos`. Un error de `habito_marcar` guarda en sus
+/// `args` el día en que se pidió: «Reintentar» al día siguiente no marca otro día.
+fn ejecutar_habito(carpeta: &Path, herramienta: &str, args: &Value, ahora: i64) -> Option<Hecho> {
+    let vacio = Value::Object(Map::new());
+    let args = if args.is_object() { args } else { &vacio };
+    let r = match herramienta {
+        "habitos_ver" => ver_habitos(carpeta, ahora),
+        "habito_marcar" => marcar_habito(carpeta, args, ahora),
+        _ => return None,
+    };
+    Some(r.unwrap_or_else(|f| {
+        let mut h = fallo_a_hecho(herramienta, args, f);
+        if let Some(a) = h.cambio.as_mut().and_then(|c| c["args"].as_object_mut()) {
+            a.entry("dia").or_insert_with(|| json!(texto_dia(dia_argentina(ahora))));
+        }
+        h
+    }))
+}
+
 /// Un error: el texto para el modelo y, si la herramienta escribe, su recibo de error (4.7).
 fn fallo_a_hecho(herramienta: &str, args: &Value, f: Fallo) -> Hecho {
     let cambio = ESCRIBEN.contains(&herramienta).then(|| {
@@ -418,10 +494,34 @@ fn fallo_a_hecho(herramienta: &str, args: &Value, f: Fallo) -> Hecho {
         let mut c = cambio_base(herramienta, "error", f.lista.as_deref(), f.tarea.as_deref(), titulo.as_deref());
         c["motivo"] = json!(f.motivo);
         c["reintentable"] = json!(f.reintentable);
-        c["args"] = args_guardables(args);
+        if herramienta == "habito_marcar" {
+            let habito = f.habito.clone().or_else(|| args["id"].as_str().filter(|i| habitos::id_valido(i)).map(String::from));
+            c["habito"] = json!(habito);
+            c["args"] = args_de_habito(args);
+        } else {
+            c["args"] = args_guardables(args);
+        }
         c
     });
     Hecho { texto: f.motivo, error: true, tipo: "cambio", cambio, tocadas: Vec::new() }
+}
+
+/// Lo que se guarda de un `habito_marcar` que falló (para «Reintentar», 11.9): el id, `valor` o
+/// `sumar` si son números enteros y el día pedido.
+fn args_de_habito(args: &Value) -> Value {
+    let mut m = Map::new();
+    if let Some(id) = args["id"].as_str() {
+        m.insert(String::from("id"), json!(id.chars().take(40).collect::<String>()));
+    }
+    for clave in ["valor", "sumar"] {
+        if let Some(n) = args[clave].as_i64() {
+            m.insert(clave.to_string(), json!(n));
+        }
+    }
+    if let Some(d) = args["dia"].as_str().or_else(|| args["fecha"].as_str()) {
+        m.insert(String::from("dia"), json!(d.chars().take(40).collect::<String>()));
+    }
+    Value::Object(m)
 }
 
 fn ver(carpeta: &Path, args: &Value, ahora: i64) -> Result<Hecho, Fallo> {
@@ -661,6 +761,165 @@ fn mostrar(carpeta: &Path, args: &Value) -> Result<Hecho, Fallo> {
     Ok(Hecho { texto: format!("Le mostré «{titulo}»."), error: false, tipo: "mostrar", cambio: Some(c), tocadas: Vec::new() })
 }
 
+// ------------------------------------------------------------------ hábitos (C3: 11.4 y habitos-ux 11.1 y 11.3)
+
+fn aviso_habito(habito: &str) -> Value {
+    json!({ "habito": habito, "origen": "chat" })
+}
+
+/// Lo anotado un día en un hábito (0 si nada).
+fn valor_del_dia(h: &Value, dia: &str) -> u64 {
+    h["registro"][dia].as_u64().unwrap_or(0)
+}
+
+/// ¿Toca ese día? (habitos-ux 11.3, `toca` de habitos.js): todos, salvo los de «algunos días» fuera de
+/// los suyos (lunes = 0); un día anterior a `inicio` no cuenta nunca.
+fn toca(h: &Value, dia: chrono::NaiveDate) -> bool {
+    use chrono::Datelike;
+    if h["inicio"].as_str().is_some_and(|i| texto_dia(dia).as_str() < i) {
+        return false;
+    }
+    let semana = u64::from(dia.weekday().num_days_from_monday());
+    h["tipo"] != "dias" || h["dias"].as_array().is_some_and(|d| d.iter().any(|x| x.as_u64() == Some(semana)))
+}
+
+/// ¿Hecho ese día? Cantidad, con la meta; los demás, con 1 (`hecho` de habitos.js). Antes de `inicio`, nunca.
+fn hecho_del_dia(h: &Value, dia: &str) -> bool {
+    if h["inicio"].as_str().is_some_and(|i| dia < i) {
+        return false;
+    }
+    let n = valor_del_dia(h, dia);
+    if h["tipo"] == "cantidad" {
+        n >= h["meta"].as_u64().unwrap_or(1)
+    } else {
+        n >= 1
+    }
+}
+
+/// La píldora de un hábito en el recibo de lectura (4.5): su anillo con lo de hoy.
+fn pildora(h: &Value, dia: &str) -> Value {
+    json!({ "habito": h["id"], "nombre": h["nombre"], "tipo": h["tipo"], "meta": h["meta"], "valor": valor_del_dia(h, dia), "hecho": hecho_del_dia(h, dia), "color": h["color"] })
+}
+
+/// `habitos_ver` (11.4): `{ hoy, habitos: [{ id, nombre, tipo, meta, unidad, hoy, toca, hecho }] }`, todos
+/// los hábitos que sirven, en su orden. El recibo de lectura lleva los que tocan hoy (hasta 6 píldoras).
+fn ver_habitos(carpeta: &Path, ahora: i64) -> Result<Hecho, Fallo> {
+    let l = habitos::listar(carpeta);
+    let dia = dia_argentina(ahora);
+    let hoy = texto_dia(dia);
+    let para_el_modelo: Vec<Value> = l
+        .habitos
+        .iter()
+        .map(|h| {
+            json!({
+                "id": h["id"], "nombre": h["nombre"], "tipo": h["tipo"], "meta": h["meta"], "unidad": h["unidad"],
+                "hoy": valor_del_dia(h, &hoy), "toca": toca(h, dia), "hecho": hecho_del_dia(h, &hoy),
+            })
+        })
+        .collect();
+    let texto = json!({ "hoy": hoy, "habitos": para_el_modelo }).to_string();
+    let de_hoy: Vec<&Value> = l.habitos.iter().filter(|h| toca(h, dia)).collect();
+    let pildoras: Vec<Value> = de_hoy.iter().take(TOPE_FILAS).map(|h| pildora(h, &hoy)).collect();
+    let mut c = cambio_base("habitos_ver", "lectura", None, None, None);
+    c["resumen"] = json!({
+        "vista": "habitos",
+        "hoy": hoy,
+        "hechas": de_hoy.iter().filter(|h| hecho_del_dia(h, &hoy)).count(),
+        "total": de_hoy.len(),
+        "mas": de_hoy.len().saturating_sub(pildoras.len()),
+        "habitos": pildoras,
+    });
+    Ok(Hecho { texto, error: false, tipo: "lectura", cambio: Some(c), tocadas: Vec::new() })
+}
+
+/// Un número entero del modelo (`3` o `3.0`), nunca un texto ni un decimal.
+fn entero_de(v: &Value) -> Option<i64> {
+    v.as_i64().or_else(|| v.as_f64().filter(|f| f.fract() == 0.0 && f.abs() <= 1e6).map(|f| f as i64))
+}
+
+/// Lo que pidió `habito_marcar`: lo que lleva hoy (`valor`) o cuánto agregar (`sumar`).
+#[derive(Clone, Copy)]
+enum Marca {
+    Valor(i64),
+    Sumar(i64),
+}
+
+fn marca_pedida(args: &Value) -> Result<Marca, Fallo> {
+    let dado = |k: &str| args.get(k).filter(|v| !v.is_null());
+    match (dado("valor"), dado("sumar")) {
+        (Some(v), None) => entero_de(v).filter(|n| (0..=TOPE_VALOR).contains(n)).map(Marca::Valor).ok_or_else(|| Fallo::from(VALOR_MALO)),
+        (None, Some(s)) => entero_de(s).filter(|n| (-TOPE_VALOR..=TOPE_VALOR).contains(n)).map(Marca::Sumar).ok_or_else(|| Fallo::from(SUMAR_MALO)),
+        _ => Err(Fallo::from(VALOR_O_SUMAR)),
+    }
+}
+
+/// Una `Falla` de `habitos::modificar` → su motivo. Solo el disco es reintentable (11.4).
+fn de_falla_habito(f: Falla) -> Fallo {
+    match f {
+        Falla::NoExiste => Fallo::from(HAB_NO_ESTA),
+        Falla::Rota => Fallo::from(HAB_ROTO),
+        Falla::Disco(e) => {
+            registrar(&format!("mcp: no se pudo guardar un hábito: {e}"));
+            Fallo { reintentable: true, ..Fallo::from(DISCO) }
+        }
+        Falla::Regla(m) => Fallo::from(m),
+    }
+}
+
+/// `habito_marcar` (11.4): `registro[hoy]` con las reglas de habitos-ux 11.1 y 11.3, solo hoy (el día
+/// de Argentina) y solo si hoy toca. Cantidad, de 0 a 999; los demás, sí o no (0 o 1). 0 desmarca (el
+/// registro guarda solo n > 0). Escribe con `habitos::modificar`, con el candado de hábitos.
+fn marcar_habito(carpeta: &Path, args: &Value, ahora: i64) -> Result<Hecho, Fallo> {
+    let id = args["id"].as_str().filter(|i| habitos::id_valido(i)).ok_or(HAB_NO_ESTA)?.to_string();
+    let l = habitos::listar(carpeta);
+    let Some(h) = l.habitos.iter().find(|h| h["id"] == id.as_str()) else {
+        let roto = l.rotas.iter().any(|r| r["archivo"] == format!("{id}.json"));
+        return Err(Fallo { habito: Some(id), ..Fallo::from(if roto { HAB_ROTO } else { HAB_NO_ESTA }) });
+    };
+    let nombre = h["nombre"].as_str().unwrap_or_default().to_string();
+    let contexto = |f: Fallo| Fallo { habito: Some(id.clone()), titulo: Some(nombre.clone()), ..f };
+    let dia = dia_argentina(ahora);
+    let hoy = texto_dia(dia);
+    // S2: nunca otro día (el esquema no tiene día; si el modelo lo manda igual, tiene que ser hoy)
+    for clave in ["dia", "fecha"] {
+        if let Some(v) = args.get(clave) {
+            if fecha_pedida(v, ahora).ok().and_then(|f| f.as_str().map(String::from)).as_deref() != Some(hoy.as_str()) {
+                return Err(contexto(Fallo::from(SOLO_HOY)));
+            }
+        }
+    }
+    let marca = marca_pedida(args).map_err(&contexto)?;
+    let ((antes, n), guardado) = habitos::modificar(carpeta, &id, |doc| {
+        if !toca(doc, dia) {
+            return Err(no_toca(doc["nombre"].as_str().unwrap_or_default()));
+        }
+        let antes = valor_del_dia(doc, &hoy) as i64;
+        let tope = if doc["tipo"] == "cantidad" { TOPE_VALOR } else { 1 };
+        let n = match marca {
+            Marca::Valor(v) => v,
+            Marca::Sumar(d) => antes + d,
+        }
+        .clamp(0, tope);
+        let registro = doc["registro"].as_object_mut().ok_or("registro inválido")?;
+        if n > 0 {
+            registro.insert(hoy.clone(), json!(n));
+        } else {
+            registro.remove(&hoy);
+        }
+        Ok((antes, n))
+    })
+    .map_err(|f| contexto(de_falla_habito(f)))?;
+    let nombre = guardado["nombre"].as_str().unwrap_or_default().to_string();
+    let de_meta = if guardado["tipo"] == "cantidad" { format!(" de {}", guardado["meta"]) } else { String::new() };
+    let mut c = cambio_base("habito_marcar", "hecho", None, None, Some(&nombre));
+    c["habito"] = json!(id);
+    c["antes"] = json!({ "dia": hoy, "valor": antes });
+    c["despues"] = json!({ "dia": hoy, "valor": n });
+    // Para la fila del recibo (4.3): el anillo de 18 con su avance y el color del hábito
+    c["marca"] = json!({ "tipo": guardado["tipo"], "meta": guardado["meta"], "unidad": guardado["unidad"], "color": guardado["color"] });
+    Ok(Hecho { texto: format!("Marcado «{nombre}»: {n}{de_meta}."), error: false, tipo: "cambio", cambio: Some(c), tocadas: vec![aviso_habito(&id)] })
+}
+
 // ------------------------------------------------------------------ deshacer (11.7) y reintentar (11.9)
 
 /// Lo que dejó `deshacer`: `deshecho`, `cambio-despues` o `error` (con su motivo de 5.2), y las
@@ -694,7 +953,7 @@ fn coincide(t: &Value, lista: &str, campos: &Map<String, Value>) -> bool {
 
 /// La forma de un cambio que se puede deshacer o reintentar: su herramienta, su tarea y su lista.
 fn forma(cambio: &Value) -> Result<(&str, &str), String> {
-    let herramienta = cambio["herramienta"].as_str().filter(|h| ESCRIBEN.contains(h)).ok_or("herramienta inválida")?;
+    let herramienta = cambio["herramienta"].as_str().filter(|h| ESCRIBEN_TAREAS.contains(h)).ok_or("herramienta inválida")?;
     let estado = cambio["estado"].as_str().ok_or("estado inválido")?;
     if let Some(l) = cambio["lista"].as_str() {
         if !tareas::id_valido(l) {
@@ -787,7 +1046,80 @@ pub fn reintentar(carpeta: &Path, cambio: &Value, ahora: i64) -> Result<(Value, 
         return Err(String::from("ese cambio no se reintenta"));
     }
     let args = cambio["args"].as_object().ok_or("sin args")?;
-    let h = ejecutar(carpeta, herramienta, &Value::Object(args.clone()), ahora).ok_or("herramienta inválida")?;
+    let h = ejecutar_tarea(carpeta, herramienta, &Value::Object(args.clone()), ahora).ok_or("herramienta inválida")?;
+    Ok((h.cambio.ok_or("sin cambio")?, h.tocadas))
+}
+
+/// ¿Es un cambio de hábitos (C3)? Entonces se deshace y se reintenta sobre `<config>/habitos` y avisa
+/// con `EVENTO_HABITOS`.
+pub fn es_de_habitos(cambio: &Value) -> bool {
+    cambio["herramienta"].as_str().is_some_and(|h| DE_HABITOS.contains(&h))
+}
+
+/// `{ dia, valor }` de un cambio de hábito: un día que existe y de 0 a 999.
+fn dia_y_valor(v: &Value) -> Option<(String, u64)> {
+    let dia = v["dia"].as_str().filter(|d| d.len() == 10 && chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok())?;
+    let valor = v["valor"].as_u64().filter(|n| *n <= TOPE_VALOR as u64)?;
+    Some((dia.to_string(), valor))
+}
+
+/// `chat_deshacer` de un `habito_marcar` (11.7): `registro[dia]` vuelve a `antes`, con el candado de
+/// hábitos, si sigue como lo dejó la charla y todavía es ese día; si cambió después (en la ventana), ya
+/// es otro día o el hábito no está, «Cambió después» sin tocar nada. Ya como antes: «Deshecho» sin tocar
+/// nada. Un cambio con otra forma es un error.
+pub fn deshacer_habito(carpeta: &Path, cambio: &Value, ahora: i64) -> Result<Deshacer, String> {
+    if cambio["herramienta"] != "habito_marcar" {
+        return Err(String::from("herramienta inválida"));
+    }
+    let estado = cambio["estado"].as_str().ok_or("estado inválido")?;
+    let id = cambio["habito"].as_str().filter(|i| habitos::id_valido(i)).ok_or("hábito inválido")?.to_string();
+    let (dia, antes) = dia_y_valor(&cambio["antes"]).ok_or("antes inválido")?;
+    let (dia_despues, despues) = dia_y_valor(&cambio["despues"]).ok_or("despues inválido")?;
+    if dia != dia_despues {
+        return Err(String::from("antes y despues de días distintos"));
+    }
+    match estado {
+        "deshecho" => return Ok(Deshacer::sin_tocar("deshecho")),
+        "cambio-despues" => return Ok(Deshacer::sin_tocar("cambio-despues")),
+        "hecho" => {}
+        _ => return Err(String::from("ese cambio no se deshace")),
+    }
+    if texto_dia(dia_argentina(ahora)) != dia {
+        return Ok(Deshacer::sin_tocar("cambio-despues"));
+    }
+    let r = habitos::modificar(carpeta, &id, |doc| {
+        let actual = valor_del_dia(doc, &dia);
+        if actual != despues {
+            return Err(String::from(if actual == antes { YA_COMO_ANTES } else { CAMBIO_DESPUES }));
+        }
+        let registro = doc["registro"].as_object_mut().ok_or("registro inválido")?;
+        if antes > 0 {
+            registro.insert(dia.clone(), json!(antes));
+        } else {
+            registro.remove(&dia);
+        }
+        Ok(())
+    });
+    Ok(match r {
+        Ok(_) => Deshacer::tocando(vec![aviso_habito(&id)]),
+        Err(Falla::NoExiste) => Deshacer::sin_tocar("cambio-despues"),
+        Err(Falla::Regla(m)) if m == CAMBIO_DESPUES => Deshacer::sin_tocar("cambio-despues"),
+        Err(Falla::Regla(m)) if m == YA_COMO_ANTES => Deshacer::sin_tocar("deshecho"),
+        Err(f) => Deshacer { estado: "error", motivo: Some(de_falla_habito(f).motivo), tocadas: Vec::new() },
+    })
+}
+
+/// `chat_reintentar` de un `habito_marcar` (11.9): lo repite con sus `args`, sin turno. Con el día del
+/// pedido: si ya es otro día, el cambio nuevo es el error de «solo hoy».
+pub fn reintentar_habito(carpeta: &Path, cambio: &Value, ahora: i64) -> Result<(Value, Vec<Value>), String> {
+    if cambio["herramienta"] != "habito_marcar" {
+        return Err(String::from("herramienta inválida"));
+    }
+    if cambio["estado"] != "error" || cambio["reintentable"] != true {
+        return Err(String::from("ese cambio no se reintenta"));
+    }
+    let args = cambio["args"].as_object().ok_or("sin args")?;
+    let h = ejecutar_habito(carpeta, "habito_marcar", &Value::Object(args.clone()), ahora).ok_or("herramienta inválida")?;
     Ok((h.cambio.ok_or("sin cambio")?, h.tocadas))
 }
 
@@ -796,6 +1128,7 @@ pub fn verbo_cambio(cambio: &Value) -> String {
     let despues = &cambio["despues"];
     let verbo = match cambio["herramienta"].as_str().unwrap_or_default() {
         "tarea_crear" => "anotada",
+        "habito_marcar" => "marcado",
         "tarea_tildar" if despues["hecha"] == true => "tildada",
         "tarea_tildar" => "destildada",
         _ => {
@@ -833,11 +1166,12 @@ struct Atadura {
 }
 
 struct Interno {
-    carpeta: PathBuf,
+    carpetas: Carpetas,
     direccion: SocketAddr,
     tokens: Mutex<HashMap<String, Atadura>>,
     emitir_chat: Emisor,
     emitir_tareas: Emisor,
+    emitir_habitos: Emisor,
     reloj: Reloj,
     conexiones: AtomicUsize,
 }
@@ -853,10 +1187,20 @@ fn iguales(a: &[u8], b: &[u8]) -> bool {
 
 impl McpAvis {
     /// Escucha en `127.0.0.1` con un puerto del sistema y atiende en sus hilos hasta que Avis sale.
-    pub fn arrancar(carpeta: PathBuf, emitir_chat: Emisor, emitir_tareas: Emisor, reloj: Reloj) -> std::io::Result<McpAvis> {
+    /// `emitir_tareas` avisa una lista tocada (`EVENTO_TAREAS`) y `emitir_habitos` un hábito (`EVENTO_HABITOS`).
+    pub fn arrancar(carpetas: Carpetas, emitir_chat: Emisor, emitir_tareas: Emisor, emitir_habitos: Emisor, reloj: Reloj) -> std::io::Result<McpAvis> {
         let oyente = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))?;
         let direccion = oyente.local_addr()?;
-        let m = McpAvis(Arc::new(Interno { carpeta, direccion, tokens: Mutex::new(HashMap::new()), emitir_chat, emitir_tareas, reloj, conexiones: AtomicUsize::new(0) }));
+        let m = McpAvis(Arc::new(Interno {
+            carpetas,
+            direccion,
+            tokens: Mutex::new(HashMap::new()),
+            emitir_chat,
+            emitir_tareas,
+            emitir_habitos,
+            reloj,
+            conexiones: AtomicUsize::new(0),
+        }));
         let servidor = m.clone();
         std::thread::Builder::new().name(String::from("avis-mcp")).spawn(move || {
             for conexion in oyente.incoming() {
@@ -1026,8 +1370,8 @@ impl McpAvis {
         Some(json!({ "jsonrpc": "2.0", "id": id, "result": resultado }))
     }
 
-    /// `tools/call` de una de las cinco: solo con un turno en curso, con el tope de cambios; emite el
-    /// cambio a la charla y los avisos de las listas.
+    /// `tools/call` de una de las siete: solo con un turno en curso, con el tope de cambios (tareas y
+    /// hábitos cuentan juntos); emite el cambio a la charla y los avisos de las listas o del hábito.
     fn llamar(&self, token: &str, nombre: &str, args: &Value) -> Value {
         let resultado = |texto: &str, error: bool| json!({ "content": [{ "type": "text", "text": texto }], "isError": error });
         let (conversacion, turno, pasado) = {
@@ -1046,7 +1390,7 @@ impl McpAvis {
         let hecho = if pasado {
             fallo_a_hecho(nombre, args, Fallo::from(TOPE))
         } else {
-            match ejecutar(&self.0.carpeta, nombre, args, (self.0.reloj)()) {
+            match ejecutar(&self.0.carpetas, nombre, args, (self.0.reloj)()) {
                 Some(h) => h,
                 None => return resultado("herramienta desconocida", true),
             }
@@ -1054,8 +1398,9 @@ impl McpAvis {
         if let Some(cambio) = &hecho.cambio {
             (self.0.emitir_chat)(json!({ "conversacion": conversacion, "turno": turno, "tipo": hecho.tipo, "cambio": cambio }));
         }
+        let avisar = if DE_HABITOS.contains(&nombre) { &self.0.emitir_habitos } else { &self.0.emitir_tareas };
         for t in &hecho.tocadas {
-            (self.0.emitir_tareas)(t.clone());
+            avisar(t.clone());
         }
         resultado(&hecho.texto, hecho.error)
     }

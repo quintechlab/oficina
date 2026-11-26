@@ -50,7 +50,7 @@ import {
 } from './chat.js'
 import { aviEscena, estadoEscena, cabecera, hilo as hiloVista, composer, menuCarpeta, menuModelo, cajon, listaHistorial, capaSoltar, htmlPalabras, clipAdjuntar, recibosDe, chipProyecto, contextoProyecto, filtroCajon } from './chatVista.js'
 import * as movimientoChat from './chatMotion.js'
-import { diferenciaRecibos, armarRecibos, ESCRIBEN, anuncioDeshacer, anuncioRecibo, encabezadoRecibo, pieDeshacer } from './recibos.js'
+import { diferenciaRecibos, armarRecibos, ESCRIBEN, anuncioDeshacer, anuncioRecibo, encabezadoRecibo, pieDeshacer, vinculoRecibo, etiquetaPie } from './recibos.js'
 import { lineaPuedeHtml, globoPuedeHtml, filaCambioHtml, pieCambiosHtml, reciboHtml } from './recibosVista.js'
 import * as movimientoRecibos from './recibosMotion.js'
 import {
@@ -87,7 +87,7 @@ import {
 import * as movimientoTareas from './tareasMotion.js'
 import {
   habitosInicial, abrirHabitos, cerrarHabitos, verHabitos, empezarNuevo, abrirHabito, cerrarHabito, alEscHabitos, esAtajoHabitos,
-  cuentasHoy, nombreFilaHabitos, subtituloHabitos, ordenarHabitos, esHabito, validarHabito, nuevoHabito, desdeSugerida, SUGERIDAS,
+  cuentasHoy, nombreFilaHabitos, subtituloHabitos, ordenarHabitos, rebasarHabito, esHabito, validarHabito, nuevoHabito, desdeSugerida, SUGERIDAS,
   toca as tocaHabito, hecho as hechoHabito, valor as valorHabito, racha as rachaHabito, marcar as marcarHabito, sumar as sumarHabito,
   corregir as corregirHabito, editar as editarHabito, conMejor, hitoNuevo, textoHito, AVISO_POR_DEFECTO,
   anuncioTilde, anuncioSuma, anuncioDiaCompleto, anuncioCorregido, anuncioCreado, anuncioBorrado,
@@ -5052,8 +5052,11 @@ function leerTareas() {
       const r = await invocar('tareas_leer')
       const listas = Array.isArray(r?.listas) ? r.listas : []
       const rotas = Array.isArray(r?.rotas) ? r.rotas.filter(x => typeof x?.archivo === 'string') : []
-      for (const l of listas) anotarBaseTareas(l, r?.huellas?.[l.id])
-      st.tareas = { ...st.tareas, listas: mezclarLectura(listas, st.tareas.listas, listasSinGuardar()), rotas, leido: true, errorLeer: null }
+      const sinGuardar = listasSinGuardar()
+      // La base de lo que queda en pantalla tal cual se leyó; la de lo que no se pisa sigue siendo la de
+      // antes: su guardado (o el reintento de 5 s) choca con la huella y vuelve a aplicar lo suyo (11.5)
+      for (const l of listas) if (!sinGuardar.has(l.id)) anotarBaseTareas(l, r?.huellas?.[l.id])
+      st.tareas = { ...st.tareas, listas: mezclarLectura(listas, st.tareas.listas, sinGuardar), rotas, leido: true, errorLeer: null }
       evaluarAvisoTareas()
     } catch (err) {
       registrar(`tareas: no se pudieron leer: ${err}`)
@@ -5887,7 +5890,11 @@ function leerHabitos() {
       const r = await invocar('habitos_leer')
       const lista = Array.isArray(r?.habitos) ? r.habitos : []
       const rotas = Array.isArray(r?.rotas) ? r.rotas.filter(x => typeof x?.archivo === 'string') : []
-      st.habitos = { ...st.habitos, lista: ordenarHabitos(mezclarLectura(lista, st.habitos.lista, habitosSinGuardar())), rotas, leido: true, error: null }
+      const sinGuardar = habitosSinGuardar()
+      // La base de lo que queda en pantalla tal cual se leyó; la de lo que no se pisa sigue siendo la de
+      // antes: su guardado choca con la huella y vuelve a aplicar lo suyo sobre lo del disco (11.5)
+      for (const h of lista) if (!sinGuardar.has(h.id)) anotarBaseHabito(h, r?.huellas?.[h.id])
+      st.habitos = { ...st.habitos, lista: ordenarHabitos(mezclarLectura(lista, st.habitos.lista, sinGuardar)), rotas, leido: true, error: null }
     } catch (err) {
       registrar(`hábitos: no se pudieron leer: ${err}`)
       st.habitos = { ...st.habitos, error: String(err?.message ?? err).slice(0, 120) || 'sin detalle' }
@@ -5899,6 +5906,56 @@ function leerHabitos() {
     }
   })()
   return leyendoHabitos
+}
+
+/**
+ * `oficina://habitos` (#43 C3): la charla marcó un hábito. Se relee enseguida (como Tareas, 8): la cuenta
+ * de la fila del menú, el globo del recordatorio y, con la hoja abierta, la fila, que destella una vez sin
+ * redibujar. Un hábito que se está guardando no se pisa con lo leído (`mezclarLectura`): su guardado
+ * choca con la huella y vuelve a aplicar lo de la ventana sobre la marca (`rebasarHabitoEnPantalla`).
+ */
+function alCambiarHabitosFuera(p) {
+  const id = p?.habito
+  if (typeof id !== 'string' || !st.habitos.leido) return
+  // Una lectura que ya estaba en curso pudo empezar antes de la marca: se lee otra vez después
+  const enCurso = leyendoHabitos
+  ;(enCurso ? enCurso.then(() => leerHabitos()) : leerHabitos())?.then(() => destellarHabito(id))
+}
+
+/** La fila de un hábito destella una vez (`.recien`, como `destellarTarea`), solo con la hoja abierta. */
+function destellarHabito(id) {
+  const fila = id && st.habitos.abierta ? $(`#hab .fila[data-id="${CSS.escape(id)}"]`) : null
+  if (!fila) return
+  fila.classList.remove('recien')
+  void fila.offsetWidth
+  fila.classList.add('recien')
+  fila.addEventListener('animationend', () => fila.classList.remove('recien'), { once: true })
+}
+
+/**
+ * Por hábito, lo último que se leyó o guardó en el disco y su huella (#43 C3, chat-herramientas-ux.md
+ * 11.5, como `basesTareas`): `habitos_guardar` no pisa una marca de la charla, y con esto se vuelve a
+ * aplicar lo de la ventana.
+ */
+const basesHabitos = new Map()
+function anotarBaseHabito(habito, huella) {
+  if (typeof habito?.id === 'string' && typeof huella === 'string') basesHabitos.set(habito.id, { habito, huella })
+}
+
+/**
+ * Relee los hábitos y pone el `id` al día con lo del disco sin perder lo de la pantalla (`rebasarHabito`).
+ * Devuelve si pudo.
+ */
+async function rebasarHabitoEnPantalla(id) {
+  let r
+  try { r = await invocar('habitos_leer') } catch (err) { registrar(`hábitos: no se pudo releer ${id}: ${err}`); return false }
+  const disco = (Array.isArray(r?.habitos) ? r.habitos : []).find(h => h.id === id)
+  const pantalla = st.habitos.lista.find(h => h.id === id)
+  if (!disco || !pantalla) return false
+  st.habitos = { ...st.habitos, lista: st.habitos.lista.map(h => (h.id === id ? rebasarHabito(basesHabitos.get(id)?.habito, pantalla, disco) : h)) }
+  anotarBaseHabito(disco, r?.huellas?.[id])
+  pintar()
+  return true
 }
 
 /** Por hábito: el guardado en curso (`promesa`) y si hay que guardarlo otra vez al terminar. */
@@ -5916,7 +5973,9 @@ function habitosSinGuardar() {
  * Guarda un hábito entero (`habitos_guardar`), de a uno por vez por hábito y siempre con lo último que
  * hay en pantalla, como `guardarListaTareas` (sin sus mudanzas: un hábito no se mueve de archivo). Si
  * falla, lo de la pantalla queda, el error de 7.4 aparece (y se anuncia), se anota en widget.log y se
- * reintenta solo a los 5 s; se va al primer guardado bueno.
+ * reintenta solo a los 5 s; se va al primer guardado bueno. Va con la huella de su base (11.5): si la
+ * charla marcó el hábito desde entonces, se relee y se vuelve a aplicar lo de la ventana una vez; un
+ * segundo choque es un error más (7.4).
  */
 function guardarHabito(id) {
   let g = guardadosHabitos.get(id)
@@ -5924,14 +5983,21 @@ function guardarHabito(id) {
   if (g.enCurso) { g.otraVez = true; return g.promesa }
   g.enCurso = true
   g.promesa = (async () => {
+    let rebasado = false
     do {
       g.otraVez = false
       const habito = st.habitos.lista.find(h => h.id === id)
       if (!habito) { fallidosHabitos.delete(id); break }
       let r
-      try { r = await invocar('habitos_guardar', { habito }) } catch (err) { r = { ok: false, error: String(err?.message ?? err) } }
-      if (r?.ok) fallidosHabitos.delete(id)
-      else {
+      try { r = await invocar('habitos_guardar', { habito, huella: basesHabitos.get(id)?.huella ?? null }) } catch (err) { r = { ok: false, error: String(err?.message ?? err) } }
+      if (!r?.ok && r?.error === 'cambio' && !rebasado) {
+        rebasado = true
+        if (await rebasarHabitoEnPantalla(id)) { g.otraVez = true; continue }
+      }
+      if (r?.ok) {
+        anotarBaseHabito(r.habito, r.huella)
+        fallidosHabitos.delete(id)
+      } else {
         fallidosHabitos.add(id)
         registrar(`hábitos: no se guardó ${id}: ${r?.error ?? 'sin detalle'}`)
       }
@@ -6325,6 +6391,7 @@ async function clicBorrarHabito(id) {
   }
   fallidosHabitos.delete(id)
   guardadosHabitos.delete(id)
+  basesHabitos.delete(id)
   avisosApagados.delete(id)
   st.habitos = verHabitos({ ...st.habitos, lista: st.habitos.lista.filter(x => x.id !== id) }, 'hoy')
   ponerErrorGuardarHabitos()
@@ -7593,10 +7660,18 @@ function ponerTextosRecibo(sec, cambios, k) {
   const t = sec.querySelector('.rec-h .rec-t')
   if (t && t.textContent !== titulo) t.textContent = titulo
   sec.setAttribute('aria-label', titulo)
-  const ultimo = cambios.at(-1)
+  // El vínculo (C3: «Ver en Hábitos →» si todos son de hábitos; si no, el de la última tarea): solo sus datos y su texto
+  const l = vinculoRecibo(cambios)
   const lnk = sec.querySelector('.rec-h .lnk')
-  if (lnk) { lnk.dataset.lista = ultimo?.lista ?? ''; lnk.dataset.tarea = ultimo?.tarea ?? '' }
+  if (lnk) {
+    lnk.dataset.accion = l.accion
+    lnk.dataset.lista = l.lista
+    lnk.dataset.tarea = l.tarea
+    if (lnk.textContent !== l.texto) lnk.textContent = l.texto
+  }
   const pie = sec.querySelector('.rec-pie')
+  const rotulo = pie?.querySelector(':scope > span:first-child')
+  if (rotulo && !rotulo.classList.contains('estado-d') && rotulo.textContent !== etiquetaPie(cambios)) rotulo.textContent = etiquetaPie(cambios)
   if (!pie) {
     const html = pieCambiosHtml(cambios, k)
     if (html) sec.insertAdjacentHTML('beforeend', html)
@@ -7766,6 +7841,19 @@ async function verEnTareas({ lista = null, tarea = null, abrir = false } = {}) {
 }
 
 /**
+ * «Ver en Hábitos →», «Abrir Hábitos» y «Hábitos →» de los recibos (C3): abre Hábitos en Hoy; si ya está
+ * abierta, pasa a Hoy y el foco va al título.
+ */
+async function verEnHabitos() {
+  if (st.modulo === 'habitos') {
+    if (st.habitos.ver !== 'hoy') verHabitosEnHoja('hoy')
+    $('#titulo')?.focus()
+    return
+  }
+  await irModulo('habitos', { ver: 'hoy' })
+}
+
+/**
  * La fila de una tarea lleva el destello de «recién agregada» una vez (tareas-ux.md 10, `.recien`) sin
  * redibujar la lista; `entra`: además baja y aparece (una fila que llegó por la charla, 8).
  */
@@ -7871,7 +7959,8 @@ function pintarPuede(m) {
   if (!$('#ch-puede-lugar')) $('#chat-hilo').insertAdjacentHTML('beforebegin', '<div id="ch-puede-lugar" class="puede-lugar"></div>')
   const motor = m.chat.conversacion?.motor ?? m.chat.motor
   const abierto = !!m.chat.puede
-  ponerConFoco('#ch-puede-lugar', lineaPuedeHtml({ motor, abierto }) + globoPuedeHtml({ motor, abierto, mascota: nombreMascota() }))
+  // C3 (#43): con Claude Code, «Puede tocar tus tareas y hábitos»
+  ponerConFoco('#ch-puede-lugar', lineaPuedeHtml({ motor, abierto, habitos: true }) + globoPuedeHtml({ motor, abierto, habitos: true, mascota: nombreMascota() }))
   if (abierto && !puedeAbierto) movimientoRecibos.globo($('#ch-puede-lugar .puede-globo'))
   puedeAbierto = abierto
 }
@@ -7985,6 +8074,7 @@ async function accionChat(a, b) {
     case 'ch-reintentar-cambio': await reintentarCambio(b.dataset.cambio); break
     case 'ch-ver-tareas': await verEnTareas({ lista: b.dataset.lista || null, tarea: b.dataset.tarea || null }); break
     case 'ch-abrir-tareas': await verEnTareas(); break
+    case 'ch-ver-habitos': case 'ch-abrir-habitos': await verEnHabitos(); break
     case 'ch-ir-tarea': if (b.getAttribute('aria-disabled') !== 'true') await verEnTareas({ lista: b.dataset.lista || null, tarea: b.dataset.tarea || null, abrir: true }); break
   }
 }
@@ -8196,6 +8286,7 @@ async function iniciar() {
       despacharChat({ tipo: 'backend', payload: ev.payload })
     })
     escuchar('oficina://tareas', ev => alCambiarTareasFuera(ev.payload))
+    escuchar('oficina://habitos', ev => alCambiarHabitosFuera(ev.payload))
     // El modelo de esta PC (3.6): la descarga y el borrado desde la configuración
     escuchar('oficina://modelo', ev => alEventoModelo(ev.payload))
     // Los archivos que se sueltan (10): Tauri los toma antes que el HTML (`dragDropEnabled`)
