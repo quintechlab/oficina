@@ -188,8 +188,10 @@ mod nativo {
         }
 
         fn terminar(&self) -> bool {
+            // Código 0: terminarla es lo pedido, no una falla. Con 1, la extensión de VS Code muestra
+            // «Claude Code process exited with code 1» sobre la pestaña de esa sesión.
             // SAFETY: handle vivo con PROCESS_TERMINATE
-            unsafe { TerminateProcess(self.0, 1) != 0 }
+            unsafe { TerminateProcess(self.0, 0) != 0 }
         }
     }
 
