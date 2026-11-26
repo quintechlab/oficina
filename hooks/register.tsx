@@ -111,6 +111,11 @@ const LATIDO_LOCAL_MS = 30000
 // Órdenes del widget (v0.10): mandarle un mensaje a Claude o frenar el turno en curso.
 /** El turno del hilo principal que corre ahora (el id de su `turn.start`), o null si la sesión está libre. */
 let turnoEnCurso: string | null = null
+/**
+ * Cuándo empezó o terminó el último turno del hilo principal (ISO), o el arranque de la sesión si
+ * todavía no hubo ninguno (v0.12). El widget pliega la sesión que lleva más de 20 min sin turnos.
+ */
+let ultimoTurno: string | null = null
 /** Mensajes del widget que esperan a que termine el turno en curso. */
 let enCola = 0
 /** Desde cuándo vale una orden: el arranque de la sesión (o del /clear). */
@@ -261,6 +266,8 @@ async function publicar($: EngineInterface, forzar = false, ausente?: boolean): 
     enTurno: turnoEnCurso !== null,
     // Desde la v0.11: el widget la puede cerrar, solo si es de terminal
     puedeCerrar: esTerminal,
+    // Desde la v0.12: el último turno, para plegar la sesión que quedó quieta
+    ultimoTurno: (ultimoTurno ??= ahora),
   }
   // La carpeta va solo en el archivo local (v0.11): `p`, lo que se publica en GitHub, no la lleva
   await escribirEstadoLocal($, presenciaLocal(p, local.cwd))
@@ -448,9 +455,10 @@ async function escribirEstadoLocal($: EngineInterface, p: Presencia, cerrada = f
  * el botón Frenar del widget no puede esperar al debounce de 15 s de la publicación.
  */
 async function escribirTurnoLocal($: EngineInterface): Promise<void> {
-  if (!ultimaLocal) return
   const ahora = new Date(await $.clock.now()).toISOString()
-  await escribirEstadoLocal($, { ...ultimaLocal, actividad, enCola, enTurno: turnoEnCurso !== null, actualizado: ahora })
+  ultimoTurno = ahora
+  if (!ultimaLocal) return
+  await escribirEstadoLocal($, { ...ultimaLocal, actividad, enCola, enTurno: turnoEnCurso !== null, actualizado: ahora, ultimoTurno })
 }
 
 /** Renueva la hora del archivo local sin consultar git ni GitHub. */
