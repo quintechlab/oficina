@@ -103,7 +103,6 @@ Mod de Claude Code "oficina": panel de presencia del equipo Quintech Studio. Lee
 
 ## Pendientes
 
-- Campos instala el mod y se prueba con los dos conectados.
 - Probar desde un repositorio con rama `feat/N-slug` para ver tarea y talle reales.
 - Campo "Estimado" en el tablero si se quiere un "cuánto falta" de verdad.
 - Sin verificar: qué hace el diálogo de Claude cuando el widget responde primero (no se intenta cerrarlo).
