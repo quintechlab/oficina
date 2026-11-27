@@ -13,6 +13,7 @@ import {
   animoSesion, animoSubagente, personajeDeNombre, personajeSubagente, variantesEquipo, tiempoSubagente, textoActividad, tituloActividad,
   preguntasPendientes, escapar, tiempoRelativo, nombreProyecto, FUERA_DE_REPO, dormida, ANIMOS_DE_TRABAJO,
 } from './logica.js'
+import { nombreCorto, grupoRepo, GRUPOS_TIRA } from './modulos.js'
 
 /** Nombre accesible del estado de un Avi que está solo (la marca y el vacío): "Claude, durmiendo". */
 export const ANIMO = { coordinando: 'coordinando el equipo', durmiendo: 'durmiendo', escribiendo: 'escribiendo en la notebook', pensando: 'pensando', leyendo: 'leyendo', comando: 'ejecutando un comando', editando: 'editando', comiendo: 'comiendo tokens', listo: 'listo', reposo: 'listo', fallo: 'falló', esperando: 'esperando', teEspera: 'esperándote', inactiva: 'sin actividad', saluda: 'saluda' }
@@ -206,23 +207,92 @@ const claudeEn = (mascota, clave, formas, animo, tamano, opciones = {}) =>
   avi(claudeDe(mascota), animo, tamano, { ...opciones, claveEvo: clave, evolucionada: clave != null && formas.has(clave) })
 
 /**
- * La tira de repos arriba de las sesiones (modulos-ux.md 4.4, #42 M2; reemplaza a la barra de proyectos):
- * un chip por proyecto con su ícono, su nombre y la cuenta de hoy (las sesiones, o «1 ?» con preguntas).
- * Los mismos `data-accion="ir"` y `data-proy` de antes, así el manejador de main.js no cambia. `i`: el
- * elegido (`aria-current="true"` y «, elegido» en el nombre). La cuenta va aria-hidden: el nombre la dice.
+ * Lo que dice un repo en la tira y en la lista del «+n» (tira-repos-ux.md 5.1): la cuenta visible
+ * (`aria-hidden`; las sesiones solo con 2 o más, o «n ?» con preguntas con cualquier cantidad) y el nombre
+ * accesible «{nombre}, {cuenta}[, trabajando][, dormida][, elegido]», que dice la cuenta siempre.
+ */
+function datosRepo(p, ahoraMs, elegido = false) {
+  const pend = preguntasPendientes(p).length
+  const n = p.sesiones.length
+  const grupo = grupoRepo(p, ahoraMs)
+  const chip = pend
+    ? `<span class="chip chip-preg" aria-hidden="true">${pend} ?</span>`
+    : n >= 2 ? `<span class="chip" aria-hidden="true">${n}</span>` : ''
+  const cuenta = pend ? plural(pend, 'pregunta pendiente', 'preguntas pendientes') : plural(n, 'sesión', 'sesiones')
+  const trabaja = grupo === 'trabajando'
+  const duerme = grupo === 'dormida'
+  const nombre = `${p.nombre}, ${cuenta}${trabaja ? ', trabajando' : ''}${duerme ? ', dormida' : ''}${elegido ? ', elegido' : ''}`
+  const icono = `<span class="pj-ic" style="--c:${colorProyecto(p.nombre)}" aria-hidden="true">${escapar(iniciales(p.nombre))}</span>`
+  return { chip, nombre, trabaja, duerme, icono }
+}
+
+/**
+ * La tira de repos arriba de las sesiones (modulos-ux.md 4.4, #42 M2; con muchos repos, tira-repos-ux.md
+ * opción A «Dos renglones»): un chip por proyecto en `orden` (los `repo` de `ordenTira`; por defecto, el de
+ * `proyectos`), con su ícono, el nombre corto (4.1), el punto si trabaja, la cuenta de 5.1 y la clase
+ * `dormida`. Los mismos `data-accion="ir"` y `data-proy` (el índice en `proyectos`) de antes, más `data-repo`,
+ * la llave estable del FLIP. `i`: el elegido. Al final, el «+n» escondido: lo completa `ajustarTira` (main.js).
  * Se llama «Repos» (decisión de Quintana del 25/11): «Proyectos» es un módulo nuevo (#44).
  */
-export function tiraRepos(proyectos, i) {
-  return proyectos.map((p, k) => {
-    const pend = preguntasPendientes(p).length
-    const chip = pend
-      ? `<span class="chip chip-preg" aria-hidden="true">${pend} ?</span>`
-      : `<span class="chip" aria-hidden="true">${p.sesiones.length}</span>`
-    const cuenta = pend ? plural(pend, 'pregunta pendiente', 'preguntas pendientes') : plural(p.sesiones.length, 'sesión', 'sesiones')
+export function tiraRepos(proyectos, i, orden = proyectos.map(p => p.repo), ahoraMs = Date.now()) {
+  const chips = orden.map(repo => {
+    const k = proyectos.findIndex(p => p.repo === repo)
+    if (k < 0) return ''
+    const p = proyectos[k]
     const elegido = k === i
-    const nombre = `${p.nombre}, ${cuenta}${elegido ? ', elegido' : ''}`
-    return `<button type="button" class="rch"${elegido ? ' aria-current="true"' : ''} data-accion="ir" data-proy="${k}" title="${escapar(p.repo ?? p.nombre)}" aria-label="${escapar(nombre)}"><span class="pj-ic" style="--c:${colorProyecto(p.nombre)}" aria-hidden="true">${escapar(iniciales(p.nombre))}</span><span class="rch-n">${escapar(p.nombre)}</span>${chip}</button>`
+    const d = datosRepo(p, ahoraMs, elegido)
+    const corto = nombreCorto(p.nombre)
+    const nombre = `${escapar(corto.base)}${corto.sufijo ? `<small> · ${escapar(corto.sufijo)}</small>` : ''}`
+    const clase = d.duerme ? 'rch dormida' : 'rch'
+    return `<button type="button" class="${clase}"${elegido ? ' aria-current="true"' : ''} data-accion="ir" data-proy="${k}" data-repo="${escapar(p.repo ?? '')}" title="${escapar(p.repo ?? p.nombre)}" aria-label="${escapar(d.nombre)}">${d.icono}<span class="rch-n">${nombre}</span>${d.trabaja ? '<i class="rch-trab" aria-hidden="true"></i>' : ''}${d.chip}</button>`
   }).join('')
+  if (!chips) return ''
+  return `${chips}<button type="button" class="rch rch-mas" data-accion="repos-mas" aria-haspopup="listbox" aria-expanded="false" aria-controls="repos-mas" hidden><span class="rch-pts" aria-hidden="true"></span><span class="rch-mas-n" aria-hidden="true"></span></button>`
+}
+
+/** Lo que va adentro del «+n» (5.2): hasta 4 puntos con el color de los primeros ocultos, en orden, «+n» y su nombre. */
+export function contenidoMas(proyectos, ocultos) {
+  const puntos = ocultos.slice(0, 4).map(repo => {
+    const p = proyectos.find(x => x.repo === repo)
+    return p ? `<i style="--c:${colorProyecto(p.nombre)}"></i>` : ''
+  }).join('')
+  return { puntos, numero: `+${ocultos.length}`, etiqueta: `${ocultos.length} repos más` }
+}
+
+/** Los rótulos de los grupos de la lista del «+n» (5.3), en el orden de la tira. */
+const GRUPOS_LISTA = { pregunta: 'Te pregunta', trabajando: 'Trabajando', espera: 'Esperan tu mensaje', dormida: 'Dormidas' }
+
+/** El último turno de un repo (mod v0.12, `ultimoTurno` de sus sesiones), o null si ninguna lo dice. */
+function ultimoTurnoRepo(p) {
+  const t = Math.max(...p.sesiones.map(s => Date.parse(s.ultimoTurno ?? '')).filter(x => !Number.isNaN(x)))
+  return Number.isFinite(t) ? new Date(t).toISOString() : null
+}
+
+/**
+ * La lista del «+n» (tira-repos-ux.md 5.3): la cabecera, los grupos de urgencia que tienen repos (en el
+ * orden de la tira) y en cada uno una grilla de 2 columnas que baja por la primera. Cada opción lleva el
+ * mismo `data-accion="ir"` y `data-proy` que su chip, el nombre entero, la cuenta de 5.1 y hace cuánto fue
+ * su último turno. `ocultos`: los `repo` que no se ven, en el orden de la tira. La primera es la activa.
+ */
+export function listaRepos(proyectos, ocultos, ahoraMs = Date.now()) {
+  const filas = ocultos.map(repo => proyectos.findIndex(p => p.repo === repo)).filter(k => k >= 0)
+  if (!filas.length) return ''
+  let primera = true
+  const grupos = GRUPOS_TIRA.map(g => {
+    const del = filas.filter(k => grupoRepo(proyectos[k], ahoraMs) === g)
+    if (!del.length) return ''
+    const opciones = del.map(k => {
+      const p = proyectos[k]
+      const d = datosRepo(p, ahoraMs)
+      const turno = ultimoTurnoRepo(p)
+      const t = turno ? `<span class="rm-t" aria-hidden="true">${escapar(tiempoCorto(tiempoRelativo(turno, ahoraMs)))}</span>` : ''
+      const tab = primera ? '0' : '-1'
+      primera = false
+      return `<button type="button" class="${d.duerme ? 'rm-op dormida' : 'rm-op'}" role="option" aria-selected="false" tabindex="${tab}" data-accion="ir" data-proy="${k}" data-repo="${escapar(p.repo ?? '')}" title="${escapar(p.repo ?? p.nombre)}" aria-label="${escapar(d.nombre)}">${d.icono}<span class="rm-n">${escapar(p.nombre)}</span>${d.chip}${t}</button>`
+    }).join('')
+    return `<div role="group" aria-labelledby="rm-g-${g}"><p class="grp" id="rm-g-${g}">${GRUPOS_LISTA[g]}</p><div class="rm-filas" style="--filas:${Math.ceil(del.length / 2)}">${opciones}</div></div>`
+  }).join('')
+  return `<div class="rm-cab" aria-hidden="true"><span>${filas.length} repos más</span><span><kbd>Esc</kbd> cierra</span></div>${grupos}`
 }
 
 /**

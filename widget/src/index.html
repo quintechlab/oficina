@@ -121,8 +121,12 @@
           <!-- Horas (odd/tasks/horas-trabajo.md, S4): hermana de #cfg, #tar, #hab y #pro, una hoja por vez en la columna -->
           <div id="hor"></div>
           <!-- La tira de repos (modulos-ux.md 4.4, #42 M2): un chip por proyecto, solo en Sesiones (tablero.js, tiraRepos).
-               Se llama «Repos»: «Proyectos» es un módulo nuevo (#44) -->
-          <nav class="repos" id="repos" aria-label="Repos"></nav>
+               Se llama «Repos»: «Proyectos» es un módulo nuevo (#44). Con muchos repos (tira-repos-ux.md, opción A):
+               hasta dos renglones y el «+n», que abre #repos-mas; la lista va fuera del nav, así #repos [data-proy] son solo chips -->
+          <div class="repos-caja">
+            <nav class="repos" id="repos" aria-label="Repos"></nav>
+            <div id="repos-mas" role="listbox" hidden></div>
+          </div>
           <div id="otro"></div>
           <!-- El aviso diario de tareas en la pantalla dividida (tareas-ux.md 8.4): la fila arriba de las sesiones -->
           <div id="aviso-tar"></div>
