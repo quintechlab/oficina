@@ -386,13 +386,35 @@
     }
   }
   // ?repos=1|muchos: la tira de repos de Sesiones (modulos-ux.md 4.4, #42 M2) con un solo proyecto (oficina)
-  // o con 9 (los 3 de siempre y 6 quietos más, para ver el scroll horizontal y la máscara)
+  // o con 9 (los 3 de siempre y 6 quietos más: dos renglones y el «+n», tira-repos-ux.md)
   if (url.get('repos') === '1') SESIONES.splice(0, SESIONES.length, SESIONES.find(s => s.sesion === 'ses-oficina'))
   if (url.get('repos') === 'muchos') {
     const nucleo = SESIONES.find(s => s.sesion === 'ses-nucleo')
     for (const [k, nombre] of ['quintech-crm', 'webs-portfolio', 'brasa-noble', 'temple-barberia', 'mis-gastos-app', 'playbook'].entries()) {
       SESIONES.push({ ...nucleo, sesion: `ses-extra-${k}`, repo: `quintechlab/${nombre}`, rama: 'main', inicio: hace(20 + k * 7), actividad: 'esperándote', agentes: [] })
     }
+  }
+  // ?repos=15: la tira con muchos repos (tira-repos-ux.md, opción A, los estados del boceto): catalogo
+  // pregunta, cuatro trabajan (oficina y tres más), cinco esperan tu mensaje (con un nombre generado
+  // scratch-AAAA-MM-DD-hash) y cinco duermen (mod v0.12: sin turnos hace más de 20 min). Dos renglones y «+10».
+  // &tarde: a los 6 s infra-deploy, que duerme en el «+n», hace una pregunta (pasa a verse y su «1 ?» late)
+  if (url.get('repos') === '15') {
+    const nucleo = SESIONES.find(s => s.sesion === 'ses-nucleo')
+    const extra = (k, nombre, datos) => SESIONES.push({ ...nucleo, sesion: `ses-15-${k}`, repo: `quintechlab/${nombre}`, rama: 'main', inicio: hace(30 + k * 5), agentes: [], preguntas: [], procesos: [], ...datos })
+    const trabajan = ['quintech-crm', 'mis-gastos-app', 'bot-soporte']
+    const esperan = ['scratch-2026-11-27-d5bfc1', 'webs-portfolio', 'brasa-noble', 'datos-migracion-2026']
+    const duermen = [['temple-barberia', 125], ['playbook', 300], ['landing-verano', 1500], ['design-tokens', 1560], ['infra-deploy', 2900]]
+    nucleo.ultimoTurno = hace(1)
+    trabajan.forEach((n, k) => extra(k, n, { actividad: 'editando README.md', ultimoTurno: hace(0) }))
+    esperan.forEach((n, k) => extra(10 + k, n, { actividad: 'esperándote', ultimoTurno: hace(4 + k * 3) }))
+    duermen.forEach(([n, min], k) => extra(20 + k, n, {
+      actividad: 'esperándote', ultimoTurno: hace(min),
+      preguntas: n === 'infra-deploy' && url.has('tarde')
+        ? [{ id: 'toolu_repos_tarde', agente: null, desde: hace(0), items: [{ pregunta: '¿Desplegamos a producción?', encabezado: 'Deploy', multiple: false, opciones: [{ etiqueta: 'Sí' }, { etiqueta: 'No' }] }] }]
+        : [],
+    }))
+    // quintech-crm con dos sesiones: su cuenta se ve (5.1)
+    extra(30, 'quintech-crm', { actividad: 'esperándote', ultimoTurno: hace(3) })
   }
   // ?dormida: oficina tiene además una conversación vieja de VS Code sin turnos hace 2 h (mod v0.12):
   // arrancó antes que la otra, pero va plegada al fondo (odd/tasks/sesiones-dormidas.md)
@@ -410,7 +432,9 @@
   const tomadas = new Set()
   // &tapa: las preguntas solo entre los 4 y los 10 s (tapan el globo de tareas de la muesca y se van)
   const tapada = () => url.get('pregunta') === 'llega' ? Date.now() - ahora >= 4000 : !url.has('tapa') || (Date.now() - ahora >= 4000 && Date.now() - ahora < 10000)
-  const sinTomadas = () => SESIONES.map(s => ({ ...s, preguntas: tapada() ? (s.preguntas ?? []).filter(p => !tomadas.has(p.id)) : [] }))
+  // ?repos=15&tarde: la pregunta de infra-deploy llega a los 6 s
+  const aTiempo = p => p.id !== 'toolu_repos_tarde' || Date.now() - ahora >= 6000
+  const sinTomadas = () => SESIONES.map(s => ({ ...s, preguntas: tapada() ? (s.preguntas ?? []).filter(p => !tomadas.has(p.id) && aTiempo(p)) : [] }))
 
   // Barra de control (#19): las sesiones aceptan órdenes (mod v0.10). oficina trabaja (Frenar se ve),
   // central-nucleo espera tu mensaje y catalogo tiene un mensaje en cola ("en cola").

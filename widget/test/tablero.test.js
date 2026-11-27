@@ -109,19 +109,19 @@ test('tira de repos: el elegido lleva aria-current="true" y «, elegido» en su 
   const proyectos = agruparPorProyecto([sr('q/oficina'), sr('q/oficina', { k: 1 }), sr('q/catalogo', conPregunta)])
   const k = proyectos.findIndex(p => p.nombre === 'oficina')
   const h = tiraRepos(proyectos, k)
-  assert.match(h, new RegExp(`<button type="button" class="rch" aria-current="true" data-accion="ir" data-proy="${k}" title="q/oficina" aria-label="oficina, 2 sesiones, elegido">`))
+  assert.match(h, new RegExp(`<button type="button" class="rch" aria-current="true" data-accion="ir" data-proy="${k}" data-repo="q/oficina" title="q/oficina" aria-label="oficina, 2 sesiones, elegido">`))
   assert.equal((h.match(/aria-current/g) ?? []).length, 1)
   assert.equal((h.match(/, elegido"/g) ?? []).length, 1)
   // Los mismos data-accion="ir" y data-proy de la barra de antes: el manejador de main.js no cambia (11.1)
   assert.equal((h.match(/data-accion="ir" data-proy="\d+"/g) ?? []).length, 2)
 })
 
-test('tira de repos: cada chip lleva el ícono del proyecto, el nombre y la cuenta; con pregunta, «1 ?» en lugar de las sesiones', () => {
+test('tira de repos: cada chip lleva el ícono del proyecto, el nombre y la cuenta; con pregunta, «1 ?» en lugar de las sesiones; con una sola sesión, sin número (tira-repos-ux.md 5.1)', () => {
   const proyectos = agruparPorProyecto([sr('q/oficina'), sr('q/catalogo', conPregunta)])
   const k = proyectos.findIndex(p => p.nombre === 'catalogo')
   const h = tiraRepos(proyectos, -1)
-  assert.match(h, new RegExp(`data-proy="${k}" title="q/catalogo" aria-label="catalogo, 1 pregunta pendiente"><span class="pj-ic" style="--c:${colorProyecto('catalogo').replace(/[()]/g, '\\$&')}" aria-hidden="true">c</span><span class="rch-n">catalogo</span><span class="chip chip-preg" aria-hidden="true">1 \\?</span></button>`))
-  assert.match(h, /aria-label="oficina, 1 sesión">.*<span class="chip" aria-hidden="true">1<\/span><\/button>/)
+  assert.match(h, new RegExp(`data-proy="${k}" data-repo="q/catalogo" title="q/catalogo" aria-label="catalogo, 1 pregunta pendiente"><span class="pj-ic" style="--c:${colorProyecto('catalogo').replace(/[()]/g, '\\$&')}" aria-hidden="true">c</span><span class="rch-n">catalogo</span><span class="chip chip-preg" aria-hidden="true">1 \\?</span></button>`))
+  assert.match(h, /aria-label="oficina, 1 sesión"><span class="pj-ic"[^>]*>o<\/span><span class="rch-n">oficina<\/span><\/button>/)
   // Sin proyecto elegido (no pasa en Sesiones, pero no rompe): ningún aria-current
   assert.doesNotMatch(h, /aria-current/)
 })

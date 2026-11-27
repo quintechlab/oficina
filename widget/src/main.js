@@ -13,7 +13,7 @@ import {
 import { textoRespondido, estadoEnvio, objetivoDelClic, registrarEleccion, alternarSeleccion, motivoRechazo, lineaClic } from './responder.js'
 import {
   prepararProyecto, firmaEscenas, sesiones, carasMini, companero, firmaCompanero,
-  tiraRepos, encabezadoSesiones, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, chips, colorProyecto, animoTexto,
+  tiraRepos, listaRepos, contenidoMas, encabezadoSesiones, animoMarca, estadoMarca, figuraMarca, figuraVacio, conteos, chips, colorProyecto, animoTexto,
 } from './tablero.js'
 import {
   vistaBarra, clicFrenar, validarTexto, teclaControl, lineaResultado, lineaError, pasoOrden,
@@ -113,7 +113,9 @@ import {
   errorLecturaProyectos, lineaRotos, lineaError as lineaErrorProyecto,
 } from './proyectosVista.js'
 import * as movimientoProyectos from './proyectosMotion.js'
-import { MODULOS, irModulo as planModulo, alEscModulo, cuentaModulo, nombreModulo, avisoPregunta, moduloAlExpandir, cuentasModulosMini, desplazarTira } from './modulos.js'
+import { MODULOS, irModulo as planModulo, alEscModulo, cuentaModulo, nombreModulo, avisoPregunta, moduloAlExpandir, cuentasModulosMini,
+  ordenTira, repartirTira, grupoRepo, pasoTira, pasoLista, repoVecino, ESPERA_REORDEN_MS,
+} from './modulos.js'
 import { avisoPreguntaHtml, cuentasMiniHtml } from './modulosVista.js'
 import * as movimientoModulos from './modulosMotion.js'
 
@@ -155,6 +157,12 @@ const st = {
   proyectos: [],
   /** Proyecto elegido, por repositorio: si aparece uno nuevo, la selección no salta. */
   repo: undefined,
+  /**
+   * La tira de repos con muchos proyectos (tira-repos-ux.md): `orden` (los `repo` en el orden de la tira),
+   * `visibles` y `ocultos` (lo que dejó `ajustarTira`), `congelada` (puntero, foco o lista adentro, 4.3; se
+   * suelta ESPERA_REORDEN_MS después), `pendiente` (el orden suelto sería otro), `abierta` (la lista del «+n»).
+   */
+  repos: { orden: [], visibles: [], ocultos: [], congelada: false, pendiente: false, abierta: false, puntero: false, reloj: null, preguntas: new Map(), entro: false, firma: null },
   /** Pestaña elegida de la tarjeta de pregunta. */
   activa: 0,
   /** Los interruptores de la configuración (configuracion-ux.md 9.1), guardados en preferencias.json. */
@@ -1207,6 +1215,8 @@ function pintar() {
   // El menú de módulos (modulos-ux.md 4, #42): la fila abierta, las cuentas, la píldora y la pregunta
   // vista desde otro módulo (`#aviso-p`). `st.modulo` decide; `config.abierta` y `tareas.abierta` lo siguen
   pintarModulos(ahora, totalPend)
+  // La lista del «+n» se cierra al cambiar de módulo, al entrar a la dividida o si la tira se vacía (tira-repos-ux.md 8.2)
+  if (st.repos.abierta && (st.modulo !== 'sesiones' || st.dividida.clave || !st.proyectos.length)) cerrarListaRepos({ foco: false, redibujar: false })
   // La configuración (configuracion-ux.md 4.2): la hoja de la columna principal, también sin sesiones
   $('#marco').classList.toggle('con-cfg', st.config.abierta)
   if (st.config.abierta) { pintarHojaConfiguracion(); return }
@@ -1251,12 +1261,9 @@ function pintar() {
   let i = st.proyectos.findIndex(p => p.repo === st.repo)
   if (i < 0) { i = 0; st.repo = st.proyectos[0].repo }
   const proyecto = st.proyectos[i]
-  // La tira de repos arriba de las sesiones (modulos-ux.md 4.4, M2)
-  const enfocado = document.activeElement?.closest?.('#repos [data-proy]')
-  if (poner('#repos', tiraRepos(st.proyectos, i)) && enfocado) {
-    // El redibujo no se lleva el foco: queda en el proyecto que lo tenía (9.4)
-    $(`#repos [data-proy="${enfocado.dataset.proy}"]`)?.focus()
-  }
+  // La tira de repos arriba de las sesiones (modulos-ux.md 4.4, M2), en orden de urgencia y en hasta dos
+  // renglones (tira-repos-ux.md 4 y 6). Con la lista del «+n» abierta no se redibuja (4.3 y 8.2)
+  if (!st.repos.abierta) pintarTiraRepos(i, ahora)
   // El aviso de primeros pasos va debajo del de pregunta; con la hoja abierta no hace falta (3.5)
   // En la dividida el aviso es de una pregunta en cualquier proyecto, también los dos que conversan (5.3)
   const enDividida = !!st.dividida.clave
@@ -1326,25 +1333,201 @@ function irAProyecto(repo, direccion) {
   st.activa = 0
   pintar()
   $('.principal').scrollTop = 0
-  verRepoElegido()
   cambioProyecto(direccion)
   entradaEscenas(document.querySelectorAll('#sesiones > .ses'))
 }
 
-/** Lo que tapa la máscara a la derecha de la tira de repos (el 12 % del ancho, `estilos.css`). */
-const MASCARA_REPOS = 0.12
+// ------------------------------------------------------------------ la tira de repos (tira-repos-ux.md, opción A)
 
 /**
- * El chip elegido de la tira de repos queda a la vista (modulos-ux.md 4.4): corre solo la tira, en
- * horizontal (`scrollIntoView` correría también la columna y el marco).
+ * La tira en cada redibujo de Sesiones (4 y 6): el orden por urgencia (`ordenTira`, congelado mientras la
+ * usás), los chips (`tiraRepos`) y el reparto en renglones (`ajustarTira`). El redibujo no se lleva el foco:
+ * queda en el repo (o en el «+n») que lo tenía (modulos-ux.md 9.4). Un repo nuevo entra solo y una
+ * pregunta nueva hace latir su «1 ?» (9).
  */
-function verRepoElegido() {
-  const tira = $('#repos')
-  const chip = tira?.querySelector('[aria-current]')
-  if (!chip || !tira.clientWidth) return
-  const x = desplazarTira({ izq: chip.offsetLeft, ancho: chip.offsetWidth }, { scroll: tira.scrollLeft, visible: tira.clientWidth }, tira.clientWidth * MASCARA_REPOS)
-  if (x !== tira.scrollLeft) tira.scrollLeft = x
+function pintarTiraRepos(i, ahora) {
+  const t = ordenTira(st.proyectos, ahora, st.repos.orden, st.repos.congelada)
+  st.repos.orden = t.orden
+  st.repos.pendiente = t.pendiente
+  const nav = $('#repos')
+  const enfocado = document.activeElement?.closest?.('#repos .rch')
+  const previos = new Set([...nav.querySelectorAll(':scope > .rch[data-repo]')].map(c => c.dataset.repo))
+  const cambio = poner('#repos', tiraRepos(st.proyectos, i, st.repos.orden, ahora))
+  ajustarTira()
+  if (cambio && enfocado) {
+    const sel = enfocado.classList.contains('rch-mas') ? '#repos .rch-mas' : `#repos [data-repo="${CSS.escape(enfocado.dataset.repo ?? '')}"]`
+    $(sel)?.focus()
+  }
+  const chips = [...nav.querySelectorAll(':scope > .rch[data-repo]:not([hidden])')]
+  if (cambio && st.repos.entro) for (const c of chips) if (!previos.has(c.dataset.repo)) movimientoModulos.entraChip(c)
+  for (const p of st.proyectos) {
+    const n = preguntasPendientes(p).length
+    if (st.repos.entro && n > (st.repos.preguntas.get(p.repo) ?? 0)) movimientoModulos.latirPregunta($(`#repos [data-repo="${CSS.escape(p.repo ?? '')}"] .chip-preg`))
+    st.repos.preguntas.set(p.repo, n)
+  }
+  if (chips.length) st.repos.entro = true
 }
+
+/**
+ * El reparto de la tira en renglones (6), en el mismo cuadro en que se puso el HTML (sin pintar en el medio):
+ * mide cada chip, decide con `repartirTira` cuáles se ven y completa el «+n» o lo esconde. Los ocultos quedan
+ * en el DOM con `hidden`. Congelada (4.3), respeta los visibles de antes. Escondida (la dividida), no mide:
+ * lo hace el redibujo siguiente.
+ */
+function ajustarTira() {
+  const nav = $('#repos')
+  const ancho = nav.clientWidth
+  if (!ancho) return
+  const congelados = st.repos.congelada && st.repos.visibles.length ? st.repos.visibles : null
+  const firma = JSON.stringify([st.firmas['#repos'], st.repo, congelados, ancho])
+  if (firma === st.repos.firma) return
+  st.repos.firma = firma
+  const chips = [...nav.querySelectorAll(':scope > .rch[data-repo]')]
+  const mas = nav.querySelector(':scope > .rch-mas')
+  const orden = st.repos.orden
+  if (!chips.length || chips.length !== orden.length) { st.repos.visibles = []; st.repos.ocultos = []; return }
+  for (const c of chips) c.hidden = false
+  const estilo = getComputedStyle(nav)
+  const libre = ancho - parseFloat(estilo.paddingLeft) - parseFloat(estilo.paddingRight)
+  const ahora = Date.now()
+  const proyectoDe = repo => st.proyectos.find(p => p.repo === repo)
+  const r = repartirTira({
+    // offsetWidth redondea: medio píxel de más para no prometer un lugar que el navegador no da
+    anchos: chips.map(c => c.offsetWidth + 0.5),
+    ancho: libre,
+    elegido: orden.indexOf(st.repo),
+    obligados: orden.flatMap((repo, k) => grupoRepo(proyectoDe(repo), ahora) === 'pregunta' ? [k] : []),
+    congelados: congelados && congelados.map(repo => orden.indexOf(repo)).filter(k => k >= 0),
+  })
+  const vis = new Set(r.visibles)
+  chips.forEach((c, k) => { c.hidden = !vis.has(k) })
+  st.repos.visibles = r.visibles.map(k => orden[k])
+  st.repos.ocultos = r.ocultos.map(k => orden[k])
+  if (!mas) return
+  if (!r.ocultos.length) { mas.hidden = true; return }
+  const m = contenidoMas(st.proyectos, st.repos.ocultos)
+  mas.querySelector('.rch-pts').innerHTML = m.puntos
+  mas.querySelector('.rch-mas-n').textContent = m.numero
+  mas.setAttribute('aria-label', m.etiqueta)
+  mas.hidden = false
+}
+
+/** ¿Alguien usa la tira? El puntero sobre `.repos-caja` (la lista incluida), el foco adentro o la lista abierta (4.3). */
+function tiraSujeta() {
+  return st.repos.puntero || st.repos.abierta || !!document.activeElement?.closest?.('.repos-caja')
+}
+
+/** La tira se congela (4.3): su orden y qué repos se ven no cambian hasta soltarla. */
+function sujetarTira() {
+  clearTimeout(st.repos.reloj)
+  st.repos.reloj = null
+  st.repos.congelada = true
+}
+
+/**
+ * Al soltarse (puntero afuera, foco afuera y lista cerrada) espera ESPERA_REORDEN_MS; si sigue suelta, se
+ * aplica el orden de ahora y los chips viajan a su lugar nuevo (FLIP, 9).
+ */
+function soltarTira() {
+  clearTimeout(st.repos.reloj)
+  st.repos.reloj = null
+  if (tiraSujeta() || !st.repos.congelada) return
+  st.repos.reloj = setTimeout(() => {
+    st.repos.reloj = null
+    if (tiraSujeta()) return
+    st.repos.congelada = false
+    const nav = $('#repos')
+    const antes = movimientoModulos.lugaresTira(nav)
+    pintar()
+    movimientoModulos.reordenarTira(nav, antes)
+  }, ESPERA_REORDEN_MS)
+}
+
+/** Abre la lista del «+n» (5.3 y 8.2) con los repos que no se ven; el foco va a la primera opción. */
+function abrirListaRepos() {
+  const panel = $('#repos-mas')
+  const mas = $('#repos .rch-mas')
+  if (!panel || !mas || mas.hidden || !st.repos.ocultos.length) return
+  st.repos.abierta = true
+  sujetarTira()
+  panel.innerHTML = listaRepos(st.proyectos, st.repos.ocultos, Date.now())
+  panel.setAttribute('aria-label', mas.getAttribute('aria-label') ?? '')
+  mas.setAttribute('aria-expanded', 'true')
+  movimientoModulos.abrirLista(panel)
+  panel.querySelector('.rm-op')?.focus()
+}
+
+/**
+ * Cierra la lista del «+n» (8.2). `foco`: 'mas' (Esc y el «+n»: vuelve a él) o false (lo pone quien llama).
+ * Después la tira se pone al día con lo que llegó mientras estaba abierta (todavía congelada si el puntero o
+ * el foco siguen adentro). `redibujar: false` desde `pintar`.
+ */
+function cerrarListaRepos({ foco = 'mas', redibujar = true } = {}) {
+  if (!st.repos.abierta) return
+  st.repos.abierta = false
+  const mas = $('#repos .rch-mas')
+  mas?.setAttribute('aria-expanded', 'false')
+  if (foco === 'mas') mas?.focus()
+  movimientoModulos.cerrarLista($('#repos-mas'))
+  if (redibujar) pintar()
+  soltarTira()
+}
+
+/**
+ * Las flechas en la tira (8.1): los ítems son los chips visibles y el «+n». ← → mueven y eligen el chip (el
+ * foco lo sigue); el «+n» solo se enfoca. ↑ ↓ mueven el foco; ↓ en el «+n» abre la lista. Enter y Espacio
+ * quedan para el clic de siempre (en el «+n», abre o cierra la lista).
+ */
+function teclaTira(e) {
+  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return false
+  const item = e.target.closest?.('#repos .rch')
+  if (!item) return false
+  const items = [...document.querySelectorAll('#repos .rch:not([hidden])')]
+  const paso = pasoTira(items.map(el => ({ mas: el.classList.contains('rch-mas') })), items.indexOf(item), e.key)
+  if (!paso) return false
+  e.preventDefault()
+  if (paso.abrir) { abrirListaRepos(); return true }
+  const destino = items[paso.foco]
+  if (!paso.elegir) { destino.focus(); return true }
+  const p = st.proyectos[+destino.dataset.proy]
+  if (p) irAProyecto(p.repo, e.key === 'ArrowLeft' ? -1 : 1)
+  $('#repos [aria-current]')?.focus()
+  return true
+}
+
+/**
+ * Las teclas en la lista del «+n» (8.2): ↓ ↑ por el orden del DOM, → ← a la otra columna, Inicio y Fin. Una
+ * sola opción con `tabindex="0"` (la activa). Enter y Espacio son el clic de la opción.
+ */
+function teclaListaRepos(e) {
+  const op = e.target.closest?.('#repos-mas .rm-op')
+  if (!op) return false
+  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return false
+  e.preventDefault()
+  const ops = [...document.querySelectorAll('#repos-mas .rm-op')]
+  const tamanos = [...document.querySelectorAll('#repos-mas .rm-filas')].map(f => f.querySelectorAll('.rm-op').length)
+  const j = pasoLista(tamanos, ops.indexOf(op), e.key)
+  if (j == null) return true
+  op.tabIndex = -1
+  ops[j].tabIndex = 0
+  ops[j].focus()
+  return true
+}
+
+// Puntero y foco en la tira (4.3): congelan; al salir, se suelta. Tab o Mayús Tab desde la lista la cierran
+// y el foco sigue su camino (8.2); un clic afuera la cierra sin mover el foco
+const cajaRepos = $('.repos-caja')
+cajaRepos.addEventListener('pointerenter', () => { st.repos.puntero = true; sujetarTira() })
+cajaRepos.addEventListener('pointerleave', () => { st.repos.puntero = false; soltarTira() })
+cajaRepos.addEventListener('focusin', () => sujetarTira())
+cajaRepos.addEventListener('focusout', e => {
+  const a = e.relatedTarget
+  if (st.repos.abierta && a && !a.closest?.('#repos-mas')) cerrarListaRepos({ foco: false })
+  soltarTira()
+})
+document.addEventListener('pointerdown', e => {
+  if (st.repos.abierta && !e.target.closest?.('.repos-caja')) cerrarListaRepos({ foco: false })
+})
 
 // ------------------------------------------------------------------ módulos (#42, docs/diseno/modulos-ux.md)
 
@@ -1396,6 +1579,8 @@ async function irModulo(id, { repo, tab, ver, proyecto, foco = 'h1' } = {}) {
   else if (plan.repo && plan.repo !== st.repo) irAProyecto(plan.repo, 1)
   else pintar()
   movimientoModulos.viajarPildora(nav, desde)
+  // Volver a Sesiones desde otra hoja: la tira entra (tira-repos-ux.md 9)
+  if (plan.modulo === 'sesiones' && plan.cerrar.length) movimientoModulos.entraTira($('#repos'))
   // El nombre del módulo, una vez (5); el foco, al título o a la fila
   anunciar(MODULOS.find(m => m.id === plan.modulo)?.nombre)
   if (!plan.abrir && enfocarTitulo) $('#titulo').focus()
@@ -2167,11 +2352,20 @@ async function cicloEquipo() {
   setTimeout(cicloEquipo, INTERVALO_EQUIPO_MS)
 }
 
+/**
+ * ← → fuera de la tira (tira-repos-ux.md 8.1): el anterior o el siguiente de todos los repos, en el orden de
+ * la tira (ocultos incluidos), en ronda. Elegir uno oculto lo trae al último lugar visible (4.3 b, `repartirTira`).
+ */
 function moverProyecto(dir) {
-  const n = st.proyectos.length
-  if (n < 2) return
-  const i = Math.max(0, st.proyectos.findIndex(p => p.repo === st.repo))
-  irAProyecto(st.proyectos[(i + dir + n) % n].repo, dir)
+  const v = repoVecino(ordenTiraActual(), st.repo, dir)
+  if (v) irAProyecto(v.repo, dir)
+}
+
+/** El orden de la tira; si todavía no se dibujó o quedó viejo, el de los proyectos. */
+function ordenTiraActual() {
+  const hay = new Set(st.proyectos.map(p => p.repo))
+  const orden = st.repos.orden.filter(r => hay.has(r))
+  return orden.length === st.proyectos.length ? orden : st.proyectos.map(p => p.repo)
 }
 
 function ponerArriba(valor) {
@@ -2351,7 +2545,16 @@ document.addEventListener('click', async e => {
       $(`#repos [data-proy="${b.dataset.proy}"]`)?.focus()
       return
     }
+    // Una fila de la lista del «+n» (tira-repos-ux.md 8.2): cierra la lista y el foco va al chip del elegido,
+    // que ya se ve (4.3 b)
+    const deLista = !!b.closest('#repos-mas')
+    if (deLista) cerrarListaRepos({ foco: false })
     if (p) irAProyecto(p.repo, 1)
+    if (deLista) $('#repos [aria-current]')?.focus()
+  } else if (a === 'repos-mas') {
+    // El «+n» abre o cierra su lista (5.2)
+    if (st.repos.abierta) cerrarListaRepos()
+    else abrirListaRepos()
   } else if (a === 'tab') {
     st.activa = +b.dataset.i
     reiniciarInteraccion()
@@ -2534,6 +2737,12 @@ document.addEventListener('keydown', e => {
     if (!st.mini && (!st.acople || st.vista)) irModulo('proyectos')
     return
   }
+  // Esc con la lista del «+n» abierta (tira-repos-ux.md 8.2): la primera capa de Sesiones; el foco vuelve al «+n»
+  if (e.key === 'Escape' && st.repos.abierta) {
+    e.preventDefault()
+    cerrarListaRepos({ foco: 'mas' })
+    return
+  }
   // Las teclas de la hoja de la charla (chat-avis-ux.md 3.5): van antes que el Esc de la pregunta y el de la muesca
   if (teclaChat(e)) return
   // Esc con el foco en el globo de un recordatorio o del resumen: es su × («Ahora no» o «Más tarde», habitos-ux.md 9.1)
@@ -2696,22 +2905,14 @@ document.addEventListener('keydown', e => {
   // Fuera de la pregunta, Esc cierra la muesca aunque esté fijada y devuelve el foco a la muesca (7.2)
   if (e.key === 'Escape' && st.acople && st.muesca.abierta) { e.preventDefault(); evento({ tipo: 'esc' }); return }
   if (st.mini || e.target.closest?.('input, textarea, summary, #pp, #hoja, #cfg, #tar')) return
-  // ↑ ↓ mueven el foco entre los repos de la tira (no cambian de proyecto), como en la barra de antes
-  const fila = e.target.closest?.('#repos [data-proy]')
-  if (fila && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-    e.preventDefault()
-    const filas = [...document.querySelectorAll('#repos [data-proy]')]
-    filas[(filas.indexOf(fila) + (e.key === 'ArrowDown' ? 1 : -1) + filas.length) % filas.length].focus()
-    return
-  }
+  // La lista del «+n» y la tira de repos (tira-repos-ux.md 8): las flechas sobre sus ítems
+  if (teclaListaRepos(e) || teclaTira(e)) return
   // Con la configuración o las tareas abiertas no hay proyecto a la vista: ← → no cambian ninguno por detrás
   if (st.modulo !== 'sesiones') return
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
     e.preventDefault()
-    // Con el foco en la tira de repos, el foco sigue al elegido (la tira se redibuja en el cambio)
-    const enTira = !!fila
+    // Fuera de la tira, todos los repos en el orden de la tira (8.1)
     moverProyecto(e.key === 'ArrowLeft' ? -1 : 1)
-    if (enTira) $('#repos [aria-current]')?.focus()
   }
 })
 

@@ -55,6 +55,8 @@
   --ancho-lado: 208px; --ancho-principal: 500px; --alto-tablero: 680px;
   /* El menú de módulos (modulos-ux.md 6): alto de cada fila y de la píldora que viaja */
   --alto-modulo: 40px;
+  /* La tira de repos con muchos proyectos (tira-repos-ux.md 4.1 y 5.2): el tope del nombre de cada chip y el ancho fijo del «+n» */
+  --ancho-nombre-repo: 112px; --ancho-mas: 72px;
   /* Primeros pasos (bienvenida-ux.md 5): el escenario tiene alto fijo, como el tablero */
   --alto-escenario: 600px;
   /* Panel "Escenario + chips" (panel-avis-ux.md 7): la caja del escenario de cada sesión, los chips
@@ -92,6 +94,8 @@
   --espera-abrir: 180ms; --espera-cerrar: 650ms; --cada-golpe: 90s;
   /* La tinta (el motor elegido, la letra sobre crema) y el cambio de pose de la voz de la marca */
   --tinta: #14110C; --d-voz: 360ms;
+  /* La tira de repos (tira-repos-ux.md 9): entrada, reorden y la lista del «+n». Sus espejos en JS, en modulosMotion.js */
+  --d-tira-entra: 260ms; --tira-escalon: 30ms; --d-reorden: 300ms; --d-lista-abre: 220ms; --lista-escalon: 20ms; --d-lista-cierra: 140ms;
   /* La charla con la mascota (docs/diseno/chat-avis-ux.md 5): la hoja, su escenario y los tiempos de chatMotion.js */
   --ancho-hoja: 420px; --hueco-hoja: 14px; --alto-escena-chat: 172px;
   --d-mudanza: 900ms; --d-hoja: 640ms; --d-palabra-chat: 360ms; --d-chispa: 1300ms;
@@ -211,16 +215,18 @@ h1, h2, h3 { font: inherit }
    posiciones fraccionarias (barra que desplaza) deja un filo ámbar alrededor de toda la píldora */
 .ind-mod::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--ambar) }
 #marco.mod-config .ind-mod { opacity: 0 }
-/* La tira de repos (4.4, M2): una sola fila arriba de las sesiones, con scroll horizontal sin barra y la
-   máscara a la derecha (el 12 %: `MASCARA_REPOS` de main.js). Solo en Sesiones, fuera de la dividida, del
-   vacío, de la carga y del escenario de primeros pasos. `position: relative`: el `offsetLeft` de cada chip
-   se mide desde la tira (`verRepoElegido`). Los 56 de la derecha (más que la máscara) dejan correr el último chip fuera de la máscara */
-.repos {
-  position: relative; display: flex; gap: 6px; margin-bottom: 10px; padding: 2px 56px 2px 2px; overflow-x: auto; scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent);
-}
-.repos::-webkit-scrollbar { display: none }
+/* La tira de repos (4.4, M2; con muchos repos, tira-repos-ux.md opción A «Dos renglones»): hasta dos
+   renglones arriba de las sesiones, en orden de urgencia, sin scroll ni máscara. Lo que no entra va al «+n»
+   (5.2), que abre la lista #repos-mas (5.3) encima de las tarjetas. Qué chips se ven lo decide `ajustarTira`
+   (main.js) con `repartirTira`: los demás quedan en el DOM con `hidden`. Solo en Sesiones, fuera de la
+   dividida, del vacío, de la carga y del escenario de primeros pasos */
+.repos-caja { position: relative; margin-bottom: 10px }
+.repos-caja:has(> #repos:empty), #marco:not(.mod-sesiones) .repos-caja, #marco.dividida .repos-caja, #marco.vacio .repos-caja, #marco.cargando .repos-caja, #marco.escenario .repos-caja { display: none }
+/* tableroMotion.js nombra la tira por #repos para dejarla quieta al cambiar de proyecto (QUIETOS): ahora la envuelve .repos-caja */
+body:not(.pausa) .principal > .repos-caja.cambia { animation: none }
+.repos { position: relative; display: flex; flex-wrap: wrap; gap: 6px; padding: 2px }
 #repos:empty, #marco:not(.mod-sesiones) #repos, #marco.dividida #repos, #marco.vacio #repos, #marco.cargando #repos, #marco.escenario #repos { display: none }
+.rch[hidden] { display: none }
 .rch {
   flex: none; display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 8px 0 6px;
   border: 1px solid var(--linea); border-radius: var(--r-pildora); background: none; color: var(--crema2);
@@ -235,15 +241,62 @@ h1, h2, h3 { font: inherit }
 .rch[aria-current="true"] .chip:not(.chip-preg) { background: rgba(20, 17, 12, .12); color: var(--tinta) }
 /* Sobre el crema, el contorno del foco es --tinta (12) */
 .rch[aria-current="true"]:focus-visible { outline-color: var(--tinta) }
+/* El nombre (4.1): el corto de un nombre generado («scratch · d5bfc1»), con tope de 112 y «…» */
+.rch-n { min-width: 0; max-width: var(--ancho-nombre-repo); overflow: hidden; text-overflow: ellipsis }
+.rch-n small { font: 500 11px/1 var(--m); font-stretch: 75%; color: var(--tenue) }
+.rch[aria-current="true"] .rch-n small { color: rgba(20, 17, 12, .6) }
+/* Trabajando (5.1): el punto ámbar después del nombre (no `.w`: es la palabra del chat) */
+.rch-trab { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ambar); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ambar) 20%, transparent) }
+.rch[aria-current="true"] .rch-trab { background: var(--tinta); box-shadow: 0 0 0 3px rgba(20, 17, 12, .14) }
+/* Dormida (5.1): borde punteado y texto tenue; el elegido dormido, como cualquier elegido */
+.rch.dormida { border-style: dashed; border-color: var(--linea-hover); color: var(--tenue) }
+.rch.dormida .pj-ic { opacity: .55 }
+.rch.dormida:hover { color: var(--crema2) }
+.rch.dormida[aria-current="true"], .rch.dormida[aria-current="true"]:hover { border-style: solid; border-color: var(--crema); color: var(--tinta) }
+/* El «+n» (5.2): ancho fijo, los puntos de color de lo que guarda y el número */
+.rch-mas { width: var(--ancho-mas); justify-content: center; gap: 6px; padding: 0 8px }
+.rch-pts { display: inline-flex; align-items: center }
+.rch-pts i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px var(--negro) }
+.rch-pts i + i { margin-left: -2px }
+.rch-mas-n { font: 500 11.5px/1 var(--m); font-stretch: 75%; color: var(--crema2) }
+.rch-mas:hover .rch-mas-n, .rch-mas[aria-expanded="true"] .rch-mas-n { color: var(--crema) }
+.rch-mas[aria-expanded="true"] { background: var(--s2); border-color: var(--linea-hover); color: var(--crema) }
+/* La lista del «+n» (5.3): la superficie de los menús, sobre las tarjetas (no las empuja) */
+#repos-mas {
+  position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 9; max-height: 360px; overflow-y: auto;
+  padding: 10px; border-radius: 14px; background: var(--s2); border: 1px solid var(--linea-hover); box-shadow: 0 24px 48px -18px #000;
+  transform-origin: top; scrollbar-width: thin; scrollbar-color: var(--linea-hover) transparent;
+}
+#repos-mas[hidden] { display: none }
+.rm-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 0 6px; font: var(--t-rotulo); font-stretch: 75%; color: var(--crema2) }
+.rm-cab kbd { display: inline-block; padding: 1px 5px; border-radius: 5px; background: var(--s3); color: var(--crema); font: 500 10.5px/1.4 var(--m); font-stretch: 75% }
+#repos-mas .grp { margin: 10px 6px 4px; font: 500 10.5px/1 var(--m); font-stretch: 75%; letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+#repos-mas .rm-cab + [role="group"] .grp { margin-top: 4px }
+.rm-filas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: column; grid-template-rows: repeat(var(--filas), auto); gap: 2px 6px }
+.rm-op {
+  display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 34px; padding: 0 8px 0 7px; border: 0; border-radius: var(--r-fila);
+  background: none; color: var(--crema); font: 700 13px/1.2 var(--f); text-align: left; cursor: pointer;
+  transition: background var(--d-color) ease;
+}
+.rm-op .pj-ic { width: 20px; height: 20px; border-radius: 50% }
+.rm-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.rm-op .chip { padding: 3px var(--e-3); font-size: 11px }
+.rm-t { flex: none; margin-left: auto; font: 500 11px/1 var(--m); font-stretch: 75%; color: var(--tenue); white-space: nowrap }
+.rm-op:hover, .rm-op:focus-visible { background: var(--s3) }
+.rm-op:focus-visible { outline-offset: -2px }
+.rm-op.dormida { color: var(--crema2) }
+.rm-op.dormida .pj-ic { opacity: .55 }
 @keyframes modLate { 40% { transform: scale(1.28) } }
 @media (prefers-reduced-motion: no-preference) {
   /* Llega una pregunta (4.2): el «1 ?» de Sesiones late dos veces y queda quieto */
   body:not(.pausa) #mod-sesiones .chip-preg.late { animation: modLate .5s var(--rebote) 2 }
+  /* Y el del chip del repo que pregunta (tira-repos-ux.md 9) */
+  body:not(.pausa) .rch .chip-preg.late { animation: modLate .5s var(--rebote) 2 }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mod, .mod-ic, .ind-mod, .rch { transition: none }
+  .mod, .mod-ic, .ind-mod, .rch, .rch-mas, .rm-op { transition: none }
 }
-body.pausa .mod, body.pausa .mod-ic, body.pausa .ind-mod, body.pausa .rch { transition: none }
+body.pausa .mod, body.pausa .mod-ic, body.pausa .ind-mod, body.pausa .rch, body.pausa .rch-mas, body.pausa .rm-op { transition: none }
 
 /* La pregunta vista desde otro módulo (4.5): arriba de la columna, a todo el ancho, con «Responder →» */
 #aviso-p:empty { display: none }

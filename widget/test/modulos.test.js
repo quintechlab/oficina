@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   MODULOS, MODULOS_ACTIVOS, irModulo, alEscModulo, cuentaModulo, nombreModulo, avisoPregunta, moduloAlExpandir, tituloModulo,
-  cuentasModulosMini, RESUMEN_MINIMO_MINI, ANCHO_CUENTA_MINI, desplazarTira,
+  cuentasModulosMini, RESUMEN_MINIMO_MINI, ANCHO_CUENTA_MINI,
 } from '../src/modulos.js'
 import { avisoPreguntaHtml, cuentasMiniHtml } from '../src/modulosVista.js'
 import { agruparPorProyecto } from '../src/logica.js'
@@ -266,18 +266,6 @@ test('cuentasMiniHtml con Hábitos (#41): después de Tareas, el anillo con su n
   assert.equal(cuentasMiniHtml(null, { hechos: 0, total: 0, habitos: 2 }, { tareas: false, habitos: true }), '')
 })
 
-// ------------------------------------------------------------------ desplazarTira (4.4: el chip elegido queda a la vista)
-
-test('desplazarTira: un chip a la vista no mueve la tira; uno escondido a la izquierda o debajo de la máscara la corre lo justo', () => {
-  // Tira de 300 con 20 de máscara a la derecha
-  assert.equal(desplazarTira({ izq: 40, ancho: 90 }, { scroll: 0, visible: 300 }, 20), 0)
-  assert.equal(desplazarTira({ izq: 40, ancho: 90 }, { scroll: 100, visible: 300 }, 20), 40)
-  assert.equal(desplazarTira({ izq: 260, ancho: 90 }, { scroll: 0, visible: 300 }, 20), 70)
-  assert.equal(desplazarTira({ izq: 260, ancho: 90 }, { scroll: 80, visible: 300 }, 20), 80)
-  // Más ancho que la tira: su comienzo
-  assert.equal(desplazarTira({ izq: 500, ancho: 400 }, { scroll: 0, visible: 300 }, 20), 500)
-})
-
 // ------------------------------------------------------------------ cableado en main.js e index.html (11.1)
 
 const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
@@ -392,9 +380,11 @@ test('index.html (M2, 3.4 y 4.4): la tira de repos en la columna, entre las hoja
 
 test('la tira de repos se dibuja solo en Sesiones; las hojas, el vacío, la carga y primeros pasos no la tocan', () => {
   assert.doesNotMatch(main, /barraProyectos|#proyectos/)
-  // En Sesiones, el elegido; el redibujo no se lleva el foco (9.4)
-  assert.match(cuerpo('pintar'), /const enfocado = document\.activeElement\?\.closest\?\.\('#repos \[data-proy\]'\)\n {2}if \(poner\('#repos', tiraRepos\(st\.proyectos, i\)\) && enfocado\) \{/)
-  assert.match(cuerpo('pintar'), /\$\(`#repos \[data-proy="\$\{enfocado\.dataset\.proy\}"\]`\)\?\.focus\(\)/)
+  // En Sesiones, el elegido; el redibujo no se lleva el foco (9.4). Con muchos repos, en orden de urgencia (tira-repos-ux.md)
+  assert.match(cuerpo('pintar'), /if \(!st\.repos\.abierta\) pintarTiraRepos\(i, ahora\)/)
+  assert.match(cuerpo('pintarTiraRepos'), /const enfocado = document\.activeElement\?\.closest\?\.\('#repos \.rch'\)/)
+  assert.match(cuerpo('pintarTiraRepos'), /const cambio = poner\('#repos', tiraRepos\(st\.proyectos, i, st\.repos\.orden, ahora\)\)/)
+  assert.match(cuerpo('pintarTiraRepos'), /if \(cambio && enfocado\) \{/)
   // Vacío, cargando y el escenario de primeros pasos la vacían, como antes la barra
   assert.equal((cuerpo('pintar').match(/poner\('#repos', ''\); poner\('#otro', ''\); poner\('#w-globo', ''\); poner\('#conteos', ''\); poner\('#sesiones', ''\)/g) ?? []).length, 2)
   for (const f of ['pintarHojaConfiguracion', 'pintarHojaTareas']) assert.doesNotMatch(cuerpo(f), /#repos|tiraRepos/, f)
@@ -412,21 +402,24 @@ test('el encabezado de Sesiones (M2): h1 «Sesiones», title el repositorio y la
   assert.match(cuerpo('pintarHojaTareas'), /texto\('#titulo', 'Tareas'\)/)
 })
 
-test('elegir un repo de la tira: el mismo manejador de siempre, el chip queda a la vista y el foco se queda en él (4.4, 9.4)', () => {
+test('elegir un repo de la tira: el mismo manejador de siempre y el foco se queda en él (4.4, 9.4); el elegido se ve por el reparto, sin correr la tira', () => {
   // El manejador de data-accion="ir" no cambia: en Sesiones, irAProyecto; desde otro módulo, irModulo con el repo
   assert.match(main, /\n {4}if \(p\) irAProyecto\(p\.repo, 1\)\n/)
   assert.match(main, /if \(p && st\.modulo !== 'sesiones'\) \{\n {6}await irModulo\('sesiones', \{ repo: p\.repo, foco: false \}\)\n {6}\$\(`#repos \[data-proy="\$\{b\.dataset\.proy\}"\]`\)\?\.focus\(\)/)
-  // Cambiar de proyecto (tira, ← →, aviso, riel) corre la tira hasta el elegido
-  assert.match(cuerpo('irAProyecto'), /verRepoElegido\(\)/)
-  assert.match(cuerpo('verRepoElegido'), /desplazarTira\(/)
+  // irAProyecto sigue igual, sin correr la tira (tira-repos-ux.md 12: el elegido queda visible por 6.4)
+  assert.match(cuerpo('irAProyecto'), /if \(repo === st\.repo\) return\n {2}st\.repo = repo\n {2}st\.activa = 0\n {2}pintar\(\)/)
+  assert.doesNotMatch(cuerpo('irAProyecto'), /verRepoElegido|scrollLeft/)
 })
 
 test('← → siguen cambiando de proyecto en Sesiones; con el foco en la tira, el foco sigue al elegido; ↑ ↓ siguen moviendo el foco', () => {
   assert.match(main, /if \(st\.modulo !== 'sesiones'\) return\n {2}if \(e\.key === 'ArrowLeft' \|\| e\.key === 'ArrowRight'\) \{/)
-  assert.match(main, /moverProyecto\(e\.key === 'ArrowLeft' \? -1 : 1\)\n {4}if \(enTira\) \$\('#repos \[aria-current\]'\)\?\.focus\(\)/)
-  assert.match(main, /const fila = e\.target\.closest\?\.\('#repos \[data-proy\]'\)\n {2}if \(fila && \(e\.key === 'ArrowUp' \|\| e\.key === 'ArrowDown'\)\)/)
-  // moverProyecto no cambia: el siguiente o el anterior, en ronda
-  assert.match(cuerpo('moverProyecto'), /irAProyecto\(st\.proyectos\[\(i \+ dir \+ n\) % n\]\.repo, dir\)/)
+  assert.match(main, /moverProyecto\(e\.key === 'ArrowLeft' \? -1 : 1\)/)
+  // En la tira (tira-repos-ux.md 8.1): las flechas de pasoTira; un chip elegido se lleva el foco
+  assert.match(main, /if \(teclaListaRepos\(e\) \|\| teclaTira\(e\)\) return\n/)
+  assert.match(cuerpo('teclaTira'), /if \(p\) irAProyecto\(p\.repo, e\.key === 'ArrowLeft' \? -1 : 1\)\n {2}\$\('#repos \[aria-current\]'\)\?\.focus\(\)/)
+  assert.match(cuerpo('teclaTira'), /if \(!paso\.elegir\) \{ destino\.focus\(\); return true \}/)
+  // moverProyecto: el siguiente o el anterior, en ronda, ahora en el orden de la tira (repoVecino)
+  assert.match(cuerpo('moverProyecto'), /const v = repoVecino\(ordenTiraActual\(\), st\.repo, dir\)\n {2}if \(v\) irAProyecto\(v\.repo, dir\)/)
 })
 
 test('el foco que se queda sin lugar vuelve al repo elegido: tras cerrar una sesión, al salir de la dividida y por defecto', () => {
@@ -523,9 +516,10 @@ test('estilos (M2): la tira de repos (4.4) y sus chips; la píldora ya no se apa
   // La píldora se apaga solo con Configuración (no baja hasta .lado-cfg)
   assert.match(css, /#marco\.mod-config \.ind-mod \{ opacity: 0 \}/)
   assert.doesNotMatch(css, /#marco\.mod-sesiones \.ind-mod|#marco\.mod-sesiones #mod-sesiones/)
-  // Una sola fila con scroll horizontal sin barra y la máscara a la derecha; solo en Sesiones
-  assert.match(css, /\.repos \{[^}]*display: flex;[^}]*gap: 6px;[^}]*overflow-x: auto;[^}]*scrollbar-width: none;[^}]*linear-gradient\(90deg, #000 88%, transparent\)/)
+  // Hasta dos renglones (tira-repos-ux.md 6), sin scroll ni máscara; solo en Sesiones (la caja con la lista del «+n», también)
+  assert.match(css, /\.repos \{[^}]*display: flex;[^}]*flex-wrap: wrap;[^}]*gap: 6px/)
   assert.match(css, /#repos:empty, #marco:not\(\.mod-sesiones\) #repos, #marco\.dividida #repos, #marco\.vacio #repos, #marco\.cargando #repos, #marco\.escenario #repos \{ display: none \}/)
+  assert.match(css, /\.repos-caja:has\(> #repos:empty\), #marco:not\(\.mod-sesiones\) \.repos-caja, #marco\.dividida \.repos-caja, #marco\.vacio \.repos-caja, #marco\.cargando \.repos-caja, #marco\.escenario \.repos-caja \{ display: none \}/)
   // El chip: alto 32, píldora, borde --linea; elegido en crema con texto --tinta y el contorno del foco en --tinta (12)
   assert.match(css, /\.rch \{[^}]*min-height: 32px;[^}]*border: 1px solid var\(--linea\);[^}]*border-radius: var\(--r-pildora\)/)
   assert.match(css, /\.rch\[aria-current="true"\] \{ background: var\(--crema\); color: var\(--tinta\); border-color: var\(--crema\) \}/)
