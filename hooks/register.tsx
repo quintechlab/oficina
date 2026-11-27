@@ -7,8 +7,17 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { ComentarioPresencia, Conversa, Info, Miembro, OrdenWidget, Pr, Pregunta, Presencia, Proceso, ResultadoOrden, Subagente, Tarea } from '../types'
+import type { ComentarioPresencia, Conversa, Info, Miembro, OrdenWidget, Pr, Pregunta, Presencia, Proceso, ResultadoOrden, Subagente, Tarea, Tramo } from '../types'
+import type { Llamada, PedidoPermiso } from './logica'
 import {
+  archivoHoras,
+  avanzarTramos,
+  cerrarTramoAbierto,
+  estaTrabajando,
+  leerArchivoHoras,
+  pedidoParaPersona,
+  pedidoPermiso,
+  trabajadoDe,
   actividadDesdeHerramienta,
   carreraConDialogo,
   resultadoDelWidget,
@@ -130,6 +139,18 @@ let timerOrdenes: Timer | null = null
  * (v0.11). En la app de escritorio o en VS Code, salir cerraría su ventana o su panel.
  */
 let esTerminal = false
+// Horas de trabajo (v0.13): los tramos en que algún agente de la sesión trabaja, en ~/.claude/oficina/horas
+/** Los tramos de la sesión `sesionHoras` (la que está abierta), leídos de su archivo al arrancar. */
+let tramos: readonly Tramo[] = []
+let sesionHoras: string | null = null
+/** El repo y la rama de la última publicación: lo que lleva un tramo nuevo. */
+let donde: { repo: string | null; rama: string | null } | null = null
+/** Las llamadas a herramientas en curso, por tool_use_id (el hilo principal que solo espera a un subagente). */
+const llamadas = new Map<string, Llamada>()
+/** Las llamadas que pidieron permiso y todavía no se resolvieron, por tool_use_id. */
+const permisos = new Map<string, PedidoPermiso & { id: string }>()
+/** Las mediciones y escrituras de horas van de a una, en orden. */
+let colaHoras: Promise<unknown> = Promise.resolve()
 
 // ------------------------------------------------------------------ gh
 async function gh($: EngineInterface, args: readonly string[], cwd?: string): Promise<string> {
@@ -270,8 +291,12 @@ async function publicar($: EngineInterface, forzar = false, ausente?: boolean): 
     // Desde la v0.12: el último turno, para plegar la sesión que quedó quieta
     ultimoTurno: (ultimoTurno ??= ahora),
   }
-  // La carpeta va solo en el archivo local (v0.11): `p`, lo que se publica en GitHub, no la lleva
-  await escribirEstadoLocal($, presenciaLocal(p, local.cwd))
+  // La carpeta (v0.11) y el tiempo trabajado (v0.13) van solo en el archivo local: `p`, lo que se
+  // publica en GitHub, no los lleva
+  await escribirEstadoLocal($, presenciaLocal(p, local.cwd, sesionHoras === sesion ? trabajadoDe(tramos) : { ms: 0, desde: null }))
+  // Un cambio de rama (o de repo) parte el tramo abierto; también los procesos olvidados a las 2 h
+  donde = { repo: local.repo, rama: local.rama }
+  medirHoras($)
   // Sin cambios de fondo desde la última vez: no gastar llamadas (el latido igual publica cada 5 min)
   const huella = JSON.stringify({ ...p, actualizado: '', ausente })
   if (!forzar && huella === ultimaPublicacion) return
@@ -419,6 +444,7 @@ async function ejecutarOrden($: EngineInterface, orden: OrdenWidget): Promise<{ 
   }
   if (turnoEnCurso === turnId) turnoEnCurso = null
   actividad = actividadEnEspera(procesos.size)
+  medirHoras($)
   cola = cola.then(() => publicar($)).catch(() => undefined)
   return { resultado: 'frenado' }
 }
@@ -465,10 +491,115 @@ async function escribirTurnoLocal($: EngineInterface): Promise<void> {
   await escribirEstadoLocal($, { ...ultimaLocal, actividad, enCola, enTurno: turnoEnCurso !== null, actualizado: ahora, ultimoTurno })
 }
 
-/** Renueva la hora del archivo local sin consultar git ni GitHub. */
+/** Renueva la hora del archivo local sin consultar git ni GitHub; con un tramo abierto, también la del de horas. */
 async function latirLocal($: EngineInterface): Promise<void> {
-  const p = latidoLocal(ultimaLocal, new Date(await $.clock.now()).toISOString())
+  const ahora = new Date(await $.clock.now()).toISOString()
+  const p = latidoLocal(ultimaLocal, ahora)
   if (p) await escribirEstadoLocal($, p)
+  enColaHoras(async () => {
+    if (await medir($)) return
+    const sesion = sesionHoras
+    if (sesion && trabajadoDe(tramos).desde !== null) await guardarHoras($, sesion, new Date(await $.clock.now()).toISOString())
+  })
+}
+
+// ------------------------------------------------------------------ horas de trabajo (v0.13)
+
+/** Archivo de horas de la sesión `sesion` (`horas/<id de la sesión>.json`), junto a `sesiones/`. */
+async function rutaHoras($: EngineInterface, sesion: string): Promise<string | null> {
+  const carpeta = await carpetaLocal($)
+  if (!carpeta || !/^[A-Za-z0-9_-]{1,128}$/.test(sesion)) return null
+  return `${carpeta.replace(/\/sesiones$/, '')}/horas/${sesion}.json`
+}
+
+/** Pone una tarea de horas en la cola: de a una, en orden, y nunca tira hacia el hook que la pidió. */
+function enColaHoras(tarea: () => Promise<unknown>): Promise<unknown> {
+  colaHoras = colaHoras.then(tarea).catch(() => undefined)
+  return colaHoras
+}
+
+/** Vuelve a mirar si la sesión trabaja; lo llaman los hooks que cambian algo de lo que lo decide. */
+function medirHoras($: EngineInterface): void {
+  void enColaHoras(() => medir($))
+}
+
+/**
+ * Lee el archivo de horas de la sesión la primera vez que se mide (al arrancar, tras /reload-plugins y
+ * con el id nuevo de un /clear o un /resume). Un tramo abierto que quedó ahí se cierra en su
+ * `actualizado` y el archivo se reescribe.
+ */
+async function cargarHoras($: EngineInterface, sesion: string): Promise<void> {
+  if (sesionHoras === sesion) return
+  sesionHoras = sesion
+  tramos = []
+  const ruta = await rutaHoras($, sesion)
+  // Sin archivo (lo normal en una sesión nueva) no se lee: el motor anota en stderr cada lectura que falla
+  if (!ruta || !(await $.fs.exists(ruta).catch(() => false))) return
+  const leido = leerArchivoHoras(await $.fs.read(ruta).then(t => String(t)).catch(() => null))
+  tramos = leido.tramos
+  if (leido.corregido) await guardarHoras($, sesion, new Date(await $.clock.now()).toISOString())
+}
+
+/** Mira si la sesión trabaja y, si cambió algún tramo, escribe. Devuelve si escribió. */
+async function medir($: EngineInterface): Promise<boolean> {
+  const sesion = await $.session.id()
+  if (!puedeEscribirLocal(cerradasLocal, sesion)) return false
+  await cargarHoras($, sesion)
+  const trabajando = estaTrabajando({
+    turno: turnoEnCurso !== null,
+    subagentes: [...subagentes.values()],
+    preguntas: [...preguntas.values()],
+    permisos: [...permisos.values()],
+    llamadas: [...llamadas.values()],
+    procesos: procesos.size,
+  })
+  // El repo y la rama solo hacen falta para abrir un tramo; antes de la primera publicación se leen acá
+  if (trabajando && !donde) {
+    const local = await leerLocal($)
+    donde ??= { repo: local.repo, rama: local.rama }
+  }
+  const ahora = new Date(await $.clock.now()).toISOString()
+  const nuevos = avanzarTramos(tramos, { trabajando, ...(donde ?? { repo: null, rama: null }), ahora })
+  if (nuevos === tramos) return false
+  tramos = nuevos
+  await guardarHoras($, sesion, ahora)
+  return true
+}
+
+/**
+ * Escribe el archivo de horas completo y, si cambió lo trabajado, el archivo local de la sesión (el
+ * widget muestra el reloj en vivo con `trabajado`).
+ */
+async function guardarHoras($: EngineInterface, sesion: string, ahora: string): Promise<void> {
+  const ruta = await rutaHoras($, sesion)
+  if (!ruta || !puedeEscribirLocal(cerradasLocal, sesion)) return
+  await $.fs.write(ruta, JSON.stringify(archivoHoras(sesion, ahora, tramos), null, 2)).catch(() => undefined)
+  const trabajado = trabajadoDe(tramos)
+  const antes = ultimaLocal?.trabajado
+  if (ultimaLocal && ultimaLocal.sesion === sesion && (antes?.ms !== trabajado.ms || antes?.desde !== trabajado.desde)) {
+    await escribirEstadoLocal($, { ...ultimaLocal, trabajado })
+  }
+}
+
+/** Al terminar la sesión: cierra el tramo abierto y olvida sus tramos (la que siga tras un /clear tiene los suyos). */
+async function cerrarHoras($: EngineInterface, sesion: string): Promise<void> {
+  if (sesionHoras !== sesion) return
+  const ahora = new Date(await $.clock.now()).toISOString()
+  const cerrados = cerrarTramoAbierto(tramos, ahora)
+  if (cerrados !== tramos) {
+    tramos = cerrados
+    await guardarHoras($, sesion, ahora)
+  }
+  // Que ninguna medición en vuelo la reabra (cerrarEstadoLocal hace lo mismo con el archivo local)
+  cerradasLocal.add(sesion)
+  sesionHoras = null
+  tramos = []
+}
+
+/** Un agente terminó su turno: los pedidos de permiso y las llamadas que le quedaron colgados ya no esperan nada. */
+function soltarDeAgente(agente: string | null): void {
+  for (const [id, p] of permisos) if (p.agente === agente) permisos.delete(id)
+  for (const [id, l] of llamadas) if (l.agente === agente) llamadas.delete(id)
 }
 
 /** Marca cerrada la sesión en su archivo local, para que el widget la saque. */
@@ -517,6 +648,7 @@ async function anotarProceso($: EngineInterface, e: { agentId?: string }, result
     const id = idProcesoDesdeResultado(resultado)
     if (!id) return
     procesos.set(id, procesoDesdeEntrada(id, e as unknown as Readonly<Record<string, unknown>>, new Date(await $.clock.now()).toISOString()))
+    medirHoras($)
     publicarPronto($)
   } catch {
     // Observar nunca rompe la llamada
@@ -527,6 +659,7 @@ async function anotarProceso($: EngineInterface, e: { agentId?: string }, result
 function quitarProceso($: EngineInterface, id: string): void {
   if (!procesos.delete(id)) return
   refrescarEspera()
+  medirHoras($)
   publicarPronto($)
 }
 
@@ -666,6 +799,9 @@ async function arrancar($: EngineInterface): Promise<void> {
   for (const s of subagentesEnCurso(enCurso, new Set(subagentes.keys()), ahora)) subagentes.set(s.id, s)
   // v0.12.2: sin turno en curso, Claude espera tu mensaje (antes decía "sin actividad" hasta el primer turno)
   if (actividad === null && turnoEnCurso === null) actividad = actividadEnEspera(procesos.size)
+  // v0.13: las horas de esta sesión (cierra el tramo que quedó abierto), antes de publicar lo trabajado
+  medirHoras($)
+  await colaHoras
   try {
     await publicar($, true, false) // abrir una sesión es volver a la oficina
   } catch (err) {
@@ -860,6 +996,7 @@ export const register: Register = (on, options) => {
       const { nombre, tarea, inventado } = nombreSubagente(e.description, lanzado.agentId)
       const desde = new Date(await $.clock.now()).toISOString()
       subagentes.set(lanzado.agentId, { id: lanzado.agentId, nombre, inventado, tipo: e.subagentType, tarea, desde, estado: 'trabajando', hasta: null })
+      medirHoras($)
       publicarPronto($)
     }
     return lanzado
@@ -875,6 +1012,7 @@ export const register: Register = (on, options) => {
       enCola = 0
       if (habiaEnCola) cola = cola.then(() => publicar($)).catch(() => undefined)
       else publicarPronto($)
+      medirHoras($)
       await escribirTurnoLocal($).catch(() => undefined)
     }
     return next(e)
@@ -882,14 +1020,18 @@ export const register: Register = (on, options) => {
 
   on('turn.complete', async ($, e, next) => {
     const sub = e.agentId !== undefined ? subagentes.get(e.agentId) : undefined
+    // v0.13: un turno terminado no espera ningún permiso ni llamada suya que haya quedado sin cerrar
+    soltarDeAgente(e.agentId ?? null)
     if (sub) {
       const hasta = new Date(await $.clock.now()).toISOString()
       subagentes.set(sub.id, { ...sub, estado: e.reason === 'answer' ? 'listo' : 'fallo', hasta, actividad: null })
+      medirHoras($)
       publicarPronto($)
     } else if (e.agentId === undefined) {
       // Terminó el turno: espera sus procesos en segundo plano, si hay, o tu mensaje
       turnoEnCurso = null
       actividad = actividadEnEspera(procesos.size)
+      medirHoras($)
       publicarPronto($)
       await escribirTurnoLocal($).catch(() => undefined)
     }
@@ -916,6 +1058,10 @@ export const register: Register = (on, options) => {
     } else if (e.agentId === undefined) {
       publicarPronto($)
     }
+    // v0.13: la llamada en curso (el hilo principal que solo espera a su subagente) y, si pregunta, el reloj
+    const idLlamada = e.tool_use_id
+    if (idLlamada) llamadas.set(idLlamada, { agente: e.agentId ?? null, herramienta: e.tool })
+    medirHoras($)
     try {
       if (!pregunta) return await next(e)
       // El diálogo de Claude y el globo del widget compiten: vale lo que el usuario toque primero.
@@ -942,8 +1088,89 @@ export const register: Register = (on, options) => {
         preguntas.delete(pregunta.id)
         cola = cola.then(() => publicar($)).catch(() => undefined)
       }
+      // Terminó (o se negó) la llamada: ya no espera permiso ni corre
+      if (idLlamada) {
+        llamadas.delete(idLlamada)
+        permisos.delete(idLlamada)
+      }
+      medirHoras($)
     }
   }).catch((_$, e, next) => next(e))
+
+  // ---- Pedidos de permiso (v0.13): el reloj se frena mientras se le pregunta a la persona si una
+  // herramienta puede correr. Solo observan: devuelven tal cual lo que decidió el motor, y lo propio va
+  // en un try para que una falla nunca cambie una decisión ni frene una herramienta (sin `.catch` que
+  // vuelva a llamar a `next`: en `tool.run` un segundo `next` niega la llamada).
+  //
+  // - `tool.check` con veredicto `ask` en una llamada real: el pedido empieza. Lo contesta la persona
+  //   (el diálogo, la tarjeta, o el host que la muestra: la app de escritorio, VS Code) si el motor
+  //   dice `approver` person o host.
+  // - `tool.judge`: en modo automático decide el clasificador, no la persona (el reloj sigue); si el
+  //   clasificador no da veredicto (`ask`), se lo pasa a la persona.
+  // - `classic.PermissionRequest`: el diálogo de permiso está por mostrarse (cubre un pedido que el
+  //   motor no marcó como de la persona).
+  // - `tool.run` (la llamada se aprobó y va a correr) o el fin de `tool.call` (se negó o se cortó): el
+  //   pedido terminó.
+  on('tool.check', async ($, e, next) => {
+    const r = await next(e)
+    try {
+      const pedido = pedidoPermiso(e, r.decision)
+      if (pedido) {
+        permisos.set(pedido.id, pedido)
+        medirHoras($)
+      }
+    } catch {
+      // Observar nunca cambia la decisión
+    }
+    return r
+  })
+
+  on('tool.judge', async ($, e, next) => {
+    const id = e.tool_use_id
+    try {
+      const p = permisos.get(id)
+      if (p?.persona) {
+        permisos.set(id, { ...p, persona: false })
+        medirHoras($)
+      }
+    } catch {
+      // Observar nunca cambia el veredicto
+    }
+    const r = await next(e)
+    try {
+      const p = permisos.get(id)
+      if (p && r.decision === 'ask') {
+        permisos.set(id, { ...p, persona: true })
+        medirHoras($)
+      }
+    } catch {
+      // Observar nunca cambia el veredicto
+    }
+    return r
+  })
+
+  on('classic.PermissionRequest', async ($, e, next) => {
+    try {
+      const id = pedidoParaPersona(permisos.values(), e.agent_id ?? null, e.tool_name)
+      const p = id ? permisos.get(id) : undefined
+      if (id && p) {
+        permisos.set(id, { ...p, persona: true })
+        medirHoras($)
+      }
+    } catch {
+      // Observar nunca cambia lo que decidan los hooks de permiso
+    }
+    return next(e)
+  })
+
+  on('tool.run', async ($, e, next) => {
+    try {
+      if (e.tool_use_id && permisos.delete(e.tool_use_id)) medirHoras($)
+    } catch {
+      // Observar nunca frena la herramienta
+    }
+    return next(e)
+  })
 
   // ---- Conversaciones entre sesiones (v0.8). SendMessage direcciona por el nombre de la sesión, nunca
   // por su id: el mensaje que sale lleva una marca con el id y el repo de esta sesión, y el mod de
@@ -961,6 +1188,8 @@ export const register: Register = (on, options) => {
   }).catch((_$, e, next) => next(e))
 
   on('session.end', async ($, e, next) => {
+    // v0.13: el tramo abierto termina acá (antes de GitHub, que puede tardar)
+    await enColaHoras(() => cerrarHoras($, e.sessionId))
     // Solo la entrada de esta sesión. Tras un /clear la sesión nueva vuelve a publicar en el próximo latido.
     await retirar($, e.sessionId).catch(() => undefined)
     await cerrarEstadoLocal($, e.sessionId)

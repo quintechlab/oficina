@@ -1,6 +1,6 @@
 // Funciones puras del mod "oficina": sin acceso al motor, fáciles de probar.
 
-import type { Ci, ComentarioPresencia, Conversa, Paso, ItemPregunta, Miembro, OrdenConsumida, OrdenWidget, Pregunta, Presencia, Proceso, RespuestaWidget, ResultadoOrden, Subagente, Tarea } from '../types'
+import type { ArchivoHoras, Ci, ComentarioPresencia, Conversa, Paso, ItemPregunta, Miembro, OrdenConsumida, OrdenWidget, Pregunta, Presencia, Proceso, RespuestaWidget, ResultadoOrden, Subagente, Tarea, Trabajado, Tramo } from '../types'
 
 /** Horas máximas por talle, según el acuerdo (S: hasta medio día; M: hasta 2 días). */
 export const HORAS_POR_TALLE: Record<'S' | 'M', number> = { S: 4, M: 16 }
@@ -189,23 +189,28 @@ export function ponerSesion(
     nombre: p.nombre,
     ausente: opciones.ausente ?? c?.ausente ?? false,
     actualizado: p.actualizado,
-    sesiones: [...otras, p].map(sinCarpeta),
+    sesiones: [...otras, p].map(sinLoLocal),
   }
 }
 
 /**
  * La presencia del archivo local (v0.11): suma la carpeta de la sesión (`cwd`), para que el widget
  * ofrezca la carpeta de cada proyecto de la barra en la charla. Sin carpeta conocida, sin la clave.
+ * Desde la v0.13 suma también el tiempo trabajado (`trabajado`), si se lo pasa.
  */
-export function presenciaLocal(p: Presencia, cwd: string | null): Presencia {
-  const base = sinCarpeta(p)
-  return cwd && cwd.trim() ? { ...base, cwd } : base
+export function presenciaLocal(p: Presencia, cwd: string | null, trabajado?: Trabajado): Presencia {
+  const base = sinLoLocal(p)
+  const conCarpeta = cwd && cwd.trim() ? { ...base, cwd } : base
+  return trabajado ? { ...conCarpeta, trabajado } : conCarpeta
 }
 
-/** La carpeta es solo de esta máquina: nunca viaja en el comentario de GitHub (repositorio compartido). */
-function sinCarpeta(p: Presencia): Presencia {
-  if (!('cwd' in p)) return p
-  const { cwd: _cwd, ...resto } = p
+/**
+ * La carpeta y el tiempo trabajado son solo de esta máquina: nunca viajan en el comentario de GitHub
+ * (repositorio compartido).
+ */
+function sinLoLocal(p: Presencia): Presencia {
+  if (!('cwd' in p) && !('trabajado' in p)) return p
+  const { cwd: _cwd, trabajado: _trabajado, ...resto } = p
   return resto
 }
 
@@ -885,4 +890,161 @@ export function registrarMensaje(
 export function podarConversas(lista: readonly Conversa[], ahoraMs: number): Conversa[] {
   const vida = (MINUTOS_CONVERSA_QUIETA + MINUTOS_CONVERSA_RASTRO) * 60000
   return lista.filter(c => ahoraMs - Date.parse(c.ultimo.cuando) <= vida)
+}
+
+// ------------------------------------------------------------------ horas de trabajo (v0.13)
+//
+// El reloj de la sesión corre mientras al menos un agente trabaja (tiempo de reloj: tres agentes
+// durante una hora son una hora) y se frena mientras todos esperan a la persona: una pregunta
+// (AskUserQuestion) o un pedido de permiso que le muestran. Un proceso en segundo plano pendiente
+// cuenta como trabajo. Cada intervalo trabajado es un tramo con el repo y la rama de ese momento.
+
+/** Un tramo que empieza antes de esto después del anterior, con el mismo repo y rama, reabre el anterior. */
+export const MS_REABRIR_TRAMO = 2000
+/** Las herramientas con que un agente lanza un subagente (Agent, y Task en versiones anteriores). */
+export const HERRAMIENTAS_SUBAGENTE: readonly string[] = ['Agent', 'Task']
+
+/** Una llamada a una herramienta que todavía no terminó, y de qué agente es (null: el hilo principal). */
+export type Llamada = { agente: string | null; herramienta: string }
+
+/**
+ * Una llamada que pidió permiso (veredicto `ask` de `tool.check`) y todavía no se resolvió.
+ * `persona`: se le está preguntando a la persona (el diálogo, la tarjeta o el host que la muestra);
+ * mientras decide el clasificador del modo automático, no.
+ */
+export type PedidoPermiso = { agente: string | null; herramienta: string; persona: boolean }
+
+/** Lo que dice si la sesión trabaja ahora. */
+export type EstadoTrabajo = {
+  /** El hilo principal tiene un turno en curso. */
+  turno: boolean
+  subagentes: readonly Subagente[]
+  preguntas: readonly Pregunta[]
+  permisos: readonly PedidoPermiso[]
+  llamadas: readonly Llamada[]
+  /** Procesos en segundo plano pendientes de la sesión. */
+  procesos: number
+}
+
+/**
+ * ¿Trabaja la sesión? Sí con un proceso en segundo plano pendiente, con un subagente en curso que no
+ * espera a la persona, o con un turno del hilo principal que no espera a la persona. El hilo principal
+ * que solo espera a sus subagentes en primer plano no suma por su cuenta: trabaja si ellos trabajan
+ * (si el subagente pregunta, nadie avanza).
+ */
+export function estaTrabajando(e: EstadoTrabajo): boolean {
+  if (e.procesos > 0) return true
+  const espera = (agente: string | null): boolean =>
+    e.preguntas.some(p => p.agente === agente) || e.permisos.some(p => p.persona && p.agente === agente)
+  if (e.subagentes.some(s => s.estado === 'trabajando' && !espera(s.id))) return true
+  if (!e.turno || espera(null)) return false
+  const propias = e.llamadas.filter(l => l.agente === null)
+  return !(propias.length > 0 && propias.every(l => HERRAMIENTAS_SUBAGENTE.includes(l.herramienta)))
+}
+
+/**
+ * El pedido de permiso que deja un veredicto de `tool.check`: solo un `ask` de una llamada real (con su
+ * id; nunca una consulta ni una operación de un mod). Es de la persona si el motor dice que la contesta
+ * una persona o el host que la muestra (la app de escritorio, VS Code); sin nadie a quien preguntar
+ * (un subagente en segundo plano), recién si se ve el diálogo (PermissionRequest).
+ */
+export function pedidoPermiso(
+  e: { tool: string; tool_use_id?: string; agentId?: string; approver?: string; op?: string },
+  decision: string,
+): (PedidoPermiso & { id: string }) | null {
+  if (decision !== 'ask' || !e.tool_use_id || e.op !== undefined) return null
+  return { id: e.tool_use_id, agente: e.agentId ?? null, herramienta: e.tool, persona: e.approver === 'person' || e.approver === 'host' }
+}
+
+/**
+ * El diálogo de permiso (`classic.PermissionRequest`) no trae el id de la llamada: es el primer pedido
+ * de ese agente y esa herramienta que todavía no esperaba a la persona, o null.
+ */
+export function pedidoParaPersona(
+  pedidos: Iterable<PedidoPermiso & { id: string }>,
+  agente: string | null,
+  herramienta: string,
+): string | null {
+  for (const p of pedidos) if (p.agente === agente && p.herramienta === herramienta && !p.persona) return p.id
+  return null
+}
+
+const ms = (iso: string): number => Date.parse(iso)
+
+/**
+ * Los tramos después de mirar si la sesión trabaja: se abre uno al empezar (o se reabre el anterior si
+ * paró hace menos de 2 s en el mismo repo y rama), se cierra al parar y, si cambió el repo o la rama con
+ * el reloj corriendo, se cierra y se abre otro. Sin cambios devuelve la misma lista.
+ */
+export function avanzarTramos(
+  tramos: readonly Tramo[],
+  t: { trabajando: boolean; repo: string | null; rama: string | null; ahora: string },
+): readonly Tramo[] {
+  const ultimo = tramos[tramos.length - 1]
+  const resto = tramos.slice(0, -1)
+  const nuevo: Tramo = { desde: t.ahora, hasta: null, repo: t.repo, rama: t.rama }
+  if (ultimo && ultimo.hasta === null) {
+    if (!t.trabajando) return cerrarTramoAbierto(tramos, t.ahora)
+    if (ultimo.repo === t.repo && ultimo.rama === t.rama) return tramos
+    return [...cerrarTramoAbierto(tramos, t.ahora), nuevo]
+  }
+  if (!t.trabajando) return tramos
+  if (ultimo && ultimo.repo === t.repo && ultimo.rama === t.rama && ms(t.ahora) - ms(ultimo.hasta ?? t.ahora) < MS_REABRIR_TRAMO) {
+    return [...resto, { ...ultimo, hasta: null }]
+  }
+  return [...tramos, nuevo]
+}
+
+/** Cierra el tramo abierto (siempre el último) en `hasta`, nunca antes de que empiece; sin abierto, la misma lista. */
+export function cerrarTramoAbierto(tramos: readonly Tramo[], hasta: string): readonly Tramo[] {
+  const ultimo = tramos[tramos.length - 1]
+  if (!ultimo || ultimo.hasta !== null) return tramos
+  return [...tramos.slice(0, -1), { ...ultimo, hasta: ms(hasta) < ms(ultimo.desde) ? ultimo.desde : hasta }]
+}
+
+/** `ms`: la suma de los tramos cerrados; `desde`: el inicio del tramo abierto, o null. */
+export function trabajadoDe(tramos: readonly Tramo[]): Trabajado {
+  let total = 0
+  let desde: string | null = null
+  for (const t of tramos) {
+    if (t.hasta === null) desde = t.desde
+    else total += Math.max(0, ms(t.hasta) - ms(t.desde))
+  }
+  return { ms: total, desde }
+}
+
+/** El archivo de horas de una sesión (`~/.claude/oficina/horas/<id>.json`), como lo escribe el mod. */
+export function archivoHoras(sesion: string, actualizado: string, tramos: readonly Tramo[]): ArchivoHoras {
+  return { v: 1, sesion, actualizado, tramos: [...tramos] }
+}
+
+/**
+ * Lee el archivo de horas al arrancar el mod (o tras /reload-plugins): descarta lo que no es un tramo,
+ * cierra un tramo abierto que no es el último donde empieza el siguiente y el último abierto en el
+ * `actualizado` del archivo (la sesión dejó de latir ahí). `corregido` dice si hay que reescribirlo.
+ * Un archivo roto o de otra versión se lee como vacío.
+ */
+export function leerArchivoHoras(texto: string | null): { tramos: Tramo[]; corregido: boolean } {
+  let datos: unknown = null
+  try {
+    datos = texto ? JSON.parse(texto) : null
+  } catch {
+    datos = null
+  }
+  const d = datos as { v?: unknown; actualizado?: unknown; tramos?: unknown } | null
+  if (!d || typeof d !== 'object' || d.v !== 1 || !Array.isArray(d.tramos)) return { tramos: [], corregido: false }
+  const fecha = (x: unknown): x is string => typeof x === 'string' && Number.isFinite(Date.parse(x))
+  const textoONull = (x: unknown): string | null => (typeof x === 'string' ? x : null)
+  const crudos = d.tramos as unknown[]
+  const validos: Tramo[] = []
+  for (const c of crudos) {
+    const t = c as { desde?: unknown; hasta?: unknown; repo?: unknown; rama?: unknown } | null
+    if (!t || typeof t !== 'object' || !fecha(t.desde) || !(t.hasta === null || fecha(t.hasta))) continue
+    validos.push({ desde: t.desde, hasta: t.hasta, repo: textoONull(t.repo), rama: textoONull(t.rama) })
+  }
+  const enOrden = validos.map((t, i) => (t.hasta === null && i < validos.length - 1 ? { ...t, hasta: validos[i + 1]?.desde ?? t.desde } : t))
+  const ultimo = enOrden[enOrden.length - 1]
+  const hasta = fecha(d.actualizado) ? d.actualizado : (ultimo?.desde ?? '')
+  const tramos = [...cerrarTramoAbierto(enOrden, hasta)]
+  return { tramos, corregido: JSON.stringify(tramos) !== JSON.stringify(crudos) }
 }
