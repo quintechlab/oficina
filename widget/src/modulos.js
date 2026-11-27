@@ -14,6 +14,7 @@ import { ladoFilaHabitos } from './habitosVista.js'
 import { nombreFilaHabitos } from './habitos.js'
 import { ladoFilaProyectos } from './proyectosVista.js'
 import { nombreFilaProyectos } from './proyectos.js'
+import { duracionCorta, nombreFilaHoras } from './horas.js'
 
 /** Los módulos, en el orden del menú (3.1). `pie`: va aparte, abajo (`.lado-cfg`). `tecla`: la pista visible. */
 export const MODULOS = [
@@ -22,18 +23,21 @@ export const MODULOS = [
   { id: 'habitos', nombre: 'Hábitos', atajo: 'Control+H', tecla: 'Ctrl H' },
   // Ctrl P (proyectos-ux.md 9.2, D-p16): sujeto a la medición M-P4 (frenar el diálogo de imprimir de WebView2)
   { id: 'proyectos', nombre: 'Proyectos', atajo: 'Control+P', tecla: 'Ctrl P' },
+  // Horas (odd/tasks/horas-trabajo.md, S4): sin atajo (Ctrl R recarga WebView2)
+  { id: 'horas', nombre: 'Horas', atajo: null, tecla: null },
   { id: 'config', nombre: 'Configuración', atajo: 'Control+Comma', tecla: 'Ctrl ,', pie: true },
 ]
 
 /** Los que se pueden abrir hoy. Hábitos se sumó con #41 (`habitos-ux.md` 14, H1) y Proyectos con #44 (`proyectos-ux.md` 14, P1). */
-export const MODULOS_ACTIVOS = ['sesiones', 'tareas', 'habitos', 'proyectos', 'config']
+export const MODULOS_ACTIVOS = ['sesiones', 'tareas', 'habitos', 'proyectos', 'horas', 'config']
 
 const modulo = id => MODULOS.find(m => m.id === id)
 
 /** El `title` de una fila (5): «Sesiones (Esc)», «Tareas (Ctrl T)»… */
 export function tituloModulo(id) {
   const m = modulo(id)
-  return m ? `${m.nombre} (${m.tecla})` : ''
+  if (!m) return ''
+  return m.tecla ? `${m.nombre} (${m.tecla})` : m.nombre
 }
 
 /**
@@ -80,6 +84,8 @@ export function cuentaModulo(id, datos) {
   if (id === 'tareas') return ladoFilaTareas(datos ?? { hoy: 0, vencidas: 0 })
   if (id === 'habitos') return ladoFilaHabitos(datos)
   if (id === 'proyectos') return ladoFilaProyectos(datos)
+  // Horas: lo trabajado hoy (`datos`, en ms), corto; null mientras no se leyó (sin pista: no tiene atajo)
+  if (id === 'horas') return datos == null ? '' : `<span class="hor-ct${datos > 0 ? '' : ' nada'}" aria-hidden="true">${escapar(duracionCorta(datos))}</span>`
   if (id === 'config') return datos?.punto ? `<i class="pt t-${escapar(datos.punto.tono)}" aria-hidden="true"></i>` : pista('config')
   return ''
 }
@@ -100,6 +106,7 @@ export function nombreModulo(id, datos) {
   if (id === 'tareas') return nombreFilaTareas(datos ?? { hoy: 0, vencidas: 0 })
   if (id === 'habitos') return nombreFilaHabitos(datos)
   if (id === 'proyectos') return nombreFilaProyectos(datos)
+  if (id === 'horas') return nombreFilaHoras(datos)
   if (id === 'config') return `Configuración${datos?.punto?.texto ?? ''}`
   return ''
 }

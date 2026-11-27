@@ -8,6 +8,7 @@ import { CLAVE_MARCA } from './evolucion.js'
 import { detalleSubagente } from './detalleSub.js'
 import { barraControl, barraPlegada, puedeControlar, LINEA_TARJETA_CERRANDO } from './control.js'
 import { vistaHistorial, firmaHistorial } from './historial.js'
+import { textoTrabajado } from './horas.js'
 import {
   animoSesion, animoSubagente, personajeDeNombre, personajeSubagente, variantesEquipo, tiempoSubagente, textoActividad, tituloActividad,
   preguntasPendientes, escapar, tiempoRelativo, nombreProyecto, FUERA_DE_REPO, dormida, ANIMOS_DE_TRABAJO,
@@ -78,7 +79,22 @@ export function subagentesVisibles(sub, { conMas = MAX_SUBAGENTES_VISIBLES, max 
 
 /** Firma de lo que se ve de las sesiones: si no cambia, no se redibuja (y no se cortan las animaciones). */
 export function firmaTablero(preparadas) {
-  return preparadas.map(({ s, animo, sub, plegada, abierta }) => [s.sesion, s.tarea, s.rama, animo, plegada ? 'plegada' : abierta ? 'abierta' : '', (s.procesos ?? []).map(p => p.id).join(','), ...sub.map(a => `${a.id}:${a.nombre}:${a.animo}`)].join('|')).join('/')
+  // El reloj de horas (horas-trabajo.md, S4) cuenta si está y si corre, no su cifra; sin él, la firma de siempre
+  return preparadas.map(({ s, animo, sub, plegada, abierta }) => [s.sesion, s.tarea, s.rama, animo, plegada ? 'plegada' : abierta ? 'abierta' : '', (s.procesos ?? []).map(p => p.id).join(','), ...sub.map(a => `${a.id}:${a.nombre}:${a.animo}`), ...relojFirma(s)].join('|')).join('/')
+}
+
+const relojFirma = s => (s.trabajado == null ? [] : [`⏱${s.trabajado?.desde ? 'corre' : 'quieto'}`])
+
+/**
+ * El reloj de horas de la tarjeta (odd/tasks/horas-trabajo.md, S4): lo trabajado por la sesión según su
+ * `trabajado` (el mod lo deja solo en el archivo local). La cifra cambia en su lugar (`data-vivo`, como
+ * «lleva»); el lector lee la frase entera. Sin `trabajado` (un mod anterior), nada.
+ */
+function reloj(s, ahoraMs) {
+  const t = textoTrabajado(s, ahoraMs)
+  if (!t) return ''
+  return `<span class="trab${t.corre ? ' corre' : ''}" title="${escapar(t.title)}"><svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6.6" r="4.1"/><path class="aguja" d="M6 6.6V4.4"/><path d="M4.8 1.2h2.4"/></svg>`
+    + `<span class="oculto" data-vivo>${escapar(t.lector)}</span><span aria-hidden="true" data-vivo>${escapar(t.cifra)}</span></span>`
 }
 
 /**
@@ -483,7 +499,7 @@ function tarjeta({ s, animo, sub, plegada, abierta }, ahoraMs, k, r, abierto, co
   const base = k * AVIS_POR_TARJETA
   const tag = s.tarea ? `<span class="tag">#${escapar(s.tarea)}</span>` : '<span class="tag sin">sin tarea</span>'
   const titulo = s.rama ? `<b${s.tarea ? '' : ' class="sin"'} title="${escapar(s.rama)}">${escapar(s.rama)}</b>` : ''
-  const lleva = s.inicio ? `<span class="lleva"><span class="oculto">lleva </span><span data-vivo>${escapar(tiempoRelativo(s.inicio, ahoraMs))}</span></span>` : ''
+  const lleva = reloj(s, ahoraMs) + (s.inicio ? `<span class="lleva"><span class="oculto">lleva </span><span data-vivo>${escapar(tiempoRelativo(s.inicio, ahoraMs))}</span></span>` : '')
   const h = historial?.sesion === s.sesion ? historial : null
   if (plegada) return tarjetaPlegada(s, ahoraMs, { tag, titulo, lleva, h, mascota, formas, ui: control?.[s.sesion] })
   // Cerrándose (B2 de cerrar-sesion-ux.md): la línea lo dice en --tenue, con el punto sin color

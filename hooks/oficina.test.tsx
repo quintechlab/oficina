@@ -2,7 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import type { ComentarioPresencia, Miembro, Pregunta, Presencia } from '../types'
+import type { ArchivoHoras, ComentarioPresencia, Miembro, Pregunta, Presencia, Subagente } from '../types'
 import {
   leerMarca,
   marcarMensaje,
@@ -57,7 +57,16 @@ import {
   validarOrden,
   MAX_EDAD_ORDEN_MS,
   MS_ENTRE_ORDENES,
+  estaTrabajando,
+  avanzarTramos,
+  cerrarTramoAbierto,
+  leerArchivoHoras,
+  trabajadoDe,
+  pedidoPermiso,
+  pedidoParaPersona,
+  MS_REABRIR_TRAMO,
 } from './logica'
+import type { EstadoTrabajo } from './logica'
 
 const PANE = {
   plugin: 'oficina',
@@ -815,17 +824,31 @@ const CASA = String.raw`C:\Users\prueba`
 const SESION = 'ses-prueba-1'
 const RUTA_ORDEN = `C:/Users/prueba/.claude/oficina/ordenes/${SESION}.json`
 const RUTA_LOCAL = `C:/Users/prueba/.claude/oficina/sesiones/${SESION}.json`
+const RUTA_HORAS = `C:/Users/prueba/.claude/oficina/horas/${SESION}.json`
 
 /**
  * Una sesión abierta con el mod: reloj, archivos y motor de mentira. Sin `gh` (cada consulta a
  * GitHub falla), así lo único que se publica es el archivo local, que es lo que lee el widget.
  */
-async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean; conGh?: boolean; entrada?: string; salirFalla?: boolean } = {}) {
+async function abrirSesion(
+  $: Engine,
+  on: On,
+  opciones: {
+    abortarFalla?: boolean
+    conGh?: boolean
+    entrada?: string
+    salirFalla?: boolean
+    /** Archivos que ya estaban antes de abrir la sesión (ruta con "/"). */
+    previos?: Record<string, string>
+    /** Un repositorio de git con esta rama (la lee cada publicación); sin esto, una carpeta sin git. */
+    rama?: () => string
+  } = {},
+) {
   const reloj = mock.clock(on, { now: ARRANQUE })
   // Por omisión, una sesión de terminal (lo que Claude Code pone en CLAUDE_CODE_ENTRYPOINT)
   mock.env(on, { USERPROFILE: CASA, CLAUDE_CODE_ENTRYPOINT: opciones.entrada ?? 'cli' })
   mock.store(on, { yo: { login: 'nicoequintana', nombre: 'Quintana' } })
-  const archivos = new Map<string, string>()
+  const archivos = new Map<string, string>(Object.entries(opciones.previos ?? {}))
   const escrituras: string[] = []
   /** Cada `$.fs.read`: el motor anota en stderr cada lectura que falla. */
   const lecturas: string[] = []
@@ -837,9 +860,13 @@ async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean
   let idActual = SESION
   on('session.id', () => ({ value: idActual }))
   on('session.cwd', () => ({ value: 'C:/proyectos/demo' }))
-  on('session.repo', () => ({ value: null }))
+  const rama = opciones.rama
+  on('session.repo', () => ({ value: rama ? { root: 'C:/proyectos/demo', remote: 'git@github.com:quintechlab/demo.git' } : null }) as never)
   const comentarios: string[] = []
   on('process.run', (_, e) => {
+    if (rama && e.argv[0] === 'git') {
+      return { value: { exitCode: 0, stdout: e.argv.includes('branch') ? `${rama()}\n` : '', stderr: '' } } as never
+    }
     if (!opciones.conGh) return { value: { exitCode: 1, stdout: '', stderr: 'sin gh en la prueba' } } as never
     // Con gh: el Issue no tiene comentarios y cada POST o PATCH guarda el cuerpo publicado
     const cuerpo = e.argv.find(a => a.startsWith('body='))
@@ -903,6 +930,7 @@ async function abrirSesion($: Engine, on: On, opciones: { abortarFalla?: boolean
     },
     resultado: () => leer(RUTA_ORDEN),
     presencia: () => leer(RUTA_LOCAL),
+    horas: () => leer(RUTA_HORAS) as ArchivoHoras | null,
     empezarTurno: (turnId: string, agentId?: string) => $.turn.start({ text: '', turnId, ...(agentId ? { agentId } : {}) }),
     terminarTurno: (turnId: string) =>
       $.turn.complete({ answer: 'listo', durationMs: 10, isAborted: false, turnId, reason: 'answer', index: 0, toolUses: 0 } as never),
@@ -1168,4 +1196,371 @@ test('al arrancar sin turno en curso (sesión nueva o /reload-plugins) la presen
   // Con un turno, lo de siempre
   await s.empezarTurno('t1')
   expect(s.presencia()?.actividad).toBe('pensando')
+})
+
+// ------------------------------------------------------------------ v0.13: horas de trabajo
+const REPOSO: EstadoTrabajo = { turno: false, subagentes: [], preguntas: [], permisos: [], llamadas: [], procesos: 0 }
+const sub = (id: string, extra: Partial<Subagente> = {}): Subagente => ({ ...SUB, id, ...extra })
+const preguntaDe = (agente: string | null): Pregunta => ({ ...PREGUNTA, id: `p-${agente ?? 'principal'}`, agente })
+const permisoDe = (agente: string | null, persona = true) => ({ agente, herramienta: 'Bash', persona })
+
+test('trabaja: el hilo principal con un turno en curso; sin turno, subagentes ni procesos, no', () => {
+  expect(estaTrabajando(REPOSO)).toBe(false)
+  expect(estaTrabajando({ ...REPOSO, turno: true })).toBe(true)
+})
+
+test('trabaja: un subagente en curso, aunque el hilo principal ya no tenga turno; uno terminado, no', () => {
+  expect(estaTrabajando({ ...REPOSO, subagentes: [sub('a1')] })).toBe(true)
+  expect(estaTrabajando({ ...REPOSO, subagentes: [sub('a1', { estado: 'listo', hasta: AHORA }), sub('a2', { estado: 'fallo', hasta: AHORA })] })).toBe(false)
+})
+
+test('trabaja: un proceso en segundo plano pendiente no frena el reloj, aunque haya una pregunta', () => {
+  expect(estaTrabajando({ ...REPOSO, procesos: 1 })).toBe(true)
+  expect(estaTrabajando({ ...REPOSO, turno: true, procesos: 2, preguntas: [preguntaDe(null)] })).toBe(true)
+})
+
+test('una pregunta pendiente frena el reloj del agente que pregunta (hilo principal o subagente)', () => {
+  expect(estaTrabajando({ ...REPOSO, turno: true, preguntas: [preguntaDe(null)] })).toBe(false)
+  expect(estaTrabajando({ ...REPOSO, subagentes: [sub('a1')], preguntas: [preguntaDe('a1')] })).toBe(false)
+})
+
+test('un pedido de permiso que espera a la persona frena el reloj; uno que decide el clasificador, no', () => {
+  expect(estaTrabajando({ ...REPOSO, turno: true, permisos: [permisoDe(null)] })).toBe(false)
+  expect(estaTrabajando({ ...REPOSO, subagentes: [sub('a1')], permisos: [permisoDe('a1')] })).toBe(false)
+  expect(estaTrabajando({ ...REPOSO, turno: true, permisos: [permisoDe(null, false)] })).toBe(true)
+})
+
+test('si un agente pregunta y otro sigue trabajando, el reloj sigue', () => {
+  // Pregunta un subagente y el hilo principal sigue con su turno
+  expect(estaTrabajando({ ...REPOSO, turno: true, subagentes: [sub('a1')], preguntas: [preguntaDe('a1')] })).toBe(true)
+  // Pregunta el hilo principal y un subagente sigue
+  expect(estaTrabajando({ ...REPOSO, turno: true, subagentes: [sub('a1')], preguntas: [preguntaDe(null)] })).toBe(true)
+  // Un subagente pide permiso y otro sigue
+  expect(estaTrabajando({ ...REPOSO, subagentes: [sub('a1'), sub('a2')], permisos: [permisoDe('a1')] })).toBe(true)
+})
+
+test('el hilo principal que solo espera a un subagente en primer plano trabaja si el subagente trabaja', () => {
+  const esperaAgente = { ...REPOSO, turno: true, subagentes: [sub('a1')], llamadas: [{ agente: null, herramienta: 'Agent' }] }
+  expect(estaTrabajando(esperaAgente)).toBe(true)
+  // El subagente pregunta: nadie avanza, el reloj se frena
+  expect(estaTrabajando({ ...esperaAgente, preguntas: [preguntaDe('a1')] })).toBe(false)
+  // Con otra herramienta propia corriendo a la par, el hilo principal sí trabaja
+  expect(estaTrabajando({ ...esperaAgente, preguntas: [preguntaDe('a1')], llamadas: [...esperaAgente.llamadas, { agente: null, herramienta: 'Bash' }] })).toBe(true)
+})
+
+test('un pedido de permiso sale del veredicto "ask" de una llamada real; es de la persona si la persona o el host contestan', () => {
+  expect(pedidoPermiso({ tool: 'Bash', tool_use_id: 't1', approver: 'person' }, 'ask')).toEqual({ id: 't1', agente: null, herramienta: 'Bash', persona: true })
+  expect(pedidoPermiso({ tool: 'Edit', tool_use_id: 't2', agentId: 'a1', approver: 'host' }, 'ask')).toEqual({ id: 't2', agente: 'a1', herramienta: 'Edit', persona: true })
+  // Sin nadie a quien preguntar (un subagente en segundo plano), no frena hasta que se vea el diálogo
+  expect(pedidoPermiso({ tool: 'Bash', tool_use_id: 't3' }, 'ask')?.persona).toBe(false)
+  // Lo permitido, lo negado, una consulta sin llamada y una operación de un mod no piden nada
+  expect(pedidoPermiso({ tool: 'Bash', tool_use_id: 't4', approver: 'person' }, 'allow')).toBe(null)
+  expect(pedidoPermiso({ tool: 'Bash', tool_use_id: 't5', approver: 'person' }, 'deny')).toBe(null)
+  expect(pedidoPermiso({ tool: 'Bash', approver: 'person' }, 'ask')).toBe(null)
+  expect(pedidoPermiso({ tool: 'Write', tool_use_id: 't6', approver: 'person', op: 'fs.write' }, 'ask')).toBe(null)
+})
+
+test('el diálogo de permiso (PermissionRequest) marca el primer pedido de ese agente y esa herramienta que no esperaba a la persona', () => {
+  const pedidos = [
+    { id: 't1', agente: 'a1', herramienta: 'Bash', persona: true },
+    { id: 't2', agente: 'a1', herramienta: 'Bash', persona: false },
+    { id: 't3', agente: null, herramienta: 'Bash', persona: false },
+  ]
+  expect(pedidoParaPersona(pedidos, 'a1', 'Bash')).toBe('t2')
+  expect(pedidoParaPersona(pedidos, null, 'Bash')).toBe('t3')
+  expect(pedidoParaPersona(pedidos, null, 'Edit')).toBe(null)
+})
+
+const T0 = Date.parse('2026-11-27T12:00:00.000Z')
+const en = (ms: number) => enIso(T0 + ms)
+const aca = { repo: 'quintechlab/oficina', rama: 'feat/7-horas' }
+
+test('un tramo se abre al empezar a trabajar y se cierra al parar; sin cambios, la misma lista', () => {
+  const abierto = avanzarTramos([], { trabajando: true, ...aca, ahora: en(0) })
+  expect(abierto).toEqual([{ desde: en(0), hasta: null, ...aca }])
+  expect(avanzarTramos(abierto, { trabajando: true, ...aca, ahora: en(5000) })).toBe(abierto)
+  const cerrado = avanzarTramos(abierto, { trabajando: false, ...aca, ahora: en(60000) })
+  expect(cerrado).toEqual([{ desde: en(0), hasta: en(60000), ...aca }])
+  expect(avanzarTramos(cerrado, { trabajando: false, ...aca, ahora: en(70000) })).toBe(cerrado)
+  expect(trabajadoDe(cerrado)).toEqual({ ms: 60000, desde: null })
+  expect(trabajadoDe(abierto)).toEqual({ ms: 0, desde: en(0) })
+})
+
+test('volver a trabajar en menos de 2 s, en el mismo repo y rama, reabre el tramo anterior', () => {
+  const cerrado = [{ desde: en(0), hasta: en(60000), ...aca }]
+  expect(avanzarTramos(cerrado, { trabajando: true, ...aca, ahora: en(60000 + MS_REABRIR_TRAMO - 1) })).toEqual([{ desde: en(0), hasta: null, ...aca }])
+  // A los 2 s o con otra rama, otro tramo
+  expect(avanzarTramos(cerrado, { trabajando: true, ...aca, ahora: en(60000 + MS_REABRIR_TRAMO) })).toEqual([...cerrado, { desde: en(62000), hasta: null, ...aca }])
+  expect(avanzarTramos(cerrado, { trabajando: true, repo: aca.repo, rama: 'main', ahora: en(60500) })).toEqual([...cerrado, { desde: en(60500), hasta: null, repo: aca.repo, rama: 'main' }])
+})
+
+test('cambiar de rama con el reloj corriendo cierra el tramo y abre otro', () => {
+  const abierto = [{ desde: en(0), hasta: null, ...aca }]
+  expect(avanzarTramos(abierto, { trabajando: true, repo: aca.repo, rama: 'main', ahora: en(30000) })).toEqual([
+    { desde: en(0), hasta: en(30000), ...aca },
+    { desde: en(30000), hasta: null, repo: aca.repo, rama: 'main' },
+  ])
+  // Fuera de un repo
+  expect(avanzarTramos(abierto, { trabajando: true, repo: null, rama: null, ahora: en(30000) })[1]).toEqual({ desde: en(30000), hasta: null, repo: null, rama: null })
+})
+
+test('varios agentes a la vez cuentan tiempo de reloj: los tramos suman el intervalo, no los agentes', () => {
+  const tramos = [
+    { desde: en(0), hasta: en(3600000), ...aca },
+    { desde: en(4000000), hasta: en(4600000), repo: aca.repo, rama: 'main' },
+    { desde: en(5000000), hasta: null, ...aca },
+  ]
+  expect(trabajadoDe(tramos)).toEqual({ ms: 4200000, desde: en(5000000) })
+})
+
+test('al arrancar, un tramo abierto que quedó en el archivo se cierra en su "actualizado"', () => {
+  const texto = JSON.stringify({ v: 1, sesion: 's', actualizado: en(90000), tramos: [{ desde: en(0), hasta: en(10000), ...aca }, { desde: en(30000), hasta: null, ...aca }] })
+  expect(leerArchivoHoras(texto)).toEqual({ tramos: [{ desde: en(0), hasta: en(10000), ...aca }, { desde: en(30000), hasta: en(90000), ...aca }], corregido: true })
+  // Sin tramo abierto queda igual
+  const cerrado = JSON.stringify({ v: 1, sesion: 's', actualizado: en(90000), tramos: [{ desde: en(0), hasta: en(10000), ...aca }] })
+  expect(leerArchivoHoras(cerrado)).toEqual({ tramos: [{ desde: en(0), hasta: en(10000), ...aca }], corregido: false })
+  // Cerrar nunca deja un tramo que termina antes de empezar
+  expect(cerrarTramoAbierto([{ desde: en(30000), hasta: null, ...aca }], en(10000))).toEqual([{ desde: en(30000), hasta: en(30000), ...aca }])
+})
+
+test('un archivo de horas roto, de otra versión o con tramos inválidos no rompe: se lee lo que sirve', () => {
+  for (const texto of [null, '', '{', 'null', '[]', JSON.stringify({ v: 2, tramos: [] }), JSON.stringify({ v: 1, tramos: 'x' })]) {
+    expect(leerArchivoHoras(texto).tramos).toEqual([])
+  }
+  const mezcla = JSON.stringify({
+    v: 1,
+    sesion: 's',
+    actualizado: en(90000),
+    tramos: [{ desde: 'no', hasta: null }, { desde: en(0), hasta: en(1000), repo: 7, rama: null }, null, { desde: en(2000), hasta: null, repo: 'r', rama: 'b' }, { desde: en(5000), hasta: en(6000), repo: 'r', rama: 'b' }],
+  })
+  // Lo inválido se descarta, un repo que no es texto queda null y un abierto que no es el último se cierra donde empieza el siguiente
+  expect(leerArchivoHoras(mezcla)).toEqual({
+    tramos: [
+      { desde: en(0), hasta: en(1000), repo: null, rama: null },
+      { desde: en(2000), hasta: en(5000), repo: 'r', rama: 'b' },
+      { desde: en(5000), hasta: en(6000), repo: 'r', rama: 'b' },
+    ],
+    corregido: true,
+  })
+})
+
+test('el tiempo trabajado va solo en el archivo local, nunca en el comentario de GitHub', () => {
+  const p = presencia({ sesion: 'con-horas' })
+  const trabajado = { ms: 125000, desde: '2026-11-12T16:59:00.000Z' }
+  const local = presenciaLocal(p, 'C:/x', trabajado)
+  expect(local.trabajado).toEqual(trabajado)
+  expect(local.cwd).toBe('C:/x')
+  // Sin tiempo, la presencia local de siempre (sin la clave)
+  expect('trabajado' in presenciaLocal(p, 'C:/x')).toBe(false)
+  const vieja = { ...presencia({ sesion: 'otra' }), trabajado: { ms: 1, desde: null } }
+  const c = ponerSesion({ v: 2, usuario: 'campos', nombre: 'Campos', ausente: false, actualizado: AHORA, sesiones: [vieja] }, local, Date.parse(AHORA))
+  expect(c.sesiones.map(s => s.sesion)).toEqual(['otra', 'con-horas'])
+  expect(c.sesiones.some(s => 'trabajado' in s || 'cwd' in s)).toBe(false)
+  expect(envolverComentario(c).includes('trabajado')).toBe(false)
+})
+
+const DEMO = { repo: 'local/demo', rama: null }
+
+test('el reloj corre con el turno del hilo principal y se frena al terminarlo; el archivo local dice lo trabajado', async ($, on) => {
+  const s = await abrirSesion($, on)
+  // Sin trabajar todavía no hay archivo de horas, y lo trabajado es 0
+  expect(s.horas()).toBe(null)
+  expect(s.presencia()?.trabajado).toEqual({ ms: 0, desde: null })
+  await s.empezarTurno('t1')
+  await s.reloj.settle()
+  const desde = enIso(s.reloj.now())
+  expect(s.horas()).toEqual({ v: 1, sesion: SESION, actualizado: desde, tramos: [{ desde, hasta: null, ...DEMO }] })
+  expect(s.presencia()?.trabajado).toEqual({ ms: 0, desde })
+  await s.reloj.advance(60000)
+  await s.terminarTurno('t1')
+  await s.reloj.settle()
+  expect(s.horas()?.tramos).toEqual([{ desde, hasta: enIso(s.reloj.now()), ...DEMO }])
+  expect(s.presencia()?.trabajado).toEqual({ ms: 60000, desde: null })
+})
+
+test('el turno de un subagente no abre el reloj por su cuenta: lo abre el subagente lanzado', async ($, on) => {
+  on('agent.spawn', (_, e) => ({ model: 'haiku', agentId: `ag-${e.tool_use_id}` }) as never)
+  const s = await abrirSesion($, on)
+  await s.empezarTurno('ts', 'ag-x')
+  await s.reloj.settle()
+  expect(s.horas()).toBe(null)
+  await $.agent.spawn({ tool_use_id: 'u1', prompt: 'p', description: 'Camila — header', subagentType: 'general-purpose' } as never)
+  await s.reloj.settle()
+  expect(s.horas()?.tramos.length).toBe(1)
+  expect(s.horas()?.tramos[0]?.hasta).toBe(null)
+})
+
+test('tres subagentes trabajando a la vez cuentan tiempo de reloj, no la suma de los tres', async ($, on) => {
+  on('agent.spawn', (_, e) => ({ model: 'haiku', agentId: `ag-${e.tool_use_id}` }) as never)
+  const s = await abrirSesion($, on)
+  for (const id of ['u1', 'u2', 'u3']) await $.agent.spawn({ tool_use_id: id, prompt: 'p', description: `${id} — tarea`, subagentType: 'general-purpose' } as never)
+  await s.reloj.settle()
+  // (Minutos y no horas: el reloj de prueba corre cada vuelta de la vigilancia de órdenes, una por segundo)
+  await s.reloj.advance(60000)
+  await $.turn.complete({ answer: 'listo', durationMs: 10, isAborted: false, turnId: 'x1', reason: 'answer', index: 0, toolUses: 0, agentId: 'ag-u1' } as never)
+  await s.reloj.advance(60000)
+  for (const id of ['ag-u2', 'ag-u3']) await $.turn.complete({ answer: 'listo', durationMs: 10, isAborted: false, turnId: `x-${id}`, reason: 'answer', index: 0, toolUses: 0, agentId: id } as never)
+  await s.reloj.settle()
+  expect(s.horas()?.tramos.length).toBe(1)
+  expect(s.presencia()?.trabajado).toEqual({ ms: 120000, desde: null })
+})
+
+test('una pregunta pendiente frena el reloj y responderla lo reanuda', async ($, on) => {
+  let responder: (r: unknown) => void = () => undefined
+  on('tool.check', () => ({ decision: 'allow' }))
+  on('tool.call', { tool: 'AskUserQuestion' }, () => new Promise(r => { responder = r }) as never)
+  const s = await abrirSesion($, on)
+  await s.empezarTurno('t1')
+  await s.reloj.advance(10000)
+  const preguntas = [{ question: '¿Seguimos?', header: 'Plan', multiSelect: false, options: [{ label: 'Sí', description: '' }, { label: 'No', description: '' }] }]
+  const llamada = $.tool.call({ tool: 'AskUserQuestion', tool_use_id: 'q1', questions: preguntas } as never)
+  await s.reloj.settle()
+  expect(s.horas()?.tramos[0]?.hasta).toBe(enIso(s.reloj.now()))
+  // La persona tarda un minuto en contestar: ese minuto no cuenta
+  await s.reloj.advance(60000)
+  responder({ result: { questions: preguntas, answers: { '¿Seguimos?': 'Sí' } } })
+  await llamada
+  await s.reloj.settle()
+  const tramos = s.horas()?.tramos ?? []
+  expect(tramos.length).toBe(2)
+  expect(tramos[1]?.hasta).toBe(null)
+  expect(s.presencia()?.trabajado).toEqual({ ms: 10000, desde: tramos[1]?.desde })
+})
+
+test('un pedido de permiso que le muestran a la persona frena el reloj, y aprobarlo lo reanuda', async ($, on) => {
+  on('tool.check', () => ({ decision: 'ask' }))
+  on('tool.run', () => ({ result: 'ok' }) as never)
+  const s = await abrirSesion($, on)
+  await s.empezarTurno('t1')
+  await s.reloj.advance(10000)
+  await $.tool.check({ tool: 'Bash', input: { command: 'rm -rf dist' }, tool_use_id: 'b1', approver: 'person' } as never)
+  await s.reloj.settle()
+  const frenado = enIso(s.reloj.now())
+  expect(s.horas()?.tramos.at(-1)?.hasta).toBe(frenado)
+  // La persona tarda un minuto en aprobar: ese minuto no cuenta
+  await s.reloj.advance(60000)
+  await $.tool.run({ tool: 'Bash', command: 'rm -rf dist', tool_use_id: 'b1' } as never)
+  await s.reloj.settle()
+  const tramos = s.horas()?.tramos ?? []
+  expect(tramos.length).toBe(2)
+  expect(tramos[1]).toEqual({ desde: enIso(s.reloj.now()), hasta: null, ...DEMO })
+  expect(s.presencia()?.trabajado).toEqual({ ms: 10000, desde: enIso(s.reloj.now()) })
+})
+
+test('en modo automático, mientras decide el clasificador el reloj sigue; si el clasificador se lo pasa a la persona, se frena', async ($, on) => {
+  on('tool.check', () => ({ decision: 'ask' }))
+  let decide: 'allow' | 'ask' = 'allow'
+  on('tool.judge', () => ({ decision: decide }))
+  const s = await abrirSesion($, on)
+  await s.empezarTurno('t1')
+  await s.reloj.settle()
+  await $.tool.check({ tool: 'Bash', input: { command: 'ls' }, tool_use_id: 'b1', approver: 'person' } as never)
+  await $.tool.judge({ tool: 'Bash', input: { command: 'ls' }, tool_use_id: 'b1' } as never)
+  await s.reloj.settle()
+  // Frenó un instante entre check y judge: dentro de los 2 s, el mismo tramo sigue abierto
+  expect(s.horas()?.tramos.length).toBe(1)
+  expect(s.horas()?.tramos[0]?.hasta).toBe(null)
+  decide = 'ask'
+  await s.reloj.advance(10000)
+  await $.tool.check({ tool: 'Bash', input: { command: 'git push' }, tool_use_id: 'b2', approver: 'person' } as never)
+  await $.tool.judge({ tool: 'Bash', input: { command: 'git push' }, tool_use_id: 'b2' } as never)
+  await s.reloj.settle()
+  expect(s.horas()?.tramos[0]?.hasta).toBe(enIso(s.reloj.now()))
+})
+
+test('sin nadie a quien preguntar, el pedido frena recién cuando se muestra el diálogo (PermissionRequest)', async ($, on) => {
+  on('tool.check', () => ({ decision: 'ask' }))
+  on('classic.PermissionRequest', () => ({}))
+  const s = await abrirSesion($, on)
+  await s.empezarTurno('t1')
+  await $.tool.check({ tool: 'Bash', input: { command: 'ls' }, tool_use_id: 'b1' } as never)
+  await s.reloj.advance(10000)
+  expect(s.horas()?.tramos[0]?.hasta).toBe(null)
+  await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'ls' } })
+  await s.reloj.settle()
+  expect(s.horas()?.tramos[0]?.hasta).toBe(enIso(s.reloj.now()))
+})
+
+test('al terminar el turno se olvidan los pedidos de permiso que quedaron sin resolver', async ($, on) => {
+  on('tool.check', () => ({ decision: 'ask' }))
+  const s = await abrirSesion($, on)
+  await s.empezarTurno('t1')
+  await $.tool.check({ tool: 'Bash', input: { command: 'ls' }, tool_use_id: 'b1', approver: 'person' } as never)
+  await s.terminarTurno('t1')
+  await s.reloj.advance(10000)
+  await s.empezarTurno('t2')
+  await s.reloj.settle()
+  expect(s.horas()?.tramos.at(-1)?.hasta).toBe(null)
+})
+
+test('el latido renueva "actualizado" del archivo de horas solo con un tramo abierto', async ($, on) => {
+  const s = await abrirSesion($, on)
+  await s.empezarTurno('t1')
+  await s.reloj.advance(30000)
+  expect(s.horas()?.actualizado).toBe(enIso(s.reloj.now()))
+  await s.terminarTurno('t1')
+  await s.reloj.settle()
+  const cerrado = s.horas()?.actualizado
+  await s.reloj.advance(60000)
+  expect(s.horas()?.actualizado).toBe(cerrado)
+})
+
+test('al arrancar, el tramo abierto que dejó la sesión anterior del mod se cierra en su "actualizado" y se suma', async ($, on) => {
+  const previo: ArchivoHoras = {
+    v: 1,
+    sesion: SESION,
+    actualizado: enIso(ARRANQUE - 60000),
+    tramos: [
+      { desde: enIso(ARRANQUE - 600000), hasta: enIso(ARRANQUE - 300000), ...DEMO },
+      { desde: enIso(ARRANQUE - 120000), hasta: null, ...DEMO },
+    ],
+  }
+  const s = await abrirSesion($, on, { previos: { [RUTA_HORAS]: JSON.stringify(previo) } })
+  expect(s.horas()?.tramos.at(-1)).toEqual({ desde: enIso(ARRANQUE - 120000), hasta: enIso(ARRANQUE - 60000), ...DEMO })
+  expect(s.presencia()?.trabajado).toEqual({ ms: 360000, desde: null })
+  // Lo nuevo se agrega a lo que ya había
+  await s.empezarTurno('t1')
+  await s.reloj.settle()
+  expect(s.horas()?.tramos.length).toBe(3)
+})
+
+test('cambiar de rama con el reloj corriendo cierra el tramo y abre otro con la rama nueva', async ($, on) => {
+  let rama = 'feat/7-horas'
+  const s = await abrirSesion($, on, { rama: () => rama })
+  await s.empezarTurno('t1')
+  await s.reloj.advance(20000)
+  rama = 'main'
+  await $.command.run({ command: 'avis', args: 'nota probando' } as never)
+  await s.reloj.settle()
+  const tramos = s.horas()?.tramos ?? []
+  expect(tramos.map(t => [t.repo, t.rama, t.hasta === null])).toEqual([
+    ['quintechlab/demo', 'feat/7-horas', false],
+    ['quintechlab/demo', 'main', true],
+  ])
+})
+
+test('al cerrar la sesión se cierra el tramo abierto, y tras /clear la sesión nueva tiene su propio archivo', async ($, on) => {
+  const s = await abrirSesion($, on)
+  await s.empezarTurno('t1')
+  await s.reloj.advance(5000)
+  await s.terminarSesion('clear', 'ses-prueba-2')
+  expect(s.horas()?.tramos).toEqual([{ desde: enIso(ARRANQUE), hasta: enIso(ARRANQUE + 5000), ...DEMO }])
+  await s.empezarTurno('t2')
+  await s.reloj.settle()
+  const nueva = JSON.parse(s.archivos.get(RUTA_HORAS.replace(SESION, 'ses-prueba-2')) ?? 'null') as ArchivoHoras | null
+  expect(nueva?.sesion).toBe('ses-prueba-2')
+  expect(nueva?.tramos.length).toBe(1)
+  // La sesión vieja no se reabre
+  expect(s.horas()?.tramos.length).toBe(1)
+})
+
+test('el tiempo trabajado nunca viaja en el comentario de GitHub', async ($, on) => {
+  const s = await abrirSesion($, on, { conGh: true })
+  await s.empezarTurno('t1')
+  await s.reloj.advance(60000)
+  await s.terminarTurno('t1')
+  await s.reloj.advance(15000)
+  expect(s.presencia()?.trabajado).toEqual({ ms: 60000, desde: null })
+  expect(s.comentarios.length > 0).toBe(true)
+  for (const cuerpo of s.comentarios) expect(cuerpo.includes('trabajado')).toBe(false)
 })
