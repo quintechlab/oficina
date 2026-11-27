@@ -118,6 +118,12 @@ import { MODULOS, irModulo as planModulo, alEscModulo, cuentaModulo, nombreModul
 } from './modulos.js'
 import { avisoPreguntaHtml, cuentasMiniHtml } from './modulosVista.js'
 import * as movimientoModulos from './modulosMotion.js'
+import {
+  horasInicial, abrirHoras, cerrarHoras, elegirPeriodo, abrirFeature, cerrarFeature, alEscHoras, resumenHoras, detalleFeature,
+  totalHoy, subtituloHoras, duracion, MS_RELEER_HORAS,
+} from './horas.js'
+import { esqueletoHoras, partesHoras, claveDeValor, nombreFeature } from './horasVista.js'
+import * as movimientoHoras from './horasMotion.js'
 
 const INTERVALO_MS = 1500
 const INTERVALO_EQUIPO_MS = 60000
@@ -233,6 +239,13 @@ const st = {
   pro: proyectosInicial(),
   /** Partes de la hoja de Proyectos ya dibujadas. */
   proFirmas: {},
+  /**
+   * Las horas trabajadas y su hoja (odd/tasks/horas-trabajo.md, S4): abierta (la sigue `st.modulo`), el
+   * período, la feature abierta, lo leído de `leer_horas` (`sesiones` con sus tramos) y el error.
+   */
+  horas: horasInicial(),
+  /** Partes de la hoja de Horas ya dibujadas (y la fila del menú). */
+  horFirmas: {},
   /**
    * El aviso diario de tareas (tareas-ux.md 8 y 11.4): `avisoTar` (`evaluarAviso`, una vez por
    * ejecución) y `avisadoTar` (`tareas.avisado` de preferencias.json, leído al arrancar).
@@ -1212,6 +1225,8 @@ function pintar() {
   pintarFilaHabitos()
   // La fila «Proyectos» del menú (proyectos-ux.md 4.1), siempre
   pintarFilaProyectos()
+  // La fila «Horas» del menú, con lo trabajado hoy (horas-trabajo.md, S4), siempre
+  pintarFilaHoras(ahora)
   // El menú de módulos (modulos-ux.md 4, #42): la fila abierta, las cuentas, la píldora y la pregunta
   // vista desde otro módulo (`#aviso-p`). `st.modulo` decide; `config.abierta` y `tareas.abierta` lo siguen
   pintarModulos(ahora, totalPend)
@@ -1233,6 +1248,10 @@ function pintar() {
   $('#marco').classList.toggle('con-pro', st.pro.abierta)
   if (st.pro.abierta) { pintarHojaProyectos(); return }
   pintarProyectos()
+  // Horas (horas-trabajo.md, S4): la hoja hermana de #pro; una por vez (`irModulo` cierra la otra)
+  $('#marco').classList.toggle('con-hor', st.horas.abierta)
+  if (st.horas.abierta) { pintarHojaHoras(ahora); return }
+  pintarHoras(ahora)
 
   if (!st.proyectos.length && forma === 'escenario') {
     // Sin tablero y con algo pendiente: el escenario de primeros pasos en lugar del vacío (3.2)
@@ -1532,7 +1551,7 @@ document.addEventListener('pointerdown', e => {
 // ------------------------------------------------------------------ módulos (#42, docs/diseno/modulos-ux.md)
 
 /** Las filas del menú, por módulo (Configuración está aparte, en `.lado-cfg`). */
-const FILAS_MODULO = { sesiones: '#mod-sesiones', tareas: '#tar-fila', habitos: '#hab-fila', proyectos: '#pro-fila', config: '#cfg-fila' }
+const FILAS_MODULO = { sesiones: '#mod-sesiones', tareas: '#tar-fila', habitos: '#hab-fila', proyectos: '#pro-fila', horas: '#hor-fila', config: '#cfg-fila' }
 
 /**
  * La única entrada a un módulo (3.2 y 11.3): las filas del menú, Ctrl T, Ctrl ,, Esc, la bandeja, el globo
@@ -1570,12 +1589,14 @@ async function irModulo(id, { repo, tab, ver, proyecto, foco = 'h1' } = {}) {
     else if (h === 'tareas') cerrarTareasHoja({ acto: !plan.abrir })
     else if (h === 'habitos') cerrarHabitosHoja({ acto: !plan.abrir })
     else if (h === 'proyectos') cerrarProyectosHoja({ acto: !plan.abrir })
+    else if (h === 'horas') cerrarHorasHoja({ acto: !plan.abrir })
   }
   const enfocarTitulo = foco === 'h1'
   if (plan.abrir === 'config') abrirConfig({ tab, foco: enfocarTitulo })
   else if (plan.abrir === 'tareas') abrirTareasHoja({ ver, foco: enfocarTitulo })
   else if (plan.abrir === 'habitos') abrirHabitosHoja({ ver, foco: enfocarTitulo })
   else if (plan.abrir === 'proyectos') abrirProyectosHoja({ proyecto, foco: enfocarTitulo })
+  else if (plan.abrir === 'horas') abrirHorasHoja({ foco: enfocarTitulo })
   else if (plan.repo && plan.repo !== st.repo) irAProyecto(plan.repo, 1)
   else pintar()
   movimientoModulos.viajarPildora(nav, desde)
@@ -2484,6 +2505,11 @@ document.addEventListener('click', async e => {
     await accionHabitos(a, b)
     return
   }
+  if (a.startsWith('hor-')) {
+    // Horas (horas-trabajo.md, S4): el período, abrir o cerrar una feature y volver a leer
+    await accionHoras(a, b)
+    return
+  }
   if (a.startsWith('pro-')) {
     // Proyectos (proyectos-ux.md): cada botón hace solo lo suyo, y solo con el clic; uno apagado
     // (aria-disabled: la charla, que llega con P2) no hace nada
@@ -2725,6 +2751,8 @@ document.addEventListener('submit', e => { if (e.target.id === 'pro-form') e.pre
 // Al volver a la ventana con la hoja abierta, se vuelven a leer los proyectos (3.5: una carpeta pudo
 // desaparecer o llenarse de archivos); nunca en el ciclo de 1,5 s
 window.addEventListener('focus', () => { if (st.pro.abierta) leerProyectos() })
+// Lo mismo con las horas: al volver a la ventana con la hoja abierta, una lectura (nunca en el ciclo de 1,5 s)
+window.addEventListener('focus', () => { if (st.horas.abierta) leerHoras() })
 document.addEventListener('compositionstart', e => { if (e.target.matches?.('.ctl-in')) st.componiendo = true })
 document.addEventListener('compositionend', () => { st.componiendo = false })
 
@@ -2829,6 +2857,14 @@ document.addEventListener('keydown', e => {
   }
   // Carpeta y Color del formulario (4.10): un solo tope, foco itinerante con las flechas (12)
   if (st.pro.abierta && teclaRadios(e, '#pro')) return
+  // Esc con la hoja de Horas abierta: cierra la feature abierta o vuelve a Sesiones (modulos-ux.md 9.1)
+  if (e.key === 'Escape' && st.horas.abierta) {
+    e.preventDefault()
+    escHoras()
+    return
+  }
+  // El período (Hoy · Semana · Todo): un solo tope, foco itinerante con las flechas
+  if (st.horas.abierta && teclaRadios(e, '#hor')) return
   // Enter en el título de la tarea abierta no hace salto de línea: confirma (4.7) y el foco queda
   if (e.key === 'Enter' && e.target.matches?.('#tar textarea[data-campo="titulo"]')) {
     e.preventDefault()
@@ -3192,6 +3228,8 @@ function aplicarFoco() {
   else if (foco === 'hab' && st.habitos.abierta) $('#titulo').focus()
   // Proyectos: su título al abrir (proyectos-ux.md 9.4)
   else if (foco === 'pro' && st.pro.abierta) $('#titulo').focus()
+  // Horas: su título al abrir
+  else if (foco === 'hor' && st.horas.abierta) $('#titulo').focus()
   else ($('#repos [aria-current]') ?? $('#repos [data-proy]') ?? $('#marco [data-accion="pin"]'))?.focus()
 }
 
@@ -8487,6 +8525,194 @@ marcaBoton.addEventListener('click', e => {
 // La vista de desarrollo (dev/falso.js) maneja la hoja por acá para mostrar cada estado
 if (window.__vistaDev) window.__chat = { despachar: despacharChat, estado: () => st.chat }
 
+// ------------------------------------------------------------------ horas (odd/tasks/horas-trabajo.md, S1 y S4)
+// El mod mide y escribe `~/.claude/oficina/horas/<id>.json`; la ventana solo lee (`leer_horas`, Rust valida
+// cada nombre y saltea los rotos) y cuenta con horas.js: la fila del menú con lo de hoy y la hoja #hor con
+// el período, las features (repo + rama) y la feature abierta. Lee al arrancar, cada 60 s con la hoja
+// cerrada y cada 10 s abierta (y al abrirla o volver a la ventana); nunca en el ciclo de 1,5 s. Entre dos
+// lecturas, un tramo abierto vivo sigue contando hasta ahora (horas.js), así la cuenta no se queda quieta.
+
+/** Cada cuánto se leen las horas con la hoja cerrada: un latido del mod (30 s) más esto queda bajo los 2 min. */
+const MS_RELEER_HORAS_CERRADA = 60000
+let relojHoras = null
+
+/** La lectura periódica: 10 s con la hoja abierta, 60 s cerrada. Se reprograma al abrir y al cerrar. */
+function vigilarHoras() {
+  clearTimeout(relojHoras)
+  leerHoras()?.finally(() => {
+    clearTimeout(relojHoras)
+    relojHoras = setTimeout(vigilarHoras, st.horas.abierta ? MS_RELEER_HORAS : MS_RELEER_HORAS_CERRADA)
+  })
+}
+
+/** La fila «Horas» del menú: lo trabajado hoy, corto, y su nombre accesible (se cuenta una vez por minuto o por lectura). */
+function pintarFilaHoras(ahora) {
+  const f = st.horFirmas
+  const clave = `${st.horas.leido}|${f.lecturas ?? 0}|${Math.floor(ahora / 60000)}`
+  if (f.claveFila === clave) return
+  f.claveFila = clave
+  const ms = st.horas.leido ? totalHoy(st.horas.sesiones, ahora) : null
+  poner('#hor-fila-ct', cuentaModulo('horas', ms))
+  ponerNombre('#hor-fila', nombreModulo('horas', ms))
+}
+
+/** Lo que se muestra del período elegido (y la feature abierta, si sigue teniendo algo en él). */
+function vistaHoras(ahora) {
+  const h = st.horas
+  const resumen = resumenHoras(h.sesiones, ahora, h.periodo)
+  const detalle = h.feature ? detalleFeature(h.sesiones, ahora, h.feature, h.periodo) : null
+  return { resumen, detalle }
+}
+
+/** El encabezado con la hoja abierta: «Horas» y su bajada; la tira de repos es solo de Sesiones. */
+function pintarHojaHoras(ahora) {
+  modoMarco('tablero')
+  $('#marco').classList.remove('con-hoja')
+  texto('#titulo', 'Horas')
+  $('#titulo').title = ''
+  const { resumen } = vistaHoras(ahora)
+  texto('#subtitulo', st.horas.leido ? subtituloHoras({ periodo: st.horas.periodo, total: resumen.total, features: resumen.features.length }) : '')
+  pintarHoras(ahora)
+}
+
+/**
+ * Dibuja la hoja en #hor por partes: el esqueleto una vez; el encabezado (período y total), el error y la
+ * lista o la feature abierta, cada uno solo si cambió. El foco vuelve a la misma pieza (`data-k`).
+ * Una feature abierta que ya no tiene nada en el período vuelve a la lista. Cerrada, vacía.
+ */
+function pintarHoras(ahora = Date.now()) {
+  const raiz = $('#hor')
+  if (!st.horas.abierta) {
+    if (raiz.firstChild) { raiz.innerHTML = ''; st.horFirmas = { lecturas: st.horFirmas.lecturas } }
+    return
+  }
+  if (!raiz.firstChild) { raiz.innerHTML = esqueletoHoras(); st.horFirmas = { lecturas: st.horFirmas.lecturas } }
+  const { resumen, detalle } = vistaHoras(ahora)
+  if (st.horas.feature && st.horas.leido && !detalle) st.horas = cerrarFeature(st.horas)
+  const k = raiz.contains(document.activeElement) ? document.activeElement.closest('[data-k]')?.dataset.k : null
+  const p = partesHoras({ ...st.horas, resumen, detalle, ahoraMs: ahora, mascota: st.mascota })
+  const f = st.horFirmas
+  for (const [parte, html] of [['cab', p.cab], ['err', p.err], ['cuerpo', p.cuerpo]]) {
+    if (f[parte] === html) continue
+    raiz.querySelector(`[data-parte="${parte}"]`).innerHTML = html
+    f[parte] = html
+  }
+  if (k && !raiz.contains(document.activeElement)) raiz.querySelector(`[data-k="${CSS.escape(k)}"]`)?.focus({ preventScroll: true })
+}
+
+/**
+ * Abre la hoja de Horas (la fila del menú): acoplada, abre también el panel. Solo la llama `irModulo`
+ * (modulos-ux.md 11.1), que ya cerró la otra hoja, la dividida y la tira. Al abrir se vuelven a leer las
+ * horas y la lectura pasa a cada 10 s. El foco va al `h1` (9.4).
+ */
+function abrirHorasHoja({ foco = true } = {}) {
+  if (st.horas.abierta) return
+  st.horas = abrirHoras(st.horas)
+  pintar()
+  vigilarHoras()
+  movimientoHoras.abrirHoja($('#marco .cab'), $('#hor-cuerpo'))
+  if (st.acople) {
+    evento({ tipo: 'clic' })
+    if (foco) { st.focoPendiente = 'hor'; aplicarFoco() }
+  } else if (foco) {
+    $('#titulo').focus()
+  }
+}
+
+/** Cierra la hoja (solo desde `irModulo`): hacia Sesiones el tablero vuelve con su acto; hacia otra hoja, sin él. */
+function cerrarHorasHoja({ acto = true } = {}) {
+  if (!st.horas.abierta) return
+  st.horas = cerrarHoras(st.horas)
+  pintar()
+  // Cerrada, la lectura vuelve a cada 60 s
+  clearTimeout(relojHoras)
+  relojHoras = setTimeout(vigilarHoras, MS_RELEER_HORAS_CERRADA)
+  if (acto) movimientoConfig.cerrarHoja([$('#otro'), $('#w-globo'), $('#conteos'), ...document.querySelectorAll('#sesiones > .ses')])
+}
+
+let leyendoHoras = null
+/**
+ * Lee las horas (`leer_horas`, solo lectura). Si la primera lectura con la hoja abierta tarda más de
+ * 150 ms, las filas fantasma (7.1). Un error deja lo leído antes en pantalla, con su línea arriba.
+ */
+function leerHoras() {
+  if (!tauri?.core) return null
+  if (leyendoHoras) return leyendoHoras
+  st.horas = { ...st.horas, cargando: true }
+  const reloj = setTimeout(() => {
+    if (!st.horas.cargando || st.horas.leido) return
+    st.horas = { ...st.horas, fantasmas: true }
+    pintarHoras()
+  }, 150)
+  leyendoHoras = (async () => {
+    try {
+      const r = await invocar('leer_horas')
+      st.horas = { ...st.horas, sesiones: Array.isArray(r) ? r : [], leido: true, error: null }
+    } catch (err) {
+      if (!st.horas.error) registrar(`horas: no se pudieron leer: ${err}`)
+      st.horas = { ...st.horas, error: String(err?.message ?? err).slice(0, 120) || 'sin detalle' }
+    } finally {
+      clearTimeout(reloj)
+      st.horas = { ...st.horas, cargando: false, fantasmas: false }
+      st.horFirmas.lecturas = (st.horFirmas.lecturas ?? 0) + 1
+      leyendoHoras = null
+      pintar()
+    }
+  })()
+  return leyendoHoras
+}
+
+/** Anuncia en `#hor-vivo` (la hoja abierta). */
+function anunciarHoras(mensaje) {
+  const el = $('#hor-vivo')
+  if (el) el.textContent = mensaje
+}
+
+/** Esc con la hoja abierta: la feature abierta vuelve a la lista; si no, Sesiones con el foco en su fila (modulos-ux.md 9.1). */
+function escHoras() {
+  const accion = alEscHoras(st.horas)
+  if (alEscModulo('horas', accion) === 'sesiones') { irModulo('sesiones', { foco: 'fila' }); return }
+  volverALista()
+}
+
+/** De la feature abierta a la lista del período: el foco vuelve a la fila de esa feature. */
+function volverALista() {
+  const clave = st.horas.feature
+  st.horas = cerrarFeature(st.horas)
+  pintarHoras()
+  movimientoHoras.entraCuerpo($('#hor [data-parte="cuerpo"]'))
+  const fila = [...document.querySelectorAll('#hor .hor-f')].find(b => claveDeValor(b.dataset.valor) === clave)
+  ;(fila ?? $('#titulo')).focus({ preventScroll: true })
+}
+
+/** Los botones de la hoja de Horas (`data-accion="hor-…"`), cada uno solo con el clic. */
+async function accionHoras(a, b) {
+  switch (a) {
+    case 'hor-periodo': {
+      if (b.dataset.valor === st.horas.periodo) return
+      st.horas = elegirPeriodo(st.horas, b.dataset.valor)
+      pintar()
+      movimientoHoras.cambiaTotal($('#hor [data-parte="cab"]'))
+      movimientoHoras.entraCuerpo($('#hor [data-parte="cuerpo"]'))
+      const { resumen } = vistaHoras(Date.now())
+      anunciarHoras(subtituloHoras({ periodo: st.horas.periodo, total: resumen.total, features: resumen.features.length }))
+      break
+    }
+    case 'hor-feature': {
+      const clave = claveDeValor(b.dataset.valor)
+      st.horas = abrirFeature(st.horas, clave)
+      pintarHoras()
+      movimientoHoras.entraCuerpo($('#hor [data-parte="cuerpo"]'))
+      const d = detalleFeature(st.horas.sesiones, Date.now(), clave, st.horas.periodo)
+      if (d) anunciarHoras(`${nombreFeature(d)}: ${duracion(d.ms)}`)
+      $('#hor-det-h')?.focus({ preventScroll: true })
+      break
+    }
+    case 'hor-volver': volverALista(); break
+    case 'hor-releer': await leerHoras(); break
+  }
+}
+
 async function iniciar() {
   // Las definiciones de los Avis (piel, luz de piso y desenfoque), una vez por documento (5.1)
   document.body.insertAdjacentHTML('afterbegin', defsAvis())
@@ -8595,6 +8821,8 @@ async function iniciar() {
     leerHabitos()
     // Los proyectos (proyectos-ux.md 4.1): la cuenta de la fila del menú desde el arranque
     leerProyectos()
+    // Las horas (horas-trabajo.md, S4): lo trabajado hoy en la fila del menú desde el arranque
+    vigilarHoras()
   } else {
     // Sin Tauri (el HTML abierto solo): la ventana del navegador hace de área
     ubicarAlArrancar()

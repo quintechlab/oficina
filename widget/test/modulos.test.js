@@ -24,13 +24,14 @@ const preg = (id, extra = {}) => ({ id, agente: null, desde: hace(2), items: [{ 
 
 // ------------------------------------------------------------------ MODULOS (11.3)
 
-test('MODULOS: Sesiones, Tareas, Hábitos, Proyectos y Configuración, en ese orden; Configuración va al pie', () => {
-  assert.deepEqual(MODULOS.map(m => m.id), ['sesiones', 'tareas', 'habitos', 'proyectos', 'config'])
-  assert.deepEqual(MODULOS.map(m => m.nombre), ['Sesiones', 'Tareas', 'Hábitos', 'Proyectos', 'Configuración'])
-  assert.deepEqual(MODULOS.map(m => m.atajo), ['Escape', 'Control+T', 'Control+H', 'Control+P', 'Control+Comma'])
+test('MODULOS: Sesiones, Tareas, Hábitos, Proyectos, Horas y Configuración, en ese orden; Configuración va al pie', () => {
+  assert.deepEqual(MODULOS.map(m => m.id), ['sesiones', 'tareas', 'habitos', 'proyectos', 'horas', 'config'])
+  assert.deepEqual(MODULOS.map(m => m.nombre), ['Sesiones', 'Tareas', 'Hábitos', 'Proyectos', 'Horas', 'Configuración'])
+  // Horas (horas-trabajo.md, S4) no tiene atajo (Ctrl R recarga WebView2)
+  assert.deepEqual(MODULOS.map(m => m.atajo), ['Escape', 'Control+T', 'Control+H', 'Control+P', null, 'Control+Comma'])
   assert.deepEqual(MODULOS.filter(m => m.pie).map(m => m.id), ['config'])
   // Hábitos (#41, H1) y Proyectos (#44, P1, proyectos-ux.md 11.7) ya se pueden abrir
-  assert.deepEqual(MODULOS_ACTIVOS, ['sesiones', 'tareas', 'habitos', 'proyectos', 'config'])
+  assert.deepEqual(MODULOS_ACTIVOS, ['sesiones', 'tareas', 'habitos', 'proyectos', 'horas', 'config'])
 })
 
 test('tituloModulo: el title de cada fila, «{Módulo} ({atajo})» (5)', () => {
@@ -38,6 +39,8 @@ test('tituloModulo: el title de cada fila, «{Módulo} ({atajo})» (5)', () => {
   assert.equal(tituloModulo('tareas'), 'Tareas (Ctrl T)')
   assert.equal(tituloModulo('habitos'), 'Hábitos (Ctrl H)')
   assert.equal(tituloModulo('proyectos'), 'Proyectos (Ctrl P)')
+  // Sin atajo, solo el nombre
+  assert.equal(tituloModulo('horas'), 'Horas')
   assert.equal(tituloModulo('config'), 'Configuración (Ctrl ,)')
 })
 
@@ -79,6 +82,16 @@ test('irModulo con Hábitos (#41): abre su hoja; desde Tareas cierra Tareas; a S
   assert.deepEqual(irModulo({ modulo: 'habitos' }, 'habitos'), { modulo: 'habitos', cerrar: [], abrir: null, repo: null, foco: 'h1' })
   // Tareas sigue igual
   assert.deepEqual(irModulo({ modulo: 'sesiones' }, 'tareas'), { modulo: 'tareas', cerrar: [], abrir: 'tareas', repo: null })
+})
+
+test('irModulo con Horas (horas-trabajo.md, S4): abre su hoja y cierra la que se deja, como las demás', () => {
+  assert.deepEqual(irModulo({ modulo: 'sesiones' }, 'horas'), { modulo: 'horas', cerrar: [], abrir: 'horas', repo: null })
+  assert.deepEqual(irModulo({ modulo: 'proyectos' }, 'horas'), { modulo: 'horas', cerrar: ['proyectos'], abrir: 'horas', repo: null })
+  assert.deepEqual(irModulo({ modulo: 'horas' }, 'sesiones'), { modulo: 'sesiones', cerrar: ['horas'], abrir: null, repo: null })
+  assert.deepEqual(irModulo({ modulo: 'horas' }, 'horas'), { modulo: 'horas', cerrar: [], abrir: null, repo: null, foco: 'h1' })
+  // Esc (alEscHoras): cerrar la feature es una capa; la última, Sesiones
+  assert.equal(alEscModulo('horas', 'cerrar-feature'), 'capa')
+  assert.equal(alEscModulo('horas', 'cerrar'), 'sesiones')
 })
 
 test('irModulo con Proyectos (#44, proyectos-ux.md 3.1): abre su hoja y cierra la que se deja, como las demás', () => {
@@ -135,6 +148,10 @@ test('cuentaModulo de Tareas, Hábitos y Configuración: la pista del atajo sin 
   assert.equal(cuentaModulo('proyectos', null), '<kbd aria-hidden="true">Ctrl P</kbd>')
   const P = [{ id: 'p-a', nombre: 'A', carpeta: { estado: 'ok' } }, { id: 'p-b', nombre: 'B', carpeta: { estado: 'perdida' } }]
   assert.equal(cuentaModulo('proyectos', P), ladoFilaProyectos(P))
+  // Horas (horas-trabajo.md, S4): lo trabajado hoy, corto; sin leer, nada; sin nada hoy, «—»
+  assert.equal(cuentaModulo('horas', null), '')
+  assert.equal(cuentaModulo('horas', 0), '<span class="hor-ct nada" aria-hidden="true">—</span>')
+  assert.equal(cuentaModulo('horas', (3 * 60 + 20) * 60000), '<span class="hor-ct" aria-hidden="true">3h20</span>')
   assert.equal(cuentaModulo('config', null), '<kbd aria-hidden="true">Ctrl ,</kbd>')
   // Con algo que mirar, el punto de pestaña (configuracion-ux.md 6.3)
   assert.equal(cuentaModulo('config', { punto: { tono: 'error', texto: ', una clave rechazada' } }), '<i class="pt t-error" aria-hidden="true"></i>')
@@ -157,6 +174,8 @@ test('nombreModulo: el nombre accesible de cada fila, en singular o plural y sin
   assert.equal(nombreModulo('proyectos', []), 'Proyectos')
   assert.equal(nombreModulo('proyectos', [{ id: 'p-a', carpeta: { estado: 'perdida' } }]), nombreFilaProyectos([{ id: 'p-a', carpeta: { estado: 'perdida' } }]))
   assert.equal(nombreModulo('proyectos', [{ id: 'p-a', carpeta: { estado: 'perdida' } }]), 'Proyectos, 1, 1 con la carpeta perdida')
+  assert.equal(nombreModulo('horas', null), 'Horas')
+  assert.equal(nombreModulo('horas', 65 * 60000), 'Horas, 1 h 5 min hoy')
   assert.equal(nombreModulo('config', null), 'Configuración')
   assert.equal(nombreModulo('config', { punto: { tono: 'aviso', texto: ', el mod necesita atención' } }), 'Configuración, el mod necesita atención')
 })
@@ -289,13 +308,17 @@ test('solo irModulo cambia st.modulo, y arranca en Sesiones (3.2, D-m8)', () => 
 })
 
 test('abrir y cerrar las hojas pasa solo por irModulo: ningún otro camino deja dos hojas o ninguna (14, Risk 3)', () => {
-  const resto = sin('irModulo', 'abrirConfig', 'cerrarConfig', 'abrirTareasHoja', 'cerrarTareasHoja', 'abrirHabitosHoja', 'cerrarHabitosHoja', 'abrirProyectosHoja', 'cerrarProyectosHoja')
-  for (const f of ['abrirConfig', 'cerrarConfig', 'abrirTareasHoja', 'cerrarTareasHoja', 'abrirHabitosHoja', 'cerrarHabitosHoja', 'abrirProyectosHoja', 'cerrarProyectosHoja']) {
+  const resto = sin('irModulo', 'abrirConfig', 'cerrarConfig', 'abrirTareasHoja', 'cerrarTareasHoja', 'abrirHabitosHoja', 'cerrarHabitosHoja', 'abrirProyectosHoja', 'cerrarProyectosHoja', 'abrirHorasHoja', 'cerrarHorasHoja')
+  for (const f of ['abrirConfig', 'cerrarConfig', 'abrirTareasHoja', 'cerrarTareasHoja', 'abrirHabitosHoja', 'cerrarHabitosHoja', 'abrirProyectosHoja', 'cerrarProyectosHoja', 'abrirHorasHoja', 'cerrarHorasHoja']) {
     assert.doesNotMatch(resto, new RegExp(`\\b${f}\\(`), `${f} se llama fuera de irModulo`)
   }
   // abrirConfiguracion/cerrarConfiguracion y abrirTareas/cerrarTareas (las que escriben `abierta`) solo en sus funciones
-  const resto2 = sin('abrirConfig', 'cerrarConfig', 'abrirTareasHoja', 'cerrarTareasHoja', 'escTareas', 'abrirHabitosHoja', 'cerrarHabitosHoja', 'abrirProyectosHoja', 'cerrarProyectosHoja')
-  assert.doesNotMatch(resto2, /\b(abrirConfiguracion|cerrarConfiguracion|abrirTareas|cerrarTareas|abrirHabitos|cerrarHabitos|abrirProyectos|cerrarProyectos)\(/)
+  const resto2 = sin('abrirConfig', 'cerrarConfig', 'abrirTareasHoja', 'cerrarTareasHoja', 'escTareas', 'abrirHabitosHoja', 'cerrarHabitosHoja', 'abrirProyectosHoja', 'cerrarProyectosHoja', 'abrirHorasHoja', 'cerrarHorasHoja')
+  assert.doesNotMatch(resto2, /\b(abrirConfiguracion|cerrarConfiguracion|abrirTareas|cerrarTareas|abrirHabitos|cerrarHabitos|abrirProyectos|cerrarProyectos|abrirHoras|cerrarHoras)\(/)
+  // Horas (horas-trabajo.md, S4), como las demás hojas
+  assert.match(cuerpo('irModulo'), /else if \(h === 'horas'\) cerrarHorasHoja\(\{ acto: !plan\.abrir \}\)/)
+  assert.match(cuerpo('irModulo'), /else if \(plan\.abrir === 'horas'\) abrirHorasHoja\(\{ foco: enfocarTitulo \}\)/)
+  assert.match(cuerpo('escHoras'), /alEscModulo\('horas', accion\) === 'sesiones'\) \{ irModulo\('sesiones', \{ foco: 'fila' \}\)/)
   // irModulo cierra y abre Hábitos como las demás hojas
   assert.match(cuerpo('irModulo'), /else if \(h === 'habitos'\) cerrarHabitosHoja\(\{ acto: !plan\.abrir \}\)/)
   assert.match(cuerpo('irModulo'), /else if \(plan\.abrir === 'habitos'\) abrirHabitosHoja\(\{ ver, foco: enfocarTitulo \}\)/)
@@ -364,6 +387,10 @@ test('index.html: el menú de módulos con la píldora, Tareas sube al menú, Co
   assert.match(html, /<button type="button" class="mod pro" id="pro-fila" data-accion="mod" data-mod="proyectos" aria-keyshortcuts="Control\+P" title="Proyectos \(Ctrl P\)" aria-label="Proyectos">/)
   assert.ok(html.indexOf('id="hab-fila"') < html.indexOf('id="pro-fila"') && html.indexOf('id="pro-fila"') < html.indexOf('</nav>', html.indexOf('<nav class="mods"')))
   assert.match(html, /<div id="hab"><\/div>[\s\S]*<div id="pro"><\/div>/)
+  // Horas (horas-trabajo.md, S4): la quinta fila, después de Proyectos; Configuración sigue al pie; su hoja #hor
+  assert.match(html, /<button type="button" class="mod hor" id="hor-fila" data-accion="mod" data-mod="horas" title="Horas" aria-label="Horas">/)
+  assert.ok(html.indexOf('id="pro-fila"') < html.indexOf('id="hor-fila"') && html.indexOf('id="hor-fila"') < html.indexOf('</nav>', html.indexOf('<nav class="mods"')))
+  assert.match(html, /<div id="pro"><\/div>[\s\S]*<div id="hor"><\/div>/)
 })
 
 test('index.html (M2, 3.4 y 4.4): la tira de repos en la columna, entre las hojas y #otro, y fuera de la barra', () => {

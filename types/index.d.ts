@@ -55,6 +55,45 @@ export type Presencia = {
    * hubo ninguno. El widget pliega la sesión sin turnos hace más de 20 min. Desde la v0.12.
    */
   ultimoTurno?: string
+  /**
+   * El tiempo que trabajaron los agentes de la sesión (ver `ArchivoHoras`). Va **solo en el archivo
+   * local**, como `cwd`: el comentario de GitHub nunca lo lleva. Desde la v0.13.
+   */
+  trabajado?: Trabajado
+}
+
+/**
+ * Tiempo trabajado de una sesión: `ms` suma sus tramos cerrados y `desde` es el inicio del tramo
+ * abierto (ISO), o null si el reloj está frenado. El widget suma en vivo lo que va desde `desde`.
+ */
+export type Trabajado = { ms: number; desde: string | null }
+
+/**
+ * Un intervalo de reloj en el que al menos un agente de la sesión trabajaba: el hilo principal con un
+ * turno, un subagente en curso o un proceso en segundo plano pendiente, sin contar a los que esperan a
+ * la persona (una pregunta o un pedido de permiso).
+ */
+export type Tramo = {
+  /** Cuándo empezó (ISO). */
+  desde: string
+  /** Cuándo terminó (ISO), o null mientras sigue: como mucho uno, siempre el último. */
+  hasta: string | null
+  /** owner/repo de la sesión en ese momento, o null fuera de un repositorio. */
+  repo: string | null
+  /** Rama de git en ese momento, o null. Repo + rama es la feature. */
+  rama: string | null
+}
+
+/**
+ * Las horas de trabajo de una sesión (v0.13), en `~/.claude/oficina/horas/<id de la sesión>.json`.
+ * Solo local: lo escribe el mod, completo en cada cambio, y lo lee el widget.
+ */
+export type ArchivoHoras = {
+  v: 1
+  sesion: string
+  /** Última escritura (ISO). Con un tramo abierto se renueva con el latido de 30 s. */
+  actualizado: string
+  tramos: Tramo[]
 }
 
 /**

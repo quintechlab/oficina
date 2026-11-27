@@ -9,6 +9,7 @@ mod engram;
 mod equipo;
 mod habitos;
 mod historial;
+mod horas;
 mod ids;
 mod preferencias;
 mod proyectos;
@@ -520,6 +521,16 @@ fn salir(app: &AppHandle) {
 fn leer_sesiones() -> Vec<serde_json::Value> {
     match sesiones::carpeta_sesiones() {
         Some(carpeta) => sesiones::leer_sesiones_de(&carpeta, chrono::Utc::now()),
+        None => Vec::new(),
+    }
+}
+
+/// Las horas trabajadas que mide el mod (odd/tasks/horas-trabajo.md): cada sesión de
+/// `~/.claude/oficina/horas` con sus tramos, solo lectura. Un archivo roto se saltea y nunca se toca.
+#[tauri::command]
+fn leer_horas() -> Vec<serde_json::Value> {
+    match horas::carpeta_horas() {
+        Some(carpeta) => horas::leer_horas_de(&carpeta),
         None => Vec::new(),
     }
 }
@@ -2179,6 +2190,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             leer_sesiones,
+            leer_horas,
             leer_equipo,
             leer_configuracion,
             guardar_ajuste,

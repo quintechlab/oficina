@@ -525,3 +525,35 @@ test('el ánimo real describe al Avi-botón ("Claude, esperando"); pasó del res
   assert.equal(animoTexto('coordinando'), 'Claude, coordinando el equipo')
   assert.equal(animoTexto('teEspera'), 'Claude, esperándote')
 })
+
+// ------------------------------------------------------------------ el reloj de horas (odd/tasks/horas-trabajo.md, S4)
+
+const tarjetaDe = s => sesiones(prepararProyecto(agruparPorProyecto([s])[0], AHORA), AHORA)
+
+test('horas: la tarjeta muestra lo trabajado en vivo junto a «lleva», con texto para el lector', () => {
+  const s = { sesion: 'a', repo: 'q/oficina', rama: 'feat/horas', inicio: hace(90), actualizado: hace(0), agentes: [], trabajado: { ms: 3600000, desde: hace(5) } }
+  const h = tarjetaDe(s)
+  assert.match(h, /<span class="trab corre" title="Trabajado: 1 h 5 min · corre mientras algún agente trabaja">/)
+  // La cifra cambia en su lugar (data-vivo), como «lleva»; el lector lee la frase entera
+  assert.match(h, /<span class="oculto" data-vivo>trabajado 1 h 5 min, el reloj corre<\/span><span aria-hidden="true" data-vivo>1 h 5 min<\/span>/)
+  assert.ok(h.indexOf('class="trab') < h.indexOf('class="lleva"'))
+  const quieto = tarjetaDe({ ...s, trabajado: { ms: 720000, desde: null } })
+  assert.match(quieto, /<span class="trab" title="Trabajado: 12 min · frenado: ningún agente trabaja">/)
+})
+
+test('horas: sin `trabajado` (un mod anterior) la tarjeta queda como antes, sin reloj', () => {
+  const s = { sesion: 'a', repo: 'q/oficina', rama: 'feat/x', inicio: hace(90), actualizado: hace(0), agentes: [] }
+  const h = tarjetaDe(s)
+  assert.doesNotMatch(h, /class="trab/)
+  assert.match(h, /<span class="lleva"><span class="oculto">lleva <\/span><span data-vivo>1 h 30 min<\/span><\/span>/)
+})
+
+test('horas: la firma cuenta si hay reloj y si corre, no la cifra; sin reloj, la de siempre', () => {
+  const base = { sesion: 'a', repo: 'q/oficina', rama: 'feat/x', inicio: hace(90), actualizado: hace(0), agentes: [] }
+  const firma = s => firmaTablero(prepararProyecto(agruparPorProyecto([s])[0], AHORA))
+  assert.equal(firma(base), 'a||feat/x|esperando||')
+  const corre = firma({ ...base, trabajado: { ms: 1000, desde: hace(1) } })
+  assert.equal(corre, firma({ ...base, trabajado: { ms: 999999, desde: hace(30) } }))
+  assert.notEqual(corre, firma(base))
+  assert.notEqual(corre, firma({ ...base, trabajado: { ms: 1000, desde: null } }))
+})
