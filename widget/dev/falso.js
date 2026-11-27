@@ -138,6 +138,16 @@
 //                       puesto solo, responde con el modelo falso)
 //   ?resumen=plantilla  habitos_frase se pasa de los 45 s (falso, 0,3 s): la plantilla «Esta semana: …»
 //   ?resumen=sinmodelo  sin el modelo de esta PC: la plantilla, y «Charlemos la semana →» abre la charla con su «Descargar»
+// Horas (odd/tasks/horas-trabajo.md, S4): las tarjetas de oficina, central-nucleo y catalogo muestran su reloj
+//   (`trabajado`: oficina corre; las otras dos, frenadas). leer_horas da nueve días de tramos falsos: oficina hoy con un
+//   tramo vivo, central-nucleo en main hoy y ayer, catalogo hoy, una sesión de la semana pasada en feat/41-habitos, un
+//   tramo que cruzó la medianoche anteayer, uno fuera de un repo, uno sin rama y uno abierto de una sesión que dejó de
+//   latir hace 10 min (cuenta hasta su actualizado). Con ?horas, la hoja se abre sola a los 0,9 s por el clic en su fila:
+//   ?horas=lista     Hoy, con la lista de features         ?horas=semana   la Semana (el clic en «Semana»)
+//   ?horas=feature   la primera feature abierta (Hoy)      ?horas=vacio    sin horas (el vacío con la mascota)
+//   ?horas=error     leer_horas falla siempre: «No se pudieron leer las horas.» con «Volver a leer»
+//   ?horas=lento     leer_horas tarda 1,5 s (las filas fantasma)
+//   ?sinhoras        las sesiones sin `trabajado` (un mod anterior a las horas): las tarjetas sin reloj
 //   ?resumen=invalida   la frase trae un número que no está en los datos: la plantilla
 //   ?resumen=guardada   la frase de la semana pasada ya se pidió en un arranque anterior (habitosFrase): sale esa,
 //                       sin pedirle nada al modelo (window.__frases queda vacío)
@@ -301,6 +311,8 @@
       repo: 'quintechlab/oficina', rama: 'feat/6-estilo-avis-marco', tarea: 6, nota: null,
       inicio: hace(42), tareaDesde: hace(42), actualizado: hace(0), archivos: [], actividad: 'lanzando Delfina',
       puedeResponder: true,
+      // Horas (horas-trabajo.md): coordina, el reloj corre
+      ...(url.has('sinhoras') ? {} : { trabajado: { ms: 31 * 60000, desde: hace(4) } }),
       agentes: [
         // Con actividad y pasos (#14): al hacer clic en su Avi se despliega el detalle
         sub('a1', 'Delfina', 'bocetos del tablero', 'trabajando', {
@@ -322,6 +334,8 @@
       repo: 'quintechlab/central-nucleo-main', rama: 'main', tarea: null, nota: null,
       inicio: hace(url.has('larga') ? 697 : 95), tareaDesde: null, actualizado: hace(1), archivos: [], actividad: 'esperándote',
       puedeResponder: true, agentes: [],
+      // Te espera: el reloj está frenado
+      ...(url.has('sinhoras') ? {} : { trabajado: { ms: 52 * 60000, desde: null } }),
     },
     {
       v: 1, sesion: 'ses-catalogo', usuario: 'nicoequintana', nombre: 'Quintana', estado: 'trabajando',
@@ -330,6 +344,8 @@
       cwd: 'C:\\Users\\quintana\\Desktop\\catalogo',
       inicio: hace(18), tareaDesde: hace(18), actualizado: hace(0), archivos: [], actividad: 'pensando',
       puedeResponder: !url.has('sololectura'),
+      // Te pregunta algo: el reloj se frena hasta que respondas (S3)
+      ...(url.has('sinhoras') ? {} : { trabajado: { ms: 14 * 60000, desde: null } }),
       agentes: url.get('preguntas') === 'varias' ? [sub('c9', 'Camila', 'copy del aviso de precios', 'trabajando', { desde: hace(3) })] : [],
       preguntas: [{
         id: 'toolu_vista_1', agente: null, desde: hace(2),
@@ -990,6 +1006,56 @@
         }[url.get('soltar')]
         if (casoSoltar) setTimeout(() => window.__soltarEnZona(...casoSoltar), 600)
       }, 400)
+    }, 900)
+  }
+
+  // ---- Horas (odd/tasks/horas-trabajo.md, S4): los archivos de horas/ como los lee horas.rs
+  const modoHoras = url.get('horas')
+  const isoH = ms => new Date(ms).toISOString()
+  const minH = 60000
+  /** Las 00:00 de Argentina de hace `n` días (03:00 UTC). */
+  const medianocheAr = n => Date.parse(`${diaAr(-n)}T03:00:00Z`)
+  const tramoH = (desde, hasta, repo, rama) => ({ desde: isoH(desde), hasta: hasta == null ? null : isoH(hasta), repo, rama })
+  const HORAS_FALSAS = [
+    { sesion: 'ses-oficina', actualizado: isoH(ahora - 10000), tramos: [
+      tramoH(ahora - 150 * minH, ahora - 123 * minH, 'quintechlab/oficina', 'feat/6-estilo-avis-marco'),
+      tramoH(ahora - 4 * minH, null, 'quintechlab/oficina', 'feat/6-estilo-avis-marco'),
+    ] },
+    { sesion: 'ses-nucleo', actualizado: isoH(ahora - 60000), tramos: [
+      tramoH(medianocheAr(1) + 14 * 60 * minH, medianocheAr(1) + 15.5 * 60 * minH, 'quintechlab/central-nucleo-main', 'main'),
+      tramoH(ahora - 95 * minH, ahora - 43 * minH, 'quintechlab/central-nucleo-main', 'main'),
+    ] },
+    { sesion: 'ses-catalogo', actualizado: isoH(ahora), tramos: [tramoH(ahora - 17 * minH, ahora - 3 * minH, 'quintechlab/catalogo', 'feat/48-precios')] },
+    { sesion: '3f1c9a20-5d1e-4c55-9b0a-7e2d4f6a8c11', actualizado: isoH(medianocheAr(8) + 18 * 60 * minH), tramos: [
+      tramoH(medianocheAr(8) + 10 * 60 * minH, medianocheAr(8) + 12.5 * 60 * minH, 'quintechlab/oficina', 'feat/41-habitos'),
+      tramoH(medianocheAr(7) + 15 * 60 * minH, medianocheAr(7) + 16 * 60 * minH, 'quintechlab/oficina', 'feat/41-habitos'),
+    ] },
+    // Cruza la medianoche de anteayer: de 23:10 a 01:20 (se parte en dos días)
+    { sesion: '9b7e2c44-1a3f-4e8d-a2b6-c0d9e8f7a6b5', actualizado: isoH(medianocheAr(1) + 80 * minH), tramos: [
+      tramoH(medianocheAr(1) - 50 * minH, medianocheAr(1) + 80 * minH, 'quintechlab/oficina', 'feat/44-proyectos'),
+    ] },
+    { sesion: 'c2d4e6f8-0a1b-4c3d-8e5f-a7b9c1d3e5f7', actualizado: isoH(medianocheAr(1) + 11 * 60 * minH), tramos: [
+      tramoH(medianocheAr(1) + 10.5 * 60 * minH, medianocheAr(1) + 10.85 * 60 * minH, null, null),
+      tramoH(medianocheAr(1) + 11 * 60 * minH - 20 * minH, medianocheAr(1) + 11 * 60 * minH, 'quintechlab/playbook', null),
+    ] },
+    // Dejó de latir hace 10 min con un tramo abierto: cuenta hasta su actualizado
+    { sesion: 'e1f2a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a5b', actualizado: isoH(ahora - 10 * minH), tramos: [
+      tramoH(ahora - 36 * minH, null, 'quintechlab/catalogo', 'feat/48-precios'),
+    ] },
+  ]
+  const comandosHoras = {
+    leer_horas: () => new Promise((r, no) => setTimeout(() => {
+      if (modoHoras === 'error') { no('acceso denegado a horas (falso)'); return }
+      r(modoHoras === 'vacio' ? [] : structuredClone(HORAS_FALSAS))
+    }, modoHoras === 'lento' ? 1500 : 80)),
+  }
+  window.__horas = HORAS_FALSAS
+  // ?horas=…: abre la hoja como el usuario (el clic en la fila «Horas») y va al caso
+  if (modoHoras !== null) {
+    setTimeout(() => {
+      document.querySelector('#hor-fila')?.click()
+      if (modoHoras === 'semana') setTimeout(() => document.querySelector('#hor [data-k="per-semana"]')?.click(), 400)
+      if (modoHoras === 'feature') setTimeout(() => document.querySelector('#hor .hor-f')?.click(), 400)
     }, 900)
   }
 
@@ -1697,6 +1763,7 @@
     ...comandosTareas,
     ...comandosHabitos,
     ...comandosProyectos,
+    ...comandosHoras,
     registrar: ({ linea }) => console.debug('[widget.log]', linea),
     revisar_primeros_pasos: () => new Promise(r => setTimeout(() => r(revisionFalsa()), url.has('pplento') ? 2000 : 600)),
     // Como Rust (estado_mod): la lectura del mod y la última revisión guardada, solo lectura

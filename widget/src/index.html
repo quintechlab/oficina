@@ -56,6 +56,11 @@
               <span class="mod-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2.5 5.2V12a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5A1.5 1.5 0 0 0 12 5H8L6.6 3.2H4A1.5 1.5 0 0 0 2.5 4.7z"/></svg></span>
               <span class="mod-n">Proyectos</span><span class="mod-ct pro-ct" id="pro-fila-ct"><kbd aria-hidden="true">Ctrl P</kbd></span>
             </button>
+            <!-- Horas (odd/tasks/horas-trabajo.md, S4): lo trabajado hoy, corto (#hor-fila-ct, cuentaModulo); sin atajo -->
+            <button type="button" class="mod hor" id="hor-fila" data-accion="mod" data-mod="horas" title="Horas" aria-label="Horas">
+              <span class="mod-ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4.5 2h7M4.5 14h7"/><path d="M5.3 2.2c0 3 5.4 3.4 5.4 5.8s-5.4 2.8-5.4 5.8M10.7 2.2c0 3-5.4 3.4-5.4 5.8s5.4 2.8 5.4 5.8"/><path class="arena" d="M8 8.6v3.4"/></svg></span>
+              <span class="mod-n">Horas</span><span class="mod-ct hor-fila-ct" id="hor-fila-ct"></span>
+            </button>
           </nav>
           <!-- Configuración (docs/diseno/configuracion-ux.md 4.1, modulos-ux.md 3.3): sola y aparte, pegada al pie de lo que se
                ve: en una pantalla baja la barra desplaza y la fila no se pierde (16, D-g). La píldora no baja hasta acá: abierta, pone su fondo -->
@@ -113,6 +118,8 @@
           <div id="hab"></div>
           <!-- Proyectos (docs/diseno/proyectos-ux.md 3.2): hermana de #cfg, #tar y #hab, una hoja por vez en la columna -->
           <div id="pro"></div>
+          <!-- Horas (odd/tasks/horas-trabajo.md, S4): hermana de #cfg, #tar, #hab y #pro, una hoja por vez en la columna -->
+          <div id="hor"></div>
           <!-- La tira de repos (modulos-ux.md 4.4, #42 M2): un chip por proyecto, solo en Sesiones (tablero.js, tiraRepos).
                Se llama «Repos»: «Proyectos» es un módulo nuevo (#44) -->
           <nav class="repos" id="repos" aria-label="Repos"></nav>

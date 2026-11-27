@@ -1945,11 +1945,11 @@ p.det-rot { margin-top: var(--e-5) }
 
 /* Modelos e Instalación (6.1, entrega 3): píldoras de estado con su texto siempre, tarjetas del
    modelo local y del mod, y el "¿Borrar? Sí" que confirma en el mismo botón (D5) */
-:is(#cfg, #tar, #hab, #pro) .t-ok { --c: var(--verde) }
-:is(#cfg, #tar, #hab, #pro) .t-aviso { --c: var(--ambar) }
-:is(#cfg, #tar, #hab, #pro) .t-proc { --c: var(--celeste) }
-:is(#cfg, #tar, #hab, #pro) .t-error { --c: var(--rojo) }
-:is(#cfg, #tar, #hab, #pro) .t-nada { --c: var(--tenue) }
+:is(#cfg, #tar, #hab, #pro, #hor) .t-ok { --c: var(--verde) }
+:is(#cfg, #tar, #hab, #pro, #hor) .t-aviso { --c: var(--ambar) }
+:is(#cfg, #tar, #hab, #pro, #hor) .t-proc { --c: var(--celeste) }
+:is(#cfg, #tar, #hab, #pro, #hor) .t-error { --c: var(--rojo) }
+:is(#cfg, #tar, #hab, #pro, #hor) .t-nada { --c: var(--tenue) }
 /* El punto de estado de una pestaña (6.3): el texto va oculto al lado, el color nunca solo */
 #cfg .pes .pt { width: 6px; height: 6px; box-shadow: none }
 #cfg .pill {
@@ -1969,26 +1969,26 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .barra { background: var(--s3) }
 #cfg .barra i { background: linear-gradient(90deg, var(--celeste), #B5D3FF); transition: transform .4s var(--ease) }
 #cfg .barra i::after { display: none }
-:is(#cfg, #tar, #hab, #pro) .cifras { font: var(--t-mono-s); color: var(--tenue); font-variant-numeric: tabular-nums }
-:is(#cfg, #tar, #hab, #pro) .lnk {
+:is(#cfg, #tar, #hab, #pro, #hor) .cifras { font: var(--t-mono-s); color: var(--tenue); font-variant-numeric: tabular-nums }
+:is(#cfg, #tar, #hab, #pro, #hor) .lnk {
   min-height: 32px; padding: 0 var(--e-3); border: 0; border-radius: var(--r-tag); background: none; color: var(--crema2);
   font: 700 13px/1 var(--f); cursor: pointer; transition: color var(--d-color) ease, transform var(--d-presion) ease;
 }
-:is(#cfg, #tar, #hab, #pro) .lnk:hover { color: var(--crema); text-decoration: underline }
-:is(#cfg, #tar, #hab, #pro) .lnk:active { transform: scale(.97) }
-:is(#cfg, #tar, #hab, #pro) .lnk.peligro { color: var(--rojo) }
-:is(#cfg, #tar, #hab, #pro) .armado {
+:is(#cfg, #tar, #hab, #pro, #hor) .lnk:hover { color: var(--crema); text-decoration: underline }
+:is(#cfg, #tar, #hab, #pro, #hor) .lnk:active { transform: scale(.97) }
+:is(#cfg, #tar, #hab, #pro, #hor) .lnk.peligro { color: var(--rojo) }
+:is(#cfg, #tar, #hab, #pro, #hor) .armado {
   position: relative; overflow: hidden; min-height: 32px; padding: 0 var(--e-6); border: 0; border-radius: var(--r-pildora);
   background: var(--rojo); color: var(--negro); font: 800 13px/1 var(--f); white-space: nowrap; cursor: pointer;
 }
-:is(#cfg, #tar, #hab, #pro) .armado:focus-visible { outline-color: var(--crema) }
+:is(#cfg, #tar, #hab, #pro, #hor) .armado:focus-visible { outline-color: var(--crema) }
 /* La línea que se vacía en los 3 s (`--ya` la retoma donde iba si la sección se redibuja) */
-:is(#cfg, #tar, #hab, #pro) .armado::after {
+:is(#cfg, #tar, #hab, #pro, #hor) .armado::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--negro); opacity: .45;
   transform-origin: 0 50%; animation: drena var(--d-confirma) linear var(--ya, 0ms) both;
 }
 #cfg .ver-avis { margin: var(--e-7) 0 0; font: var(--t-mono-s); color: var(--tenue) }
-:is(#cfg, #tar, #hab, #pro) .lnk[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none; transform: none }
+:is(#cfg, #tar, #hab, #pro, #hor) .lnk[aria-disabled="true"] { opacity: .38; cursor: not-allowed; text-decoration: none; transform: none }
 
 /* Claves de API (6.1 y 7.1, entrega 4): el candado, una fila por proveedor con su inicial (sin logos,
    D11), el estado con la máscara del final y, editando, el campo de contraseña con su ayuda */
@@ -2010,14 +2010,14 @@ p.det-rot { margin-top: var(--e-5) }
 #cfg .cl > .acc, #cfg .cl > .aj-error { grid-column: 2 }
 #cfg .cl > .aj-error { margin: 0 }
 #cfg .cl-form { grid-column: 2; display: grid; gap: 6px; margin-top: 6px }
-:is(#cfg, #tar, #hab, #pro) .campo {
+:is(#cfg, #tar, #hab, #pro, #hor) .campo {
   display: flex; align-items: center; gap: var(--e-2); padding: 0 var(--e-2) 0 12px; min-height: 38px; border: 1px solid var(--linea);
   border-radius: var(--r-campo); background: var(--s1); transition: border-color var(--d-color) ease, box-shadow var(--d-color) ease;
 }
-:is(#cfg, #tar, #hab, #pro) .campo:focus-within { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
-:is(#cfg, #tar, #hab, #pro) .campo.mal { border-color: rgba(255, 122, 107, .7) }
-:is(#cfg, #tar, #hab, #pro) .campo input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--crema); font: var(--t-mono); letter-spacing: .03em }
-:is(#cfg, #tar, #hab, #pro) .campo input::placeholder { color: var(--tenue) }
+:is(#cfg, #tar, #hab, #pro, #hor) .campo:focus-within { border-color: var(--ambar); box-shadow: 0 0 0 3px rgba(242, 182, 50, .14) }
+:is(#cfg, #tar, #hab, #pro, #hor) .campo.mal { border-color: rgba(255, 122, 107, .7) }
+:is(#cfg, #tar, #hab, #pro, #hor) .campo input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--crema); font: var(--t-mono); letter-spacing: .03em }
+:is(#cfg, #tar, #hab, #pro, #hor) .campo input::placeholder { color: var(--tenue) }
 #cfg .cl-ayuda { margin: 0; font: var(--t-chico); color: var(--tenue) }
 #cfg .cl-ayuda.mal { color: var(--rojo) }
 #cfg .cl-ayuda.aviso { color: var(--ambar) }
@@ -2028,18 +2028,18 @@ p.det-rot { margin-top: var(--e-5) }
   body:not(.pausa) #cfg .cl.recien { animation: cfgRecien 1.2s var(--ease) }
 }
 @media (prefers-reduced-motion: reduce) {
-  :is(#cfg, #tar, #hab, #pro) .campo { transition: none }
+  :is(#cfg, #tar, #hab, #pro, #hor) .campo { transition: none }
 }
 @keyframes cfgLate { 50% { opacity: .35 } }
 @media (prefers-reduced-motion: no-preference) {
-  body:not(.pausa) :is(#cfg, #tar, #hab, #pro) .t-proc .pt { animation: cfgLate 1.2s ease-in-out infinite }
+  body:not(.pausa) :is(#cfg, #tar, #hab, #pro, #hor) .t-proc .pt { animation: cfgLate 1.2s ease-in-out infinite }
 }
 @media (prefers-reduced-motion: reduce) {
-  #cfg .barra i, :is(#cfg, #tar, #hab, #pro) .lnk { transition: none }
-  :is(#cfg, #tar, #hab, #pro) .armado::after { animation: none }
+  #cfg .barra i, :is(#cfg, #tar, #hab, #pro, #hor) .lnk { transition: none }
+  :is(#cfg, #tar, #hab, #pro, #hor) .armado::after { animation: none }
 }
 body.pausa #cfg .barra i { transition: none }
-body.pausa :is(#cfg, #tar, #hab, #pro) .armado::after { animation: none }
+body.pausa :is(#cfg, #tar, #hab, #pro, #hor) .armado::after { animation: none }
 
 /* El Avi de 40 junto al título, fuera de Mascota (6.1 `.mini`) */
 .cfg-mini { display: none }
@@ -2079,12 +2079,12 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 /* «‹ Tablero» se fue con el menú de módulos (modulos-ux.md 3.2): Esc o la fila de Sesiones vuelven. La bajada
    "martes 24/11 · 2 para hoy · 2 vencidas" va en una línea; si una más larga no entra, se corta con "…" (las
    cuentas siguen a la vista en el índice) */
-:is(#marco.con-tar, #marco.con-hab, #marco.con-pro) .controles { align-items: center }
-:is(#marco.con-tar, #marco.con-hab, #marco.con-pro) #subtitulo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-:is(#marco.con-tar, #marco.con-hab, #marco.con-pro) #vacio-avi, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) #otro, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) #pestanas, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) .split, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) .ficha-u,
-:is(#marco.con-tar, #marco.con-hab, #marco.con-pro) #w-globo, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) #pp, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) .conteos, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro) .sesiones { display: none }
-:is(#marco.con-tar, #marco.con-hab, #marco.con-pro) .principal { overflow: hidden }
-:is(#marco.con-tar, #marco.con-hab, #marco.con-pro).bajo #subtitulo { display: none }
+:is(#marco.con-tar, #marco.con-hab, #marco.con-pro, #marco.con-hor) .controles { align-items: center }
+:is(#marco.con-tar, #marco.con-hab, #marco.con-pro, #marco.con-hor) #subtitulo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+:is(#marco.con-tar, #marco.con-hab, #marco.con-pro, #marco.con-hor) #vacio-avi, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro, #marco.con-hor) #otro, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro, #marco.con-hor) #pestanas, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro, #marco.con-hor) .split, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro, #marco.con-hor) .ficha-u,
+:is(#marco.con-tar, #marco.con-hab, #marco.con-pro, #marco.con-hor) #w-globo, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro, #marco.con-hor) #pp, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro, #marco.con-hor) .conteos, :is(#marco.con-tar, #marco.con-hab, #marco.con-pro, #marco.con-hor) .sesiones { display: none }
+:is(#marco.con-tar, #marco.con-hab, #marco.con-pro, #marco.con-hor) .principal { overflow: hidden }
+:is(#marco.con-tar, #marco.con-hab, #marco.con-pro, #marco.con-hor).bajo #subtitulo { display: none }
 #marco.con-tar #tar { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
 #tar > * { flex: none }
 #tar > #tar-cuerpo { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
@@ -2202,20 +2202,20 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 #tar .hechas-l .fila { opacity: .85 }
 
 /* Leyendo (7.1): tres filas fantasma de 38, sin brillo */
-:is(#tar, #hab) .fantasmas { gap: var(--e-2) }
-:is(#tar, #hab) .fantasmas li { height: 38px; border-radius: var(--r-fila); background: var(--s1) }
+:is(#tar, #hab, #hor) .fantasmas { gap: var(--e-2) }
+:is(#tar, #hab, #hor) .fantasmas li { height: 38px; border-radius: var(--r-fila); background: var(--s1) }
 
 /* Vacíos, primer uso y errores (7.2 a 7.6) */
 :is(#tar, #hab) .vac { display: grid; justify-items: center; text-align: center; gap: var(--e-3); padding: 26px var(--e-8) var(--e-9) }
 :is(#tar, #hab) .vac b { font: var(--t-titulo) }
 :is(#tar, #hab) .vac p { max-width: 32ch; font: var(--t-chico); color: var(--crema2) }
-:is(#tar, #hab) .primer {
+:is(#tar, #hab, #hor) .primer {
   display: grid; justify-items: center; text-align: center; gap: var(--e-4); margin-top: var(--e-3); padding: 26px var(--e-10) 22px;
   border: 1px dashed var(--linea-hover); border-radius: var(--r-tarjeta);
   background: radial-gradient(180px 70px at 50% 108px, rgba(242, 182, 50, .16), transparent 72%)
 }
-:is(#tar, #hab) .primer b { font: 800 19px/1.2 var(--f); letter-spacing: -.02em }
-:is(#tar, #hab) .primer p { max-width: 36ch; font: var(--t-chico); color: var(--crema2) }
+:is(#tar, #hab, #hor) .primer b { font: 800 19px/1.2 var(--f); letter-spacing: -.02em }
+:is(#tar, #hab, #hor) .primer p { max-width: 36ch; font: var(--t-chico); color: var(--crema2) }
 :is(#tar, #hab) .primer .sug { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--e-3); margin-top: var(--e-3) }
 :is(#tar, #hab) .primer .campo { width: 100%; max-width: 280px; margin-top: var(--e-1) }
 :is(#tar, #hab) .fc {
@@ -2225,19 +2225,19 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 }
 :is(#tar, #hab) .fc:hover { color: var(--crema); border-color: var(--linea-hover) }
 :is(#tar, #hab) .fc:active { transform: scale(.96) }
-:is(#tar, #hab) .err {
+:is(#tar, #hab, #hor) .err {
   display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--e-2) var(--e-5); align-items: start; margin: 0 0 var(--e-4); padding: var(--e-5) var(--e-6);
   border: 1px solid rgba(255, 122, 107, .35); border-radius: var(--r-cuadro); background: color-mix(in srgb, var(--rojo) 6%, var(--s1)); font: var(--t-chico); color: var(--crema2)
 }
-:is(#tar, #hab) .err b { display: block; font: var(--t-cuerpo-f); color: var(--crema) }
-:is(#tar, #hab) .err > .pt { margin-top: 5px }
-:is(#tar, #hab) .err .acc { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--e-1) var(--e-2); margin-left: calc(-1 * var(--e-3)) }
+:is(#tar, #hab, #hor) .err b { display: block; font: var(--t-cuerpo-f); color: var(--crema) }
+:is(#tar, #hab, #hor) .err > .pt { margin-top: 5px }
+:is(#tar, #hab, #hor) .err .acc { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--e-1) var(--e-2); margin-left: calc(-1 * var(--e-3)) }
 
 /* La tarea abierta (4.7): entra en el lugar de la lista, con "‹ {vista}" arriba. El cuerpo de la fila
    ahora es un botón (la abre) */
 #tar .f-cuerpo { border: 0; background: none; color: inherit; text-align: left; cursor: pointer; border-radius: var(--e-4) }
 #tar .f-cuerpo:focus-visible { outline-offset: -2px }
-:is(#tar, #hab) .atras { justify-self: start; margin: 0 0 var(--e-2) calc(-1 * var(--e-3)) }
+:is(#tar, #hab, #hor) .atras { justify-self: start; margin: 0 0 var(--e-2) calc(-1 * var(--e-3)) }
 :is(#tar, #hab) .det { --c: var(--ambar); display: grid; gap: var(--e-5); padding-top: var(--e-1) }
 #tar .det-tit { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center }
 :is(#tar, #hab) .tit-in {
@@ -2256,18 +2256,18 @@ body.pausa #cfg .esp:hover .avi { transform: none }
 :is(#tar, #hab) .det-l { font: var(--t-rotulo); letter-spacing: .1em; text-transform: uppercase; color: var(--tenue) }
 :is(#tar, #hab) .det-f { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-3); min-width: 0 }
 /* Segmentos (radiogroup, foco itinerante): opciones de 28; Importante elegida, en ámbar */
-#tar .seg { display: inline-flex; gap: var(--e-1); padding: 2px; border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s2) }
-#tar .seg > button {
+:is(#tar, #hor) .seg { display: inline-flex; gap: var(--e-1); padding: 2px; border: 1px solid var(--linea); border-radius: var(--r-pildora); background: var(--s2) }
+:is(#tar, #hor) .seg > button {
   min-height: 28px; padding: 0 var(--e-5); border: 0; border-radius: var(--r-pildora); background: none; color: var(--crema2);
   font: 700 12px/1 var(--f); white-space: nowrap; cursor: pointer;
   transition: background var(--d-color) ease, color var(--d-color) ease, transform var(--d-presion) ease
 }
-#tar .seg > button:hover { color: var(--crema) }
-#tar .seg > button:active { transform: scale(.97) }
-#tar .seg > button[aria-checked="true"] { background: var(--crema); color: var(--tinta) }
+:is(#tar, #hor) .seg > button:hover { color: var(--crema) }
+:is(#tar, #hor) .seg > button:active { transform: scale(.97) }
+:is(#tar, #hor) .seg > button[aria-checked="true"] { background: var(--crema); color: var(--tinta) }
 #tar .seg.prio > button[data-valor="imp"][aria-checked="true"] { background: var(--ambar); color: var(--negro) }
 /* Sobre crema el foco es tinta; sobre ámbar, crema (12) */
-#tar .seg > button[aria-checked="true"]:focus-visible { outline-color: var(--tinta) }
+:is(#tar, #hor) .seg > button[aria-checked="true"]:focus-visible { outline-color: var(--tinta) }
 #tar .seg.prio > button[data-valor="imp"][aria-checked="true"]:focus-visible { outline-color: var(--crema) }
 :is(#tar, #hab) .fecha-in, #tar .sel {
   min-height: 30px; padding: 0 var(--e-4); border: 1px solid var(--linea); border-radius: var(--r-campo); background: var(--s1);
@@ -2331,10 +2331,10 @@ body.pausa #cfg .esp:hover .avi { transform: none }
   body:not(.pausa) .mod.tar:not([aria-current]):hover .tilde-p { animation: tarRetilde .6s var(--ease) }
 }
 @media (prefers-reduced-motion: reduce) {
-  :is(#tar, #hab) .ix-b, :is(#tar, #hab) .fila, :is(#tar, #hab) .fila::before, :is(#tar, #hab) .ck::before, :is(#tar, #hab) .fc, :is(#tar, #hab) .tit-in, #tar .seg > button, #tar .sub-t, #tar .notas { transition: none }
+  :is(#tar, #hab) .ix-b, :is(#tar, #hab) .fila, :is(#tar, #hab) .fila::before, :is(#tar, #hab) .ck::before, :is(#tar, #hab) .fc, :is(#tar, #hab) .tit-in, :is(#tar, #hor) .seg > button, #tar .sub-t, #tar .notas { transition: none }
 }
 body.pausa :is(#tar, #hab) .ix-b, body.pausa :is(#tar, #hab) .fila, body.pausa :is(#tar, #hab) .fila::before, body.pausa :is(#tar, #hab) .ck::before, body.pausa :is(#tar, #hab) .fc,
-body.pausa :is(#tar, #hab) .tit-in, body.pausa #tar .seg > button, body.pausa #tar .sub-t, body.pausa #tar .notas { transition: none }
+body.pausa :is(#tar, #hab) .tit-in, body.pausa :is(#tar, #hor) .seg > button, body.pausa #tar .sub-t, body.pausa #tar .notas { transition: none }
 
 /* ------------------------------------------------------------------ hábitos (docs/diseno/habitos-ux.md, opción B "Carpeta")
    La hoja vive en la columna principal (#hab, hermana de #tar y #cfg, 3.2) y reusa las piezas de Tareas
@@ -3002,3 +3002,106 @@ body.pausa #pro .btn-pri, body.pausa #pro .btn-sec, body.pausa #pro .soltar, bod
   #pro .chf, #hoja .pj-chip { transition: none }
 }
 body.pausa #hoja.de-proyecto .escenario, body.pausa #pro .chf, body.pausa #hoja .pj-chip { transition: none }
+/* ------------------------------------------------------------------ horas (odd/tasks/horas-trabajo.md, S4)
+   El sistema de diseño de las otras hojas (sin boceto nuevo): la hoja vive en la columna (#hor, hermana de
+   #pro); arriba el período (segmentos de Tareas) y el total; abajo la lista de features con su barra
+   proporcional, o la feature abierta en su lugar. El reloj de la tarjeta de sesión (.trab) va con «lleva». */
+
+/* La fila del menú: el reloj de arena y lo trabajado hoy, en mono */
+.mod.hor svg { stroke-width: 1.5 }
+.mod.hor .arena { stroke-dasharray: 3.4; stroke-dashoffset: 0 }
+.mod .hor-ct { flex: none; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2); font-variant-numeric: tabular-nums }
+.mod .hor-ct.nada { color: var(--tenue) }
+.mod.hor[aria-current="page"] .hor-ct { color: var(--ambar) }
+
+/* La hoja en el marco */
+#hor:empty { display: none }
+#marco.con-hor #hor { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
+#hor > * { flex: none }
+#hor > #hor-cuerpo { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
+#hor-cuerpo > [data-parte] { flex: none }
+#hor-cuerpo > .hor-desplaza {
+  flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--linea-hover) transparent; padding: 0 var(--e-1) var(--e-4); margin-left: calc(-1 * var(--e-1))
+}
+
+/* El encabezado: el período a la izquierda y el total grande a la derecha */
+#hor .hor-cab { display: flex; align-items: center; justify-content: space-between; gap: var(--e-6); margin: 0 0 var(--e-6); padding: 0 var(--e-1) }
+#hor .hor-total { display: grid; justify-items: end; gap: 3px; margin: 0; text-align: right; min-width: 0 }
+#hor .hor-total b { font: var(--t-cifra); letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--crema); white-space: nowrap }
+#hor .hor-total span { font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue); white-space: nowrap }
+#hor .hor-total.esperando b { color: var(--tenue) }
+
+/* Una feature: punto del repo, repo y rama, total; abajo cuántas sesiones y cuándo; y la barra */
+#hor .hor-lista { list-style: none; display: grid; gap: var(--e-1); margin: 0; padding: 0 }
+#hor .hor-f {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; grid-template-areas: "pt n t" ". m m" ". b b"; align-items: center; gap: 3px var(--e-4);
+  width: 100%; padding: 10px var(--e-6) 12px var(--e-5); border: 0; border-radius: var(--r-fila); background: none; color: var(--crema); text-align: left; cursor: pointer;
+  transition: background var(--d-color) ease, transform var(--d-presion) ease
+}
+#hor .hor-f:hover { background: var(--s1) }
+#hor .hor-f:active { transform: scale(.985) }
+#hor .hor-f:focus-visible { outline-offset: -2px }
+#hor .hor-f > .pt { grid-area: pt; justify-self: center; width: 8px; height: 8px }
+#hor .hor-n { grid-area: n; display: flex; align-items: baseline; gap: var(--e-4); min-width: 0 }
+#hor .hor-n b { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--t-cuerpo-f); letter-spacing: -.01em }
+#hor .hor-n b.sin { max-width: none; color: var(--crema2) }
+#hor .hor-r { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
+#hor .hor-r.sin { color: var(--tenue); font-style: italic }
+#hor .hor-t { grid-area: t; font: 800 14px/1 var(--f); letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap }
+#hor .hor-m { grid-area: m; display: flex; align-items: center; gap: var(--e-2); font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue); white-space: nowrap; overflow: hidden }
+#hor .hor-b { grid-area: b; display: block; height: 4px; margin-top: 5px; border-radius: 2px; background: var(--s3); overflow: hidden }
+#hor .hor-b > i { display: block; width: var(--p); height: 100%; border-radius: 2px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, transparent), var(--c)); transform-origin: 0 50% }
+#hor li.activa .hor-b > i { box-shadow: 0 0 8px color-mix(in srgb, var(--c) 45%, transparent) }
+#hor .fantasmas li { height: 62px }
+
+/* «trabajando ahora»: un punto ámbar que late (CSS; quieto con movimiento reducido o pausa) */
+#hor .hor-ahora { display: inline-flex; align-items: center; gap: 5px; color: var(--ambar) }
+#hor .hor-ahora i { width: 6px; height: 6px; border-radius: 50%; background: var(--ambar) }
+
+/* La feature abierta: entra en el lugar de la lista */
+#hor .hor-det { display: grid; gap: var(--e-2); padding-top: var(--e-1) }
+#hor .hor-det h2 { justify-self: start; max-width: 100%; display: flex; align-items: baseline; gap: var(--e-4); min-width: 0; margin: 0 0 0 var(--e-1); font: 800 20px/1.15 var(--f); letter-spacing: -.03em }
+#hor .hor-det h2 .pt { align-self: center; width: 8px; height: 8px }
+#hor .hor-det h2 > span:not(.hor-r) { flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+#hor .hor-det h2 .hor-r { font: 500 13px/1.2 var(--m); font-stretch: 75% }
+#hor .hor-det h2:focus { outline: none }
+#hor .hor-det h2:focus-visible { outline: 2px solid var(--ambar); outline-offset: 3px; border-radius: var(--r-tag) }
+#hor .hor-det-s { margin: 0 0 var(--e-2) var(--e-1); font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hor .hor-det-s b { font: 800 14px/1 var(--f); color: var(--crema); font-stretch: 100% }
+#hor .rot-p { display: flex; gap: var(--e-4); align-items: center; margin: var(--e-6) 0 var(--e-2) var(--e-1); font: var(--t-rotulo); letter-spacing: .12em; text-transform: uppercase; color: var(--tenue) }
+#hor .rot-p::after { content: ""; flex: 1; height: 1px; background: var(--linea) }
+#hor .hor-dias, #hor .hor-ses { list-style: none; display: grid; gap: 0; margin: 0; padding: 0 }
+#hor .hor-dias li { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; align-items: center; gap: var(--e-6); min-height: 32px; padding: 0 var(--e-3) }
+#hor .hor-dias .d { font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2); white-space: nowrap }
+#hor .hor-dias .hor-b { grid-area: auto; margin: 0 }
+#hor :is(.hor-dias, .hor-ses) .t { font: 700 13px/1 var(--f); font-variant-numeric: tabular-nums; white-space: nowrap }
+#hor .hor-ses li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--e-6); min-height: 34px; padding: 0 var(--e-3); border-top: 1px solid var(--linea) }
+#hor .hor-ses li:first-child { border-top: 0 }
+#hor .hor-ses .id { padding: 2px 6px; border-radius: var(--r-tag); background: var(--s2); font: var(--t-mono-s); font-stretch: 75%; color: var(--crema2) }
+#hor .hor-ses .r { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--t-mono-s); font-stretch: 75%; color: var(--tenue) }
+#hor .hor-ses li.activa .r { color: var(--ambar) }
+#hor .hor-vacio .avi { margin-bottom: var(--e-1) }
+
+/* El reloj de horas en la tarjeta de sesión: junto a «lleva», la cifra en mono; corriendo, el ícono ámbar y su aguja gira */
+.trab { flex: none; display: inline-flex; align-items: center; gap: 5px; margin-left: auto; font: var(--t-mono); font-stretch: 75%; color: var(--crema2); white-space: nowrap; font-variant-numeric: tabular-nums }
+/* Con reloj, «lleva» se lee como el total: «14 min de 18 min» (el «de» no lo lee el lector, que ya oye las dos frases) */
+.trab + .lleva { margin-left: 0 }
+.trab + .lleva::before { content: "de " / "" }
+.trab svg { width: 12px; height: 12px; flex: none; fill: none; stroke: var(--tenue); stroke-width: 1.4; stroke-linecap: round }
+.trab.corre { color: var(--crema) }
+.trab.corre svg { stroke: var(--ambar) }
+.trab .aguja { transform-box: view-box; transform-origin: 6px 6.6px }
+
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.pausa) #hor .hor-ahora i { animation: horLate 1.6s ease-in-out infinite }
+  body:not(.pausa) .trab.corre .aguja { animation: horAguja 6s linear infinite }
+  body:not(.pausa) .mod.hor[aria-current="page"] .arena { animation: horArena 2.4s ease-in-out infinite }
+}
+@media (prefers-reduced-motion: reduce) {
+  #hor .hor-f { transition: none }
+}
+body.pausa #hor .hor-f { transition: none }
+@keyframes horLate { 0%, 100% { box-shadow: 0 0 0 0 rgba(242, 182, 50, .55) } 60% { box-shadow: 0 0 0 5px rgba(242, 182, 50, 0) } }
+@keyframes horAguja { to { transform: rotate(360deg) } }
+@keyframes horArena { 0% { stroke-dashoffset: 3.4 } 60%, 100% { stroke-dashoffset: 0 } }
