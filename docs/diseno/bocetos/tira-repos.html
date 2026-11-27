@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boceto · Tira de repos con muchos proyectos</title>
+<style>
+@font-face{font-family:"Manrope";src:url("../../../widget/src/fuentes/manrope-latin.woff2") format("woff2");font-weight:400 800;font-display:swap}
+@font-face{font-family:"Manrope";src:url("../../../widget/src/fuentes/manrope-simbolos.woff2") format("woff2");font-weight:400 800;unicode-range:U+2192,U+25BE,U+2713}
+@font-face{font-family:"Martian Mono";src:url("../../../widget/src/fuentes/martian-mono-latin.woff2") format("woff2");font-weight:400 600;font-stretch:75%;font-display:swap}
+
+/* Tokens copiados de widget/src/estilos.css (3.1 a 3.6): el boceto no inventa ninguno */
+:root{
+  --negro:#000;--s1:#0C0C0E;--s2:#141417;--s3:#1D1D21;--linea:#25252A;--linea-hover:#36363C;
+  --crema:#F3EBD8;--crema2:#BDB5A4;--tenue:#8A8478;--ambar:#F2B632;--ambar-osc:#1D1707;--tinta:#14110C;
+  --violeta:#A58BFF;--celeste:#7FB3FF;--verde:#8FD694;--rosa:#E78FB3;
+  --f:"Manrope","Segoe UI Variable",sans-serif;--m:"Martian Mono","Cascadia Mono",monospace;
+  --t-display:800 22px/1.1 var(--f);--t-titulo:800 15.5px/1.3 var(--f);--t-cuerpo:500 13.5px/1.45 var(--f);
+  --t-mono:400 11.5px/1.5 var(--m);--t-rotulo:500 11px/1 var(--m);
+  --r-tarjeta:18px;--r-cuadro:14px;--r-fila:11px;--r-campo:10px;--r-icono:7px;--r-pildora:999px;
+  --ease:cubic-bezier(.16,1,.3,1);--rebote:cubic-bezier(.34,1.56,.64,1);
+  --d-presion:140ms;--d-color:200ms;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#070708;color:var(--crema);font:var(--t-cuerpo);-webkit-font-smoothing:antialiased}
+:focus-visible{outline:2px solid var(--ambar);outline-offset:2px}
+button{font:inherit;color:inherit}
+.m,.kick,.mk-l,.ct,.pj,.grp,.meta,.de,kbd,.lbl{font-stretch:75%}
+
+/* ---------------------------------------------------------------- página */
+.pag{max-width:1124px;margin:0 auto;padding:44px 26px 96px}
+.kick{font:500 11px/1 var(--m);letter-spacing:.14em;text-transform:uppercase;color:var(--tenue)}
+h1{font:800 34px/1.05 var(--f);letter-spacing:-.035em;margin:12px 0 12px}
+.lede{max-width:66ch;margin:0;color:var(--crema2);font-size:14.5px}
+.lede b{color:var(--crema)}
+section{margin-top:56px;padding-top:28px;border-top:1px solid var(--linea)}
+.op-h{display:flex;align-items:center;gap:12px}
+.letra{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--ambar-osc);color:var(--ambar);font:600 12px/1 var(--m)}
+h2{margin:0;font:800 24px/1.1 var(--f);letter-spacing:-.03em}
+.idea{margin:8px 0 22px;max-width:76ch;color:var(--crema2)}
+.idea b{color:var(--crema)}
+.mocks{display:grid;grid-template-columns:repeat(2,522px);gap:26px 28px}
+.mk-l{display:flex;justify-content:space-between;margin:0 2px 8px;font:var(--t-rotulo);letter-spacing:.08em;text-transform:uppercase;color:var(--tenue)}
+.mk-l em{font-style:normal;color:var(--crema2);text-transform:none;letter-spacing:0}
+.notas{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:22px}
+.nota{padding:14px 16px;border-radius:var(--r-cuadro);background:var(--s1);border:1px solid var(--linea)}
+.nota h3{margin:0 0 6px;font:var(--t-rotulo);letter-spacing:.1em;text-transform:uppercase;color:var(--ambar)}
+.nota p{margin:0;color:var(--crema2);font-size:13px}
+.nota p+p{margin-top:6px}
+.nota b{color:var(--crema)}
+kbd{display:inline-block;padding:1px 5px;border-radius:5px;background:var(--s3);color:var(--crema);font:500 10.5px/1.4 var(--m)}
+.reco{margin-top:56px;padding:22px 24px;border-radius:var(--r-tarjeta);background:linear-gradient(90deg,rgba(242,182,50,.12),var(--ambar-osc) 55%);border:1px solid color-mix(in srgb,var(--ambar) 45%,transparent)}
+.reco h2{font-size:20px}
+.reco p{margin:8px 0 0;max-width:80ch;color:var(--crema2)}
+.reco b{color:var(--crema)}
+
+/* ---------------------------------------------------------------- la columna (500 de contenido, como .principal) */
+.col{position:relative;width:522px;height:236px;padding:16px 11px 0;overflow:hidden;background:var(--negro);border:1px solid rgba(255,255,255,.07);border-radius:var(--r-tarjeta);display:flex;flex-direction:column;gap:10px}
+.col.alto{height:476px}
+.cab .h{font:var(--t-display);letter-spacing:-.03em}
+.cab .s{margin-top:4px;font:var(--t-mono);color:var(--crema2)}
+.conteos{display:flex;gap:6px}
+.conteo{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 11px;border-radius:var(--r-pildora);background:var(--s1);border:1px solid var(--linea);font:var(--t-rotulo);color:var(--crema2);font-stretch:75%}
+.conteo i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+.conteo b{font:800 13.5px/1 var(--f);color:var(--crema)}
+.stub{flex:1;min-height:60px;border-radius:var(--r-tarjeta) var(--r-tarjeta) 0 0;background:var(--s1);border:1px solid var(--linea);border-bottom:0;-webkit-mask-image:linear-gradient(#000,transparent 90%);mask-image:linear-gradient(#000,transparent 90%)}
+
+/* ---------------------------------------------------------------- el chip de repo (copia de .rch) */
+.rch{flex:none;position:relative;display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:0 8px 0 6px;border:1px solid var(--linea);border-radius:var(--r-pildora);background:none;color:var(--crema2);font:700 13px/1 var(--f);white-space:nowrap;cursor:pointer;transition:background var(--d-color) ease,color var(--d-color) ease,border-color var(--d-color) ease,transform var(--d-presion) ease}
+.rch:hover{color:var(--crema);border-color:var(--linea-hover)}
+.rch:active{transform:scale(.97)}
+.rch[aria-current="true"]{background:var(--crema);color:var(--tinta);border-color:var(--crema)}
+.rch[aria-current="true"]:focus-visible,.rch[aria-current="true"].foco{outline-color:var(--tinta)}
+.foco{outline:2px solid var(--ambar);outline-offset:2px}
+.pj{width:20px;height:20px;flex:none;display:grid;place-items:center;border-radius:50%;background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c);font:500 11px/1 var(--m)}
+.ct{flex:none;padding:3px 6px;border-radius:var(--r-pildora);background:var(--s3);color:var(--crema2);font:500 11px/1 var(--m)}
+.ct.q{background:var(--ambar);color:var(--negro);font-weight:600}
+.rch[aria-current="true"] .ct:not(.q){background:rgba(20,17,12,.12);color:var(--tinta)}
+/* Nombre con tope (las tres opciones): 112 y «…»; el nombre entero en title y aria-label */
+.cap .n{max-width:112px;overflow:hidden;text-overflow:ellipsis}
+.n small{font:500 11px/1 var(--m);font-stretch:75%;color:var(--tenue);margin-left:1px}
+.rch[aria-current="true"] .n small{color:rgba(20,17,12,.6)}
+/* Trabajando: el punto ámbar de los conteos («1 trabajando»), chico */
+.w{width:6px;height:6px;flex:none;border-radius:50%;background:var(--ambar);box-shadow:0 0 0 3px color-mix(in srgb,var(--ambar) 20%,transparent)}
+.rch[aria-current="true"] .w{background:var(--tinta);box-shadow:0 0 0 3px rgba(20,17,12,.14)}
+/* Dormida: el mismo borde punteado de la tarjeta plegada (.ses.plegada) */
+.rch.dz{border-style:dashed;color:var(--tenue)}
+.rch.dz .pj{opacity:.55}
+
+/* Hoy: una fila, sin tope de nombre, máscara del 12 % */
+.tira-hoy{display:flex;gap:6px;padding:2px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
+
+/* ---------------------------------------------------------------- A · Dos renglones */
+.tira-a{display:flex;flex-wrap:wrap;gap:6px;padding:2px}
+.mas{gap:6px;padding:0 9px 0 8px;border-style:solid;color:var(--crema2)}
+.mas .pts{display:flex}
+.mas .pts i{width:8px;height:8px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px var(--negro)}
+.mas .pts i+i{margin-left:-2px}
+.mas .lbl{font:500 11.5px/1 var(--m)}
+.mas[aria-expanded="true"]{background:var(--s2);border-color:var(--linea-hover);color:var(--crema)}
+.pop{position:absolute;left:11px;right:11px;z-index:3;padding:10px;border-radius:var(--r-cuadro);background:var(--s2);border:1px solid var(--linea-hover);box-shadow:0 22px 44px -18px #000;transform-origin:top center}
+.pop-h{display:flex;justify-content:space-between;align-items:center;margin:2px 4px 8px;font:var(--t-rotulo);color:var(--crema2);font-stretch:75%}
+.grp{margin:10px 6px 4px;font:500 10.5px/1 var(--m);letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+.grp:first-of-type{margin-top:4px}
+.filas{display:grid;grid-template-columns:1fr 1fr;gap:2px 6px}
+.pf{position:relative;display:flex;align-items:center;gap:8px;min-height:34px;padding:0 8px 0 7px;border:0;border-radius:var(--r-fila);background:none;color:var(--crema);font:700 13px/1.2 var(--f);text-align:left;cursor:pointer;transition:background var(--d-color) ease}
+.pf:hover,.pf.activa{background:var(--s3)}
+.pf.activa::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:2px;background:var(--ambar)}
+.pf .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{margin-left:auto;flex:none;font:500 11px/1 var(--m);color:var(--tenue)}
+.pf.dz{color:var(--crema2)}
+.pf.dz .pj{opacity:.55}
+
+/* ---------------------------------------------------------------- B · Selector */
+.sel-fila{display:flex;align-items:center;gap:10px;min-height:44px;padding:2px}
+.sel{display:flex;align-items:center;gap:9px;height:42px;max-width:300px;min-width:0;padding:0 10px 0 8px;border:1px solid var(--linea-hover);border-radius:var(--r-fila);background:var(--s1);color:var(--crema);font:var(--t-titulo);cursor:pointer;transition:border-color var(--d-color) ease,background var(--d-color) ease,transform var(--d-presion) ease}
+.sel:hover{background:var(--s2)}
+.sel:active{transform:scale(.98)}
+.sel .pj{width:24px;height:24px}
+.sel .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.01em}
+.sel .sub{flex:none;font:500 11px/1 var(--m);font-stretch:75%;color:var(--tenue)}
+.de{flex:none;padding:3px 6px;border-radius:var(--r-pildora);background:var(--s3);color:var(--crema2);font:500 11px/1 var(--m)}
+.car{flex:none;color:var(--crema2);font:800 13px/1 var(--f);transition:transform var(--d-color) var(--ease)}
+.sel[aria-expanded="true"]{border-color:var(--crema2);background:var(--s2)}
+.sel[aria-expanded="true"] .car{transform:rotate(180deg)}
+.atj{display:flex;align-items:center;gap:5px;min-width:0}
+.atj .lbl{margin-right:3px;font:500 10.5px/1 var(--m);letter-spacing:.12em;text-transform:uppercase;color:var(--tenue)}
+.lb{position:absolute;left:11px;width:340px;z-index:3;padding:8px;border-radius:var(--r-cuadro);background:var(--s2);border:1px solid var(--linea-hover);box-shadow:0 22px 44px -18px #000;transform-origin:top left}
+.busca{display:flex;align-items:center;gap:8px;height:36px;margin-bottom:4px;padding:0 10px;border-radius:var(--r-campo);background:var(--negro);border:1px solid var(--linea);font:var(--t-mono);font-stretch:75%;color:var(--tenue)}
+.busca .cur{width:1px;height:14px;background:var(--ambar)}
+.lb .pf{width:100%;min-height:32px}
+.lb .pf[aria-selected="true"]{color:var(--ambar)}
+.chk{width:12px;flex:none;color:var(--ambar);font:800 12px/1 var(--f)}
+.mas-dz{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;margin-top:4px;padding:0 9px;border:1px dashed var(--linea-hover);border-radius:var(--r-fila);background:none;color:var(--crema2);font:600 12.5px/1 var(--f);cursor:pointer}
+.mas-dz:hover{color:var(--crema);border-color:var(--crema2)}
+
+/* ---------------------------------------------------------------- C · Monogramas (también los atajos de B) */
+.tira-c{display:flex;align-items:center;gap:4px;padding:2px;min-height:36px}
+.mg{position:relative;width:30px;height:30px;flex:none;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:color-mix(in srgb,var(--c) 16%,var(--negro));color:var(--c);font:500 11px/1 var(--m);font-stretch:75%;box-shadow:0 0 0 1px var(--linea-hover);cursor:pointer;transition:box-shadow var(--d-color) ease,transform var(--d-presion) ease}
+.mg::before{content:"";position:absolute;inset:-2px}            /* zona de clic de 34 */
+.mg:hover{box-shadow:0 0 0 1px var(--crema2)}
+.mg:active{transform:scale(.94)}
+.mg.q{background:var(--ambar);color:var(--negro);font-weight:600;box-shadow:0 0 0 2px var(--negro),0 0 0 3px var(--ambar)}
+.mg .bdg{position:absolute;top:-5px;right:-6px;min-width:15px;height:15px;padding:0 3px;display:grid;place-items:center;border-radius:var(--r-pildora);background:var(--negro);color:var(--ambar);font:600 9.5px/1 var(--m);box-shadow:0 0 0 1px var(--ambar)}
+.mg.d{opacity:.5;box-shadow:none;outline:1px dashed var(--linea-hover);outline-offset:0}
+.mg.d:hover{opacity:.85}
+/* Trabajando: la luz que da la vuelta, la misma de los hilos del escenario */
+.orb{position:absolute;inset:-4px;border-radius:50%;pointer-events:none}
+.orb::after{content:"";position:absolute;top:-1px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--ambar);box-shadow:0 0 6px 1px color-mix(in srgb,var(--ambar) 70%,transparent)}
+/* El nombre del monograma: aparece abajo, sin correr a los vecinos */
+.et{position:absolute;top:38px;left:50%;z-index:4;display:flex;flex-direction:column;gap:4px;padding:7px 9px;border-radius:var(--r-icono);background:var(--s3);border:1px solid var(--linea-hover);color:var(--crema);font:700 12.5px/1 var(--f);white-space:nowrap;pointer-events:none;opacity:0;transform:translate(-50%,-3px);transition:opacity 160ms ease,transform 160ms var(--ease)}
+.et small{font:500 10.5px/1 var(--m);font-stretch:75%;color:var(--crema2)}
+.mg:hover .et,.mg:focus-visible .et,.mg.ver .et{opacity:1;transform:translate(-50%,0)}
+.pliegue{flex:none;height:30px;padding:0 9px;border:1px dashed var(--linea-hover);border-radius:var(--r-pildora);background:none;color:var(--tenue);font:500 11.5px/1 var(--m);font-stretch:75%;cursor:pointer}
+.pliegue:hover{color:var(--crema2);border-color:var(--crema2)}
+
+/* ---------------------------------------------------------------- demostración del orden */
+.demo{position:relative;height:40px;width:372px;margin-top:14px}
+.demo .rch{position:absolute;top:2px;width:116px}
+.demo .d1{left:122px}.demo .d2{left:244px}.demo .d3{left:0}
+.demo .ct.q{transform-origin:center}
+
+/* ---------------------------------------------------------------- movimiento (CSS; reducido = todo en su lugar) */
+@keyframes entra{from{opacity:0;transform:translateY(4px)}}
+@keyframes abre{from{opacity:0;transform:translateY(-4px) scaleY(.96)}}
+@keyframes gira{to{transform:rotate(1turn)}}
+@keyframes late{40%{transform:scale(1.28)}}
+@keyframes nombre{from{opacity:0;transform:translateX(-6px)}}
+@keyframes sube{0%,30%{transform:translateX(244px)}46%,100%{transform:none}}
+@keyframes cede{0%,30%{transform:translateX(-122px)}46%,100%{transform:none}}
+@keyframes llega{0%,24%{opacity:0;transform:scale(.4)}32%,100%{opacity:1;transform:none}}
+@media (prefers-reduced-motion:no-preference){
+  .anim>*{animation:entra 260ms var(--ease) both;animation-delay:calc(min(var(--i,0),8) * 30ms)}
+  .pop,.lb{animation:abre 220ms var(--ease) both}
+  .pop .pf,.lb .pf{animation:entra 200ms var(--ease) both;animation-delay:calc(80ms + min(var(--i,0),10) * 20ms)}
+  .ct.q,.mg.q .bdg{animation:late .5s var(--rebote) 2 .5s}
+  .orb{animation:gira 2.4s linear infinite}
+  .vive .rch[aria-current="true"] .n{animation:nombre 320ms var(--ease) both .12s}
+  .demo .d3{animation:sube 3.6s var(--ease) infinite}
+  .demo .d1,.demo .d2{animation:cede 3.6s var(--ease) infinite}
+  .demo .d3 .ct.q{animation:llega 3.6s var(--rebote) infinite}
+}
+@media (max-width:1120px){.mocks{grid-template-columns:522px}.notas{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="pag">
+  <p class="kick">Boceto · Avis · Sesiones › tira de repos · 27/11</p>
+  <h1>Muchos repos, una tira que se lee entera</h1>
+  <p class="lede">Hoy la tira es <b>una sola fila con scroll</b> y una máscara del 12 %: con 15 repos se ven 3, y <code>scratch-2026-11-27-d5bfc1</code> ocupa media columna. Tres caminos, con el sistema de diseño de siempre (Manrope, Martian Mono, crema, ámbar) y la columna real de 500. Pasá el mouse o el foco por los chips; recargá para ver la entrada.</p>
+
+  <!-- ============================================================ HOY -->
+  <section aria-labelledby="h-hoy">
+    <div class="op-h"><span class="letra">0</span><h2 id="h-hoy">Hoy, con 15 repos</h2></div>
+    <p class="idea">El que te hace una pregunta puede quedar fuera de la vista; el orden es el de llegada; el nombre generado se come el lugar.</p>
+    <div class="mocks">
+      <div>
+        <p class="mk-l">15 repos · <em>se ven 3</em></p>
+        <div class="col">
+          <div class="cab"><div class="h">Sesiones</div><div class="s">oficina · 3 sesiones · 2 subagentes trabajando</div></div>
+          <nav class="tira-hoy" aria-label="Repos (hoy)">
+            <button class="rch" aria-current="true" title="quintechlab/oficina"><span class="pj" style="--c:var(--ambar)">o</span><span class="n">oficina</span><span class="ct">3</span></button>
+            <button class="rch" title="quintechlab/scratch-2026-11-27-d5bfc1"><span class="pj" style="--c:var(--verde)">s2</span><span class="n">scratch-2026-11-27-d5bfc1</span><span class="ct">1</span></button>
+            <button class="rch" title="quintechlab/quintech-crm"><span class="pj" style="--c:var(--celeste)">qc</span><span class="n">quintech-crm</span><span class="ct">2</span></button>
+            <button class="rch" title="quintechlab/webs-portfolio"><span class="pj" style="--c:var(--violeta)">wp</span><span class="n">webs-portfolio</span><span class="ct">1</span></button>
+            <button class="rch" title="quintechlab/catalogo"><span class="pj" style="--c:var(--rosa)">c</span><span class="n">catalogo</span><span class="ct q">1 ?</span></button>
+          </nav>
+          <div class="conteos"><span class="conteo"><i style="--c:var(--ambar)"></i><b>1</b>trabajando</span><span class="conteo"><i style="--c:var(--verde)"></i><b>2</b>terminados</span><span class="conteo"><b>49</b>min lleva</span></div>
+          <div class="stub"></div>
+        </div>
+      </div>
+      <div>
+        <p class="mk-l">Lo que vale para las tres</p>
+        <div class="nota" style="height:236px">
+          <h3>Reglas comunes</h3>
+          <p><b>Nombre corto.</b> Un nombre generado <code>x-AAAA-MM-DD-hash</code> se muestra «scratch <small>· d5bfc1</small>»; los demás topan en 112 px con «…». El repo entero va en <code>title</code> y en el nombre accesible.</p>
+          <p><b>Orden por urgencia.</b> Te pregunta › trabajando › espera tu mensaje › dormida; adentro de cada grupo, el orden de llegada. <b>No se reordena con el mouse o el foco en la tira</b>: así un clic nunca cae en otro repo.</p>
+          <div class="demo" aria-hidden="true">
+            <span class="rch d1" aria-current="true"><span class="pj" style="--c:var(--ambar)">o</span><span class="n">oficina</span><span class="ct">3</span></span>
+            <span class="rch d2"><span class="pj" style="--c:var(--celeste)">p</span><span class="n">playbook</span></span>
+            <span class="rch d3"><span class="pj" style="--c:var(--rosa)">c</span><span class="n">catalogo</span><span class="ct q">1 ?</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ A -->
+  <section aria-labelledby="h-a">
+    <div class="op-h"><span class="letra">A</span><h2 id="h-a">Dos renglones</h2></div>
+    <p class="idea">La tira deja de correr de costado: <b>hasta dos renglones</b> en orden de urgencia y, cuando no entran, un chip <b>«+n»</b> con los puntos de color de lo que guarda. Lo urgente siempre está en la vista; lo dormido, a un clic.</p>
+    <div class="mocks">
+      <div>
+        <p class="mk-l">3 repos <em>un renglón, como hoy</em></p>
+        <div class="col">
+          <div class="cab"><div class="h">Sesiones</div><div class="s">oficina · 3 sesiones · 2 subagentes trabajando</div></div>
+          <nav class="tira-a cap anim" aria-label="Repos">
+            <button class="rch" style="--i:0" title="quintechlab/catalogo" aria-label="catalogo, 1 pregunta pendiente"><span class="pj" style="--c:var(--rosa)">c</span><span class="n">catalogo</span><span class="ct q">1 ?</span></button>
+            <button class="rch" style="--i:1" aria-current="true" title="quintechlab/oficina" aria-label="oficina, 3 sesiones, trabajando, elegido"><span class="pj" style="--c:var(--ambar)">o</span><span class="n">oficina</span><i class="w"></i><span class="ct">3</span></button>
+            <button class="rch" style="--i:2" title="quintechlab/scratch-2026-11-27-d5bfc1" aria-label="scratch-2026-11-27-d5bfc1, 1 sesión"><span class="pj" style="--c:var(--verde)">s2</span><span class="n">scratch <small>· d5bfc1</small></span></button>
+          </nav>
+          <div class="conteos"><span class="conteo"><i style="--c:var(--ambar)"></i><b>1</b>trabajando</span><span class="conteo"><i style="--c:var(--verde)"></i><b>2</b>terminados</span><span class="conteo"><b>49</b>min lleva</span></div>
+          <div class="stub"></div>
+        </div>
+      </div>
+      <div>
+        <p class="mk-l">8 repos <em>dos renglones, +3</em></p>
+        <div class="col">
+          <div class="cab"><div class="h">Sesiones</div><div class="s">oficina · 3 sesiones · 2 subagentes trabajando</div></div>
+          <nav class="tira-a cap anim" aria-label="Repos">
+            <button class="rch" style="--i:0" title="quintechlab/catalogo" aria-label="catalogo, 1 pregunta pendiente"><span class="pj" style="--c:var(--rosa)">c</span><span class="n">catalogo</span><span class="ct q">1 ?</span></button>
+            <button class="rch" style="--i:1" aria-current="true" title="quintechlab/oficina" aria-label="oficina, 3 sesiones, trabajando, elegido"><span class="pj" style="--c:var(--ambar)">o</span><span class="n">oficina</span><i class="w"></i><span class="ct">3</span></button>
+            <button class="rch" style="--i:2" title="quintechlab/quintech-crm" aria-label="quintech-crm, 2 sesiones, trabajando"><span class="pj" style="--c:var(--celeste)">qc</span><span class="n">quintech-crm</span><i class="w"></i><span class="ct">2</span></button>
+            <button class="rch" style="--i:3" title="quintechlab/mis-gastos-app" aria-label="mis-gastos-app, 2 sesiones, trabajando"><span class="pj" style="--c:var(--verde)">mg</span><span class="n">mis-gastos-app</span><i class="w"></i><span class="ct">2</span></button>
+            <button class="rch" style="--i:4" title="quintechlab/scratch-2026-11-27-d5bfc1" aria-label="scratch-2026-11-27-d5bfc1, 1 sesión"><span class="pj" style="--c:var(--verde)">s2</span><span class="n">scratch <small>· d5bfc1</small></span></button>
+            <button class="rch mas" style="--i:5" aria-expanded="false" aria-label="3 repos más: webs-portfolio, brasa-noble, temple-barberia"><span class="pts" aria-hidden="true"><i style="--c:var(--violeta)"></i><i style="--c:var(--rosa)"></i><i style="--c:var(--verde)"></i></span><span class="lbl">+3</span></button>
+          </nav>
+          <div class="conteos"><span class="conteo"><i style="--c:var(--ambar)"></i><b>1</b>trabajando</span><span class="conteo"><i style="--c:var(--verde)"></i><b>2</b>terminados</span><span class="conteo"><b>49</b>min lleva</span></div>
+          <div class="stub"></div>
+        </div>
+      </div>
+      <div>
+        <p class="mk-l">15 repos <em>lo mismo, +10</em></p>
+        <div class="col">
+          <div class="cab"><div class="h">Sesiones</div><div class="s">oficina · 3 sesiones · 2 subagentes trabajando</div></div>
+          <nav class="tira-a cap anim" aria-label="Repos">
+            <button class="rch" style="--i:0" title="quintechlab/catalogo" aria-label="catalogo, 1 pregunta pendiente"><span class="pj" style="--c:var(--rosa)">c</span><span class="n">catalogo</span><span class="ct q">1 ?</span></button>
+            <button class="rch" style="--i:1" aria-current="true" title="quintechlab/oficina" aria-label="oficina, 3 sesiones, trabajando, elegido"><span class="pj" style="--c:var(--ambar)">o</span><span class="n">oficina</span><i class="w"></i><span class="ct">3</span></button>
+            <button class="rch" style="--i:2" title="quintechlab/quintech-crm" aria-label="quintech-crm, 2 sesiones, trabajando"><span class="pj" style="--c:var(--celeste)">qc</span><span class="n">quintech-crm</span><i class="w"></i><span class="ct">2</span></button>
+            <button class="rch" style="--i:3" title="quintechlab/mis-gastos-app" aria-label="mis-gastos-app, 2 sesiones, trabajando"><span class="pj" style="--c:var(--verde)">mg</span><span class="n">mis-gastos-app</span><i class="w"></i><span class="ct">2</span></button>
+            <button class="rch" style="--i:4" title="quintechlab/bot-soporte" aria-label="bot-soporte, 1 sesión, trabajando"><span class="pj" style="--c:var(--violeta)">bs</span><span class="n">bot-soporte</span><i class="w"></i></button>
+            <button class="rch mas" style="--i:5" aria-expanded="false" aria-label="10 repos más"><span class="pts" aria-hidden="true"><i style="--c:var(--verde)"></i><i style="--c:var(--violeta)"></i><i style="--c:var(--rosa)"></i><i style="--c:var(--celeste)"></i></span><span class="lbl">+10</span></button>
+          </nav>
+          <div class="conteos"><span class="conteo"><i style="--c:var(--ambar)"></i><b>1</b>trabajando</span><span class="conteo"><i style="--c:var(--verde)"></i><b>2</b>terminados</span><span class="conteo"><b>49</b>min lleva</span></div>
+          <div class="stub"></div>
+        </div>
+      </div>
+      <div>
+        <p class="mk-l">15 · «+10» abierto <em>foco en brasa-noble</em></p>
+        <div class="col alto">
+          <div class="cab"><div class="h">Sesiones</div><div class="s">oficina · 3 sesiones · 2 subagentes trabajando</div></div>
+          <nav class="tira-a cap" aria-label="Repos">
+            <button class="rch" title="quintechlab/catalogo"><span class="pj" style="--c:var(--rosa)">c</span><span class="n">catalogo</span><span class="ct q">1 ?</span></button>
+            <button class="rch" aria-current="true" title="quintechlab/oficina"><span class="pj" style="--c:var(--ambar)">o</span><span class="n">oficina</span><i class="w"></i><span class="ct">3</span></button>
+            <button class="rch" title="quintechlab/quintech-crm"><span class="pj" style="--c:var(--celeste)">qc</span><span class="n">quintech-crm</span><i class="w"></i><span class="ct">2</span></button>
+            <button class="rch" title="quintechlab/mis-gastos-app"><span class="pj" style="--c:var(--verde)">mg</span><span class="n">mis-gastos-app</span><i class="w"></i><span class="ct">2</span></button>
+            <button class="rch" title="quintechlab/bot-soporte"><span class="pj" style="--c:var(--violeta)">bs</span><span class="n">bot-soporte</span><i class="w"></i></button>
+            <button class="rch mas" aria-expanded="true" aria-controls="pop-a" aria-label="10 repos más"><span class="pts" aria-hidden="true"><i style="--c:var(--verde)"></i><i style="--c:var(--violeta)"></i><i style="--c:var(--rosa)"></i><i style="--c:var(--celeste)"></i></span><span class="lbl">+10</span></button>
+          </nav>
+          <div class="pop" id="pop-a" role="dialog" aria-label="10 repos más" style="top:150px">
+            <div class="pop-h"><span>10 repos más</span><span><kbd>Esc</kbd> cierra</span></div>
+            <p class="grp">Esperan tu mensaje</p>
+            <div class="filas">
+              <button class="pf" style="--i:0" title="quintechlab/scratch-2026-11-27-d5bfc1"><span class="pj" style="--c:var(--verde)">s2</span><span class="nm">scratch-2026-11-27-d5bfc1</span></button>
+              <button class="pf" style="--i:1"><span class="pj" style="--c:var(--violeta)">wp</span><span class="nm">webs-portfolio</span><span class="meta">4 min</span></button>
+              <button class="pf activa foco" style="--i:2"><span class="pj" style="--c:var(--rosa)">bn</span><span class="nm">brasa-noble</span><span class="meta">12 min</span></button>
+              <button class="pf" style="--i:3"><span class="pj" style="--c:var(--celeste)">na</span><span class="nm">nucleo-api</span><span class="meta">18 min</span></button>
+              <button class="pf" style="--i:4"><span class="pj" style="--c:var(--ambar)">dm</span><span class="nm">datos-migracion-2026</span></button>
+            </div>
+            <p class="grp">Dormidas</p>
+            <div class="filas">
+              <button class="pf dz" style="--i:5"><span class="pj" style="--c:var(--verde)">tb</span><span class="nm">temple-barberia</span><span class="meta">2 h</span></button>
+              <button class="pf dz" style="--i:6"><span class="pj" style="--c:var(--celeste)">p</span><span class="nm">playbook</span><span class="meta">5 h</span></button>
+              <button class="pf dz" style="--i:7"><span class="pj" style="--c:var(--violeta)">lv</span><span class="nm">landing-verano</span><span class="meta">ayer</span></button>
+              <button class="pf dz" style="--i:8"><span class="pj" style="--c:var(--rosa)">dt</span><span class="nm">design-tokens</span><span class="meta">ayer</span></button>
+              <button class="pf dz" style="--i:9"><span class="pj" style="--c:var(--verde)">id</span><span class="nm">infra-deploy</span><span class="meta">2 d</span></button>
+            </div>
+          </div>
+          <div class="stub"></div>
+        </div>
+      </div>
+    </div>
+    <div class="notas">
+      <div class="nota"><h3>Qué cambia y por qué</h3><p>La tira crece a dos renglones (32 → 70 px) en vez de esconder a la derecha. El orden pone arriba lo que te necesita, así «1 ?» nunca queda en el «+n». Los nombres se siguen leyendo: un clic a cualquier repo visible.</p></div>
+      <div class="nota"><h3>Teclado</h3><p><kbd>←</kbd> <kbd>→</kbd> cambian de repo como hoy, en orden de lectura; al llegar a «+n» solo lo enfocan. <kbd>Enter</kbd> o <kbd>↓</kbd> abren la lista; adentro <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> por la grilla, <kbd>Enter</kbd> elige, <kbd>Esc</kbd> vuelve al «+n». El elegido siempre se ve: toma el último lugar visible.</p></div>
+      <div class="nota"><h3>Firma, movimiento y costo</h3><p><b>Firma:</b> los puntos del «+n» son los colores de lo que guarda. <b>Mueve:</b> entrada 260 ms, 30 ms entre chips (tope 8); la lista abre en 220 ms y cierra en 140; «1 ?» late dos veces. <b>Costo:</b> la tira mide en JS cuántos entran (como <code>anchoLibreTira</code>); 38 px menos para las tarjetas.</p></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ B -->
+  <section aria-labelledby="h-b">
+    <div class="op-h"><span class="letra">B</span><h2 id="h-b">Selector y «en marcha»</h2></div>
+    <p class="idea">Un solo botón con el repo elegido, <b>«oficina ▾»</b>, que abre una lista agrupada y con filtro. A su lado, en monogramas, <b>solo los repos en marcha</b> (te preguntan o trabajan): lo importante sigue a un clic, lo demás a dos. La altura no cambia nunca.</p>
+    <div class="mocks">
+      <div>
+        <p class="mk-l">3 repos <em>en marcha: catalogo</em></p>
+        <div class="col">
+          <div class="cab"><div class="h">Sesiones</div><div class="s">3 sesiones · 2 subagentes trabajando</div></div>
+          <div class="sel-fila anim">
+            <button class="sel" style="--i:0" aria-haspopup="listbox" aria-expanded="false" aria-label="Repo: oficina, 3 sesiones. 3 repos"><span class="pj" style="--c:var(--ambar)">o</span><span class="nm">oficina</span><span class="sub">3 sesiones</span><span class="de">3</span><span class="car" aria-hidden="true">▾</span></button>
+            <div class="atj" style="--i:1"><span class="lbl">En marcha</span>
+              <button class="mg q" aria-label="catalogo, 1 pregunta pendiente"><span>c</span><span class="bdg">?</span><span class="et">catalogo<small>1 pregunta</small></span></button>
+            </div>
+          </div>
+          <div class="conteos"><span class="conteo"><i style="--c:var(--ambar)"></i><b>1</b>trabajando</span><span class="conteo"><i style="--c:var(--verde)"></i><b>2</b>terminados</span><span class="conteo"><b>49</b>min lleva</span></div>
+          <div class="stub"></div>
+        </div>
+      </div>
+      <div>
+        <p class="mk-l">8 repos <em>en marcha: 3</em></p>
+        <div class="col">
+          <div class="cab"><div class="h">Sesiones</div><div class="s">3 sesiones · 2 subagentes trabajando</div></div>
+          <div class="sel-fila anim">
+            <button class="sel" style="--i:0" aria-haspopup="listbox" aria-expanded="false" aria-label="Repo: oficina, 3 sesiones. 8 repos"><span class="pj" style="--c:var(--ambar)">o</span><span class="nm">oficina</span><span class="sub">3 sesiones</span><span class="de">8</span><span class="car" aria-hidden="true">▾</span></button>
+            <div class="atj" style="--i:1"><span class="lbl">En marcha</span>
+              <button class="mg q" aria-label="catalogo, 1 pregunta pendiente"><span>c</span><span class="bdg">?</span><span class="et">catalogo<small>1 pregunta</small></span></button>
+              <button class="mg" style="--c:var(--celeste)" aria-label="quintech-crm, trabajando"><span>qc</span><i class="orb"></i><span class="et">quintech-crm<small>2 sesiones · trabajando</small></span></button>
+              <button class="mg" style="--c:var(--verde)" aria-label="mis-gastos-app, trabajando"><span>mg</span><i class="orb"></i><span class="et">mis-gastos-app<small>2 sesiones · trabajando</small></span></button>
+            </div>
+          </div>
+          <div class="conteos"><span class="conteo"><i style="--c:var(--ambar)"></i><b>1</b>trabajando</span><span class="conteo"><i style="--c:var(--verde)"></i><b>2</b>terminados</span><span class="conteo"><b>49</b>min lleva</span></div>
+          <div class="stub"></div>
+        </div>
+      </div>
+      <div>
+        <p class="mk-l">15 repos <em>misma altura</em></p>
+        <div class="col">
+          <div class="cab"><div class="h">Sesiones</div><div class="s">3 sesiones · 2 subagentes trabajando</div></div>
+          <div class="sel-fila anim">
+            <button class="sel" style="--i:0" aria-haspopup="listbox" aria-expanded="false" aria-label="Repo: oficina, 3 sesiones. 15 repos"><span class="pj" style="--c:var(--ambar)">o</span><span class="nm">oficina</span><span class="sub">3 sesiones</span><span class="de">15</span><span class="car" aria-hidden="true">▾</span></button>
+            <div class="atj" style="--i:1"><span class="lbl">En marcha</span>
+              <button class="mg q" aria-label="catalogo, 1 pregunta pendiente"><span>c</span><span class="bdg">?</span><span class="et">catalogo<small>1 pregunta</small></span></button>
+              <button class="mg" style="--c:var(--celeste)" aria-label="quintech-crm, trabajando"><span>qc</span><i class="orb"></i><span class="et">quintech-crm<small>2 sesiones · trabajando</small></span></button>
+              <button class="mg" style="--c:var(--verde)" aria-label="mis-gastos-app, trabajando"><span>mg</span><i class="orb"></i><span class="et">mis-gastos-app<small>2 sesiones · trabajando</small></span></button>
+              <button class="mg" style="--c:var(--violeta)" aria-label="bot-soporte, trabajando"><span>bs</span><i class="orb"></i><span class="et">bot-soporte<small>1 sesión · trabajando</small></span></button>
+            </div>
+          </div>
+          <div class="conteos"><span class="conteo"><i style="--c:var(--ambar)"></i><b>1</b>trabajando</span><span class="conteo"><i style="--c:var(--verde)"></i><b>2</b>terminados</span><span class="conteo"><b>49</b>min lleva</span></div>
+          <div class="stub"></div>
+        </div>
+      </div>
+      <div>
+        <p class="mk-l">15 · abierto <em>tecleaste «b»</em></p>
+        <div class="col alto">
+          <div class="cab"><div class="h">Sesiones</div><div class="s">3 sesiones · 2 subagentes trabajando</div></div>
+          <div class="sel-fila">
+            <button class="sel" aria-haspopup="listbox" aria-expanded="true" aria-controls="lb-b"><span class="pj" style="--c:var(--ambar)">o</span><span class="nm">oficina</span><span class="sub">3 sesiones</span><span class="de">15</span><span class="car" aria-hidden="true">▾</span></button>
+          </div>
+          <div class="lb" style="top:118px">
+            <div class="busca" aria-hidden="true">b<span class="cur"></span><span style="margin-left:auto">↑↓ · Enter</span></div>
+            <div id="lb-b" role="listbox" aria-label="Repos">
+              <p class="grp" role="presentation">Te pregunta</p>
+              <div class="pf" role="option" aria-selected="false" style="--i:0"><span class="chk"></span><span class="pj" style="--c:var(--rosa)">c</span><span class="nm">catalogo</span><span class="ct q" style="margin-left:auto">1 ?</span></div>
+              <p class="grp" role="presentation">Trabajando</p>
+              <div class="pf" role="option" aria-selected="true" style="--i:1"><span class="chk">✓</span><span class="pj" style="--c:var(--ambar)">o</span><span class="nm">oficina</span><span class="meta">3 sesiones</span></div>
+              <div class="pf activa" role="option" aria-selected="false" style="--i:2"><span class="chk"></span><span class="pj" style="--c:var(--violeta)">bs</span><span class="nm"><b>b</b>ot-soporte</span><span class="meta">1 sesión</span></div>
+              <p class="grp" role="presentation">Esperan tu mensaje</p>
+              <div class="pf" role="option" aria-selected="false" style="--i:3"><span class="chk"></span><span class="pj" style="--c:var(--rosa)">bn</span><span class="nm"><b>b</b>rasa-noble</span><span class="meta">12 min</span></div>
+              <button class="mas-dz" style="margin-top:8px">Las otras 11 no coinciden · <kbd>Esc</kbd> borra el filtro</button>
+            </div>
+          </div>
+          <div class="stub"></div>
+        </div>
+      </div>
+    </div>
+    <div class="notas">
+      <div class="nota"><h3>Qué cambia y por qué</h3><p>El repo elegido pasa a ser un título que se toca, y la lista vive aparte. Con 15 o 40 repos la columna no se mueve un píxel. Escribir dos letras encuentra cualquier repo, aunque no recuerdes su color.</p></div>
+      <div class="nota"><h3>Teclado</h3><p>Patrón combobox. Cerrado, <kbd>←</kbd> <kbd>→</kbd> cambian de repo sin abrir (como hoy). <kbd>↓</kbd>, <kbd>Enter</kbd> o una letra abren y filtran; <kbd>↑</kbd> <kbd>↓</kbd> mueven, <kbd>Enter</kbd> elige y cierra, <kbd>Esc</kbd> cierra con el foco en el botón. Los de «En marcha» son botones con <kbd>Tab</kbd>.</p></div>
+      <div class="nota"><h3>Firma, movimiento y costo</h3><p><b>Firma:</b> «En marcha» con la luz que gira alrededor del que trabaja (la de los hilos del escenario). <b>Mueve:</b> la lista abre 220 ms desde el botón, filas a 20 ms (tope 10), ▾ gira 200 ms. <b>Costo:</b> un repo que espera tu mensaje queda a dos clics; ya no ves todos los nombres de un vistazo.</p></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ C -->
+  <section aria-labelledby="h-c">
+    <div class="op-h"><span class="letra">C</span><h2 id="h-c">Monogramas</h2></div>
+    <p class="idea">Mientras los nombres entran, chips como hoy. Cuando no, <b>solo el elegido conserva su nombre</b> y los demás se vuelven monogramas de 30 con su estado en el anillo: ámbar lleno si te pregunta, una luz que gira si trabaja, punteado si duerme. Las dormidas se pliegan en <b>«+5»</b>.</p>
+    <div class="mocks">
+      <div>
+        <p class="mk-l">3 repos <em>entran: chips con nombre</em></p>
+        <div class="col">
+          <div class="cab"><div class="h">Sesiones</div><div class="s">oficina · 3 sesiones · 2 subagentes trabajando</div></div>
+          <nav class="tira-c cap anim" aria-label="Repos">
+            <button class="rch" style="--i:0" title="quintechlab/catalogo" aria-label="catalogo, 1 pregunta pendiente"><span class="pj" style="--c:var(--rosa)">c</span><span class="n">catalogo</span><span class="ct q">1 ?</span></button>
+            <button class="rch" style="--i:1;margin:0 2px" aria-current="true" title="quintechlab/oficina" aria-label="oficina, 3 sesiones, trabajando, elegido"><span class="pj" style="--c:var(--ambar)">o</span><span class="n">oficina</span><i class="w"></i><span class="ct">3</span></button>
+            <button class="rch" style="--i:2" title="quintechlab/scratch-2026-11-27-d5bfc1" aria-label="scratch-2026-11-27-d5bfc1, 1 sesión"><span class="pj" style="--c:var(--verde)">s2</span><span class="n">scratch <small>· d5bfc1</small></span></button>
+          </nav>
+          <div class="conteos"><span class="conteo"><i style="--c:var(--ambar)"></i><b>1</b>trabajando</span><span class="conteo"><i style="--c:var(--verde)"></i><b>2</b>terminados</span><span class="conteo"><b>49</b>min lleva</span></div>
+          <div class="stub"></div>
+        </div>
+      </div>
+      <div>
+        <p class="mk-l">8 repos <em>una fila, todos a la vista</em></p>
+        <div class="col">
+          <div class="cab"><div class="h">Sesiones</div><div class="s">oficina · 3 sesiones · 2 subagentes trabajando</div></div>
+          <nav class="tira-c cap anim vive" aria-label="Repos">
+            <button class="mg q" style="--i:0" aria-label="catalogo, 1 pregunta pendiente"><span>c</span><span class="bdg">?</span><span class="et">catalogo<small>1 pregunta</small></span></button>
+            <button class="rch" style="--i:1;margin:0 2px" aria-current="true" title="quintechlab/oficina" aria-label="oficina, 3 sesiones, trabajando, elegido"><span class="pj" style="--c:var(--ambar)">o</span><span class="n">oficina</span><i class="w"></i><span class="ct">3</span></button>
+            <button class="mg" style="--i:2;--c:var(--celeste)" aria-label="quintech-crm, 2 sesiones, trabajando"><span>qc</span><i class="orb"></i><span class="et">quintech-crm<small>2 sesiones · trabajando</small></span></button>
+            <button class="mg" style="--i:3;--c:var(--verde)" aria-label="mis-gastos-app, 2 sesiones, trabajando"><span>mg</span><i class="orb"></i><span class="et">mis-gastos-app<small>2 sesiones · trabajando</small></span></button>
+            <button class="mg" style="--i:4;--c:var(--verde)" aria-label="scratch-2026-11-27-d5bfc1, espera tu mensaje"><span>s2</span><span class="et">scratch · d5bfc1<small>espera tu mensaje</small></span></button>
+            <button class="mg" style="--i:5;--c:var(--violeta)" aria-label="webs-portfolio, espera tu mensaje"><span>wp</span><span class="et">webs-portfolio<small>espera tu mensaje</small></span></button>
+            <button class="mg" style="--i:6;--c:var(--rosa)" aria-label="brasa-noble, espera tu mensaje"><span>bn</span><span class="et">brasa-noble<small>espera tu mensaje</small></span></button>
+            <button class="mg d" style="--i:7;--c:var(--verde)" aria-label="temple-barberia, dormida"><span>tb</span><span class="et">temple-barberia<small>dormida · 2 h</small></span></button>
+          </nav>
+          <div class="conteos"><span class="conteo"><i style="--c:var(--ambar)"></i><b>1</b>trabajando</span><span class="conteo"><i style="--c:var(--verde)"></i><b>2</b>terminados</span><span class="conteo"><b>49</b>min lleva</span></div>
+          <div class="stub"></div>
+        </div>
+      </div>
+      <div>
+        <p class="mk-l">15 repos <em>las 5 dormidas, plegadas</em></p>
+        <div class="col">
+          <div class="cab"><div class="h">Sesiones</div><div class="s">oficina · 3 sesiones · 2 subagentes trabajando</div></div>
+          <nav class="tira-c cap anim vive" aria-label="Repos">
+            <button class="mg q" style="--i:0" aria-label="catalogo, 1 pregunta pendiente"><span>c</span><span class="bdg">?</span><span class="et">catalogo<small>1 pregunta</small></span></button>
+            <button class="rch" style="--i:1;margin:0 2px" aria-current="true" title="quintechlab/oficina" aria-label="oficina, 3 sesiones, trabajando, elegido"><span class="pj" style="--c:var(--ambar)">o</span><span class="n">oficina</span><i class="w"></i><span class="ct">3</span></button>
+            <button class="mg" style="--i:2;--c:var(--celeste)" aria-label="quintech-crm, trabajando"><span>qc</span><i class="orb"></i><span class="et">quintech-crm<small>2 sesiones · trabajando</small></span></button>
+            <button class="mg" style="--i:3;--c:var(--verde)" aria-label="mis-gastos-app, trabajando"><span>mg</span><i class="orb"></i><span class="et">mis-gastos-app<small>2 sesiones · trabajando</small></span></button>
+            <button class="mg" style="--i:4;--c:var(--violeta)" aria-label="bot-soporte, trabajando"><span>bs</span><i class="orb"></i><span class="et">bot-soporte<small>1 sesión · trabajando</small></span></button>
+            <button class="mg" style="--i:5;--c:var(--verde)" aria-label="scratch-2026-11-27-d5bfc1, espera tu mensaje"><span>s2</span><span class="et">scratch · d5bfc1<small>espera tu mensaje</small></span></button>
+            <button class="mg" style="--i:6;--c:var(--violeta)" aria-label="webs-portfolio, espera tu mensaje"><span>wp</span><span class="et">webs-portfolio<small>espera tu mensaje</small></span></button>
+            <button class="mg" style="--i:7;--c:var(--rosa)" aria-label="brasa-noble, espera tu mensaje"><span>bn</span><span class="et">brasa-noble<small>espera tu mensaje</small></span></button>
+            <button class="mg" style="--i:8;--c:var(--celeste)" aria-label="nucleo-api, espera tu mensaje"><span>na</span><span class="et">nucleo-api<small>espera tu mensaje</small></span></button>
+            <button class="mg" style="--i:8;--c:var(--ambar)" aria-label="datos-migracion-2026, espera tu mensaje"><span>dm</span><span class="et">datos-migracion-2026<small>espera tu mensaje</small></span></button>
+            <button class="pliegue" style="--i:8" aria-expanded="false" aria-label="5 repos dormidos">+5</button>
+          </nav>
+          <div class="conteos"><span class="conteo"><i style="--c:var(--ambar)"></i><b>1</b>trabajando</span><span class="conteo"><i style="--c:var(--verde)"></i><b>2</b>terminados</span><span class="conteo"><b>49</b>min lleva</span></div>
+          <div class="stub"></div>
+        </div>
+      </div>
+      <div>
+        <p class="mk-l">15 · teclado <em>foco en mis-gastos-app</em></p>
+        <div class="col">
+          <div class="cab"><div class="h">Sesiones</div><div class="s">oficina · 3 sesiones · 2 subagentes trabajando</div></div>
+          <nav class="tira-c cap" aria-label="Repos">
+            <button class="mg q" aria-label="catalogo, 1 pregunta pendiente"><span>c</span><span class="bdg">?</span><span class="et">catalogo<small>1 pregunta</small></span></button>
+            <button class="rch" style="margin:0 2px" aria-current="true" aria-label="oficina, elegido"><span class="pj" style="--c:var(--ambar)">o</span><span class="n">oficina</span><i class="w"></i><span class="ct">3</span></button>
+            <button class="mg" style="--c:var(--celeste)" aria-label="quintech-crm"><span>qc</span><i class="orb"></i><span class="et">quintech-crm<small>2 sesiones · trabajando</small></span></button>
+            <button class="mg ver foco" style="--c:var(--verde)" aria-label="mis-gastos-app"><span>mg</span><i class="orb"></i><span class="et">mis-gastos-app<small>2 sesiones · trabajando · Enter elige</small></span></button>
+            <button class="mg" style="--c:var(--violeta)" aria-label="bot-soporte"><span>bs</span><i class="orb"></i><span class="et">bot-soporte<small>1 sesión · trabajando</small></span></button>
+            <button class="mg" style="--c:var(--verde)" aria-label="scratch"><span>s2</span><span class="et">scratch · d5bfc1<small>espera tu mensaje</small></span></button>
+            <button class="mg" style="--c:var(--violeta)" aria-label="webs-portfolio"><span>wp</span><span class="et">webs-portfolio<small>espera tu mensaje</small></span></button>
+            <button class="mg" style="--c:var(--rosa)" aria-label="brasa-noble"><span>bn</span><span class="et">brasa-noble<small>espera tu mensaje</small></span></button>
+            <button class="mg" style="--c:var(--celeste)" aria-label="nucleo-api"><span>na</span><span class="et">nucleo-api<small>espera tu mensaje</small></span></button>
+            <button class="mg" style="--c:var(--ambar)" aria-label="datos-migracion-2026"><span>dm</span><span class="et">datos-migracion-2026<small>espera tu mensaje</small></span></button>
+            <button class="pliegue" aria-label="5 repos dormidos">+5</button>
+          </nav>
+          <div class="conteos" style="margin-top:34px"><span class="conteo"><i style="--c:var(--ambar)"></i><b>1</b>trabajando</span><span class="conteo"><i style="--c:var(--verde)"></i><b>2</b>terminados</span><span class="conteo"><b>49</b>min lleva</span></div>
+          <div class="stub"></div>
+        </div>
+      </div>
+    </div>
+    <div class="notas">
+      <div class="nota"><h3>Qué cambia y por qué</h3><p>Una fila de 36 px para 15 repos, y el estado de cada uno se ve sin leer: el ámbar te llama, la luz dice «trabaja», el punteado «duerme». Con pocos repos no cambia nada respecto de hoy.</p></div>
+      <div class="nota"><h3>Teclado</h3><p><kbd>←</kbd> <kbd>→</kbd> cambian de repo como hoy: el elegido despliega su nombre y el anterior se vuelve monograma. El monograma con foco o mouse muestra su nombre abajo, sin correr a los vecinos. <kbd>Enter</kbd> en «+5» abre las dormidas (la misma lista de A).</p></div>
+      <div class="nota"><h3>Firma, movimiento y costo</h3><p><b>Firma:</b> el anillo con la luz que gira, la de los hilos del escenario. <b>Mueve:</b> el nombre del elegido entra en 320 ms, la luz da una vuelta cada 2,4 s (quieta arriba con movimiento reducido o pausa). <b>Costo:</b> las iniciales y el color no identifican solos (dos «s2» posibles); hay que pasar el mouse.</p></div>
+    </div>
+  </section>
+
+  <div class="reco">
+    <h2>Mi recomendación: A · Dos renglones</h2>
+    <p><b>A</b> es la que menos te cambia la costumbre: los nombres se siguen leyendo, ← → funcionan igual y lo urgente nunca queda escondido. Con 15 repos ves los 6 que importan y el resto a un clic, agrupado. <b>B</b> gana si los repos pasan de 20 de forma habitual (es la única que no crece); <b>C</b> es la más densa, pero obliga a recordar colores e iniciales.</p>
+  </div>
+</main>
+</body>
+</html>
